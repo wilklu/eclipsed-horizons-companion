@@ -24,7 +24,7 @@ router.get("/", (req, res) => {
 // GET single system
 router.get("/:id", (req, res) => {
   const id = req.params.id;
-  db.get("SELECT * FROM star_systems WHERE id = ?", [id], (err, row) => {
+  db.get("SELECT * FROM star_systems WHERE system_id = ?", [id], (err, row) => {
     if (err) {
       res.status(500).json({ error: err.message });
       return;
@@ -50,7 +50,7 @@ router.post("/generate", (req, res) => {
 // DELETE system
 router.delete("/:id", (req, res) => {
   const id = req.params.id;
-  db.run("DELETE FROM star_systems WHERE id = ?", [id], function (err) {
+  db.run("DELETE FROM star_systems WHERE system_id = ?", [id], function (err) {
     if (err) {
       res.status(500).json({ error: err.message });
       return;
