@@ -1,0 +1,24 @@
+{
+  "name": "eclipsed-horizons-companion",
+  "version": "1.0.0",
+  "description": "A comprehensive companion tool for creating custom TTRPG universes using Cepheus and Traveller rulesets.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wilklu/eclipsed-horizons-companion.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/wilklu/eclipsed-horizons-companion/issues"
+  },
+  "homepage": "https://github.com/wilklu/eclipsed-horizons-companion#readme"
+}
