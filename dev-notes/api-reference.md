@@ -25,30 +25,10 @@ GET /health
 }
 ```
 
-**Request**
-
-````
-GET /systems
-
-**Response (200):**
-
-```json
-[
-  {
-    "id": 1,
-    "sector": "Orion",
-    "subsector": "Alpha-1",
-    "system_name": "Sol System",
-    "seed": 12345,
-    "created_at": "2024-01-15T10:30:00.000Z",
-    "updated_at": "2024-01-15T10:30:00.000Z"
-  }
-]
-````
-
 ### Get All Systems
 
 Retrieve all star systems
+**Request**
 
 ```api_syntax
 GET /systems
