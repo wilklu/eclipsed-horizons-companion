@@ -22,8 +22,9 @@
 
 ### Key Online Resources
 
-- [Link 1]: Description
-- [Link 2]: Description
+- [travellermap.com]: Traveller Map
+- [travellerworlds.com]: Star System and World toolset
+- [https://www.orffenspace.com/cepheus-srd/introduction.html]: Cepheus Engine System Reference Document.
 
 ### Unique Design Decisions
 
