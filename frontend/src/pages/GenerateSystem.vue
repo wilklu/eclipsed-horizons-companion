@@ -1,54 +1,43 @@
 <template>
   <div class="generate-system">
-    <h2>Generate Star System</h2>
+    <h2>Survey Forms Suite</h2>
 
-    <div class="form-container">
-      <h3>System Parameters</h3>
-
-      <div class="form-group">
-        <label>Sector Name:</label>
-        <input v-model="formData.sector" type="text" placeholder="e.g., Orion Spur" class="form-input" />
-      </div>
-
-      <div class="form-group">
-        <label>Subsector Name:</label>
-        <input v-model="formData.subsector_name" type="text" placeholder="e.g., Alpha-1" class="form-input" />
-      </div>
-
-      <div class="form-group">
-        <label>System Name:</label>
-        <input v-model="formData.system_name" type="text" placeholder="e.g., Sol System" class="form-input" />
-      </div>
-
-      <div class="form-group">
-        <label>Seed (for reproducibility):</label>
-        <input
-          v-model.number="formData.system_seed"
-          type="number"
-          placeholder="Leave blank for random"
-          class="form-input"
-        />
-        <button @click="generateRandomSeed" class="btn-small">🎲 Random Seed</button>
-      </div>
-
-      <div class="button-group">
-        <button @click="generateSystem" class="btn btn-primary" :disabled="isGenerating">
-          {{ isGenerating ? "Generating..." : "⚡ Generate System" }}
-        </button>
-        <button @click="resetForm" class="btn btn-secondary">Reset</button>
-      </div>
+    <div class="survey-tabs">
+      <button @click="activeTab = 'hex-map'" :class="{ active: activeTab === 'hex-map' }" class="tab-btn">
+        🗺️ Hex Map (Interactive)
+      </button>
+      <button @click="activeTab = 'physical'" :class="{ active: activeTab === 'physical' }" class="tab-btn">
+        World Physical Survey
+      </button>
+      <button @click="activeTab = 'gas-giant'" :class="{ active: activeTab === 'gas-giant' }" class="tab-btn">
+        Gas Giant Survey
+      </button>
+      <button @click="activeTab = 'census'" :class="{ active: activeTab === 'census' }" class="tab-btn">
+        Census Survey
+      </button>
+      <button @click="activeTab = 'subunit'" :class="{ active: activeTab === 'subunit' }" class="tab-btn">
+        Census Subunit Profile
+      </button>
     </div>
 
-    <!-- Preview Section -->
-    <div v-if="generatedSystem" class="preview-container">
-      <h3>Preview</h3>
-      <div class="preview-data">
-        <pre>{{ JSON.stringify(generatedSystem, null, 2) }}</pre>
-      </div>
-      <div class="button-group">
-        <button @click="saveSystem" class="btn btn-primary">💾 Save System</button>
-        <button @click="clearGenerated" class="btn btn-secondary">Clear</button>
-      </div>
+    <div v-if="activeTab === 'hex-map'" class="form-container">
+      <WorldHexMapFormAdvanced />
+    </div>
+
+    <div v-if="activeTab === 'physical'" class="form-container">
+      <WorldPhysicalSurveyForm />
+    </div>
+
+    <div v-if="activeTab === 'gas-giant'" class="form-container">
+      <GasGiantSurveyForm />
+    </div>
+
+    <div v-if="activeTab === 'census'" class="form-container">
+      <WorldCensusSurveyForm />
+    </div>
+
+    <div v-if="activeTab === 'subunit'" class="form-container">
+      <CensusSubunitProfileForm />
     </div>
   </div>
 </template>
@@ -58,9 +47,19 @@ import { ref } from "vue";
 import { useRouter } from "vue-router";
 import { useSystemStore } from "../stores/systemStore";
 import { systemApi } from "../api/systemApi";
+import StellarSurveyForm from "../components/forms/StellarSurveyForm.vue";
+import SystemSurveyForm from "../components/forms/SystemSurveyForm.vue";
+import PlanetarySurveyForm from "../components/forms/PlanetarySurveyForm.vue";
+import WorldPhysicalSurveyForm from "../components/forms/WorldPhysicalSurveyForm.vue";
+import GasGiantPhysicalSurveyForm from "../components/forms/GasGiantPhysicalSurveyForm.vue";
+import WorldCensusSurveyForm from "../components/forms/WorldCensusSurveyForm.vue";
+import CensusSubunitProfileForm from "../components/forms/CensusSubunitProfileForm.vue";
+import WorldHexMapFormAdvanced from "../components/forms/WorldHexMapFormAdvanced.vue";
 
 const router = useRouter();
 const systemStore = useSystemStore();
+
+const activeTab = ref("hex-map");
 
 const formData = ref({
   sector: "",
@@ -136,136 +135,59 @@ const resetForm = () => {
 
 <style scoped>
 .generate-system {
-  max-width: 900px;
+  max-width: 1200px;
   margin: 0 auto;
 }
 
 h2 {
-  color: #00d9ff;
+  color: #1a1a2e;
   margin-bottom: 2rem;
   font-size: 2rem;
 }
 
-h3 {
-  color: #00d9ff;
-  margin-top: 2rem;
-  margin-bottom: 1rem;
+.survey-tabs {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 2rem;
+  border-bottom: 2px solid #1a1a2e;
+  flex-wrap: wrap;
+  overflow-x: auto;
+}
+
+.tab-btn {
+  padding: 1rem;
+  border: none;
+  background: transparent;
+  color: #a0a0a0;
+  font-size: 1rem;
+  font-weight: bold;
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  transition: all 0.3s;
+  white-space: nowrap;
+}
+
+.tab-btn:hover {
+  color: #1a1a2e;
+}
+
+.tab-btn.active {
+  color: #1a1a2e;
+  border-bottom-color: #1a1a2e;
 }
 
 .form-container {
-  background-color: #1a1a1a;
-  border: 2px solid #00d9ff;
-  border-radius: 8px;
-  padding: 2rem;
-  margin-bottom: 2rem;
+  animation: fadeIn 0.3s ease-in;
 }
 
-.form-group {
-  margin-bottom: 1.5rem;
-}
-
-.form-group label {
-  display: block;
-  color: #e0e0e0;
-  margin-bottom: 0.5rem;
-  font-weight: bold;
-}
-
-.form-input {
-  width: 100%;
-  padding: 0.75rem;
-  background-color: #0f0f0f;
-  border: 1px solid #00d9ff;
-  color: #e0e0e0;
-  border-radius: 4px;
-  font-size: 1rem;
-  transition: all 0.3s;
-}
-
-.form-input:focus {
-  outline: none;
-  border-color: #00ffff;
-  box-shadow: 0 0 8px rgba(0, 217, 255, 0.5);
-}
-
-.btn-small {
-  margin-top: 0.5rem;
-  padding: 0.5rem 1rem;
-  background-color: #333;
-  color: #00d9ff;
-  border: 1px solid #00d9ff;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.3s;
-}
-
-.btn-small:hover {
-  background-color: rgba(0, 217, 255, 0.2);
-}
-
-.button-group {
-  display: flex;
-  gap: 1rem;
-  margin-top: 2rem;
-}
-
-.btn {
-  flex: 1;
-  padding: 0.75rem;
-  border: none;
-  border-radius: 4px;
-  font-weight: bold;
-  cursor: pointer;
-  transition: all 0.3s;
-  font-size: 1rem;
-}
-
-.btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.btn-primary {
-  background-color: #00d9ff;
-  color: #000;
-}
-
-.btn-primary:hover:not(:disabled) {
-  background-color: #00ffff;
-  box-shadow: 0 0 15px #00d9ff;
-}
-
-.btn-secondary {
-  background-color: #333;
-  color: #00d9ff;
-  border: 1px solid #00d9ff;
-}
-
-.btn-secondary:hover {
-  background-color: #444;
-}
-
-.preview-container {
-  background-color: #1a1a1a;
-  border: 2px solid #00d9ff;
-  border-radius: 8px;
-  padding: 2rem;
-}
-
-.preview-data {
-  background-color: #0f0f0f;
-  border: 1px solid #333;
-  border-radius: 4px;
-  padding: 1.5rem;
-  overflow-x: auto;
-  margin-bottom: 1.5rem;
-}
-
-.preview-data pre {
-  color: #00d9ff;
-  font-family: "Courier New", monospace;
-  margin: 0;
-  white-space: pre-wrap;
-  word-wrap: break-word;
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 </style>

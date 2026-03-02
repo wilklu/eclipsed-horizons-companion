@@ -3,6 +3,24 @@
     <h2>Star Systems</h2>
     <h2>Sector Survey</h2>
     <SectorSurveyForm />
+    <h2>Stellar Survey</h2>
+    <StellarSurveyForm />
+    <h2>System Survey</h2>
+    <SystemSurveyForm />
+    <h2>Planetary Survey</h2>
+    <PlanetarySurveyForm />
+    <h2>World Physical Survey</h2>
+    <WorldPhysicalSurveyForm />
+    <h2>Gas Giant Physical Survey</h2>
+    <GasGiantPhysicalSurveyForm />
+    <h2>World Census Survey</h2>
+    <WorldCensusSurveyForm />
+    <h2>Census Subunit Profile</h2>
+    <CensusSubunitProfileForm />
+    <h2>World Hex Map</h2>
+    <WorldHexMapForm />
+    <h2>World Hex Map (Interactive)</h2>
+    <WorldHexMapFormInteractive />
 
     <div v-if="isLoading" class="loading">Loading systems...</div>
 
@@ -35,6 +53,15 @@ import { onMounted, ref, computed } from "vue";
 import { useSystemStore } from "../stores/systemStore";
 import { systemApi } from "../api/systemApi";
 import SectorSurveyForm from "../components/forms/SectorSurveyForm.vue";
+import StellarSurveyForm from "../components/forms/StellarSurveyForm.vue";
+import SystemSurveyForm from "../components/forms/SystemSurveyForm.vue";
+import PlanetarySurveyForm from "../components/forms/PlanetarySurveyForm.vue";
+import WorldPhysicalSurveyForm from "../components/forms/WorldPhysicalSurveyForm.vue";
+import GasGiantPhysicalSurveyForm from "../components/forms/GasGiantPhysicalSurveyForm.vue";
+import WorldCensusSurveyForm from "../components/forms/WorldCensusSurveyForm.vue";
+import CensusSubunitProfileForm from "../components/forms/CensusSubunitProfileForm.vue";
+import WorldHexMapForm from "../components/forms/WorldHexMapForm.vue";
+import WorldHexMapFormInteractive from "../components/forms/WorldHexMapFormInteractive.vue";
 
 const systemStore = useSystemStore();
 const isLoading = ref(false);

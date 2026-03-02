@@ -170,19 +170,18 @@ const saveSurvey = async () => {
     initialSurvey: surveyData.initialSurvey,
     lastUpdated: surveyData.lastUpdated,
     subsectors: surveyData.subsectors,
-    comments: surveyData.comments
+    comments: surveyData.comments,
   };
-  
+
   try {
-    const response = await systemApi.post('/systems/survey', payload);
-    console.log('✓ Survey saved:', response);
-    alert('✓ Survey saved successfully!');
+    const response = await systemApi.post("/systems/survey", payload);
+    console.log("✓ Survey saved:", response);
+    alert("✓ Survey saved successfully!");
   } catch (error) {
-    console.error('✗ Save failed:', error);
-    alert('✗ Failed to save survey. Check console for details.');
+    console.error("✗ Save failed:", error);
+    alert("✗ Failed to save survey. Check console for details.");
   }
 };
-
 
 // Reset form
 const resetForm = () => {
@@ -255,7 +254,7 @@ const printForm = () => {
 
 .print-btn {
   font-size: 10px;
-  color: #555;
+  color: #000000;
   background: #fff;
   border: 1px solid #999;
   border-radius: 2px;
@@ -283,7 +282,7 @@ const printForm = () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: #1a1a2e;
+  background: #0e219a;
   color: #ffffff;
   padding: 8px 12px;
   border-bottom: 2px solid #000;
@@ -304,7 +303,7 @@ const printForm = () => {
 
 /* ── SECTION LABEL ── */
 .section-label {
-  background: #2c2c54;
+  background: #0e219a;
   color: #ffffff;
   font-weight: bold;
   font-size: 10px;
