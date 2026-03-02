@@ -19,51 +19,38 @@ onMounted(() => {
 });
 </script>
 
-<style>  
-* {  
-  margin: 0;  
-  padding: 0;  
-  box-sizing: border-box;  
-}  
-
-body {  
-  background-color: #0f0f0f;  
-  color: #e0e0e0;  
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;  
-}  
-
-html {  
-  scroll-behavior: smooth;  
-}  
-
-::-webkit-scrollbar {  
-  width: 8px;  
-  height: 8px;  
-}  
-
-::-webkit-scrollbar-track {  
-  background: #1a1a1a;  
-}  
-
-::-webkit-scrollbar-thumb {  
-  background: #00d9ff;  
-  border-radius: 4px;  
-}  
-
-::-webkit-scrollbar-thumb:hover {  
-  background: #00ffff;  
-}  
-</style>  
-
-.main-content {
-  display: flex;
-  flex: 1;
-  overflow: hidden;
+<style>
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
 }
 
-.page-content {
-  flex: 1;
-  overflow-y: auto;
-  padding: 2rem;
+body {
+  background-color: #0f0f0f;
+  color: #e0e0e0;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1a1a1a;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #00d9ff;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #00ffff;
 }
 </style>
