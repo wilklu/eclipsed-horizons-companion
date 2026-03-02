@@ -33,7 +33,7 @@ Link [https://drawdb.vercel.app/editor?shareId=0e6eacce4004229bd01c87c5a44a785c]
 Individual stars in a system (binary/trinary systems have multiple rows)
 | Name | Type | Settings | References | Note |
 |-------------|---------------|-------------------------------|-------------------------------|--------------------------------|
-| **star_id** | INTEGER | 🔑 PK, not null, unique, autoincrement | fk_stars_star_id_worlds,fk_stars_star_id_gas_giants,fk_stars_star_id_planetoid_belts,fk_stars_star_id_empty_orbit |Unique star ID |
+| **id** | INTEGER | 🔑 PK, not null, unique, autoincrement | fk_stars_star_id_worlds,fk_stars_star_id_planetoid_belts,fk_stars_star_id_empty_orbit |Unique star ID |
 | **system_id** | INTEGER | null | | |
 | **name** | TEXT(65535) | null | |Name of the star |
 | **object** | TEXT(65535) | null | |Stellar, Primordial, Post-Stellar, Sub-Stellar, Protostars, Nebulae |
@@ -66,20 +66,21 @@ Individual stars in a system (binary/trinary systems have multiple rows)
 | **assigned_worlds** | REAL | null | | |
 | **maximum_spread** | REAL | null | | |
 
-### star_systems
+### systems
 
 Stores metadata about each generated star system
 | Name | Type | Settings | References | Note |
 |-------------|---------------|-------------------------------|-------------------------------|--------------------------------|
-| **system_id** | INTEGER | 🔑 PK, not null, unique, autoincrement | fk_star_systems_id_stars,fk_star_systems_system_id_system_history |Unique system ID |
+| **id** | INTEGER | 🔑 PK, not null, unique, autoincrement | fk_star_systems_id_stars,fk_star_systems_system_id_system_history |Unique system ID |
+| **sector_id** | INTEGER | null | | |
+| **system_seed** | INTEGER | null | |Seed used for generation (for reproducibility) |
+| **system_name** | TEXT(65535) | null | |Name of the system |
 | **sector** | TEXT(65535) | null | |Sector name (e.g., "Orion Spur") |
 | **subsector_name** | TEXT(65535) | null | | |
-| **subsector_postion** | TEXT(65535) | null | |A to P |
-| **system_name** | TEXT(65535) | null | |Name of the system |
-| **system_seed** | INTEGER | null | |Seed used for generation (for reproducibility) |
+| **subsector_designation** | TEXT(65535) | null | |A to P |
+| **hex** | TEXT(65535) | null | | |
 | **created_at** | DATETIME | null | |When system was created |
 | **updated_at** | DATETIME | null | |When system was last modified |
-| **hex** | TEXT(65535) | null | | |
 | **total_stars** | NUMERIC | null | | |
 | **total_orbits** | NUMERIC | null | | |
 | **total_worlds** | NUMERIC | null | | |
@@ -99,12 +100,12 @@ Stores metadata about each generated star system
 | ------------- | ------ | --------- |
 | idx_system_id |        | system_id |
 
-### worlds
+### planets
 
 Worlds orbiting stars
 | Name | Type | Settings | References | Note |
 |-------------|---------------|-------------------------------|-------------------------------|--------------------------------|
-| **world_id** | INTEGER | 🔑 PK, not null, unique, autoincrement | fk_worlds_world_id_moons,fk_worlds_world_id_moon_gas_giants,fk_worlds_world_id_moon_rings | |
+| **id** | INTEGER | 🔑 PK, not null, unique, autoincrement | fk_worlds_world_id_moons,fk_worlds_world_id_moon_rings | |
 | **star_id** | INTEGER | null | | |
 | **name** | TEXT(65535) | null | | |
 | **uwp_starport** | TEXT(65535) | null | | |
@@ -116,6 +117,7 @@ Worlds orbiting stars
 | **uwp_law** | TEXT(65535) | null | | |
 | **uwp_technology** | TEXT(65535) | null | | |
 | **uwp_trade_codes** | TEXT(65535) | null | | |
+| **type** | TEXT(65535) | null | |Terrestrial or Gas Giant |
 | **zone** | TEXT(65535) | null | | |
 | **orbit_number** | NUMERIC | null | | |
 | **orbit_au** | NUMERIC | null | | |
@@ -204,29 +206,16 @@ Worlds orbiting stars
 | ------------ | ------ | -------- |
 | idx_world_id |        | world_id |
 
-### gas_giants
-
-| Name             | Type        | Settings                               | References | Note |
-| ---------------- | ----------- | -------------------------------------- | ---------- | ---- |
-| **gas_giant_id** | INTEGER     | 🔑 PK, not null, unique, autoincrement |            |      |
-| **star_id**      | INTEGER     | null                                   |            |      |
-| **name**         | TEXT(65535) | null                                   |            |      |
-
-#### Indexes
-
-| Name             | Unique | Fields       |
-| ---------------- | ------ | ------------ |
-| idx_gas_giant_id |        | gas_giant_id |
-
 ### planetoid_belts
 
-| Name                  | Type    | Settings                               | References | Note |
-| --------------------- | ------- | -------------------------------------- | ---------- | ---- |
-| **planetoid_belt_id** | INTEGER | 🔑 PK, not null, unique, autoincrement |            |      |
-| **star_id**           | INTEGER | null                                   |            |      |
-| **belt_span**         | REAL    | null                                   |            |      |
-| **belt_bulk**         | REAL    | null                                   |            |      |
-| **resource_rating**   | REAL    | null                                   |            |      |
+| Name                | Type    | Settings                               | References | Note |
+| ------------------- | ------- | -------------------------------------- | ---------- | ---- |
+| **id**              | INTEGER | 🔑 PK, not null, unique, autoincrement |            |      |
+| **star_id**         | INTEGER | null                                   |            |      |
+| **order_number**    | INTEGER | null                                   |            |      |
+| **belt_span**       | REAL    | null                                   |            |      |
+| **belt_bulk**       | REAL    | null                                   |            |      |
+| **resource_rating** | REAL    | null                                   |            |      |
 
 #### Indexes
 
@@ -236,10 +225,11 @@ Worlds orbiting stars
 
 ### empty_orbit
 
-| Name               | Type    | Settings                               | References | Note |
-| ------------------ | ------- | -------------------------------------- | ---------- | ---- |
-| **empty_orbit_id** | INTEGER | 🔑 PK, not null, unique, autoincrement |            |      |
-| **star_id**        | INTEGER | null                                   |            |      |
+| Name             | Type    | Settings                               | References | Note |
+| ---------------- | ------- | -------------------------------------- | ---------- | ---- |
+| **id**           | INTEGER | 🔑 PK, not null, unique, autoincrement |            |      |
+| **star_id**      | INTEGER | null                                   |            |      |
+| **order_number** | INTEGER | null                                   |            |      |
 
 #### Indexes
 
@@ -252,7 +242,7 @@ Worlds orbiting stars
 Moons orbiting worlds
 | Name | Type | Settings | References | Note |
 |-------------|---------------|-------------------------------|-------------------------------|--------------------------------|
-| **moon_id** | INTEGER | 🔑 PK, not null, unique, autoincrement | | |
+| **id** | INTEGER | 🔑 PK, not null, unique, autoincrement | | |
 | **world_id** | INTEGER | null | | |
 | **name** | TEXT(65535) | null | | |
 | **uwp_starport** | TEXT(65535) | null | | |
@@ -264,12 +254,13 @@ Moons orbiting worlds
 | **uwp_law** | TEXT(65535) | null | | |
 | **uwp_technology** | TEXT(65535) | null | | |
 | **uwp_trade_codes** | TEXT(65535) | null | | |
+| **type** | TEXT(65535) | null | |Terrestrial or Gas Giant |
 | **zone** | TEXT(65535) | null | | |
 | **orbit_range** | REAL | null | | |
-| **orbit_number** | NUMERIC | null | | |
+| **orbit_number** | INTEGER | null | | |
 | **orbit_pd** | REAL | null | | |
-| **orbit_km** | NUMERIC | null | | |
-| **order_number** | NUMERIC | null | | |
+| **orbit_km** | REAL | null | | |
+| **order_number** | INTEGER | null | | |
 | **designation** | TEXT(65535) | null | | |
 | **eccentricity** | REAL | null | | |
 | **orbital_period** | REAL | null | | |
@@ -350,29 +341,18 @@ Moons orbiting worlds
 | -------------- | ------ | ------- |
 | idx_moon_index |        | moon_id |
 
-### moon_gas_giants
+### rings
 
-| Name         | Type    | Settings                        | References | Note |
-| ------------ | ------- | ------------------------------- | ---------- | ---- |
-| **moon_id**  | INTEGER | not null, unique, autoincrement |            |      |
-| **world_id** | INTEGER | null                            |            |      |
-
-#### Indexes
-
-| Name                   | Unique | Fields  |
-| ---------------------- | ------ | ------- |
-| idx_moon_gas_giants_id |        | moon_id |
-
-### moon_rings
-
-| Name                | Type    | Settings                               | References | Note |
-| ------------------- | ------- | -------------------------------------- | ---------- | ---- |
-| **moon_ring_id**    | INTEGER | 🔑 PK, not null, unique, autoincrement |            |      |
-| **world_id**        | INTEGER | null                                   |            |      |
-| **ring_span**       | REAL    | null                                   |            |      |
-| **ring_bulk**       | REAL    | null                                   |            |      |
-| **resource_rating** | REAL    | null                                   |            |      |
-| **center_location** | REAL    | null                                   |            |      |
+| Name                | Type        | Settings                               | References | Note |
+| ------------------- | ----------- | -------------------------------------- | ---------- | ---- |
+| **id**              | INTEGER     | 🔑 PK, not null, unique, autoincrement |            |      |
+| **world_id**        | INTEGER     | null                                   |            |      |
+| **order_number**    | INTEGER     | null                                   |            |      |
+| **name**            | TEXT(65535) | null                                   |            |      |
+| **ring_span**       | REAL        | null                                   |            |      |
+| **ring_bulk**       | REAL        | null                                   |            |      |
+| **resource_rating** | REAL        | null                                   |            |      |
+| **center_location** | REAL        | null                                   |            |      |
 
 #### Indexes
 
@@ -397,34 +377,62 @@ Moons orbiting worlds
 | --------------------- | ------ | ----------------- |
 | idx_system_history_id |        | system_history_id |
 
+### sectors
+
+| Name           | Type        | Settings                               | References                                       | Note |
+| -------------- | ----------- | -------------------------------------- | ------------------------------------------------ | ---- |
+| **id**         | INTEGER     | 🔑 PK, not null, unique, autoincrement | fk_sector_id_subsector,fk_sector_id_star_systems |      |
+| **name**       | TEXT(65535) | null                                   |                                                  |      |
+| **x**          | INTEGER     | null                                   |                                                  |      |
+| **y**          | INTEGER     | null                                   |                                                  |      |
+| **allegiance** | TEXT(65535) | null                                   |                                                  | JSON |
+| **borders**    | TEXT(65535) | null                                   |                                                  | JSON |
+| **regions**    | TEXT(65535) | null                                   |                                                  | JSON |
+| **labels**     | TEXT(65535) | null                                   |                                                  | JSON |
+| **routes**     | TEXT(65535) | null                                   |                                                  |      |
+
+### subsectors
+
+| Name            | Type        | Settings                               | References | Note |
+| --------------- | ----------- | -------------------------------------- | ---------- | ---- |
+| **id**          | INTEGER     | 🔑 PK, not null, unique, autoincrement |            |      |
+| **sector_id**   | INTEGER     | not null                               |            |      |
+| **designation** | TEXT(65535) | not null                               |            |      |
+| **name**        | TEXT(65535) | null                                   |            |      |
+| **allegiance**  | TEXT(65535) | null                                   |            | JSON |
+| **borders**     | TEXT(65535) | null                                   |            | JSON |
+| **regions**     | TEXT(65535) | null                                   |            | JSON |
+| **labels**      | TEXT(65535) | null                                   |            | JSON |
+| **routes**      | TEXT(65535) | null                                   |            |      |
+
 ## Relationships
 
-- **star_systems to stars**: one_to_many
-- **stars to worlds**: one_to_many
-- **stars to gas_giants**: one_to_many
+- **systems to stars**: one_to_many
+- **stars to planets**: one_to_many
 - **stars to planetoid_belts**: one_to_many
 - **stars to empty_orbit**: one_to_many
-- **worlds to moons**: one_to_many
-- **worlds to moon_gas_giants**: one_to_many
-- **worlds to moon_rings**: one_to_many
-- **star_systems to system_history**: one_to_many
+- **planets to moons**: one_to_many
+- **planets to rings**: one_to_many
+- **systems to system_history**: one_to_many
+- **sectors to subsectors**: one_to_many
+- **sectors to systems**: one_to_many
 
 ## Database Diagram
 
 ```mermaid
 erDiagram
-	star_systems ||--o{ stars : references
-	stars ||--o{ worlds : references
-	stars ||--o{ gas_giants : references
+	systems ||--o{ stars : references
+	stars ||--o{ planets : references
 	stars ||--o{ planetoid_belts : references
 	stars ||--o{ empty_orbit : references
-	worlds ||--o{ moons : references
-	worlds ||--o{ moon_gas_giants : references
-	worlds ||--o{ moon_rings : references
-	star_systems ||--o{ system_history : references
+	planets ||--o{ moons : references
+	planets ||--o{ rings : references
+	systems ||--o{ system_history : references
+	sectors ||--o{ subsectors : references
+	sectors ||--o{ systems : references
 
 	stars {
-		INTEGER star_id
+		INTEGER id
 		INTEGER system_id
 		TEXT(65535) name
 		TEXT(65535) object
@@ -458,16 +466,17 @@ erDiagram
 		REAL maximum_spread
 	}
 
-	star_systems {
-		INTEGER system_id
+	systems {
+		INTEGER id
+		INTEGER sector_id
+		INTEGER system_seed
+		TEXT(65535) system_name
 		TEXT(65535) sector
 		TEXT(65535) subsector_name
-		TEXT(65535) subsector_postion
-		TEXT(65535) system_name
-		INTEGER system_seed
+		TEXT(65535) subsector_designation
+		TEXT(65535) hex
 		DATETIME created_at
 		DATETIME updated_at
-		TEXT(65535) hex
 		NUMERIC total_stars
 		NUMERIC total_orbits
 		NUMERIC total_worlds
@@ -482,8 +491,8 @@ erDiagram
 		REAL spread
 	}
 
-	worlds {
-		INTEGER world_id
+	planets {
+		INTEGER id
 		INTEGER star_id
 		TEXT(65535) name
 		TEXT(65535) uwp_starport
@@ -495,6 +504,7 @@ erDiagram
 		TEXT(65535) uwp_law
 		TEXT(65535) uwp_technology
 		TEXT(65535) uwp_trade_codes
+		TEXT(65535) type
 		TEXT(65535) zone
 		NUMERIC orbit_number
 		NUMERIC orbit_au
@@ -578,27 +588,23 @@ erDiagram
 		TEXT(65535) habitability_rating_remarks
 	}
 
-	gas_giants {
-		INTEGER gas_giant_id
-		INTEGER star_id
-		TEXT(65535) name
-	}
-
 	planetoid_belts {
-		INTEGER planetoid_belt_id
+		INTEGER id
 		INTEGER star_id
+		INTEGER order_number
 		REAL belt_span
 		REAL belt_bulk
 		REAL resource_rating
 	}
 
 	empty_orbit {
-		INTEGER empty_orbit_id
+		INTEGER id
 		INTEGER star_id
+		INTEGER order_number
 	}
 
 	moons {
-		INTEGER moon_id
+		INTEGER id
 		INTEGER world_id
 		TEXT(65535) name
 		TEXT(65535) uwp_starport
@@ -610,12 +616,13 @@ erDiagram
 		TEXT(65535) uwp_law
 		TEXT(65535) uwp_technology
 		TEXT(65535) uwp_trade_codes
+		TEXT(65535) type
 		TEXT(65535) zone
 		REAL orbit_range
-		NUMERIC orbit_number
+		INTEGER orbit_number
 		REAL orbit_pd
-		NUMERIC orbit_km
-		NUMERIC order_number
+		REAL orbit_km
+		INTEGER order_number
 		TEXT(65535) designation
 		REAL eccentricity
 		REAL orbital_period
@@ -691,14 +698,11 @@ erDiagram
 		TEXT(65535) habitability_rating_remarks
 	}
 
-	moon_gas_giants {
-		INTEGER moon_id
+	rings {
+		INTEGER id
 		INTEGER world_id
-	}
-
-	moon_rings {
-		INTEGER moon_ring_id
-		INTEGER world_id
+		INTEGER order_number
+		TEXT(65535) name
 		REAL ring_span
 		REAL ring_bulk
 		REAL resource_rating
@@ -712,5 +716,29 @@ erDiagram
 		TEXT(65535) data_snaphot
 		DATETIME timestamp
 		INTEGER version_number
+	}
+
+	sectors {
+		INTEGER id
+		TEXT(65535) name
+		INTEGER x
+		INTEGER y
+		TEXT(65535) allegiance
+		TEXT(65535) borders
+		TEXT(65535) regions
+		TEXT(65535) labels
+		TEXT(65535) routes
+	}
+
+	subsectors {
+		INTEGER id
+		INTEGER sector_id
+		TEXT(65535) designation
+		TEXT(65535) name
+		TEXT(65535) allegiance
+		TEXT(65535) borders
+		TEXT(65535) regions
+		TEXT(65535) labels
+		TEXT(65535) routes
 	}
 ```

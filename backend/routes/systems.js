@@ -59,4 +59,11 @@ router.delete("/:id", (req, res) => {
   });
 });
 
+// Sector Survey
+router.post("/survey", (req, res) => {
+  const surveyData = req.body;
+  // Save to database...
+  res.json({ message: "Survey saved", id: 1 });
+});
+
 module.exports = router;
