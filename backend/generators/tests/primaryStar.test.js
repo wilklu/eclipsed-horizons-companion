@@ -186,7 +186,7 @@ for (let testSeed = 1; testSeed <= 100; testSeed++) {
   // Build the validation object and ADD it to the array
   validations.push({
     seed: testSeed,
-    star: star.designation,
+    star: star.classification,
     mass: star.mass,
     temperature: star.temperature,
     cascadePath: star.cascadePath ? star.cascadePath.join(" → ") : "Type",
@@ -228,17 +228,12 @@ for (let testSeed = 1; testSeed <= 100; testSeed++) {
 console.log(`Cascade paths reproducible: ${cascadeConsistent ? "✓ PASS" : "✗ FAIL"}`);
 
 // FINAL SUMMARY
-console.log("\nDebug - First validation object structure:");
-if (validations.length > 0) {
-  console.log(Object.keys(validations[0]));
-  console.log(validations[0]);
-}
 console.log("\n═══════════════════════════════════════════════════════════════");
-console.log("Sample of 10 generated stars with cascade info:");
+console.log("Sample of 50 generated stars with cascade info:");
 console.log("Seed  | Designation | Class | Cascade Path");
 console.log("------|-------------|-------|-------------------------------------");
 
-validations.slice(0, 10).forEach((v) => {
+validations.slice(0, 50).forEach((v) => {
   const cascadePath = v.cascadePath === "Type" ? "Main Sequence" : v.cascadePath;
   console.log(`${v.seed.toString().padEnd(5)} | ${v.star.padEnd(11)} | ${v.status.padEnd(5)} | ${cascadePath}`);
 });

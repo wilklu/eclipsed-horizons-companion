@@ -51,11 +51,10 @@ class StarGenerator {
       result: finalType,
     });
 
+    cascadePath.push("Type");
+
     // CASCADE CHAIN: Handle forward-only cascading
     if (finalType === "Special") {
-      
-      cascadePath.push("Type");
-
       // Roll on Special column
       const specialRoll = this.roller.roll2D();
       tableEntry = this.getTableEntry(specialRoll);
@@ -294,7 +293,235 @@ class StarGenerator {
       createdAt: new Date().toISOString(),
     };
 
+    this.primaryStar = primaryStar; // Store for later use in multiple star determination
+    this.multipleStarResults = this.determineMultipleStars(); // Determine multiple star presence
+
+    // ✅ Generate secondary stars if they exist
+    if (this.multipleStarResults.hasClose || this.multipleStarResults.hasNear || this.multipleStarResults.hasFar) {
+      this.generateSecondaryStars();
+    }
+
+    // ✅ Generate companion stars for primary if it exists
+    if (this.multipleStarResults.primaryCompanion) {
+      this.generateCompanionStar(this.primaryStar, "primary");
+    }
+
     return primaryStar;
+  }
+
+  generateSecondaryStars() {
+    this.secondaryStars = [];
+
+    // ✅ Close secondary
+    if (this.multipleStarResults.hasClose) {
+      const closeStar = this.generateNonPrimaryStar("Close", null);
+      this.secondaryStars.push(closeStar);
+
+      // Check for companion to Close star
+      if (this.multipleStarResults.companions.close) {
+        this.generateCompanionStar(closeStar, "close");
+      }
+    }
+
+    // ✅ Near secondary
+    if (this.multipleStarResults.hasNear) {
+      const nearStar = this.generateNonPrimaryStar("Near", null);
+      this.secondaryStars.push(nearStar);
+
+      // Check for companion to Near star
+      if (this.multipleStarResults.companions.near) {
+        this.generateCompanionStar(nearStar, "near");
+      }
+    }
+
+    // ✅ Far secondary
+    if (this.multipleStarResults.hasFar) {
+      const farStar = this.generateNonPrimaryStar("Far", null);
+      this.secondaryStars.push(farStar);
+
+      // Check for companion to Far star
+      if (this.multipleStarResults.companions.far) {
+        this.generateCompanionStar(farStar, "far");
+      }
+    }
+  }
+
+  // ✅ Generate a non-primary star (secondary or companion)
+  generateNonPrimaryStar(orbitClass, parentStar) {
+    const parent = parentStar || this.primaryStar;
+
+    // Roll on Non-Primary Star Determination table
+    let roll = this.roller.roll2D();
+
+    // ✅ Apply DM-1 if primary is Class III or IV
+    if (["III", "IV"].includes(this.primaryStar.luminosityClass)) {
+      roll -= 1;
+      this.generationLog.push({
+        step: "2B-NonPrimary-DM",
+        reason: `Primary is Class ${this.primaryStar.luminosityClass}`,
+        dm: -1,
+        adjustedRoll: roll,
+      });
+    }
+
+    // Determine result type from Non-Primary Star Determination table
+    const resultType = this.getNonPrimaryResult(roll, "secondary");
+
+    this.generationLog.push({
+      step: `2B-${orbitClass}-Secondary`,
+      action: `Generate ${orbitClass} secondary star`,
+      roll: roll,
+      resultType: resultType,
+    });
+
+    // Generate the secondary star based on result type
+    return this.generateStarFromResult(resultType, parent, orbitClass);
+  }
+
+  // ✅ Generate a companion star
+  generateCompanionStar(parentStar, location) {
+    let roll = this.roller.roll2D();
+
+    // ✅ Apply DM-1 if primary is Class III or IV
+    if (["III", "IV"].includes(this.primaryStar.luminosityClass)) {
+      roll -= 1;
+    }
+
+    const resultType = this.getNonPrimaryResult(roll, "companion");
+
+    this.generationLog.push({
+      step: `2B-Companion-${location}`,
+      action: `Generate companion for ${location} star`,
+      roll: roll,
+      resultType: resultType,
+    });
+
+    const companionStar = this.generateStarFromResult(resultType, parentStar, "Companion");
+
+    // Store companion linked to parent
+    if (!parentStar.companion) {
+      parentStar.companion = companionStar;
+    }
+
+    return companionStar;
+  }
+
+  // ✅ Get result from Non-Primary Star Determination table
+  getNonPrimaryResult(roll, column) {
+    // Non-Primary Star Determination Table results
+    const table = {
+      secondary: {
+        2: "Other",
+        3: "Random",
+        4: "Random",
+        5: "Random",
+        6: "Random",
+        7: "Lesser",
+        8: "Lesser",
+        9: "Sibling",
+        10: "Sibling",
+        11: "Twin",
+        "12+": "Twin",
+      },
+      companion: {
+        2: "Other",
+        3: "Other",
+        4: "Random",
+        5: "Random",
+        6: "Lesser",
+        7: "Lesser",
+        8: "Sibling",
+        9: "Sibling",
+        10: "Twin",
+        11: "Twin",
+        "12+": "Twin",
+      },
+      "post-stellar": {
+        2: "D*",
+        3: "D",
+        4: "D",
+        5: "Random",
+        6: "Random",
+        7: "Random",
+        8: "Random",
+        9: "Lesser",
+        10: "Lesser",
+        11: "Twin",
+        "12+": "Twin",
+      },
+      other: {
+        3: "NS",
+        4: "D",
+        5: "D",
+        6: "D",
+        7: "D",
+        8: "BD",
+        9: "BD",
+        10: "BD",
+        11: "BD",
+        "12+": "BD",
+      },
+    };
+
+    const rollKey = roll >= 12 ? "12+" : roll.toString();
+    return table[column][rollKey] || "Other";
+  }
+
+  // ✅ Generate star based on result type
+  generateStarFromResult(resultType, parentStar, location) {
+    switch (resultType) {
+      case "Random":
+        // Roll on regular Star Type Determination table
+        return this.generateRandomStar(parentStar, location);
+
+      case "Lesser":
+        // One type cooler than parent
+        return this.generateLesserStar(parentStar, location);
+
+      case "Sibling":
+        // Same type, one subtype cooler
+        return this.generateSiblingstar(parentStar, location);
+
+      case "Twin":
+        // Same type and subtype
+        return this.generateTwinStar(parentStar, location);
+
+      case "Other":
+        // Roll again on other column
+        let reroll = this.roller.roll2D();
+        if (["III", "IV"].includes(this.primaryStar.luminosityClass)) {
+          reroll -= 1;
+        }
+        return this.generateStarFromResult(this.getNonPrimaryResult(reroll, "secondary"), parentStar, location);
+
+      default:
+        return null;
+    }
+  }
+
+  // Helper methods for each result type
+  generateRandomStar(parentStar, location) {
+    // Roll on Star Type Determination table page 15
+    // Then check: if result is hotter than parent, treat as lesser instead
+    const roll = this.roller.roll2D();
+    // ... implementation ...
+  }
+
+  generateLesserStar(parentStar, location) {
+    // Same class, one type cooler
+    // F→G, K→M, M→M or brown dwarf
+    // ... implementation ...
+  }
+
+  generateSiblingstar(parentStar, location) {
+    // Same class and type, subtract 1D from subtype
+    // ... implementation ...
+  }
+
+  generateTwinStar(parentStar, location) {
+    // Same class, type, and subtype
+    // Optionally subtract 1D-1% from mass/diameter
+    // ... implementation ...
   }
 
   /**
@@ -808,35 +1035,130 @@ class StarGenerator {
    * Reference: Handbook page 23 - Multiple Stars Presence table
    */
   determineMultipleStars() {
-    // Roll on Multiple Stars table based on primary star type
-    const roll2D = this.roller.roll2D();
+    const results = {
+      hasClose: false,
+      hasNear: false,
+      hasFar: false,
+      primaryCompanion: false,
+      companions: {},
+      rolls: [],
+    };
 
-    // Apply DM based on primary star spectral class
-    let dm = 0;
-    const primaryClass = this.primaryStar.spectralClass;
+    // ✅ Get DMs based on primary star properties
+    const dm = this.getMultipleStarsDM();
 
-    // Different star types have different tendencies for companions
-    if (["O", "B", "A"].includes(primaryClass)) {
-      dm = 1; // Hot stars more likely to have companions
-    } else if (["M"].includes(primaryClass)) {
-      dm = -1; // M-type stars less likely
+    // ✅ Check for secondary stars in orbit classes
+    results.hasClose = this.checkStarPresence("Close", dm);
+    results.hasNear = this.checkStarPresence("Near", dm);
+    results.hasFar = this.checkStarPresence("Far", dm);
+
+    // ✅ Check for primary companion
+    results.primaryCompanion = this.checkStarPresence("Companion", dm);
+
+    // ✅ Check for companions of secondary stars
+    if (results.hasClose) {
+      results.companions.close = this.checkStarPresence("Companion", dm);
+    }
+    if (results.hasNear) {
+      results.companions.near = this.checkStarPresence("Companion", dm);
+    }
+    if (results.hasFar) {
+      results.companions.far = this.checkStarPresence("Companion", dm);
     }
 
-    const result = roll2D + dm;
+    return results;
+  }
 
-    return {
-      hasMultipleStars: result >= 8,
-      roll: roll2D,
+  // ✅ Get DM based on primary star class and type
+  getMultipleStarsDM() {
+    const primary = this.primaryStar;
+    let dm = 0;
+
+    // Class Ia, Ib, II, III, or IV: DM+1
+    if (["Ia", "Ib", "II", "III", "IV"].includes(primary.luminosityClass)) {
+      dm = 1;
+      this.generationLog.push({
+        step: "2A-DM",
+        reason: `Primary is Class ${primary.luminosityClass}`,
+        dm: dm,
+      });
+    }
+    // Class V or VI with O, B, A, or F types: DM+1
+    else if (["V", "VI"].includes(primary.luminosityClass) && ["O", "B", "A", "F"].includes(primary.spectralClass)) {
+      dm = 1;
+      this.generationLog.push({
+        step: "2A-DM",
+        reason: `Primary is Class ${primary.luminosityClass} ${primary.spectralClass}`,
+        dm: dm,
+      });
+    }
+    // Class V or VI with M type: DM-1
+    else if (["V", "VI"].includes(primary.luminosityClass) && primary.spectralClass === "M") {
+      dm = -1;
+      this.generationLog.push({
+        step: "2A-DM",
+        reason: `Primary is Class ${primary.luminosityClass} M-type`,
+        dm: dm,
+      });
+    }
+    // Brown Dwarf or White Dwarf: DM-1
+    else if (primary.type === "Brown Dwarf" || primary.classification === "D") {
+      dm = -1;
+      this.generationLog.push({
+        step: "2A-DM",
+        reason: `Primary is ${primary.type || "White Dwarf"}`,
+        dm: dm,
+      });
+    }
+    // Pulsar, Neutron Star, Black Hole: DM-1
+    else if (["Pulsar", "Neutron Star", "Black Hole"].includes(primary.type)) {
+      dm = -1;
+      this.generationLog.push({
+        step: "2A-DM",
+        reason: `Primary is ${primary.type}`,
+        dm: dm,
+      });
+    }
+
+    return dm;
+  }
+
+  // ✅ Check if a star is present in an orbit class
+  checkStarPresence(orbitClass, dm) {
+    const roll = this.roller.roll2D();
+    const total = roll + dm;
+    const threshold = 10; // All orbit classes use 10+
+    const isPresent = total >= threshold;
+
+    // ✅ SPECIAL RESTRICTION: Close stars cannot be Class Ia, Ib, II, III
+    if (orbitClass === "Close" && ["Ia", "Ib", "II", "III"].includes(this.primaryStar.luminosityClass)) {
+      this.generationLog.push({
+        step: "2A-Close-Restriction",
+        action: `Class ${this.primaryStar.luminosityClass} primary cannot have Close companion`,
+        result: "Skipped",
+      });
+      return false;
+    }
+
+    this.generationLog.push({
+      step: `2A-${orbitClass}`,
+      action: `Check for ${orbitClass} star presence`,
+      roll: roll,
       dm: dm,
-      total: result,
-    };
+      total: total,
+      threshold: threshold,
+      isPresent: isPresent,
+    });
+
+    return isPresent;
   }
 
   // Add this helper method
   extractClassFromString(classString) {
-    // Extract "III" from "Class III", etc.
-    const match = classString.match(/Class\s+([IVabi]+)/);
-    return match ? match[1] : "V";
+    // Extract luminosity class: Ia, Ib, II, III, IV, V, VI
+    // Pattern matches: Class + optional whitespace + Roman numerals
+    const match = classString.match(/Class\s+(Ia|Ib|II|III|IV|V|VI)/i);
+    return match ? match[1].toUpperCase() : "V";
   }
 }
 
