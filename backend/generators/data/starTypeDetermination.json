@@ -1,0 +1,105 @@
+{
+  "StarTypeDetermination": {
+    "table": [
+      {
+        "roll": "2-",
+        "type": "Special",
+        "hot": "A",
+        "special": "Class VI",
+        "unusual": "Peculiar",
+        "giants": "Class III",
+        "peculiar": "Black Hole"
+      },
+      {
+        "roll": 3,
+        "type": "M",
+        "hot": "A",
+        "special": "Class VI",
+        "unusual": "Class VI",
+        "giants": "Class III",
+        "peculiar": "Pulsar"
+      },
+      {
+        "roll": 4,
+        "type": "M",
+        "hot": "A",
+        "special": "Class VI",
+        "unusual": "Class IV",
+        "giants": "Class III",
+        "peculiar": "Neutron Star"
+      },
+      {
+        "roll": 5,
+        "type": "M",
+        "hot": "A",
+        "special": "Class VI",
+        "unusual": "BD",
+        "giants": "Class III",
+        "peculiar": "Nebula"
+      },
+      {
+        "roll": 6,
+        "type": "M",
+        "hot": "A",
+        "special": "Class IV",
+        "unusual": "BD",
+        "giants": "Class III",
+        "peculiar": "Nebula"
+      },
+      {
+        "roll": 7,
+        "type": "K",
+        "hot": "A",
+        "special": "Class IV",
+        "unusual": "BD",
+        "giants": "Class III",
+        "peculiar": "Nebula"
+      },
+      {
+        "roll": 8,
+        "type": "K",
+        "hot": "A",
+        "special": "Class IV",
+        "unusual": "D",
+        "giants": "Class III",
+        "peculiar": "Protostar"
+      },
+      {
+        "roll": 9,
+        "type": "G",
+        "hot": "A",
+        "special": "Class III",
+        "unusual": "D",
+        "giants": "Class II",
+        "peculiar": "Protostar"
+      },
+      {
+        "roll": 10,
+        "type": "G",
+        "hot": "B",
+        "special": "Class III",
+        "unusual": "D",
+        "giants": "Class II",
+        "peculiar": "Neutron Star"
+      },
+      {
+        "roll": 11,
+        "type": "F",
+        "hot": "B",
+        "special": "Giants",
+        "unusual": "Class III",
+        "giants": "Class Ib",
+        "peculiar": "Anomaly"
+      },
+      {
+        "roll": "12+",
+        "type": "Hot",
+        "hot": "O",
+        "special": "Giants",
+        "unusual": "Giants",
+        "giants": "Class Ia",
+        "peculiar": "Anomaly"
+      }
+    ]
+  }
+}

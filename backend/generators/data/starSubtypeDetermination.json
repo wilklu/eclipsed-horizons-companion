@@ -1,0 +1,79 @@
+{
+  "StarSubtypeDetermination": {
+    "description": "Determine numeric subtype (0-9) for a star. Reference: World Builder's Handbook, page 17",
+    "rollMethod": "Roll 2D on this table. Use 'Numeric' column for non-M types, 'M-type' column for primary M-type stars",
+    "table": [
+      {
+        "roll": 2,
+        "numeric": 0,
+        "mType": 8,
+        "description": "Low numeric or high M-type"
+      },
+      {
+        "roll": 3,
+        "numeric": 1,
+        "mType": 6,
+        "description": "Lower numeric or mid-high M-type"
+      },
+      {
+        "roll": 4,
+        "numeric": 3,
+        "mType": 5,
+        "description": "Lower-mid numeric or mid M-type"
+      },
+      {
+        "roll": 5,
+        "numeric": 5,
+        "mType": 4,
+        "description": "Mid numeric or lower-mid M-type"
+      },
+      {
+        "roll": 6,
+        "numeric": 7,
+        "mType": 0,
+        "description": "Mid-high numeric or low M-type (M0)"
+      },
+      {
+        "roll": 7,
+        "numeric": 9,
+        "mType": 2,
+        "description": "High numeric or low-mid M-type"
+      },
+      {
+        "roll": 8,
+        "numeric": 8,
+        "mType": 1,
+        "description": "High numeric or low M-type"
+      },
+      {
+        "roll": 9,
+        "numeric": 6,
+        "mType": 3,
+        "description": "Mid-high numeric or lower M-type"
+      },
+      {
+        "roll": 10,
+        "numeric": 4,
+        "mType": 5,
+        "description": "Lower-mid numeric or mid M-type"
+      },
+      {
+        "roll": 11,
+        "numeric": 2,
+        "mType": 7,
+        "description": "Low-mid numeric or mid-high M-type"
+      },
+      {
+        "roll": 12,
+        "numeric": 0,
+        "mType": 9,
+        "description": "Lowest numeric or highest M-type"
+      }
+    ],
+    "notes": {
+      "note1": "For K-type Class IV stars, subtract 5 from any subtype result above 4 (make lower)",
+      "note2": "Example: G7 V star - roll 2D = 6, Numeric column gives subtype 7, result is G7 V",
+      "note3": "For M-type primaries: same 2D roll of 6 on M-type column gives M0 V"
+    }
+  }
+}
