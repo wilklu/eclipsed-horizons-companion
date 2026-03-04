@@ -28,20 +28,23 @@ class WorldGenerator {
     try {
       console.log("\n=== PHASE 2: WORLD GENERATION ===\n");
 
-      // Step 1: Determine world type counts[^2,^6]
+      // Step 1: Determine world type counts
       this.determineWorldCounts();
 
-      // Step 2: Calculate habitable zone[^5]
+      // Step 2: Calculate habitable zone
       this.calculateHabitableZone();
 
       // Step 3: Determine orbital structure
       this.determineOrbitStructure();
 
-      // Step 4: Place worlds in orbits[^6]
+      // Step 4: Place worlds in orbits
       this.placeWorlds();
 
       // Step 5: Generate world characteristics
       this.generateWorldCharacteristics();
+
+      // ✅ NEW: Step 6B: Generate planetary moons
+      this.generatePlanetaryMoons();
 
       // Step 6: Determine mainworld
       this.determineMainworld();
@@ -50,9 +53,7 @@ class WorldGenerator {
         step: "Phase 2 Complete",
         action: "World generation complete",
         totalWorlds: this.allWorlds.length,
-        gasGiants: this.gasGiants.length,
-        planetoidBelts: this.planetoidBelts.length,
-        terrestrialPlanets: this.terrestrialPlanets.length,
+        totalMoons: this.allWorlds.reduce((sum, w) => sum + (w.moons?.length || 0), 0),
       });
 
       return this.buildSystemWithWorlds();
@@ -440,6 +441,459 @@ class WorldGenerator {
     }
 
     this.mainworld = mainworld;
+  }
+
+  /**
+   * STEP 6B: Generate Significant Moons for Worlds
+   * Reference: Handbook pages 55-78 - Significant Moons and Rings
+   *
+   * Process:
+   * 6a. Determine quantity of moons
+   * 6b. Determine moon sizes
+   * 6c. Determine moon orbital positions
+   * 6d. Calculate moon orbital periods
+   * 6e. Determine eccentricity and retrograde orbits
+   */
+  generatePlanetaryMoons() {
+    console.log("\nSTEP 6B: Generate Planetary Moons");
+
+    // Generate moons for all worlds
+    this.terrestrialPlanets.forEach((planet, idx) => {
+      this.generateMoonsForWorld(planet, "terrestrial");
+    });
+
+    this.gasGiants.forEach((gg, idx) => {
+      this.generateMoonsForWorld(gg, "gasGiant");
+    });
+
+    this.generationLog.push({
+      step: "6B-Moons-Complete",
+      action: "Planetary moons generated for all worlds",
+      totalMoons: this.allWorlds.reduce((sum, w) => sum + (w.moons?.length || 0), 0),
+    });
+
+    console.log(`  Total moons generated: ${this.allWorlds.reduce((sum, w) => sum + (w.moons?.length || 0), 0)}`);
+  }
+
+  /**
+   * Generate moons for a specific world
+   * Reference: Handbook pages 56-57 - Significant Moon Quantity table
+   */
+  generateMoonsForWorld(world, worldType) {
+    // Step 1: Determine quantity of significant moons[^12]
+    const moonQuantity = this.determineMoonQuantity(world, worldType);
+
+    if (moonQuantity <= 0) {
+      world.moons = [];
+      world.hasRings = moonQuantity === 0; // 0 indicates ring, not moon
+      return;
+    }
+
+    // Step 2: Generate moons with sizes
+    world.moons = [];
+    for (let i = 0; i < moonQuantity; i++) {
+      const moon = this.generateMoon(world, i + 1, worldType);
+      if (moon) {
+        world.moons.push(moon);
+      }
+    }
+
+    // Step 3: Determine orbit positions (Planetary Diameters)
+    this.determineMoonOrbits(world);
+
+    // Step 4: Calculate orbital periods
+    this.calculateMoonOrbitalPeriods(world);
+
+    // Step 5: Determine eccentricity and retrograde orbits[^6,^8]
+    this.determineMoonOrbitalCharacteristics(world);
+
+    this.generationLog.push({
+      step: "6B-WorldMoons",
+      world: world.id,
+      moonCount: world.moons.length,
+      hasRings: world.hasRings || false,
+    });
+  }
+
+  /**
+   * Determine moon quantity for a world
+   * Reference: Handbook page 56 - Significant Moon Quantity table
+   */
+  determineMoonQuantity(world, worldType) {
+    let diceRoll;
+    let dm = 0;
+
+    // Apply DMs based on orbit and stellar proximity[^12]
+    if (world.orbit && world.orbit < 1.0) {
+      dm = -1; // Planet's Orbit# is less than 1.0
+    }
+
+    // Roll based on world type[^12]
+    if (worldType === "terrestrial") {
+      if (world.size >= 1 && world.size <= 2) {
+        diceRoll = this.roller.roll1D() - 5;
+      } else if (world.size >= 3 && world.size <= 9) {
+        diceRoll = this.roller.roll2D() - 8;
+      } else if (world.size >= 10) {
+        // Size A-F (large terrestrial)
+        diceRoll = this.roller.roll2D() - 6;
+      }
+    } else if (worldType === "gasGiant") {
+      const ggSize = world.size; // "Large", "Medium", "Small"
+
+      if (ggSize === "Small") {
+        diceRoll = this.roller.roll3D() - 7;
+      } else if (ggSize === "Medium") {
+        diceRoll = this.roller.roll4D() - 6;
+      } else {
+        // Large
+        diceRoll = this.roller.roll4D() - 6;
+      }
+    }
+
+    const totalMoons = Math.max(-1, diceRoll + dm);
+
+    this.generationLog.push({
+      step: "6B-MoonQuantity",
+      world: world.id,
+      type: worldType,
+      roll: diceRoll,
+      dm: dm,
+      total: totalMoons,
+    });
+
+    return totalMoons;
+  }
+
+  /**
+   * Generate individual moon
+   * Reference: Handbook pages 57-58 - Significant Moon Sizing table
+   */
+  generateMoon(world, moonIndex, worldType) {
+    const sizeRoll = this.roller.roll1D();
+    let moonSize;
+
+    if (sizeRoll >= 1 && sizeRoll <= 3) {
+      // Size S moon (400-800 km diameter)
+      moonSize = "S";
+    } else if (sizeRoll >= 4 && sizeRoll <= 5) {
+      // Moderate sized moon - roll 2D-1
+      const modRoll = this.roller.roll2D() - 1;
+      if (modRoll === 0) {
+        moonSize = "R"; // Ring instead
+        world.hasRings = true;
+        return null; // Don't add as moon
+      } else {
+        moonSize = modRoll.toString(); // Size 1-2
+      }
+    } else if (sizeRoll === 6) {
+      // Larger moon
+      if (worldType === "terrestrial") {
+        // Roll 1D and subtract from parent Size-1
+        const largeRoll = this.roller.roll1D();
+        const result = world.size - 1 - largeRoll;
+
+        if (result < 0) {
+          moonSize = "S"; // Size S moon
+        } else if (result === 0) {
+          moonSize = "R"; // Ring
+          world.hasRings = true;
+          return null;
+        } else {
+          moonSize = result.toString();
+        }
+      } else if (worldType === "gasGiant") {
+        // Gas Giant Special Moon Sizing[^14]
+        const specialRoll = this.roller.roll1D();
+
+        if (specialRoll >= 1 && specialRoll <= 3) {
+          // Determine size 1-6
+          const sizeRoll2 = this.roller.roll1D();
+          moonSize = sizeRoll2.toString();
+        } else if (specialRoll >= 4 && specialRoll <= 5) {
+          // Determine size 0-A
+          const sizeRoll2 = this.roller.roll2D() - 2;
+          if (sizeRoll2 === 0) {
+            moonSize = "R";
+            world.hasRings = true;
+            return null;
+          } else {
+            moonSize = Math.max(0, sizeRoll2).toString();
+          }
+        } else if (specialRoll === 6) {
+          // Determine size 6-G (potential Small gas giant moon!)
+          const sizeRoll2 = this.roller.roll2D() + 4;
+          if (sizeRoll2 >= 16) {
+            moonSize = "GS"; // Small gas giant moon
+          } else {
+            moonSize = Math.min(15, sizeRoll2).toString();
+          }
+        }
+      }
+    }
+
+    return {
+      id: `${world.id}${String.fromCharCode(97 + moonIndex - 1)}`, // a, b, c, etc.
+      designation: String.fromCharCode(97 + moonIndex - 1),
+      parentWorld: world.id,
+      index: moonIndex,
+      type: "Moon",
+      size: moonSize,
+      orbit: null, // Will be calculated
+      orbitPD: null, // In Planetary Diameters
+      eccentricity: 0,
+      isRetrograde: false,
+      orbitalPeriod: null, // In hours
+      orbitalPeriodDays: null,
+      characteristics: {},
+    };
+  }
+
+  /**
+   * Determine Hill Sphere and calculate moon orbit range
+   * Reference: Handbook pages 75-77 - Moon Orbit Limits
+   */
+  calculateMoonOrbitLimits(world) {
+    // Hill Sphere depends on world mass and star distance
+    // Simplified calculation: Hill Sphere (PD) = (world mass / star mass)^(1/3) × world diameter / star distance
+
+    const planetDiameter = world.diameter || 12800; // Default Earth-like in km
+
+    // Simplified: Assume star mass = 1 solar mass, planet distance = 1 AU
+    // Real formula requires more precise calculations
+    const hillSpherePD = Math.pow(0.000003, 1 / 3) * (planetDiameter / 12800) * 5000;
+
+    // Roche Limit (typically 1.5 PD for most compositions)[^5]
+    const rocheLimitPD = 1.5;
+
+    // Moon Orbit Range = Hill Sphere - Roche Limit
+    const mor = Math.max(0, Math.floor(hillSpherePD) - Math.ceil(rocheLimitPD));
+
+    return {
+      hillSpherePD: hillSpherePD,
+      rocheLimitPD: rocheLimitPD,
+      moonOrbitRange: mor,
+    };
+  }
+
+  /**
+   * Determine orbital positions for moons
+   * Reference: Handbook pages 77-78 - Moon Orbit Determination
+   */
+  determineMoonOrbits(world) {
+    if (!world.moons || world.moons.length === 0) {
+      return;
+    }
+
+    // Calculate limits
+    const limits = this.calculateMoonOrbitLimits(world);
+    const mor = limits.moonOrbitRange;
+
+    if (mor < 1.5) {
+      // Below Roche limit - no moons can exist
+      world.moons = [];
+      return;
+    }
+
+    // Cap MOR if it's too large[^5]
+    let cappedMOR = mor;
+    if (mor > 200) {
+      cappedMOR = 200 + world.moons.length;
+    }
+
+    // Divide into orbital ranges[^2,^5]
+    const innerRangeEnd = cappedMOR / 6; // Inner sixth
+    const middleRangeEnd = innerRangeEnd + cappedMOR / 3; // Middle third
+    const outerRangeEnd = cappedMOR; // Outer half
+
+    // Assign orbits to each moon
+    world.moons.forEach((moon, idx) => {
+      // Determine which orbit range[^2]
+      let dm = cappedMOR < 60 ? 1 : 0; // DM+1 if MOR < 60
+      const rangeRoll = this.roller.roll1D() + dm;
+
+      let orbitPD;
+      let orbitRange;
+
+      if (rangeRoll <= 3) {
+        // Inner range
+        orbitRange = "Inner";
+        const spreadRoll = this.roller.roll2D() - 2;
+        orbitPD = (spreadRoll * cappedMOR) / 60 + 2;
+      } else if (rangeRoll <= 5) {
+        // Middle range
+        orbitRange = "Middle";
+        const spreadRoll = this.roller.roll2D() - 2;
+        orbitPD = (spreadRoll * cappedMOR) / 30 + cappedMOR / 6 + 3;
+      } else {
+        // Outer range
+        orbitRange = "Outer";
+        const spreadRoll = this.roller.roll2D() - 2;
+        orbitPD = (spreadRoll * cappedMOR) / 20 + cappedMOR / 2 + 4;
+      }
+
+      moon.orbitPD = Math.max(2, Math.round(orbitPD * 10) / 10); // Round to 1 decimal
+      moon.orbitRange = orbitRange;
+      moon.orbitKm = moon.orbitPD * (world.diameter || 12800);
+
+      this.generationLog.push({
+        step: "6B-MoonOrbit",
+        moon: moon.id,
+        range: orbitRange,
+        orbitPD: moon.orbitPD,
+        rangeRoll: rangeRoll,
+        dm: dm,
+      });
+    });
+
+    // Sort moons by orbit distance (closest first)
+    world.moons.sort((a, b) => a.orbitPD - b.orbitPD);
+
+    // Re-assign designations (a=closest, b=next, etc.)
+    world.moons.forEach((moon, idx) => {
+      moon.designation = String.fromCharCode(97 + idx);
+      moon.id = `${world.id}${moon.designation}`;
+    });
+  }
+
+  /**
+   * Calculate orbital periods for moons
+   * Reference: Handbook page 78 - Period of a Moon's Orbit
+   */
+  calculateMoonOrbitalPeriods(world) {
+    if (!world.moons || world.moons.length === 0) {
+      return;
+    }
+
+    // Moon orbital period formula[^6]
+    // Period (hours) = 0.176927 × sqrt((PD × Size)³ ÷ Mp)
+    // Where PD = orbital distance in planetary diameters
+    //       Size = planet size in Earth diameters
+    //       Mp = planet mass in Earth masses
+
+    const planetSize = world.size || 1; // Default to Earth-like
+    const planetMass = world.mass || 1; // Default to Earth mass
+
+    world.moons.forEach((moon) => {
+      if (moon.orbitPD) {
+        // Calculate period
+        const numerator = Math.pow(moon.orbitPD * planetSize, 3);
+        const divisor = planetMass;
+        const periodHours = 0.176927 * Math.sqrt(numerator / divisor);
+
+        moon.orbitalPeriod = Math.round(periodHours * 100) / 100; // In hours
+        moon.orbitalPeriodDays = Math.round((periodHours / 24) * 100) / 100; // In days
+
+        this.generationLog.push({
+          step: "6B-MoonPeriod",
+          moon: moon.id,
+          orbitPD: moon.orbitPD,
+          periodHours: moon.orbitalPeriod,
+          periodDays: moon.orbitalPeriodDays,
+        });
+      }
+    });
+  }
+
+  /**
+   * Determine eccentricity and retrograde orbits
+   * Reference: Handbook page 78 - Eccentricity and Orbital Direction
+   */
+  determineMoonOrbitalCharacteristics(world) {
+    if (!world.moons || world.moons.length === 0) {
+      return;
+    }
+
+    world.moons.forEach((moon) => {
+      // Determine eccentricity[^8]
+      const eccentricityRoll = this.roller.roll2D();
+      let eccentricityDM = 0;
+
+      if (moon.orbitRange === "Inner") {
+        eccentricityDM = -1;
+      } else if (moon.orbitRange === "Middle") {
+        eccentricityDM = 1;
+      } else if (moon.orbitRange === "Outer") {
+        eccentricityDM = 4;
+      }
+
+      const eccentricityTotal = eccentricityRoll + eccentricityDM;
+      moon.eccentricity = eccentricityTotal / 20 + 0.05;
+      moon.eccentricity = Math.max(0, Math.min(1, moon.eccentricity)); // Clamp 0-1
+
+      // Determine retrograde orbit[^8]
+      const retrogradeRoll = this.roller.roll2D();
+      const retrogradeTotal = retrogradeRoll + eccentricityDM;
+      moon.isRetrograde = retrogradeTotal >= 10;
+
+      this.generationLog.push({
+        step: "6B-OrbitalChar",
+        moon: moon.id,
+        eccentricityRoll: eccentricityRoll,
+        eccentricityDM: eccentricityDM,
+        eccentricity: moon.eccentricity.toFixed(3),
+        retrogradeRoll: retrogradeRoll,
+        isRetrograde: moon.isRetrograde,
+      });
+    });
+  }
+
+  /**
+   * Helper: Determine tidal locking status[^3]
+   * Reference: Handbook page 107 - Tidal Locking
+   */
+  determineTidalLocking(moon, parentWorld) {
+    const baseDM = 6; // Base DM for locking
+
+    let lockDM = baseDM;
+
+    // Moon orbit greater than 20 PD: DM-PD÷20
+    if (moon.orbitPD > 20) {
+      lockDM -= Math.floor(moon.orbitPD / 20);
+    }
+
+    // Retrograde orbit: DM-2
+    if (moon.isRetrograde) {
+      lockDM -= 2;
+    }
+
+    // Apply parent planet mass DMs[^3]
+    const parentMass = parentWorld.mass || 1;
+    if (parentMass >= 1 && parentMass < 10) {
+      lockDM += 2;
+    } else if (parentMass >= 10 && parentMass < 100) {
+      lockDM += 4;
+    } else if (parentMass >= 100 && parentMass < 1000) {
+      lockDM += 6;
+    } else if (parentMass >= 1000) {
+      lockDM += 8;
+    }
+
+    // Roll 2D for tidal locking (10+ means locked)
+    const lockRoll = this.roller.roll2D();
+    const lockTotal = lockRoll + lockDM;
+
+    return {
+      baseDM: baseDM,
+      appliedDM: lockDM,
+      roll: lockRoll,
+      total: lockTotal,
+      isLocked: lockTotal >= 10,
+    };
+  }
+
+  /**
+   * Roll 3D (sum of 3d6)
+   */
+  roll3D() {
+    return this.roller.roll1D() + this.roller.roll1D() + this.roller.roll1D();
+  }
+
+  /**
+   * Roll 4D (sum of 4d6)
+   */
+  roll4D() {
+    return this.roller.roll1D() + this.roller.roll1D() + this.roller.roll1D() + this.roller.roll1D();
   }
 
   /**

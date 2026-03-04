@@ -4,8 +4,8 @@
   "description": "Traveller Star System Generator",
   "main": "StarGenerator.js",
   "scripts": {
-    "test": "node test-stars.js",
-    "test:verbose": "node test-stars.js 2>&1 | tee test-results.log"
+    "test": "node backend/generators/test-stars.js",
+    "test:verbose": "node backend/generators/test-stars.js 2>&1 | tee test-results.log"
   },
   "keywords": [
     "traveller",

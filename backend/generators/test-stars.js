@@ -1,27 +1,63 @@
 // test-stars.js
-const StarGenerator = require("./starGenerator");
+const StarGenerator = require("./StarGenerator");
+const WorldGenerator = require("./WorldGenerator");
 
 console.log("\n╔════════════════════════════════════════════════════════════════╗");
-console.log("║       STAR SYSTEM GENERATION TEST SUITE (Node.js)              ║");
+console.log("║     TRAVELLER SYSTEM GENERATION TEST (Phase 1 & 2)             ║");
 console.log("╚════════════════════════════════════════════════════════════════╝\n");
 
 try {
-  const generator = new StarGenerator();
+  const starGen = new StarGenerator();
 
-  // Verify methods exist
-  if (typeof generator.generateSystem !== "function") {
-    throw new Error("generateSystem() method not found!");
+  // Phase 1: Generate stars
+  console.log("✓ PHASE 1: STAR GENERATION\n");
+  const system = starGen.generateSystem();
+
+  if (!system) {
+    throw new Error("Star generation failed!");
   }
-  if (typeof generator.testStarGeneration !== "function") {
-    throw new Error("testStarGeneration() method not found!");
+
+  // Phase 2: Generate worlds
+  console.log("✓ PHASE 2: WORLD GENERATION\n");
+  const worldGen = new WorldGenerator(system);
+  const completeSystem = worldGen.generateWorlds();
+
+  if (!completeSystem) {
+    throw new Error("World generation failed!");
   }
 
-  console.log("✓ All required methods found\n");
+  console.log(`\n✓ Complete system generated!`);
+  console.log(`\n📊 SYSTEM SUMMARY:`);
+  console.log(`  Primary Star: ${completeSystem.primaryStar.classification}`);
+  console.log(`  Total Stars: ${completeSystem.totalStars}`);
+  console.log(`\n🌍 WORLDS:`);
+  console.log(`  Gas Giants: ${completeSystem.gasGiants.length}`);
+  console.log(`  Planetoid Belts: ${completeSystem.planetoidBelts.length}`);
+  console.log(`  Terrestrial Planets: ${completeSystem.terrestrialPlanets.length}`);
 
-  // Run the test suite
-  generator.testStarGeneration();
+  // ✅ Display moon information
+  console.log(`\n🌙 MOONS:`);
+  completeSystem.allWorlds.forEach((world) => {
+    if (world.moons && world.moons.length > 0) {
+      console.log(`  ${world.id}: ${world.moons.length} moon(s)`);
+      world.moons.forEach((moon) => {
+        const retrograde = moon.isRetrograde ? " (retrograde)" : "";
+        console.log(
+          `    └─ ${moon.id}: Size ${moon.size}, Orbit ${moon.orbitPD} PD, Period ${moon.orbitalPeriodDays} days${retrograde}`,
+        );
+      });
+    }
+  });
 
-  console.log("\n✓ Test suite completed successfully!");
+  if (completeSystem.mainworld) {
+    console.log(`\n⭐ MAINWORLD:`);
+    console.log(
+      `  ${completeSystem.mainworld.id}: Size ${completeSystem.mainworld.size}/${completeSystem.mainworld.atmosphere}/${completeSystem.mainworld.hydrographics}`,
+    );
+    if (completeSystem.mainworld.moons) {
+      console.log(`  Moons: ${completeSystem.mainworld.moons.length}`);
+    }
+  }
 } catch (error) {
   console.error("\n❌ Error:");
   console.error(error.message);
