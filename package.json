@@ -1,24 +1,18 @@
 {
-  "name": "eclipsed-horizons-companion",
+  "name": "star-system-generator",
   "version": "1.0.0",
-  "description": "A comprehensive companion tool for creating custom TTRPG universes using Cepheus and Traveller rulesets.",
-  "main": "index.js",
-  "directories": {
-    "doc": "docs"
+  "description": "Traveller Star System Generator",
+  "main": "StarGenerator.js",
+  "scripts": {
+    "test": "node test-stars.js",
+    "test:verbose": "node test-stars.js 2>&1 | tee test-results.log"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/wilklu/eclipsed-horizons-companion.git"
-  },
-  "keywords": [],
+  "keywords": [
+    "traveller",
+    "star",
+    "system",
+    "generator"
+  ],
   "author": "",
-  "license": "ISC",
-  "type": "commonjs",
-  "bugs": {
-    "url": "https://github.com/wilklu/eclipsed-horizons-companion/issues"
-  },
-  "homepage": "https://github.com/wilklu/eclipsed-horizons-companion#readme",
-  "devDependencies": {
-    "nodemon": "^3.1.14"
-  }
+  "license": "MIT"
 }

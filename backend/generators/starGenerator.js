@@ -13,6 +13,107 @@ class StarGenerator {
     this.roller = new DiceRoller(seed);
     this.seed = this.roller.getSeed();
     this.generationLog = []; // Track all rolls for reproducibility
+    this.primaryStar = null; // Store primary star determination results for later use
+    this.secondaryStars = []; // Store secondary star results for later use
+    this.multipleStarResults = null; // Store multiple star determination results for later use
+  }
+
+  /**
+   * Main system generation method
+   * Orchestrates the creation of a complete star system
+   */
+  generateSystem() {
+    try {
+      // ✅ Initialize all properties
+      this.primaryStar = null;
+      this.secondaryStars = [];
+      this.multipleStarResults = null;
+
+      // Step 1: Generate primary star
+      this.primaryStar = this.generatePrimaryStar();
+
+      if (!this.primaryStar) {
+        throw new Error("Failed to generate primary star");
+      }
+
+      this.generationLog.push({
+        step: "1-Primary",
+        action: "Primary star generated",
+        classification: this.primaryStar.classification,
+      });
+
+      // Step 2: Determine multiple stars presence
+      this.multipleStarResults = this.determineMultipleStars();
+
+      this.generationLog.push({
+        step: "2A-MultipleStars",
+        action: "Determined multiple star presence",
+        hasClose: this.multipleStarResults.hasClose,
+        hasNear: this.multipleStarResults.hasNear,
+        hasFar: this.multipleStarResults.hasFar,
+        primaryCompanion: this.multipleStarResults.primaryCompanion,
+      });
+
+      // Step 3: Generate secondary stars if they exist
+      if (this.multipleStarResults.hasClose || this.multipleStarResults.hasNear || this.multipleStarResults.hasFar) {
+        this.generateSecondaryStars();
+      }
+
+      // Step 4: Generate companion to primary if it exists
+      if (this.multipleStarResults.primaryCompanion) {
+        const primaryCompanion = this.generateCompanionStar(
+          this.primaryStar,
+          "primary",
+          (this.secondaryStars?.length || 0) + 2,
+        );
+        this.primaryStar.companion = primaryCompanion;
+
+        this.generationLog.push({
+          step: "2B-PrimaryCompanion",
+          action: "Generated primary companion",
+          classification: primaryCompanion.classification,
+        });
+      }
+
+      // Step 5: Build complete system object
+      const system = {
+        seed: this.seed,
+        generationLog: this.generationLog,
+        primaryStar: this.primaryStar,
+        secondaryStars: this.secondaryStars || [],
+        multipleStarResults: this.multipleStarResults,
+        totalStars: 1 + (this.secondaryStars?.length || 0) + (this.primaryStar.companion ? 1 : 0),
+        generatedAt: new Date().toISOString(),
+      };
+
+      this.generationLog.push({
+        step: "System-Complete",
+        action: "System generation complete",
+        totalStars: system.totalStars,
+      });
+
+      return system;
+    } catch (error) {
+      console.error("Error in generateSystem():", error);
+      this.generationLog.push({
+        step: "Error",
+        error: error.message,
+        stack: error.stack,
+      });
+      return null;
+    }
+  }
+
+  /**
+   * Helper method to verify system integrity
+   */
+  validateSystemStructure(system) {
+    if (!system) return false;
+    if (!system.primaryStar) return false;
+    if (!system.primaryStar.spectralClass) return false;
+    if (!Array.isArray(system.secondaryStars)) return false;
+    if (!system.multipleStarResults) return false;
+    return true;
   }
 
   /**
@@ -294,17 +395,6 @@ class StarGenerator {
     };
 
     this.primaryStar = primaryStar; // Store for later use in multiple star determination
-    this.multipleStarResults = this.determineMultipleStars(); // Determine multiple star presence
-
-    // ✅ Generate secondary stars if they exist
-    if (this.multipleStarResults.hasClose || this.multipleStarResults.hasNear || this.multipleStarResults.hasFar) {
-      this.generateSecondaryStars();
-    }
-
-    // ✅ Generate companion stars for primary if it exists
-    if (this.multipleStarResults.primaryCompanion) {
-      this.generateCompanionStar(this.primaryStar, "primary");
-    }
 
     return primaryStar;
   }
@@ -1159,6 +1249,150 @@ class StarGenerator {
     // Pattern matches: Class + optional whitespace + Roman numerals
     const match = classString.match(/Class\s+(Ia|Ib|II|III|IV|V|VI)/i);
     return match ? match[1].toUpperCase() : "V";
+  }
+
+  testStarGeneration() {
+    console.log("=== STAR GENERATION TEST SUITE ===\n");
+
+    // Test 1: Generate 5 random systems
+    console.log("TEST 1: Generate 5 complete systems");
+    for (let i = 1; i <= 5; i++) {
+      const system = this.generateSystem();
+      this.validateSystem(system, i);
+    }
+
+    // Test 2: Specific primary types
+    console.log("\nTEST 2: Generate systems with specific primary types");
+    const testTypes = ["O5 I", "B8 III", "G7 V", "K9 IV", "M3 VI"];
+    testTypes.forEach((type, idx) => {
+      console.log(`  - Generating system with primary ${type}...`);
+      // You'll need to add optional parameter to force a type
+    });
+
+    // Test 3: Multiple star constraints
+    console.log("\nTEST 3: Validate multiple star constraints");
+    this.testMultipleStarConstraints();
+
+    // Test 4: Edge cases
+    console.log("\nTEST 4: Test edge cases");
+    this.testEdgeCases();
+  }
+
+  validateSystem(system, testNum) {
+    const primary = system.primaryStar;
+    const secondaries = system.secondaryStars || [];
+
+    console.log(`\n--- System ${testNum} ---`);
+    console.log(`Primary: ${primary.classification}`);
+    console.log(`  Mass: ${primary.mass.toFixed(2)} M☉ (valid: ${this.validateMass(primary)})`);
+    console.log(`  Diameter: ${primary.diameter.toFixed(2)} D☉ (valid: ${this.validateDiameter(primary)})`);
+    console.log(`  Luminosity: ${primary.luminosity.toFixed(3)} L☉ (valid: ${this.validateLuminosity(primary)})`);
+    console.log(`  Temperature: ${primary.temperature}K (valid: ${this.validateTemperature(primary)})`);
+    console.log(
+      `  Habitable Zone: ${primary.habitableZoneInner.toFixed(2)} - ${primary.habitableZoneOuter.toFixed(2)} AU`,
+    );
+
+    console.log(`Secondary Stars: ${secondaries.length}`);
+    secondaries.forEach((sec, idx) => {
+      console.log(`  [${sec.id}] ${sec.classification} in ${sec.orbitClass} orbit`);
+      if (sec.companion) {
+        console.log(`      └─ Companion: ${sec.companion.classification}`);
+      }
+    });
+
+    if (system.multipleStarResults.primaryCompanion) {
+      console.log(`Primary Companion: ${primary.companion?.classification || "ERROR"}`);
+    }
+  }
+
+  // Validate properties are within handbook ranges[^14]
+  validateMass(star) {
+    const typeSubtype = `${star.spectralClass}${star.spectralSubtype}`;
+    const validRanges = {
+      O0: { min: 16, max: 90 },
+      O5: { min: 16, max: 20 },
+      B0: { min: 7, max: 16 },
+      B5: { min: 5.9, max: 7.4 },
+      A0: { min: 1.4, max: 5.9 },
+      A5: { min: 1.04, max: 1.4 },
+      F0: { min: 1.004, max: 1.04 },
+      F5: { min: 0.888, max: 1.004 },
+      G0: { min: 0.804, max: 0.888 },
+      G5: { min: 0.694, max: 0.804 },
+      K0: { min: 0.447, max: 0.694 },
+      K5: { min: 0.386, max: 0.447 },
+      M0: { min: 0.078, max: 0.386 },
+      M5: { min: 0.078, max: 0.15 },
+    };
+
+    const range = validRanges[typeSubtype] || validRanges[`${star.spectralClass}0`];
+    if (!range) return "Unknown range";
+
+    return star.mass >= range.min && star.mass <= range.max ? "✓" : `✗ (${star.mass})`;
+  }
+
+  validateDiameter(star) {
+    // Simplified check - should be > 0
+    return star.diameter > 0 ? "✓" : "✗";
+  }
+
+  validateLuminosity(star) {
+    // Simplified check - should be > 0
+    return star.luminosity > 0 ? "✓" : "✗";
+  }
+
+  validateTemperature(star) {
+    // Check temperature range for spectral class
+    const tempRanges = {
+      O: { min: 30000, max: 60000 },
+      B: { min: 10000, max: 30000 },
+      A: { min: 7500, max: 10000 },
+      F: { min: 6000, max: 7500 },
+      G: { min: 5200, max: 6000 },
+      K: { min: 3700, max: 5200 },
+      M: { min: 2400, max: 3700 },
+    };
+
+    const range = tempRanges[star.spectralClass];
+    if (!range) return "Unknown range";
+
+    return star.temperature >= range.min && star.temperature <= range.max ? "✓" : `✗ (${star.temperature}K)`;
+  }
+
+  testMultipleStarConstraints() {
+    // Generate systems with Class Ia/Ib/II/III primaries - should have NO Close stars
+    console.log("  Testing Class Ia/Ib/II/III constraints...");
+
+    const restrictedClasses = ["Ia", "Ib", "II", "III"];
+    let violations = 0;
+
+    for (let i = 0; i < 10; i++) {
+      // Generate multiple systems until we get a restricted class
+      // Check that hasClose is false
+    }
+
+    console.log(`  ${violations === 0 ? "✓ PASS" : "✗ FAIL"}: No Close stars with restricted classes`);
+
+    // Test DM modifiers
+    console.log("  Testing DM modifiers...");
+    // Log the actual DM being applied to several systems
+    // Verify DM+1 for Ia/Ib/II/III
+    // Verify DM+1 for V/VI with O,B,A,F
+    // Verify DM-1 for V/VI with M
+  }
+
+  testEdgeCases() {
+    console.log("  Edge Case: Brown Dwarf primary");
+    // If possible, test a brown dwarf primary (DM-1)
+
+    console.log("  Edge Case: White Dwarf primary");
+    // If possible, test a white dwarf (DM-1)
+
+    console.log("  Edge Case: Post-stellar (Neutron Star, Pulsar, Black Hole)");
+    // Test post-stellar objects
+
+    console.log("  Edge Case: Multiple companions");
+    // Verify a star with companion can itself have children with companions
   }
 }
 

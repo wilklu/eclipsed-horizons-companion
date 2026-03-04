@@ -5,23 +5,25 @@ console.log("\n╔════════════════════�
 console.log("║       STAR SYSTEM GENERATION TEST SUITE (Node.js)              ║");
 console.log("╚════════════════════════════════════════════════════════════════╝\n");
 
-const generator = new StarGenerator();
-
-// Verify generateSystem exists
-if (typeof generator.generateSystem !== "function") {
-  console.error("❌ ERROR: generateSystem() method not found!");
-  console.error("   Make sure you added the generateSystem() method to StarGenerator class");
-  process.exit(1);
-}
-
-console.log("✓ generateSystem() method found\n");
-
-// Run the test suite
 try {
+  const generator = new StarGenerator();
+
+  // Verify methods exist
+  if (typeof generator.generateSystem !== "function") {
+    throw new Error("generateSystem() method not found!");
+  }
+  if (typeof generator.testStarGeneration !== "function") {
+    throw new Error("testStarGeneration() method not found!");
+  }
+
+  console.log("✓ All required methods found\n");
+
+  // Run the test suite
   generator.testStarGeneration();
+
   console.log("\n✓ Test suite completed successfully!");
 } catch (error) {
-  console.error("\n❌ Test suite encountered an error:");
+  console.error("\n❌ Error:");
   console.error(error.message);
   console.error(error.stack);
   process.exit(1);
