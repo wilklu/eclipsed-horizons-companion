@@ -1,8 +1,4 @@
-/**
- * Star Generator - Phase 1 of System Generation
- * Step 1: Determine primary star type and class
- * Reference: World Builder's Handbook Chapter 2: Stars, Pages 15-18
- */
+// #region Star Generator - Phase 1 of System Generation
 
 const { DiceRoller } = require("./utils/dice.js");
 const starTypeTable = require("./data/starTypeDetermination.json");
@@ -115,10 +111,10 @@ class StarGenerator {
     if (!system.multipleStarResults) return false;
     return true;
   }
-
+  //#endregion
+  //#region Step 1: Determine Primary Star Type and Class
   /**
-   * STEP 1: Determine primary star type and class
-   * Reference: Handbook pages 15-18
+   * Reference: World Builder's Handbook pages 15-18
    *
    * Process:
    * 1a. Roll 2D on Star Type Determination table (with cascading columns)
@@ -126,7 +122,6 @@ class StarGenerator {
    * 1c. Combine to get spectral classification (e.g., G7 V)
    * 1d-1e. Determine mass, diameter, luminosity, temperature
    */
-
   generatePrimaryStar() {
     const steps = {
       step1a: null,
@@ -136,11 +131,23 @@ class StarGenerator {
       step1e: null,
     };
 
-    // ✅ DECLARE LUMINOSITY CLASS AT FUNCTION LEVEL (near top)
-    let luminosityClass = "V"; // Default to main sequence
+    // General Declaration of variables to track across cascades
+    let luminosityClass = "V"; // Default for main sequence
     let cascadePath = [];
 
-    // STEP 1A: Initial roll on Type column
+    /** STEP 1A: Initial roll on Type column
+     * Roll 2D on the Star Type Determination table. This determines the initial spectral type and may trigger cascading rolls on Special, Unusual, Giants, or Hot columns. We track the cascade path for transparency.
+     * Cascading rules:
+     * - If initial roll is 2, cascade to Special column
+     * - If Special roll is 2, cascade to Unusual column
+     * - If Unusual roll is 2, cascade to Peculiar column
+     * - If initial roll is 11-12, cascade to Giants column
+     * - If initial roll is 12+, cascade to Hot column
+     * For Special, Unusual, and Giants cascades, we update the luminosity class variable based on the result (e.g., Class IV, Class III) and then roll again on the Type column with DM+1 to get the final spectral type.
+     * For Hot column cascades, we directly determine the spectral type from the Hot column result without further rolls.
+     * We log each step of the cascade with rolls and results for full transparency.
+     * Reference: Handbook page 16, Star Type Determination table
+     */
     const initialTypeRoll = this.roller.roll2D();
     let tableEntry = this.getTableEntry(initialTypeRoll);
     let finalType = tableEntry.type;
@@ -154,7 +161,7 @@ class StarGenerator {
 
     cascadePath.push("Type");
 
-    // CASCADE CHAIN: Handle forward-only cascading
+    // If Type roll is 2, cascade to Special column
     if (finalType === "Special") {
       // Roll on Special column
       const specialRoll = this.roller.roll2D();
@@ -189,7 +196,7 @@ class StarGenerator {
       cascadePath.push("Type-DM+1");
     }
 
-    // If Special roll is 2, cascade to Unusual
+    // If Special roll is 2, cascade to Unusual column
     if (finalType === "Unusual") {
       const unusualRoll = this.roller.roll2D();
       tableEntry = this.getTableEntry(unusualRoll);
@@ -222,7 +229,7 @@ class StarGenerator {
 
       cascadePath.push("Type-DM+1");
     }
-    // If Unusual roll is 2, cascade to Peculiar
+    // If Unusual roll is 2, cascade to Peculiar column
     if (finalType === "Peculiar") {
       const peculiarRoll = this.roller.roll2D();
       tableEntry = this.getTableEntry(peculiarRoll);
@@ -238,7 +245,7 @@ class StarGenerator {
       cascadePath.push("Peculiar");
     }
 
-    // Check if cascade stopped at Giants (Special roll 11-12)
+    //  If Special or Unusual roll is 11-12, cascade to Giants column
     else if (finalType === "Giants") {
       const giantsRoll = this.roller.roll2D();
       tableEntry = this.getTableEntry(giantsRoll);
@@ -272,7 +279,7 @@ class StarGenerator {
       cascadePath.push("Type-DM+1");
     }
 
-    // Handle Hot column rolls (12+)
+    // if Type roll is 12+, cascade to Hot column
     if (finalType === "Hot") {
       const hotRoll = this.roller.roll2D();
       const hotResult = this.lookupStarTypeHot(hotRoll);
@@ -288,13 +295,39 @@ class StarGenerator {
       cascadePath.push("Hot");
     }
 
+    // ✅ APPLY CLASS IV M-TYPE ADJUSTMENT (Type roll 3-6 only)
+    if (luminosityClass === "IV") {
+      const originalTypeRoll = typeRoll;
+
+      // If the original Type roll is 3-6 (which produces M-type)
+      if (originalTypeRoll >= 3 && originalTypeRoll <= 6) {
+        const adjustedTypeRoll = originalTypeRoll + 5;
+        const adjustedEntry = this.getTableEntry(adjustedTypeRoll);
+        finalType = adjustedEntry.type;
+
+        this.generationLog.push({
+          step: "1A-Class-IV-M-Adjust",
+          action: "Class IV: rolled 3-6 (M-type), added 5 to Type roll",
+          originalTypeRoll: originalTypeRoll,
+          adjustedTypeRoll: adjustedTypeRoll,
+          originalType: "M",
+          newType: finalType,
+        });
+      }
+
+      // Change O-type to B
+      if (finalType === "O") {
+        finalType = "B";
+      }
+    }
+
     steps.step1a = {
       initialRoll: initialTypeRoll,
       cascadePath: cascadePath,
       finalResult: finalType,
     };
 
-    // Handle peculiar types
+    // if finalType is a peculiar type, we need to handle it separately and skip subtype/classification steps
     const peculiarTypes = ["Black Hole", "Neutron Star", "Pulsar", "Protostar", "Nebula", "Star Cluster", "Anomaly"];
 
     if (peculiarTypes.includes(finalType)) {
@@ -321,18 +354,28 @@ class StarGenerator {
       };
     }
 
-    // STEP 1B: Roll for numeric subtype
+    /** Step 1B: Determine Subtype and Final Classification: Subtype
+     *  Subtype (0-9) is determined by rolling on the Star Subtype Determination table, using the spectral class from Step 1A. For M-type stars, we use the mType column instead of numeric. Special adjustments apply for certain luminosity classes and types (e.g., Class IV M-types add 5 to subtype).
+     */
+
     const subtypeRoll = this.roller.roll2D();
     let subtypeResult = this.lookupSubtype(subtypeRoll, finalType);
 
-    // ✅ APPLY CLASS IV M-TYPE ADJUSTMENT[^6]
-    if (luminosityClass === "IV" && finalType === "M") {
+    this.generationLog.push({
+      step: "1B-Subtype",
+      action: "Determine subtype",
+      roll: subtypeRoll,
+      result: subtypeResult,
+    });
+
+    // Apply Type K Class IV adjustment (subtract 5 from subtype if result > 4)
+    if (luminosityClass === "IV" && finalType === "K") {
       const originalSubtype = subtypeResult.subtype;
-      subtypeResult.subtype = Math.min(9, subtypeResult.subtype + 5);
+      subtypeResult.subtype = Math.min(1, subtypeResult.subtype - 5);
 
       this.generationLog.push({
-        step: "1B-Class-IV-M",
-        action: "Class IV M-type: added 5 to subtype (range limit)",
+        step: "1B-Class-IV-K",
+        action: "Class IV K-type: subtract 5 from subtype (range limit)",
         originalSubtype: originalSubtype,
         adjustedSubtype: subtypeResult.subtype,
       });
@@ -340,8 +383,11 @@ class StarGenerator {
 
     steps.step1b = { roll: subtypeRoll, result: subtypeResult };
 
-    // STEP 1C: Combine to get spectral classification
-    // ✅ USE THE TRACKED LUMINOSITY CLASS
+    /** Step 1C: Combine Results to get spectral classification
+     * The final spectral classification is a combination of the spectral type from Step 1A, the subtype from Step 1B, and the luminosity class determined during any cascades. For example, if we ended up with a G-type star, subtype 7, and luminosity class V, the final classification would be "G7 V". We log the final classification along with the cascade path and luminosity class for full transparency.
+     * Reference: Handbook page 17, Star Subtype Determination table (for subtype) and page 16, Star Type Determination table (for luminosity class)
+     */
+
     const spectralClassification = `${finalType}${subtypeResult.subtype} ${luminosityClass}`;
 
     this.generationLog.push({
@@ -353,7 +399,10 @@ class StarGenerator {
 
     steps.step1c = { classification: spectralClassification };
 
-    // STEP 1D: Get star properties
+    /** Step 1D: Get star properties
+     *  We look up the star properties based on the final type and subtype determined in previous steps. This includes mass, diameter, luminosity, temperature, and main sequence lifespan.
+     */
+
     const properties = this.getStarProperties(finalType, subtypeResult.subtype);
 
     this.generationLog.push({
@@ -399,6 +448,8 @@ class StarGenerator {
     return primaryStar;
   }
 
+  //#endregion
+  // #region Step 2: Determine Multiple Stars
   generateSecondaryStars() {
     this.secondaryStars = [];
 
@@ -588,30 +639,211 @@ class StarGenerator {
         return null;
     }
   }
+  //#endregion
+  // #region Helper Methods for Star Generation
 
   // Helper methods for each result type
   generateRandomStar(parentStar, location) {
-    // Roll on Star Type Determination table page 15
-    // Then check: if result is hotter than parent, treat as lesser instead
+    // Roll on Star Type Determination table, check if hotter than parent
     const roll = this.roller.roll2D();
-    // ... implementation ...
+    let tableEntry = this.getTableEntry(roll);
+    let resultType = tableEntry.type;
+
+    // Handle cascades (Special, Unusual, Giants, Hot)
+    if (resultType === "Special" || resultType === "Unusual" || resultType === "Giants" || resultType === "Hot") {
+      // Handle cascades similar to primary star generation
+      // For now, treat as a normal star type
+      resultType = resultType === "Hot" ? "A" : "M"; // Fallback
+    }
+
+    // Get subtype
+    const subtypeRoll = this.roller.roll2D();
+    const subtypeResult = this.lookupSubtype(subtypeRoll, resultType);
+
+    // Check if hotter than parent - if so, treat as Lesser instead[^5]
+    const parentRank = this.getSpectralRank(parentStar.spectralClass);
+    const thisRank = this.getSpectralRank(resultType);
+
+    if (thisRank > parentRank) {
+      // Hotter than parent - treat as Lesser instead
+      return this.generateLesserStar(parentStar, location);
+    }
+
+    // Create the random star
+    const properties = this.getStarProperties(resultType, subtypeResult.subtype);
+
+    const randomStar = {
+      seed: this.seed,
+      id: (this.secondaryStars?.length || 0) + 2,
+      component: location,
+      classification: `${resultType}${subtypeResult.subtype} V`,
+      spectralClass: resultType,
+      spectralSubtype: subtypeResult.subtype,
+      luminosityClass: "V",
+      mass: properties.mass,
+      diameter: properties.diameter,
+      radius: properties.diameter / 2,
+      luminosity: properties.luminosity,
+      temperature: properties.temperature,
+      orbitClass: location,
+      createdAt: new Date().toISOString(),
+    };
+
+    this.generationLog.push({
+      step: "2B-RandomStar",
+      action: `Generated Random star for ${location}`,
+      classification: randomStar.classification,
+    });
+
+    return randomStar;
   }
 
   generateLesserStar(parentStar, location) {
-    // Same class, one type cooler
-    // F→G, K→M, M→M or brown dwarf
-    // ... implementation ...
+    // Same class, one type cooler[^5]
+    const classMap = {
+      O: "B",
+      B: "A",
+      A: "F",
+      F: "G",
+      G: "K",
+      K: "M",
+      M: "M", // M->M or Brown Dwarf
+    };
+
+    const lesserClass = classMap[parentStar.spectralClass];
+
+    // Reroll subtype
+    const subtypeRoll = this.roller.roll2D();
+    const subtypeResult = this.lookupSubtype(subtypeRoll, lesserClass);
+
+    // If M->M and new subtype higher than parent, it's a brown dwarf
+    if (parentStar.spectralClass === "M" && subtypeResult.subtype > parentStar.spectralSubtype) {
+      // Generate as brown dwarf instead
+      return {
+        seed: this.seed,
+        id: (this.secondaryStars?.length || 0) + 2,
+        component: location,
+        classification: "BD",
+        type: "Brown Dwarf",
+        spectralClass: "M",
+        spectralSubtype: subtypeResult.subtype,
+        luminosityClass: "VI",
+        mass: 0.08 - (subtypeResult.subtype / 10) * 0.05, // Brown dwarf mass
+        diameter: 0.1,
+        luminosity: 0.001,
+        temperature: 1500,
+        orbitClass: location,
+        createdAt: new Date().toISOString(),
+      };
+    }
+
+    const properties = this.getStarProperties(lesserClass, subtypeResult.subtype);
+
+    const lesserStar = {
+      seed: this.seed,
+      id: (this.secondaryStars?.length || 0) + 2,
+      component: location,
+      classification: `${lesserClass}${subtypeResult.subtype} V`,
+      spectralClass: lesserClass,
+      spectralSubtype: subtypeResult.subtype,
+      luminosityClass: "V",
+      mass: properties.mass,
+      diameter: properties.diameter,
+      radius: properties.diameter / 2,
+      luminosity: properties.luminosity,
+      temperature: properties.temperature,
+      orbitClass: location,
+      createdAt: new Date().toISOString(),
+    };
+
+    this.generationLog.push({
+      step: "2B-LesserStar",
+      action: `Generated Lesser star for ${location}`,
+      parentClass: parentStar.spectralClass,
+      lesserClass: lesserClass,
+      classification: lesserStar.classification,
+    });
+
+    return lesserStar;
   }
 
   generateSiblingstar(parentStar, location) {
-    // Same class and type, subtract 1D from subtype
-    // ... implementation ...
+    // Same type, one subtype cooler[^5]
+    const siblingSubtype = Math.max(0, parentStar.spectralSubtype - this.roller.roll1D());
+
+    const properties = this.getStarProperties(parentStar.spectralClass, siblingSubtype);
+
+    const siblingStar = {
+      seed: this.seed,
+      id: (this.secondaryStars?.length || 0) + 2,
+      component: location,
+      classification: `${parentStar.spectralClass}${siblingSubtype} V`,
+      spectralClass: parentStar.spectralClass,
+      spectralSubtype: siblingSubtype,
+      luminosityClass: "V",
+      mass: properties.mass,
+      diameter: properties.diameter,
+      radius: properties.diameter / 2,
+      luminosity: properties.luminosity,
+      temperature: properties.temperature,
+      orbitClass: location,
+      createdAt: new Date().toISOString(),
+    };
+
+    this.generationLog.push({
+      step: "2B-SiblingStar",
+      action: `Generated Sibling star for ${location}`,
+      parentClass: parentStar.spectralClass,
+      siblingSubtype: siblingSubtype,
+      classification: siblingStar.classification,
+    });
+
+    return siblingStar;
   }
 
   generateTwinStar(parentStar, location) {
-    // Same class, type, and subtype
-    // Optionally subtract 1D-1% from mass/diameter
-    // ... implementation ...
+    // Same type and subtype[^5]
+    // Optional: subtract 1D-1% from mass/diameter for variation
+    const massVariance = (this.roller.roll1D() - 1) / 100;
+    const diameterVariance = (this.roller.roll1D() - 1) / 100;
+
+    const properties = this.getStarProperties(parentStar.spectralClass, parentStar.spectralSubtype);
+
+    const twinStar = {
+      seed: this.seed,
+      id: (this.secondaryStars?.length || 0) + 2,
+      component: location,
+      classification: `${parentStar.spectralClass}${parentStar.spectralSubtype} V`,
+      spectralClass: parentStar.spectralClass,
+      spectralSubtype: parentStar.spectralSubtype,
+      luminosityClass: "V",
+      mass: properties.mass * (1 - massVariance),
+      diameter: properties.diameter * (1 - diameterVariance),
+      radius: (properties.diameter * (1 - diameterVariance)) / 2,
+      luminosity: properties.luminosity * Math.pow(1 - diameterVariance, 2),
+      temperature: properties.temperature,
+      orbitClass: location,
+      createdAt: new Date().toISOString(),
+    };
+
+    this.generationLog.push({
+      step: "2B-TwinStar",
+      action: `Generated Twin star for ${location}`,
+      massVariance: (massVariance * 100).toFixed(2),
+      diameterVariance: (diameterVariance * 100).toFixed(2),
+      classification: twinStar.classification,
+    });
+
+    return twinStar;
+  }
+
+  /**
+   * Helper: Get spectral rank (for comparison)
+   * O > B > A > F > G > K > M
+   */
+  getSpectralRank(spectralClass) {
+    const ranks = { O: 7, B: 6, A: 5, F: 4, G: 3, K: 2, M: 1 };
+    return ranks[spectralClass] || 0;
   }
 
   /**
@@ -1250,7 +1482,8 @@ class StarGenerator {
     const match = classString.match(/Class\s+(Ia|Ib|II|III|IV|V|VI)/i);
     return match ? match[1].toUpperCase() : "V";
   }
-
+  // #endregion
+  // #region Test Suite for Star Generation
   testStarGeneration() {
     console.log("=== STAR GENERATION TEST SUITE ===\n");
 
@@ -1395,5 +1628,6 @@ class StarGenerator {
     // Verify a star with companion can itself have children with companions
   }
 }
+// #endregion
 
 module.exports = StarGenerator;
