@@ -46,11 +46,13 @@ class WorldGenerator {
       // Phase 3A: Generate atmospheres and hydrographics for terrestrial planets
       this.generateAtmosphereAndHydrographics();
 
+      //Phase 3B: Generate temperature and climate data for terrestrial planets
+      this.generateTemperatureAndClimate();
+
       this.generationLog.push({
-        step: "Phase 2 & 3A Complete",
-        action: "World generation with atmosphere and hydrographics complete",
+        step: "Phase 2, 3A & 3B Complete",
+        action: "World generation with atmosphere, hydrographics, and temperature complete",
         totalWorlds: this.allWorlds.length,
-        totalMoons: this.allWorlds.reduce((sum, w) => sum + (w.moons?.length || 0), 0),
       });
 
       return this.buildSystemWithWorlds();
@@ -541,12 +543,12 @@ class WorldGenerator {
       const ggSize = world.size; // "Large", "Medium", "Small"
 
       if (ggSize === "Small") {
-        diceRoll = this.roller.roll3D() - 7;
+        diceRoll = this.roller.roll3D(-7);
       } else if (ggSize === "Medium") {
-        diceRoll = this.roller.roll4D() - 6;
+        diceRoll = this.roller.roll4D(-6);
       } else {
         // Large
-        diceRoll = this.roller.roll4D() - 6;
+        diceRoll = this.roller.roll4D(-6);
       }
     }
 
@@ -1468,6 +1470,8 @@ class WorldGenerator {
    * Reference: Handbook page 81 - Runaway Greenhouse
    */
   checkRunawayGreenhouse(planet) {
+    let ghRoll, ghDM, ghTotal;
+
     // Only check habitable zone worlds with certain conditions[^11]
     if (!planet.inHabitableZone || planet.atmosphereCode < 2) {
       planet.runawayGreenhouse = false;
@@ -1586,6 +1590,463 @@ class WorldGenerator {
       world: planet.id,
       score: score,
       factors: habitabilityFactors.join("; "),
+    });
+  }
+  // #endregion
+  // #region Phase 3B: Temperature and Climate Calculations
+  /**
+   * PHASE 3B: TEMPERATURE & CLIMATE GENERATION
+   * Reference: Handbook pages 110-126 - Temperature and Climate Calculations
+   *
+   * Process:
+   * 3b.1: Calculate mean surface temperature (albedo + greenhouse)
+   * 3b.2: Determine climate zones based on axial tilt
+   * 3b.3: Calculate high/low temperatures by season
+   * 3b.4: Apply daily temperature variations
+   * 3b.5: Handle special scenarios (tidal locking, extreme tilts)
+   * 3b.6: Classify climate type
+   */
+  generateTemperatureAndClimate() {
+    console.log("\n=== PHASE 3B: TEMPERATURE & CLIMATE ===\n");
+
+    // Generate detailed temperature for each terrestrial planet
+    this.terrestrialPlanets.forEach((planet) => {
+      this.generatePlanetTemperature(planet);
+      this.generateClimateZones(planet);
+      this.calculateSeasonalTemperatures(planet);
+      this.classifyClimateType(planet);
+    });
+
+    this.generationLog.push({
+      step: "Phase 3B Complete",
+      action: "Temperature and climate generated",
+      worldsProcessed: this.terrestrialPlanets.length,
+    });
+
+    console.log(`✓ Temperature & climate generated for ${this.terrestrialPlanets.length} terrestrial planets`);
+  }
+
+  /**
+   * Generate temperature for a terrestrial planet
+   * Reference: Handbook pages 110-112 - Mean Surface Temperature
+   */
+  generatePlanetTemperature(planet) {
+    // Step 1: Determine planet's axial tilt (affects climate zones)[^1,^2]
+    planet.axialTilt = this.determineAxialTilt(planet);
+
+    // Step 2: Determine albedo (surface reflectivity)[^3,^4]
+    planet.albedo = this.calculateAlbedo(planet);
+
+    // Step 3: Calculate greenhouse factor[^5,^6]
+    const greenhouseFactor = this.calculateGreenhouseFactor(planet);
+    planet.greenhouseFactor = greenhouseFactor;
+
+    // Step 4: Calculate mean surface temperature[^7]
+    // Formula: T_mean = 278 × (L / D²)^0.25 × (1 - A)^0.25 × (GF)^0.25
+    // Where: L = star luminosity, D = orbital distance (AU), A = albedo, GF = greenhouse factor
+    const starLuminosity = this.starSystem.primaryStar.luminosity;
+    const orbitalDistance = planet.orbit; // Already in AU
+
+    if (!starLuminosity || !orbitalDistance) {
+      console.warn(`  ⚠ Missing stellar data for ${planet.id} - using fallback`);
+      planet.meanTemperature = 288; // Earth-like default
+      return;
+    }
+
+    // Calculate mean temperature in Kelvin
+    const meanTempKelvin =
+      278 *
+      Math.pow(starLuminosity / (orbitalDistance * orbitalDistance), 0.25) *
+      Math.pow(1 - planet.albedo, 0.25) *
+      Math.pow(greenhouseFactor, 0.25);
+
+    planet.meanTemperature = meanTempKelvin;
+    planet.meanTemperatureCelsius = meanTempKelvin - 273.15;
+
+    // Classify as hot, temperate, or cold
+    planet.temperatureClassification = this.classifyTemperature(meanTempKelvin, planet);
+
+    this.generationLog.push({
+      step: "3B-MeanTemperature",
+      world: planet.id,
+      luminosity: starLuminosity,
+      orbitalDistance: orbitalDistance.toFixed(2),
+      albedo: planet.albedo.toFixed(3),
+      greenhouseFactor: greenhouseFactor.toFixed(3),
+      meanTemp: meanTempKelvin.toFixed(1),
+      celsius: planet.meanTemperatureCelsius.toFixed(1),
+      classification: planet.temperatureClassification,
+    });
+
+    console.log(`  ${planet.id}: ${planet.temperatureClassification} (${planet.meanTemperatureCelsius.toFixed(1)}°C)`);
+  }
+
+  /**
+   * Determine planet's axial tilt
+   * Reference: Handbook page 114 - Axial Tilt
+   */
+  determineAxialTilt(planet) {
+    // Roll 2D-2 for axial tilt code
+    const tiltRoll = this.roller.roll2D() - 2;
+
+    // Axial tilt table (in degrees)
+    const tiltTable = {
+      0: 0, // No tilt - tidally locked
+      1: 5,
+      2: 10,
+      3: 15,
+      4: 20,
+      5: 25,
+      6: 30,
+      7: 35,
+      8: 40,
+      9: 45,
+      10: 50, // Extreme tilt
+    };
+
+    const tilt = tiltTable[Math.max(0, Math.min(10, tiltRoll))] || 0;
+
+    planet.axialTiltRoll = tiltRoll;
+    planet.axialTilt = tilt;
+    planet.isTidallyLocked = tilt === 0;
+
+    this.generationLog.push({
+      step: "3B-AxialTilt",
+      world: planet.id,
+      roll: tiltRoll,
+      tilt: tilt,
+      tidallyLocked: planet.isTidallyLocked,
+    });
+
+    return tilt;
+  }
+
+  /**
+   * Calculate planet's albedo (surface reflectivity)
+   * Reference: Handbook page 112 - Albedo by World Type
+   */
+  calculateAlbedo(planet) {
+    let baseAlbedo = 0.5; // Default
+    let albedoModifier = 0;
+
+    // Albedo based on atmosphere type[^8,^9]
+    const atmCode = planet.atmosphereCode;
+
+    if (atmCode === 0 || atmCode === 1) {
+      baseAlbedo = 0.4; // Trace/very thin - rocky surface
+    } else if ([2, 3, 4, 5].includes(atmCode)) {
+      baseAlbedo = 0.5; // Thin atmosphere - moderate albedo
+    } else if ([6, 7, 8].includes(atmCode)) {
+      baseAlbedo = 0.55; // Standard/dense - cloud coverage
+    } else if ([9, "A"].includes(atmCode)) {
+      baseAlbedo = 0.6; // Very dense - high cloud coverage
+    } else if (["B", "C"].includes(atmCode)) {
+      baseAlbedo = 0.65; // Corrosive/insidious - thick clouds
+    }
+
+    // Albedo modifier based on hydrographics[^10]
+    const hydroCode = planet.hydrographicsCode;
+
+    if (hydroCode === 0) {
+      albedoModifier = -0.1; // No water - darker
+    } else if (hydroCode <= 3) {
+      albedoModifier = -0.05;
+    } else if (hydroCode <= 7) {
+      albedoModifier = 0; // Neutral
+    } else {
+      albedoModifier = 0.05; // More water - higher albedo
+    }
+
+    const finalAlbedo = Math.max(0.1, Math.min(0.9, baseAlbedo + albedoModifier));
+
+    return finalAlbedo;
+  }
+
+  /**
+   * Calculate greenhouse factor
+   * Reference: Handbook page 112 - Greenhouse Factor Determination
+   */
+  calculateGreenhouseFactor(planet) {
+    const atmCode = planet.atmosphereCode;
+
+    // Base greenhouse factor by atmosphere code[^5]
+    const greenhouseTable = {
+      0: 0, // None
+      1: 0.01, // Trace
+      2: 0.05, // Very thin
+      3: 0.08,
+      4: 0.1, // Thin
+      5: 0.15,
+      6: 0.2, // Standard
+      7: 0.25,
+      8: 0.3, // Dense
+      9: 0.4, // Very dense
+      A: 0.5, // Exotic dense
+      B: 0.8, // Corrosive (strong greenhouse)
+      C: 0.9, // Insidious (extreme greenhouse)
+      D: 0.05, // Low
+      E: 0.15, // Unusual
+    };
+
+    let baseFactor = greenhouseTable[atmCode] || 0;
+
+    // Apply hydrographics modifier
+    // Water bodies increase greenhouse effect[^6]
+    const hydroCode = planet.hydrographicsCode;
+    const hydroModifier = hydroCode * 0.02; // 0-20% increase
+
+    const finalFactor = Math.max(0, Math.min(1, baseFactor + hydroModifier));
+
+    return finalFactor;
+  }
+
+  /**
+   * Classify temperature level
+   * Reference: Handbook page 113 - Temperature Classifications
+   */
+  classifyTemperature(tempKelvin, planet) {
+    const tempCelsius = tempKelvin - 273.15;
+
+    // Standard classifications[^11,^12]
+    if (tempCelsius < 244) {
+      return "Frozen"; // Below -29°C
+    } else if (tempCelsius < 273) {
+      return "Very Cold"; // -29 to 0°C
+    } else if (tempCelsius < 293) {
+      return "Cold"; // 0 to 20°C
+    } else if (tempCelsius < 323) {
+      return "Temperate"; // 20 to 50°C
+    } else if (tempCelsius < 353) {
+      return "Hot"; // 50 to 80°C
+    } else {
+      return "Very Hot"; // Above 80°C
+    }
+  }
+
+  /**
+   * Generate climate zones based on axial tilt
+   * Reference: Handbook pages 115-118 - Climate Zones
+   */
+  generateClimateZones(planet) {
+    const axialTilt = planet.axialTilt;
+    const zones = {};
+
+    // Define zone latitudes based on axial tilt[^13]
+    // Tropical zones: 0 to (90 - axial tilt - 23.5) degrees latitude
+    // Temperate zones: (90 - axial tilt - 23.5) to (90 - axial tilt) degrees
+    // Polar/Arctic zones: (90 - axial tilt) to 90 degrees
+
+    const tropicalEdge = Math.max(0, 23.5 - axialTilt);
+    const temperateTropicalBoundary = 90 - axialTilt - 23.5;
+    const polarBoundary = 90 - axialTilt;
+
+    // For tidally locked worlds[^14]
+    if (planet.isTidallyLocked) {
+      zones.type = "Tidally Locked";
+      zones.daylight = {
+        name: "Daylight Hemisphere",
+        latitude: "0 to 90°N",
+        characteristics: "Perpetually hot",
+      };
+      zones.twilight = {
+        name: "Twilight Zone",
+        latitude: "±90°",
+        characteristics: "Temperate, perpetual sunset",
+      };
+      zones.night = {
+        name: "Night Hemisphere",
+        latitude: "0 to 90°S",
+        characteristics: "Perpetually frozen",
+      };
+      return;
+    }
+
+    // Normal climate zones for non-tidally-locked worlds
+    if (axialTilt < 23.5) {
+      // Standard zones - three distinct regions
+      zones.type = "Standard";
+
+      zones.polar = {
+        name: "Polar/Arctic",
+        latitudeLow: polarBoundary,
+        latitudeHigh: 90,
+        coverage: ((180 - polarBoundary * 2) / 180) * 100,
+      };
+
+      zones.temperate = {
+        name: "Temperate/Middle",
+        latitudeLow: temperateTropicalBoundary,
+        latitudeHigh: polarBoundary,
+        coverage: (((polarBoundary - temperateTropicalBoundary) * 2) / 180) * 100,
+      };
+
+      zones.tropical = {
+        name: "Tropical/Equatorial",
+        latitudeLow: 0,
+        latitudeHigh: temperateTropicalBoundary,
+        coverage: ((temperateTropicalBoundary * 2) / 180) * 100,
+      };
+    } else if (axialTilt >= 45) {
+      // Extreme tilt - no middle zones[^15]
+      zones.type = "Extreme Tilt";
+
+      zones.arctic = {
+        name: "Arctic/Polar",
+        latitudeLow: 90 - axialTilt,
+        latitudeHigh: 90,
+        coverage: ((axialTilt * 2) / 180) * 100,
+      };
+
+      zones.tropical = {
+        name: "Tropical (Extreme)",
+        latitudeLow: 0,
+        latitudeHigh: 90 - axialTilt,
+        coverage: ((180 - axialTilt * 2) / 180) * 100,
+      };
+    } else {
+      // Moderate tilt - transitional
+      zones.type = "Moderate Tilt";
+      zones.description = `Axial tilt ${axialTilt}° creates overlap between zones`;
+    }
+
+    planet.climateZones = zones;
+
+    this.generationLog.push({
+      step: "3B-ClimateZones",
+      world: planet.id,
+      axialTilt: axialTilt,
+      type: zones.type,
+    });
+  }
+
+  /**
+   * Calculate seasonal temperature variations
+   * Reference: Handbook pages 115-116 - Seasonal Modifiers
+   */
+  calculateSeasonalTemperatures(planet) {
+    const meanTemp = planet.meanTemperature;
+    const axialTilt = planet.axialTilt;
+
+    // Seasonal variation increases with axial tilt[^16]
+    const seasonalVariation = axialTilt * 2; // Rough approximation
+
+    // High temperature: perihelion + summer[^17]
+    planet.highTemperature = meanTemp + seasonalVariation;
+    planet.highTemperatureCelsius = planet.highTemperature - 273.15;
+
+    // Low temperature: aphelion + winter[^17]
+    planet.lowTemperature = meanTemp - seasonalVariation;
+    planet.lowTemperatureCelsius = planet.lowTemperature - 273.15;
+
+    // Apply eccentricity modifier[^18]
+    if (planet.eccentricity && planet.eccentricity > 0.1) {
+      const eccentricityEffect = planet.eccentricity * 50; // Rough scaling
+      planet.highTemperature += eccentricityEffect;
+      planet.lowTemperature -= eccentricityEffect;
+    }
+
+    // Rotation period affects daily temperature variation[^19]
+    if (!planet.rotationPeriod) {
+      planet.rotationPeriod = 24; // Default Earth-like
+    }
+
+    const rotationFactor = planet.rotationPeriod / 24;
+    planet.dailyVariation = 30 * (planet.rotationFactor || 1); // Varies by rotation
+
+    this.generationLog.push({
+      step: "3B-SeasonalTemperatures",
+      world: planet.id,
+      mean: meanTemp.toFixed(1),
+      high: planet.highTemperature.toFixed(1),
+      low: planet.lowTemperature.toFixed(1),
+      variation: seasonalVariation.toFixed(1),
+    });
+  }
+
+  /**
+   * Classify world's climate type
+   * Reference: Handbook pages 120-126 - Climate Classification Systems
+   */
+  classifyClimateType(planet) {
+    const tempClass = planet.temperatureClassification;
+    const hydroCode = planet.hydrographicsCode;
+    const atmCode = planet.atmosphereCode;
+
+    let climateType = "Unknown";
+    let climateDescription = "";
+
+    // Combine temperature + hydrographics + atmosphere[^20]
+    if (tempClass === "Frozen") {
+      if (hydroCode >= 7) {
+        climateType = "Ice World";
+        climateDescription = "Frozen with ice sheets and glaciers";
+      } else {
+        climateType = "Sterile Ice";
+        climateDescription = "Frozen with minimal water";
+      }
+    } else if (tempClass === "Very Cold") {
+      climateType = "Arctic";
+      climateDescription = "Perpetually cold with permafrost";
+    } else if (tempClass === "Cold") {
+      if (hydroCode >= 5) {
+        climateType = "Tundra";
+        climateDescription = "Cold with Arctic vegetation";
+      } else {
+        climateType = "Barren Cold";
+        climateDescription = "Cold and arid";
+      }
+    } else if (tempClass === "Temperate") {
+      if (hydroCode >= 7) {
+        climateType = "Garden";
+        climateDescription = "Temperate and wet - ideal for life";
+      } else if (hydroCode >= 4) {
+        climateType = "Temperate";
+        climateDescription = "Temperate with moderate water";
+      } else if (hydroCode >= 1) {
+        climateType = "Steppe";
+        climateDescription = "Temperate grasslands";
+      } else {
+        climateType = "Desert";
+        climateDescription = "Temperate but dry";
+      }
+    } else if (tempClass === "Hot") {
+      if (hydroCode >= 7) {
+        climateType = "Wet Tropical";
+        climateDescription = "Hot and humid with high rainfall";
+      } else if (hydroCode >= 4) {
+        climateType = "Tropical";
+        climateDescription = "Hot with some water";
+      } else if (hydroCode >= 1) {
+        climateType = "Savanna";
+        climateDescription = "Hot with scattered vegetation";
+      } else {
+        climateType = "Desert";
+        climateDescription = "Hot and arid";
+      }
+    } else if (tempClass === "Very Hot") {
+      climateType = "Inferno";
+      climateDescription = "Extremely hot - hostile conditions";
+    }
+
+    // Special cases
+    if (planet.isTidallyLocked) {
+      climateType = `${climateType} (Tidally Locked)`;
+      climateDescription = "Half perpetually frozen, half perpetually hot";
+    }
+
+    if (planet.runawayGreenhouse) {
+      climateType = "Greenhouse Hell";
+      climateDescription = "Runaway greenhouse effect - uninhabitable";
+    }
+
+    planet.climateType = climateType;
+    planet.climateDescription = climateDescription;
+
+    this.generationLog.push({
+      step: "3B-ClimateType",
+      world: planet.id,
+      type: climateType,
+      description: climateDescription,
     });
   }
   // #endregion

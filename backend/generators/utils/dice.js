@@ -56,7 +56,7 @@ class DiceRoller {
   }
 
   /**
-   * Roll 1D (single die)
+   * Roll 1D6 (single die)
    * @param {number} modifier - Optional DM to add
    * @returns {number}
    */
@@ -65,12 +65,21 @@ class DiceRoller {
   }
 
   /**
-   * Roll 3D
+   * Roll 3D6
    * @param {number} modifier - Optional DM to add
    * @returns {number}
    */
   roll3D(modifier = 0) {
     return this.rollDice(3) + modifier;
+  }
+
+  /**
+   * Roll 4D6
+   * @param {number} modifier - Optional DM to add
+   * @returns {number}
+   */
+  roll4D(modifier = 0) {
+    return this.rollDice(4) + modifier;
   }
 
   /**
