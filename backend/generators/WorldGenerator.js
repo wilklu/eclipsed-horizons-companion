@@ -20,51 +20,66 @@ class WorldGenerator {
    */
   generateWorlds() {
     try {
-      console.log("\n=== PHASE 2: WORLD GENERATION ===\n");
+      console.log("\n=== PHASE 2, 3A, 3B & 3C: COMPLETE WORLD GENERATION ===\n");
 
-      // Step 1: Determine world type counts
+      // ===============================================
+      // PHASE 2: WORLD DISCOVERY & PLACEMENT
+      // ===============================================
+      console.log("PHASE 2: World Discovery & Placement");
       this.determineWorldCounts();
-
-      // Step 2: Calculate habitable zone
       this.calculateHabitableZone();
-
-      // Step 3: Determine orbital structure
       this.determineOrbitStructure();
-
-      // Step 4: Place worlds in orbits
       this.placeWorlds();
+      this.generateWorldCharacteristics(); // Size only
 
-      // Step 5: Generate world characteristics
-      this.generateWorldCharacteristics();
-
-      // Step 6B: Generate planetary moons
+      // Generate moons for ALL worlds (they're candidates)
       this.generatePlanetaryMoons();
 
-      // Step 6: Determine mainworld
+      console.log(`  Total worlds: ${this.allWorlds.length}`);
+      console.log(`  Moons generated: ${this.allWorlds.reduce((sum, w) => sum + (w.moons?.length || 0), 0)}`);
+
+      // ===============================================
+      // PHASE 3A: ATMOSPHERE & HYDROGRAPHICS FOR ALL WORLDS
+      // ===============================================
+      console.log("\nPHASE 3A: Atmosphere & Hydrographics (All Worlds)");
+      this.generateAtmosphereAndHydrographicsForAllWorlds();
+
+      // ===============================================
+      // PHASE 3B: TEMPERATURE & CLIMATE FOR ALL WORLDS
+      // ===============================================
+      console.log("\nPHASE 3B: Temperature & Climate (All Worlds)");
+      this.generateTemperatureAndClimateForAllWorlds();
+
+      // ===============================================
+      // MAINWORLD DETERMINATION
+      // ===============================================
+      console.log("\nMAINWORLD DETERMINATION:");
+      // NOW we have complete data for all worlds
       this.determineMainworld();
 
-      // Phase 3A: Generate atmospheres and hydrographics for terrestrial planets
-      this.generateAtmosphereAndHydrographics();
+      if (!this.mainworld) {
+        throw new Error("CRITICAL: Mainworld determination failed");
+      }
 
-      //Phase 3B: Generate temperature and climate data for terrestrial planets
-      this.generateTemperatureAndClimate();
+      // ===============================================
+      // PHASE 3C: POPULATION & SETTLEMENTS (MAINWORLD + SECONDARIES)
+      // ===============================================
+      console.log("\nPHASE 3C: Population & Settlements");
+      this.generatePopulationAndSettlementsForAllWorlds();
 
-      this.generationLog.push({
-        step: "Phase 2, 3A & 3B Complete",
-        action: "World generation with atmosphere, hydrographics, and temperature complete",
-        totalWorlds: this.allWorlds.length,
-      });
+      // ===============================================
+      // UWP GENERATION FOR ALL WORLDS
+      // ===============================================
+      console.log("\nUWP GENERATION:");
+      this.generateUWPForAllWorlds();
 
       return this.buildSystemWithWorlds();
     } catch (error) {
       console.error("Error in generateWorlds():", error);
-      this.generationLog.push({
-        step: "Error",
-        error: error.message,
-      });
       return null;
     }
   }
+
   //  #region World Generation Steps
   /**Step 1: Determine world type counts
    *
@@ -396,51 +411,485 @@ class WorldGenerator {
   }
 
   /**Step 6: Determine Mainworld
+  /**
+ * MAINWORLD DETERMINATION - COMPREHENSIVE SYSTEM
+ * Reference: Handbook pages 59-60, 134-135
+ * 
+ * Process:
+ * 1. Collect all mainworld candidates (planets + moons)
+ * 2. Evaluate candidates using priority criteria
+ * 3. Select mainworld based on priority ranking
+ * 4. Alternative selection methods if needed
+ */
+
+  /**
+   * Determine mainworld from all available candidates
+   * Reference: Handbook page 134 - Final Mainworld Determination
    *
-   * Reference: Handbook pages 133-134
-   *
-   * Mainworld candidates:
-   * - Highest habitability rating
-   * - In or near habitable zone
-   * - With liquid water (Hydrographics A or higher)
+   * SELECTION PRIORITY:
+   * 1. Highest Habitability Rating (pages 132-134)
+   * 2. Native Sophonts Present (optional, lore-driven)
+   * 3. Highest Resource Rating (pages 186-191)
+   * 4. Best Refueling Location (pages 189-194)
+   * 5. Arbitrary selection (Referee discretion)
    */
   determineMainworld() {
-    console.log("\nSTEP 6: Determine Mainworld");
+    console.log("\nSTEP 6: DETERMINE MAINWORLD (Extended Method)");
 
-    let mainworld = null;
-    let maxHabitability = -999;
+    // Step 1: Collect ALL mainworld candidates
+    const candidates = this.collectMainworldCandidates();
 
-    // Score each terrestrial planet
-    this.terrestrialPlanets.forEach((tp) => {
-      const habitability = this.calculateHabitability(tp);
+    if (candidates.length === 0) {
+      console.error("❌ CRITICAL: No worlds available for mainworld selection");
+      throw new Error("System has no worlds - cannot determine mainworld");
+    }
 
-      if (habitability > maxHabitability) {
-        maxHabitability = habitability;
-        mainworld = tp;
-      }
+    console.log(`\n  📊 Evaluating ${candidates.length} mainworld candidate(s)...`);
 
-      this.generationLog.push({
-        step: "6-HabitabilityScore",
-        world: tp.id,
-        size: tp.size,
-        atmosphere: tp.atmosphere,
-        hydrographics: tp.hydrographics,
-        score: habitability,
-      });
+    // Step 2: Score all candidates using priority criteria
+    const scoredCandidates = candidates.map((candidate) => {
+      return this.scoreMainworldCandidate(candidate);
     });
 
-    if (mainworld) {
-      mainworld.isMainworld = true;
-      console.log(`  Mainworld selected: ${mainworld.id}`);
-      console.log(
-        `  Size: ${mainworld.size}, Atmosphere: ${mainworld.atmosphere}, Hydrographics: ${mainworld.hydrographics}`,
-      );
-    } else {
-      console.log("  No suitable mainworld found");
+    // Display evaluation results
+    this.displayCandidateEvaluation(scoredCandidates);
+
+    // Step 3: Select mainworld using priority system
+    const mainworld = this.selectMainworldByPriority(scoredCandidates);
+
+    if (!mainworld) {
+      throw new Error("Mainworld selection failed - no valid candidates");
     }
+
+    // Step 4: Mark as mainworld and add metadata
+    mainworld.isMainworld = true;
+    mainworld.mainworldScore = mainworld.score;
+    mainworld.selectionMethod = mainworld.selectionMethod;
+    mainworld.description = this.generateMainworldDescription(mainworld);
+
+    console.log(`\n  ✅ MAINWORLD SELECTED: ${mainworld.id}`);
+    console.log(`     Type: ${mainworld.type}`);
+    console.log(`     Body: ${mainworld.parentWorld ? mainworld.parentWorld : "Planet"}`);
+    console.log(`     Selection: ${mainworld.selectionMethod}`);
+    console.log(`     Habitability: ${mainworld.habitabilityRating}/9`);
+
+    this.generationLog.push({
+      step: "6-FinalMainworldDetermination",
+      selected: mainworld.id,
+      type: mainworld.type,
+      method: mainworld.selectionMethod,
+      totalCandidates: candidates.length,
+      habitabilityRating: mainworld.habitabilityRating,
+      resourceRating: mainworld.resourceRating || "TBD",
+      refuelingQuality: mainworld.refuelingQuality || "TBD",
+    });
 
     this.mainworld = mainworld;
   }
+
+  /**
+   * Collect ALL mainworld candidates from system
+   * Reference: Handbook page 60 - Mainworld Candidate Selection
+   *
+   * Candidates include:
+   * - All terrestrial planets
+   * - All moons with Size 2+ (capable of atmosphere)
+   * - Size 1 moons in exceptional cases
+   */
+  collectMainworldCandidates() {
+    const candidates = [];
+
+    // Include all terrestrial planets
+    if (this.terrestrialPlanets && this.terrestrialPlanets.length > 0) {
+      this.terrestrialPlanets.forEach((planet) => {
+        candidates.push({
+          ...planet,
+          candidateType: "Terrestrial Planet",
+          parentWorld: null,
+        });
+      });
+    }
+
+    // Include all moons from ALL bodies (planets and gas giants)
+    // Reference: Handbook page 76 - "A moon is no different than a planet..."
+    if (this.allWorlds && this.allWorlds.length > 0) {
+      this.allWorlds.forEach((world) => {
+        if (world.moons && world.moons.length > 0) {
+          world.moons.forEach((moon) => {
+            // Filter moons that could be candidates
+            // Size 2+ can have atmosphere; Size 1+ can be considered
+            if (moon.size && (moon.size === 0 || moon.size > 1 || moon.size === "S")) {
+              // Size S moons are marginal but possible
+              candidates.push({
+                ...moon,
+                candidateType: "Moon",
+                parentWorld: world.id,
+                parentType: world.type,
+                orbitPD: moon.orbitPD,
+                moonDesignation: `${world.id} ${moon.designation}`,
+                id: moon.id || `${world.id}-${moon.designation}`,
+              });
+            }
+          });
+        }
+      });
+    }
+
+    console.log(`    Total candidates collected: ${candidates.length}`);
+    console.log(`    - Planets: ${this.terrestrialPlanets?.length || 0}`);
+    console.log(`    - Moons: ${candidates.length - (this.terrestrialPlanets?.length || 0)}`);
+
+    return candidates;
+  }
+
+  /**
+   * Score a mainworld candidate using all evaluation criteria
+   * Reference: Handbook pages 132-134 - Habitability Determination
+   */
+  scoreMainworldCandidate(candidate) {
+    let totalScore = 0;
+    const scoreBreakdown = {};
+
+    // PRIORITY 1: HABITABILITY RATING (pages 132-134)
+    // This is the PRIMARY criterion
+    const habitabilityRating = this.calculateHabitabilityRating(candidate);
+    candidate.habitabilityRating = habitabilityRating;
+    scoreBreakdown.habitability = habitabilityRating;
+    totalScore += habitabilityRating * 100; // Weight heavily: ×100
+
+    // PRIORITY 2: NATIVE SOPHONTS (optional, lore-driven)
+    // Would require additional native population tracking
+    const hasSophonts = candidate.nativeSophonts === true ? 50 : 0;
+    scoreBreakdown.nativeSophonts = hasSophonts;
+    totalScore += hasSophonts;
+
+    // PRIORITY 3: RESOURCE RATING (pages 186-191)
+    // Calculate resource rating for comparison
+    const resourceRating = this.calculateResourceRating(candidate);
+    candidate.resourceRating = resourceRating;
+    scoreBreakdown.resources = resourceRating;
+    totalScore += resourceRating * 10; // Weight moderately: ×10
+
+    // PRIORITY 4: REFUELING QUALITY (pages 189-194)
+    // Starport class indicates refueling capability
+    const refuelingQuality = this.calculateRefuelingQuality(candidate);
+    candidate.refuelingQuality = refuelingQuality;
+    scoreBreakdown.refueling = refuelingQuality;
+    totalScore += refuelingQuality * 5; // Weight lightly: ×5
+
+    // BONUS: Location in habitable zone
+    if (candidate.inHabitableZone) {
+      totalScore += 25;
+      scoreBreakdown.habitableZone = 25;
+    }
+
+    // BONUS: Size suitable for development
+    if (candidate.size >= 4 && candidate.size <= 9) {
+      totalScore += 10;
+      scoreBreakdown.suitableSize = 10;
+    }
+
+    candidate.score = totalScore;
+    candidate.scoreBreakdown = scoreBreakdown;
+
+    return candidate;
+  }
+
+  /**
+   * Calculate habitability rating for a world
+   * Reference: Handbook pages 132-134 - Habitability Rating Determination
+   *
+   * Habitability Rating ranges from -3 to 9
+   * Scores 5+ = Regional Habitability
+   * Scores 8+ = Full Habitability (Garden World potential)
+   */
+  calculateHabitabilityRating(world) {
+    let rating = 0;
+
+    // SIZE: Base factor[^1]
+    // Ideal: 6-9 (terrestrial)
+    if (world.size >= 6 && world.size <= 9) {
+      rating += 2;
+    } else if (world.size >= 4 && world.size <= 5) {
+      rating += 1;
+    } else if (world.size === 3) {
+      rating += 0;
+    } else if (world.size === 2) {
+      rating -= 1;
+    } else if (world.size === 1 || world.size === 0) {
+      rating -= 2;
+    }
+
+    // ATMOSPHERE: Breathability[^1]
+    // Ideal: 4-9 (standard to dense)
+    const atmCode = world.atmosphereCode;
+    if ([4, 5, 6, 7, 8, 9].includes(atmCode)) {
+      rating += 3; // Breathable atmosphere
+    } else if ([2, 3, "A", "B", "C", "D", "E"].includes(atmCode)) {
+      rating += 1; // Non-standard but potentially survivable
+    } else if (atmCode === 0 || atmCode === 1) {
+      rating -= 2; // No/trace atmosphere
+    }
+
+    // HYDROGRAPHICS: Water availability[^1]
+    // Ideal: 4-8 (moderate water for agriculture)
+    const hydroCode = world.hydrographicsCode;
+    if (hydroCode >= 4 && hydroCode <= 8) {
+      rating += 2; // Good water availability
+    } else if (hydroCode === 3 || hydroCode === 9) {
+      rating += 1; // Marginal water
+    } else if (hydroCode >= 10) {
+      rating += 1; // Water world (less ideal for terrestrial development)
+    } else if (hydroCode === 0 || hydroCode === 1) {
+      rating -= 2; // No water
+    }
+
+    // TEMPERATURE: Survivability[^1]
+    // Reference: Handbook page 133 - Temperature considerations
+    if (world.meanTemperatureCelsius) {
+      if (world.meanTemperatureCelsius >= -50 && world.meanTemperatureCelsius <= 50) {
+        rating += 1; // Habitable temperature range
+      } else if (world.meanTemperatureCelsius < -50) {
+        rating -= 2; // Too cold (frozen)
+      } else if (world.meanTemperatureCelsius > 50) {
+        rating -= 2; // Too hot (hostile)
+      }
+    }
+
+    // GRAVITY: Development difficulty[^1]
+    // Reference: Handbook page 133 - Gravity DMs
+    if (world.gravity) {
+      if (world.gravity >= 0.66 && world.gravity <= 1.5) {
+        rating += 0; // Acceptable (no penalty)
+      } else if (world.gravity < 0.66) {
+        rating -= 1; // Low gravity complications
+      } else if (world.gravity > 1.5) {
+        rating -= 1; // High gravity complications
+      }
+    }
+
+    // GOVERNMENT & POPULATION: Secondary factors[^2]
+    // These are filled in during Phase 3C but affect habitability perception
+    if (world.populationCode !== undefined) {
+      if (world.populationCode >= 5) {
+        rating += 1; // Established population
+      }
+    }
+
+    // Clamp rating to valid range (-3 to 9)
+    rating = Math.max(-3, Math.min(9, rating));
+
+    return rating;
+  }
+
+  /**
+   * Calculate resource rating for a candidate
+   * Reference: Handbook pages 186-191 - Resources
+   *
+   * Used as secondary criteria for mainworld selection
+   */
+  calculateResourceRating(world) {
+    // If not yet calculated, estimate based on characteristics
+    if (world.resourceRating !== undefined) {
+      return world.resourceRating;
+    }
+
+    let rating = 2; // Base rating
+
+    // Atmosphere: Rich atmospheres have resources
+    const atmCode = world.atmosphereCode;
+    if ([6, 8, 9].includes(atmCode)) {
+      rating += 2; // Standard/dense/exotic atmospheres
+    }
+
+    // Hydrographics: Varied water improves resources
+    const hydroCode = world.hydrographicsCode;
+    if (hydroCode >= 4 && hydroCode <= 8) {
+      rating += 1;
+    }
+
+    // Size: Larger worlds have more resources
+    if (world.size >= 6) {
+      rating += 1;
+    }
+
+    // Temperature: Temperate zones are resource-rich
+    if (world.temperatureClassification === "Temperate") {
+      rating += 1;
+    }
+
+    // Clamp to 2-12 range
+    return Math.max(2, Math.min(12, rating));
+  }
+
+  /**
+   * Calculate refueling quality (starport effectiveness)
+   * Reference: Handbook pages 189-194 - Starport Facilities
+   *
+   * Used as quaternary criteria
+   */
+  calculateRefuelingQuality(world) {
+    // If starport already determined, use it
+    if (world.starport) {
+      const starportQuality = {
+        A: 5, // Excellent - Class A spaceport
+        B: 4, // Good - Class B spaceport
+        C: 3, // Routine - Class C spaceport
+        D: 2, // Poor - Class D spaceport
+        E: 1, // Frontier - Class E spaceport
+        X: 0, // None - no spaceport
+      };
+      return starportQuality[world.starport] || 0;
+    }
+
+    // Otherwise estimate based on characteristics
+    // High population and tech level suggest good refueling
+    let quality = 0;
+
+    if (world.populationCode && world.populationCode >= 9) {
+      quality += 2; // Major world
+    }
+    if (world.technologyLevel && world.technologyLevel >= 10) {
+      quality += 1; // Advanced tech supports refueling
+    }
+
+    return quality;
+  }
+
+  /**
+   * Select mainworld using priority-based system
+   * Reference: Handbook page 134
+   */
+  selectMainworldByPriority(candidates) {
+    console.log(`\n  📋 SELECTION PROCESS:`);
+
+    // PRIORITY 1: Highest Habitability Rating
+    console.log(`\n    Priority 1: Highest Habitability Rating`);
+    const maxHabitability = Math.max(...candidates.map((c) => c.habitabilityRating));
+    console.log(`      Maximum habitability: ${maxHabitability}`);
+
+    let habitableCandidates = candidates.filter((c) => c.habitabilityRating === maxHabitability);
+    console.log(`      Candidates with ${maxHabitability}: ${habitableCandidates.length}`);
+
+    if (habitableCandidates.length === 1) {
+      const selected = habitableCandidates[0];
+      selected.selectionMethod = `Priority 1: Highest Habitability (${maxHabitability})`;
+      return selected;
+    }
+
+    // PRIORITY 2: Native Sophonts (if applicable)
+    console.log(`\n    Priority 2: Native Sophonts Present`);
+    const sophontCandidates = habitableCandidates.filter((c) => c.nativeSophonts === true);
+
+    if (sophontCandidates.length > 0) {
+      let selected = sophontCandidates[0];
+      selected.selectionMethod = `Priority 2: Native Sophonts`;
+      return selected;
+    }
+
+    // PRIORITY 3: Highest Resource Rating
+    console.log(`\n    Priority 3: Highest Resource Rating`);
+    const maxResources = Math.max(...habitableCandidates.map((c) => c.resourceRating));
+    console.log(`      Maximum resources: ${maxResources}`);
+
+    let resourceCandidates = habitableCandidates.filter((c) => c.resourceRating === maxResources);
+    console.log(`      Candidates with ${maxResources}: ${resourceCandidates.length}`);
+
+    if (resourceCandidates.length === 1) {
+      const selected = resourceCandidates[0];
+      selected.selectionMethod = `Priority 3: Highest Resources (${maxResources})`;
+      return selected;
+    }
+
+    // PRIORITY 4: Best Refueling Location
+    console.log(`\n    Priority 4: Best Refueling Location`);
+    const maxRefueling = Math.max(...resourceCandidates.map((c) => c.refuelingQuality));
+    console.log(`      Maximum refueling quality: ${maxRefueling}`);
+
+    let refuelingCandidates = resourceCandidates.filter((c) => c.refuelingQuality === maxRefueling);
+    console.log(`      Candidates with ${maxRefueling}: ${refuelingCandidates.length}`);
+
+    if (refuelingCandidates.length === 1) {
+      const selected = refuelingCandidates[0];
+      selected.selectionMethod = `Priority 4: Best Refueling (Quality ${maxRefueling})`;
+      return selected;
+    }
+
+    // FALLBACK: Arbitrary selection (Referee discretion)
+    // Reference: Handbook page 134 - "Referee is free to ignore these recommendations..."
+    console.log(`\n    Priority 5: Arbitrary Selection (Referee Discretion)`);
+
+    // Select based on highest total score
+    let selected = refuelingCandidates.reduce((a, b) => ((a.score || 0) > (b.score || 0) ? a : b));
+
+    selected.selectionMethod = `Priority 5: Arbitrary (Referee Choice - Highest Total Score)`;
+    return selected;
+  }
+
+  /**
+   * Display candidate evaluation table for transparency
+   */
+  displayCandidateEvaluation(candidates) {
+    console.log(`\n  📊 CANDIDATE EVALUATION TABLE:`);
+    console.log(
+      `  ${"ID".padEnd(12)} | ${"Type".padEnd(22)} | ${"Habit".padEnd(5)} | ${"Rsrc".padEnd(4)} | ${"Fuel".padEnd(4)} | ${"Score".padEnd(6)}`,
+    );
+    console.log(`  ${"-".repeat(68)}`);
+
+    candidates.forEach((c) => {
+      const type = c.candidateType === "Moon" ? `${c.parentWorld} ${c.designation}` : c.id;
+
+      console.log(
+        `  ${type.padEnd(12)} | ${c.candidateType.padEnd(22)} | ${c.habitabilityRating.toString().padEnd(5)} | ${c.resourceRating.toString().padEnd(4)} | ${c.refuelingQuality.toString().padEnd(4)} | ${c.score.toString().padEnd(6)}`,
+      );
+    });
+  }
+
+  /**
+   * Generate detailed mainworld description
+   */
+  generateMainworldDescription(mainworld) {
+    const sizeDescriptions = {
+      0: "Tiny",
+      1: "Small",
+      2: "Small",
+      3: "Medium",
+      4: "Medium",
+      5: "Large",
+      6: "Large",
+      7: "Terrestrial",
+      8: "Terrestrial",
+      9: "Large",
+      A: "Very Large",
+      B: "Very Large",
+    };
+
+    const atmDescriptions = {
+      0: "None",
+      1: "Trace",
+      2: "Very Thin",
+      3: "Very Thin",
+      4: "Thin",
+      5: "Thin",
+      6: "Standard",
+      7: "Standard",
+      8: "Dense",
+      9: "Very Dense",
+      A: "Exotic",
+      B: "Corrosive",
+      C: "Insidious",
+    };
+
+    const worldType =
+      mainworld.type === "Moon"
+        ? `Moon of ${mainworld.parentWorld}`
+        : mainworld.type === "Terrestrial Planet"
+          ? "Terrestrial Planet"
+          : mainworld.type;
+
+    return `${sizeDescriptions[mainworld.size] || "Unknown"} ${worldType} with ${atmDescriptions[mainworld.atmosphereCode] || "unknown"} atmosphere`;
+  }
+
   // #endregion
   // #region Moon Generation Steps
   /**Step 6B: Generate Significant Moons for Worlds
@@ -512,6 +961,98 @@ class WorldGenerator {
       world: world.id,
       moonCount: world.moons.length,
       hasRings: world.hasRings || false,
+    });
+  }
+  /**
+   * Enhanced moon generation - ensure moons get SAH data
+   */
+  generateMoonsForWorld(world, worldType) {
+    const moonQuantity = this.determineMoonQuantity(world, worldType);
+
+    if (moonQuantity <= 0) {
+      world.moons = [];
+      world.hasRings = moonQuantity === 0;
+      return;
+    }
+
+    world.moons = [];
+    for (let i = 0; i < moonQuantity; i++) {
+      const moon = this.generateMoon(world, i + 1, worldType);
+      if (moon) {
+        world.moons.push(moon);
+      }
+    }
+
+    this.determineMoonOrbits(world);
+    this.calculateMoonOrbitalPeriods(world);
+    this.determineMoonOrbitalCharacteristics(world);
+
+    // ✅ NEW: Generate moon characteristics (atmosphere, hydrographics)
+    // Moons can be mainworld candidates - they need full SAH data
+    world.moons.forEach((moon) => {
+      this.generateMoonCharacteristics(moon, world);
+    });
+
+    this.generationLog.push({
+      step: "6B-WorldMoons",
+      world: world.id,
+      moonCount: world.moons.length,
+      hasRings: world.hasRings || false,
+    });
+  }
+
+  /**
+   * Generate SAH characteristics for a moon
+   * Reference: Handbook page 76 - "A moon is no different than a planet..."
+   */
+  generateMoonCharacteristics(moon, parentWorld) {
+    // Size was already determined in generateMoon()
+    // Now generate atmosphere and hydrographics
+
+    // Atmosphere: Roll 2D-7 + Size (like planets)
+    const atmRoll = this.roller.roll2D();
+    let atmDM = 0;
+
+    // Apply orbit-based modifiers
+    if (moon.orbitPD < 3) {
+      atmDM -= 2; // Close orbits lose atmosphere
+    }
+
+    let atmCode = atmRoll - 7 + moon.size + atmDM;
+    atmCode = Math.max(0, atmCode);
+    moon.atmosphereCode = atmCode;
+
+    // Hydrographics: Roll 2D-7 + Atmosphere
+    const hydroRoll = this.roller.roll2D();
+    let hydroDM = 0;
+
+    if ([0, 1].includes(atmCode)) {
+      hydroDM -= 4; // No atmosphere = no water
+    }
+
+    let hydroCode = hydroRoll - 7 + atmCode + hydroDM;
+    hydroCode = Math.max(0, Math.min(10, hydroCode));
+    moon.hydrographicsCode = hydroCode;
+    moon.hydrographicsPercent = this.calculateHydrographicsPercent(hydroCode);
+
+    // Temperature (simplified - affected by parent world)
+    // Tidal locking considerations[^3]
+    moon.isTidallyLocked = true; // Most moons are tidally locked
+
+    // Estimate temperature based on parent world and orbit
+    if (parentWorld.meanTemperature) {
+      // Moons inherit some thermal properties from parent
+      moon.meanTemperature = parentWorld.meanTemperature * 0.5; // Rough approximation
+      moon.meanTemperatureCelsius = moon.meanTemperature - 273.15;
+    }
+
+    this.generationLog.push({
+      step: "6B-MoonCharacteristics",
+      moon: moon.id,
+      size: moon.size,
+      atmosphere: atmCode,
+      hydrographics: hydroCode,
+      tidallyLocked: moon.isTidallyLocked,
     });
   }
   // #endregion
@@ -887,44 +1428,55 @@ class WorldGenerator {
   // ============ HELPER METHODS ============
 
   /**
-   * Roll 3D (sum of 3d6)
-   */
-  roll3D() {
-    return this.roller.roll1D() + this.roller.roll1D() + this.roller.roll1D();
-  }
-
-  /**
-   * Roll 4D (sum of 4d6)
-   */
-  roll4D() {
-    return this.roller.roll1D() + this.roller.roll1D() + this.roller.roll1D() + this.roller.roll1D();
-  }
-
-  /**
    * Build complete system with worlds
    */
   buildSystemWithWorlds() {
     return {
-      ...this.starSystem,
-      worldsGenerated: true,
+      // Star system basics
+      primaryStar: this.starSystem.primaryStar,
+      secondaryStars: this.starSystem.secondaryStars || [],
+      systemAge: this.starSystem.age,
+
+      // Worlds Collections
       gasGiants: this.gasGiants,
       planetoidBelts: this.planetoidBelts,
-      terrestrialPlanets: this.terrestrialPlanets,
+      terrestrialPlanets: this.terrestrialPlanets.map((p) => ({
+        id: p.id,
+        uwp: p.uwp,
+        population: p.populationCode,
+        ...p,
+      })),
       allWorlds: this.allWorlds,
+
+      // Mainworld (PRIMARY)
+      mainworld: {
+        id: this.mainworld.id,
+        uwp: this.mainworld.uwp,
+        type: this.mainworld.type,
+        isMainworld: true,
+        population: this.mainworld.populationCode,
+        ...this.mainworld,
+      },
+
+      // Secondary Worlds (Populated)
+      secondaryWorlds: [
+        ...this.terrestrialPlanets
+          .filter((p) => p !== this.mainworld && p.populationCode > 0)
+          .map((p) => ({ id: p.id, uwp: p.uwp, type: "Planet" })),
+        ...this.allWorlds
+          .flatMap((w) => w.moons || [])
+          .filter((m) => m.populationCode > 0)
+          .map((m) => ({ id: m.id, uwp: m.uwp, type: "Moon" })),
+      ],
+
+      // System properties
       habitableZone: this.habitableZone,
       orbitalStructure: this.orbitalStructure,
-      atmosphereData: this.terrestrialPlanets.map((p) => ({
-        world: p.id,
-        atmosphereCode: p.atmosphereCode,
-        atmosphereType: p.atmosphereType,
-        pressure: p.atmospherePressure?.toFixed(2),
-        hydrographics: p.hydrographicsCode,
-        percent: p.hydrographicsPercent?.toFixed(1),
-        breathable: p.isBreathable,
-        habitability: p.habitabilityScore,
-      })),
-      mainworld: this.mainworld,
-      worldGenerationLog: this.generationLog,
+      worldCount: this.allWorlds.length,
+      moonCount: this.allWorlds.reduce((sum, w) => sum + (w.moons?.length || 0), 0),
+
+      // Metadata
+      generationLog: this.generationLog,
       generatedAt: new Date().toISOString(),
     };
   }
@@ -1048,36 +1600,55 @@ class WorldGenerator {
   // #endregion
   // #region Phase 3A: Atmosphere and Hydrographics Generation
   /**
-   * PHASE 3A: ATMOSPHERE & HYDROGRAPHICS GENERATION
-   * Reference: Handbook pages 78-108 - Atmosphere and Hydrographics
+   * PHASE 3A: ATMOSPHERE & HYDROGRAPHICS FOR ALL WORLDS
+   * Reference: Handbook pages 78-108
    *
-   * Process:
-   * 3a.1: Determine atmosphere codes
-   * 3a.2: Determine atmosphere pressure & composition (if needed)
-   * 3a.3: Determine hydrographics percentage
-   * 3a.4: Surface feature distribution
-   * 3a.5: Check for runaway greenhouse effect
-   * 3a.6: Determine habitability
+   * NOW: Process EVERY world (terrestrial planets + moons)
+   * All worlds must be processed equally for mainworld determination
    */
-  generateAtmosphereAndHydrographics() {
-    console.log("\n=== PHASE 3A: ATMOSPHERE & HYDROGRAPHICS ===\n");
+  generateAtmosphereAndHydrographicsForAllWorlds() {
+    console.log("  Processing atmosphere & hydrographics for ALL worlds...\n");
 
-    // Generate detailed atmosphere for each terrestrial planet
+    // Collect ALL candidates (planets + moons)
+    const allCandidates = this.collectAllWorldCandidates();
+
+    if (allCandidates.length === 0) {
+      console.warn("  ⚠ No worlds to process");
+      return;
+    }
+
+    console.log(`  Processing ${allCandidates.length} worlds total:`);
+    console.log(`    - Planets: ${this.terrestrialPlanets.length}`);
+    console.log(`    - Moons: ${allCandidates.length - this.terrestrialPlanets.length}\n`);
+
+    // Process terrestrial planets
     this.terrestrialPlanets.forEach((planet) => {
       this.generatePlanetAtmosphere(planet);
       this.generatePlanetHydrographics(planet);
       this.determineSurfaceFeatures(planet);
       this.checkRunawayGreenhouse(planet);
-      this.calculateHabitability(planet);
+    });
+
+    // Process moons from all parent worlds
+    this.allWorlds.forEach((world) => {
+      if (world.moons && world.moons.length > 0) {
+        world.moons.forEach((moon) => {
+          this.generatePlanetAtmosphere(moon);
+          this.generatePlanetHydrographics(moon);
+          this.determineSurfaceFeatures(moon);
+        });
+      }
     });
 
     this.generationLog.push({
       step: "Phase 3A Complete",
-      action: "Atmosphere and hydrographics generated",
-      worldsProcessed: this.terrestrialPlanets.length,
+      action: "Atmosphere & hydrographics generated",
+      planetsProcessed: this.terrestrialPlanets.length,
+      moonsProcessed: allCandidates.length - this.terrestrialPlanets.length,
+      totalProcessed: allCandidates.length,
     });
 
-    console.log(`✓ Atmosphere & hydrographics generated for ${this.terrestrialPlanets.length} terrestrial planets`);
+    console.log(`  ✓ Atmosphere & Hydrographics generated for ${allCandidates.length} worlds`);
   }
 
   /**
@@ -1595,21 +2166,15 @@ class WorldGenerator {
   // #endregion
   // #region Phase 3B: Temperature and Climate Calculations
   /**
-   * PHASE 3B: TEMPERATURE & CLIMATE GENERATION
-   * Reference: Handbook pages 110-126 - Temperature and Climate Calculations
+   * PHASE 3B: TEMPERATURE & CLIMATE FOR ALL WORLDS
+   * Reference: Handbook pages 110-126
    *
-   * Process:
-   * 3b.1: Calculate mean surface temperature (albedo + greenhouse)
-   * 3b.2: Determine climate zones based on axial tilt
-   * 3b.3: Calculate high/low temperatures by season
-   * 3b.4: Apply daily temperature variations
-   * 3b.5: Handle special scenarios (tidal locking, extreme tilts)
-   * 3b.6: Classify climate type
+   * NOW: Process EVERY world (terrestrial planets + moons)
    */
-  generateTemperatureAndClimate() {
-    console.log("\n=== PHASE 3B: TEMPERATURE & CLIMATE ===\n");
+  generateTemperatureAndClimateForAllWorlds() {
+    console.log("  Processing temperature & climate for ALL worlds...\n");
 
-    // Generate detailed temperature for each terrestrial planet
+    // Process terrestrial planets
     this.terrestrialPlanets.forEach((planet) => {
       this.generatePlanetTemperature(planet);
       this.generateClimateZones(planet);
@@ -1617,13 +2182,46 @@ class WorldGenerator {
       this.classifyClimateType(planet);
     });
 
-    this.generationLog.push({
-      step: "Phase 3B Complete",
-      action: "Temperature and climate generated",
-      worldsProcessed: this.terrestrialPlanets.length,
+    // Process moons
+    this.allWorlds.forEach((world) => {
+      if (world.moons && world.moons.length > 0) {
+        world.moons.forEach((moon) => {
+          this.generatePlanetTemperature(moon);
+          this.generateClimateZones(moon);
+          this.calculateSeasonalTemperatures(moon);
+          this.classifyClimateType(moon);
+        });
+      }
     });
 
-    console.log(`✓ Temperature & climate generated for ${this.terrestrialPlanets.length} terrestrial planets`);
+    this.generationLog.push({
+      step: "Phase 3B Complete",
+      action: "Temperature & climate generated",
+      worldsProcessed:
+        this.terrestrialPlanets.length + this.allWorlds.reduce((sum, w) => sum + (w.moons?.length || 0), 0),
+    });
+
+    console.log(`  ✓ Temperature & climate generated for all worlds`);
+  }
+
+  /**
+   * Collect ALL world candidates (planets and moons)
+   * Helper for Phase 3A/3B processing
+   */
+  collectAllWorldCandidates() {
+    const candidates = [];
+
+    // Add all terrestrial planets
+    candidates.push(...this.terrestrialPlanets);
+
+    // Add all moons from all worlds
+    this.allWorlds.forEach((world) => {
+      if (world.moons && world.moons.length > 0) {
+        candidates.push(...world.moons);
+      }
+    });
+
+    return candidates;
   }
 
   /**
@@ -2049,6 +2647,851 @@ class WorldGenerator {
       description: climateDescription,
     });
   }
+  // #endregion
+  // #region Phase 3C: Population and Settlements
+  /**
+   * PHASE 3C: POPULATION & SETTLEMENTS FOR ALL WORLDS
+   * Reference: Handbook pages 147-191 - Social Characteristics
+   *
+   * Process:
+   * - Mainworld: Full population generation (Pop, Gov, Law, Starport, TL, etc.)
+   * - Secondary Planets: Simplified population generation
+   * - Secondary Moons: Optional population (roll for habitability)
+   */
+  generatePopulationAndSettlementsForAllWorlds() {
+    console.log("  Generating population & settlements...\n");
+
+    if (!this.mainworld) {
+      console.warn("  ⚠ No mainworld - skipping population generation");
+      return;
+    }
+
+    // ============================================
+    // STEP 1: MAINWORLD (Full Details)
+    // ============================================
+    console.log("  Step 1: Mainworld Population");
+    this.generateMainworldPopulation(this.mainworld);
+
+    // ============================================
+    // STEP 2: SECONDARY TERRESTRIAL PLANETS
+    // ============================================
+    console.log("\n  Step 2: Secondary Planets Population");
+    const secondaryPlanets = this.terrestrialPlanets.filter((p) => p !== this.mainworld && p.hydrographicsCode >= 0);
+
+    if (secondaryPlanets.length > 0) {
+      secondaryPlanets.forEach((planet) => {
+        this.generateSecondaryWorldPopulation(planet);
+      });
+      console.log(`    Generated population for ${secondaryPlanets.length} secondary planets`);
+    } else {
+      console.log("    No suitable secondary planets for settlement");
+    }
+
+    // ============================================
+    // STEP 3: SECONDARY MOONS
+    // ============================================
+    console.log("\n  Step 3: Secondary Moons Population (Optional)");
+    let moonsProcessed = 0;
+    this.allWorlds.forEach((world) => {
+      if (world.moons && world.moons.length > 0) {
+        world.moons.forEach((moon) => {
+          // Only populate moons with suitable conditions
+          if (moon.atmosphereCode >= 2 && moon.hydrographicsCode >= 1) {
+            const shouldPopulate = this.roller.roll2D() >= 10; // 25% chance
+
+            if (shouldPopulate) {
+              this.generateSecondaryWorldPopulation(moon);
+              moonsProcessed++;
+            }
+          }
+        });
+      }
+    });
+
+    if (moonsProcessed > 0) {
+      console.log(`    Generated population for ${moonsProcessed} moons`);
+    } else {
+      console.log("    No moons suitable for settlement");
+    }
+
+    this.generationLog.push({
+      step: "Phase 3C Complete",
+      action: "Population & settlements generated",
+      mainworld: this.mainworld.id,
+      secondaryPlanets: secondaryPlanets.length,
+      populatedMoons: moonsProcessed,
+    });
+
+    console.log(`\n  ✓ Population generation complete`);
+  }
+
+  /**
+   * Generate mainworld population and social characteristics
+   * Reference: Handbook pages 148-156 - Population Determination
+   */
+  generateMainworldPopulation(mainworld) {
+    // Step 1: Determine population code[^2]
+    // Roll 2D-2 for population code
+    const popRoll = this.roller.roll2D() - 2;
+    const populationCode = Math.max(0, popRoll);
+
+    mainworld.populationCode = populationCode;
+    mainworld.populationRoll = popRoll;
+
+    // Step 2: Calculate actual population[^2]
+    const populationValue = this.calculatePopulation(populationCode);
+    mainworld.population = populationValue;
+    mainworld.populationExact = this.getExactPopulation(populationCode);
+
+    this.generationLog.push({
+      step: "3C-Population",
+      world: mainworld.id,
+      roll: popRoll,
+      code: populationCode,
+      population: mainworld.populationExact,
+    });
+
+    // Step 3: Habitability check - verify world is inhabitable[^1]
+    mainworld.isInhabitable = this.checkWorldInhabitability(mainworld);
+
+    if (!mainworld.isInhabitable && populationCode > 0) {
+      // Force depopulation if world isn't suitable
+      this.generationLog.push({
+        step: "3C-UnhabitableOverride",
+        world: mainworld.id,
+        warning: "World conditions prevent population",
+        populationAdjusted: 0,
+      });
+      mainworld.populationCode = 0;
+      mainworld.population = 0;
+      mainworld.isAbandoned = true;
+      return;
+    }
+
+    // Step 4: Determine government[^3]
+    // Government = 2D-7 + Population code
+    const govRoll = this.roller.roll2D();
+    const govCode = Math.max(0, Math.min(15, govRoll - 7 + populationCode));
+    mainworld.governmentCode = govCode;
+    mainworld.governmentType = this.getGovernmentType(govCode);
+
+    this.generationLog.push({
+      step: "3C-Government",
+      world: mainworld.id,
+      roll: govRoll,
+      dm: populationCode,
+      code: govCode,
+      type: mainworld.governmentType,
+    });
+
+    // Step 5: Determine law level[^4]
+    // Law Level = 2D-7 + Government code
+    const lawRoll = this.roller.roll2D();
+    const lawLevel = Math.max(0, Math.min(15, lawRoll - 7 + govCode));
+    mainworld.lawLevel = lawLevel;
+
+    this.generationLog.push({
+      step: "3C-LawLevel",
+      world: mainworld.id,
+      roll: lawRoll,
+      dm: govCode,
+      level: lawLevel,
+    });
+
+    // Step 6: Determine starport class[^5]
+    // DMs based on population and government
+    let starportDM = 0;
+    if (populationCode >= 9) starportDM += 1;
+    if (populationCode <= 3) starportDM -= 1;
+    if ([0, 1, 2].includes(govCode)) starportDM -= 2;
+    if (govCode === 6) starportDM -= 1;
+
+    const starportRoll = this.roller.roll2D() + starportDM;
+    mainworld.starport = this.getStarportClass(starportRoll);
+
+    this.generationLog.push({
+      step: "3C-Starport",
+      world: mainworld.id,
+      roll: starportRoll,
+      dm: starportDM,
+      class: mainworld.starport,
+    });
+
+    // Step 7: Determine technology level[^6]
+    // Base TL = 1D + DMs for various factors
+    let tlDM = 0;
+
+    // Starport DMs[^7]
+    const starportTLMap = { A: 6, B: 4, C: 2, D: 0, E: 0, X: -4 };
+    tlDM += starportTLMap[mainworld.starport] || 0;
+
+    // Size DM
+    if (mainworld.size <= 1) tlDM += 2;
+    if (mainworld.size === 2 || mainworld.size === 3) tlDM += 1;
+
+    // Atmosphere DM
+    if ([0, 1, "A", "B", "C"].includes(mainworld.atmosphereCode)) tlDM -= 2;
+    if ([2, 3].includes(mainworld.atmosphereCode)) tlDM -= 1;
+
+    // Hydrographics DM
+    if (mainworld.hydrographicsCode === 0) tlDM -= 1;
+    if (mainworld.hydrographicsCode === "A") tlDM += 1;
+
+    // Population DM[^7]
+    if (populationCode === 1 || populationCode === 2) tlDM -= 1;
+    if (populationCode === 3 || populationCode === 4 || populationCode === 5) tlDM -= 1;
+    if (populationCode >= 9) tlDM += 1;
+    if (populationCode === "A") tlDM += 2;
+
+    // Government DM
+    if (govCode === 0) tlDM -= 4;
+    if (govCode === 5) tlDM -= 2;
+    if (govCode === 13) tlDM -= 2;
+
+    const tlRoll = this.roller.roll1D() + tlDM;
+    mainworld.technologyLevel = Math.max(0, tlRoll);
+
+    this.generationLog.push({
+      step: "3C-TechnologyLevel",
+      world: mainworld.id,
+      roll: tlRoll,
+      dm: tlDM,
+      tl: mainworld.technologyLevel,
+    });
+
+    // Step 8: Trade codes[^8]
+    mainworld.tradeCodes = this.calculateTradeCodes(mainworld);
+
+    // Step 9: Cultural characteristics
+    this.generateCulturalCharacteristics(mainworld);
+
+    // Step 10: Economic factors[^9]
+    this.generateEconomicFactors(mainworld);
+
+    // Step 11: Build UWP[^11]
+    mainworld.uwp = this.buildUWP(mainworld);
+
+    console.log(`  ${mainworld.id}: ${mainworld.uwp} (${mainworld.governmentType}, Pop ${populationCode})`);
+  }
+
+  /**
+   * Calculate population value from code
+   * Reference: Handbook page 149 - Population Code Values
+   */
+  calculatePopulation(code) {
+    const populationRanges = {
+      0: 0,
+      1: 50,
+      2: 500,
+      3: 5000,
+      4: 50000,
+      5: 500000,
+      6: 5000000,
+      7: 50000000,
+      8: 500000000,
+      9: 5000000000,
+      A: 50000000000,
+      B: 500000000000,
+      C: 5000000000000,
+    };
+
+    return populationRanges[code] || 0;
+  }
+
+  /**
+   * Get exact population with P value variation
+   * Reference: Handbook page 150 - P Value Addition
+   */
+  getExactPopulation(code) {
+    const base = this.calculatePopulation(code);
+
+    if (code === 0) {
+      return 0;
+    }
+
+    // Roll for P value (1-9 or 1-F for code A+)
+    let pValue;
+    if (code <= 9) {
+      pValue = this.roller.roll1D(9);
+    } else {
+      // For A+, use d10 for finer granularity
+      pValue = this.roller.roll1D(15);
+    }
+
+    // Optional: Add secondary digit with d10
+    const secondary = this.roller.roll1D(10);
+
+    const multiplier = (pValue + secondary / 10) / 10;
+    return Math.floor(base * multiplier);
+  }
+
+  /**
+   * Check if world is habitable for settlement
+   * Reference: Handbook page 133 - Habitability Rating
+   */
+  checkWorldInhabitability(world) {
+    let score = 0;
+
+    // Size: 2-10 is habitable[^1]
+    if (world.size >= 2 && world.size <= 10) score++;
+
+    // Atmosphere: 2-9 is breathable[^1]
+    if ([2, 3, 4, 5, 6, 7, 8, 9].includes(world.atmosphereCode)) score++;
+
+    // Hydrographics: 4-9 for farming, 1+ for some settlement[^1]
+    if (world.hydrographicsCode >= 1 && world.hydrographicsCode <= 10) score++;
+
+    // Temperature: Between -50 and +50°C is habitable[^1]
+    if (world.meanTemperatureCelsius >= -50 && world.meanTemperatureCelsius <= 50) score++;
+
+    return score >= 3; // Need at least 3 favorable conditions
+  }
+
+  /**
+   * Get government type name
+   * Reference: Handbook page 156 - Government Types
+   */
+  getGovernmentType(code) {
+    const types = {
+      0: "None",
+      1: "Company/Corporation",
+      2: "Participating Democracy",
+      3: "Self-Perpetuating Oligarchy",
+      4: "Representative Democracy",
+      5: "Feudal Technocracy",
+      6: "Captive Government",
+      7: "Balkanisation",
+      8: "Civil Service Bureaucracy",
+      9: "Impersonal Bureaucracy",
+      A: "Charismatic Dictator",
+      B: "Non-Charismatic Leader",
+      C: "Theocracy",
+      D: "Transhuman Collective",
+      E: "Asteriod/Orbital Prison",
+      F: "Underwater Collective",
+    };
+
+    return types[code] || "Unknown";
+  }
+
+  /**
+   * Get starport class
+   * Reference: Handbook pages 189-194 - Starport Facilities
+   */
+  getStarportClass(roll) {
+    if (roll >= 16) return "A"; // Excellent
+    if (roll >= 12) return "B"; // Good
+    if (roll >= 8) return "C"; // Routine
+    if (roll >= 4) return "D"; // Poor
+    if (roll >= 0) return "E"; // Frontier
+    return "X"; // None
+  }
+
+  /**
+   * Calculate world's trade codes
+   * Reference: Handbook page 186 - Trade Codes Classification
+   */
+  calculateTradeCodes(world) {
+    const codes = [];
+
+    // Agricultural: Atm 4-8, Hydro 4-8, Pop 5-7[^8]
+    if (
+      [4, 5, 6, 7, 8].includes(world.atmosphereCode) &&
+      [4, 5, 6, 7, 8].includes(world.hydrographicsCode) &&
+      [5, 6, 7].includes(world.populationCode)
+    ) {
+      codes.push("Ag");
+    }
+
+    // Asteroid: Size 0, Hydro 0
+    if (world.size === 0 && world.hydrographicsCode === 0) {
+      codes.push("As");
+    }
+
+    // Barren: Size 0, Atm 0, Hydro 0
+    if (world.size === 0 && world.atmosphereCode === 0 && world.hydrographicsCode === 0) {
+      codes.push("Ba");
+    }
+
+    // Desert: Atm 2-9, Hydro 0
+    if ([2, 3, 4, 5, 6, 7, 8, 9].includes(world.atmosphereCode) && world.hydrographicsCode === 0) {
+      codes.push("De");
+    }
+
+    // Fluid Oceans: Atm A-C/F+, Hydro 1+
+    if (["A", "B", "C", "F"].includes(world.atmosphereCode) && world.hydrographicsCode >= 1) {
+      codes.push("Fl");
+    }
+
+    // Garden: Size 6-8, Atm 5/6/8, Hydro 5-7[^8]
+    if (
+      [6, 7, 8].includes(world.size) &&
+      [5, 6, 8].includes(world.atmosphereCode) &&
+      [5, 6, 7].includes(world.hydrographicsCode)
+    ) {
+      codes.push("Ga");
+    }
+
+    // High Population: Pop 9+
+    if (world.populationCode >= 9) {
+      codes.push("Hi");
+    }
+
+    // High Tech: TL C+
+    if (world.technologyLevel >= 12) {
+      codes.push("Ht");
+    }
+
+    // Ice-Capped: Size 0-1, Hydro 1+
+    if ([0, 1].includes(world.size) && world.hydrographicsCode >= 1) {
+      codes.push("Ic");
+    }
+
+    // Industrial: Size 0-2/4/7/9-C, Pop 9+[^8]
+    if (([0, 1, 2, 4, 7, 9].includes(world.size) || world.size >= 10) && world.populationCode >= 9) {
+      codes.push("In");
+    }
+
+    // Low Population: Pop 1-3
+    if ([1, 2, 3].includes(world.populationCode)) {
+      codes.push("Lo");
+    }
+
+    // Low Tech: TL 1-5
+    if (world.technologyLevel >= 1 && world.technologyLevel <= 5) {
+      codes.push("Lt");
+    }
+
+    // Non-Agricultural: Atm 0-3, Hydro 0-3, Pop 6+
+    if (
+      [0, 1, 2, 3].includes(world.atmosphereCode) &&
+      [0, 1, 2, 3].includes(world.hydrographicsCode) &&
+      world.populationCode >= 6
+    ) {
+      codes.push("Na");
+    }
+
+    // Non-Industrial: Size 4-6, Pop 4-6
+    if ([4, 5, 6].includes(world.size) && [4, 5, 6].includes(world.populationCode)) {
+      codes.push("Ni");
+    }
+
+    // Poor: Atm 2-5, Hydro 0-3
+    if ([2, 3, 4, 5].includes(world.atmosphereCode) && [0, 1, 2, 3].includes(world.hydrographicsCode)) {
+      codes.push("Po");
+    }
+
+    // Rich: Atm 6/8, Gov 4/6/9, Pop 6-8[^8]
+    if (
+      [6, 8].includes(world.atmosphereCode) &&
+      [4, 6, 9].includes(world.governmentCode) &&
+      [6, 7, 8].includes(world.populationCode)
+    ) {
+      codes.push("Ri");
+    }
+
+    // Vacuum: Size 0, Atm 0
+    if (world.size === 0 && world.atmosphereCode === 0) {
+      codes.push("Va");
+    }
+
+    // Waterworld: Hydro A+
+    if (world.hydrographicsCode === "A" || world.hydrographicsCode >= 10) {
+      codes.push("Wa");
+    }
+
+    return codes;
+  }
+
+  /**
+   * Generate cultural characteristics
+   * Reference: Handbook page 181 - Culture Generation
+   */
+  generateCulturalCharacteristics(world) {
+    // 2D + DMs for each cultural trait[^10]
+    const culturalTraits = {
+      diversity: this.roller.roll2D(), // How mixed the population is
+      xenophilia: this.roller.roll2D(), // Attitude toward outsiders
+      uniqueness: this.roller.roll2D(), // How different from baseline human
+      symbology: this.roller.roll2D(), // Religious/philosophical depth
+      cohesion: this.roller.roll2D(), // How unified the society is
+      progressiveness: this.roller.roll2D(), // Technological advancement desire
+    };
+
+    // Apply DMs based on world characteristics
+    if (world.populationCode >= 8) {
+      culturalTraits.diversity += 1;
+      culturalTraits.xenophilia -= 1; // Large diverse populations can be insular
+    }
+
+    if (world.technologyLevel >= 10) {
+      culturalTraits.progressiveness += 2;
+    }
+
+    if ([0, 1, 2].includes(world.governmentCode)) {
+      culturalTraits.xenophilia += 1; // Open governments more receptive
+    }
+
+    world.culturalCharacteristics = culturalTraits;
+
+    this.generationLog.push({
+      step: "3C-CulturalCharacteristics",
+      world: world.id,
+      traits: culturalTraits,
+    });
+  }
+
+  /**
+   * Generate economic factors
+   * Reference: Handbook pages 185-191 - Economics
+   */
+  generateEconomicFactors(world) {
+    // Importance rating[^9]
+    let importance = 0;
+
+    if (world.starport === "A" || world.starport === "B") importance += 1;
+    if (world.starport === "D" || world.starport === "E" || world.starport === "X") importance -= 1;
+
+    if (world.populationCode <= 6) importance -= 1;
+    if (world.populationCode >= 9) importance += 1;
+
+    if (world.technologyLevel <= 8) importance -= 1;
+    if (world.technologyLevel >= 10) importance += 1;
+    if (world.technologyLevel >= 16) importance += 2;
+
+    // Trade code bonuses
+    if (world.tradeCodes.includes("Ag")) importance += 1;
+    if (world.tradeCodes.includes("In")) importance += 1;
+    if (world.tradeCodes.includes("Ri")) importance += 1;
+
+    world.importanceRating = Math.max(-3, Math.min(5, importance));
+
+    // Resource rating[^9]
+    // 2D-7 + Size + DMs
+    const resourceRoll = this.roller.roll2D();
+    let resourceDM = 0;
+
+    if (world.technologyLevel <= 3) resourceDM -= 2;
+    if (world.technologyLevel >= 12) resourceDM += 1;
+
+    const resourceRating = Math.max(2, resourceRoll - 7 + world.size + resourceDM);
+    world.resourceRating = Math.min(12, resourceRating);
+
+    // Infrastructure estimate
+    const infrastructureBase = Math.floor(world.populationCode / 2);
+    const infrastructureBonus = world.starport === "A" ? 2 : world.starport === "B" ? 1 : 0;
+    world.infrastructure = Math.max(0, infrastructureBase + infrastructureBonus);
+
+    // GWP (Gross World Product) estimation
+    // Simplified: Pop × Resource × Infrastructure × TL factor
+    const tlFactor = world.technologyLevel / 10 || 0.1;
+    const gwp = Math.floor(
+      this.calculatePopulation(world.populationCode) *
+        (world.resourceRating / 10) *
+        (world.infrastructure || 1) *
+        tlFactor,
+    );
+
+    world.gwp = gwp;
+    world.gwpPerCapita = gwp > 0 ? Math.floor(gwp / this.calculatePopulation(world.populationCode)) : 0;
+
+    this.generationLog.push({
+      step: "3C-Economics",
+      world: world.id,
+      importance: world.importanceRating,
+      resources: world.resourceRating,
+      infrastructure: world.infrastructure,
+      gwp: world.gwp,
+    });
+  }
+  /**
+   * Generate complete UWP for mainworld
+   * Reference: Handbook page 148 - UWP Format
+   */
+  generateMainworldUWP() {
+    if (!this.mainworld) {
+      throw new Error("Cannot generate UWP without mainworld");
+    }
+
+    const mw = this.mainworld;
+
+    // Ensure all required fields exist
+    const required = [
+      "starport",
+      "size",
+      "atmosphereCode",
+      "hydrographicsCode",
+      "populationCode",
+      "governmentCode",
+      "lawLevel",
+      "technologyLevel",
+    ];
+
+    const missing = required.filter((field) => mw[field] === undefined);
+    if (missing.length > 0) {
+      console.warn(`⚠ Missing UWP fields: ${missing.join(", ")}`);
+    }
+
+    // Build UWP string
+    const toHex = (val) => {
+      if (typeof val === "number" && val > 9) {
+        return val.toString(16).toUpperCase();
+      }
+      return val;
+    };
+
+    const uwp = [
+      mw.starport || "X",
+      toHex(mw.size || 0),
+      toHex(mw.atmosphereCode || 0),
+      toHex(mw.hydrographicsCode || 0),
+      toHex(mw.populationCode || 0),
+      toHex(mw.governmentCode || 0),
+      toHex(mw.lawLevel || 0),
+      toHex(mw.technologyLevel || 0),
+    ].join("");
+
+    mw.uwp = uwp;
+
+    console.log(`\n✅ MAINWORLD UWP: ${uwp}`);
+    console.log(`   ${mw.id} - ${mw.description}`);
+
+    return uwp;
+  }
+
+  /**
+   * Build Universal World Profile (UWP)
+   * Reference: Handbook page 148 - UWP Format
+   * Format: Starport Size Atmosphere Hydrographics Population Government Law Tech
+   * Example: C566776-8
+   */
+  buildUWP(world) {
+    // Convert codes to hex where needed
+    const hexMap = {
+      10: "A",
+      11: "B",
+      12: "C",
+      13: "D",
+      14: "E",
+      15: "F",
+    };
+
+    const toHex = (val) => {
+      if (typeof val === "number" && val > 9) {
+        return hexMap[val] || val.toString(16).toUpperCase();
+      }
+      return val;
+    };
+
+    const uwp = [
+      world.starport,
+      toHex(world.size),
+      toHex(world.atmosphereCode),
+      toHex(world.hydrographicsCode),
+      toHex(world.populationCode),
+      toHex(world.governmentCode),
+      toHex(world.lawLevel),
+      toHex(world.technologyLevel),
+    ].join("");
+
+    return uwp;
+  }
+
+  /**
+   * Generate secondary world population (simplified)
+   * Reference: Handbook page 155 - Secondary World Populations
+   */
+  generateSecondaryWorldPopulation(planet) {
+    // Guard: Check if mainworld exists
+    if (!this.mainworld) {
+      console.warn(`  ⚠ No mainworld available for ${planet.id} - skipping secondary population`);
+      planet.populationCode = 0;
+      planet.population = 0;
+      return;
+    }
+    // Secondary worlds have lower populations
+    const roll = this.roller.roll2D() - 3; // -3 modifier for secondary worlds
+    const popCode = Math.max(0, roll);
+
+    planet.populationCode = popCode;
+    planet.population = this.calculatePopulation(popCode);
+
+    // Simplified government
+    const govRoll = this.roller.roll2D();
+    planet.governmentCode = Math.max(0, govRoll - 7 + popCode);
+    planet.governmentType = this.getGovernmentType(planet.governmentCode);
+
+    // Simplified starport
+    planet.starport = popCode >= 4 ? "D" : "E";
+
+    // Simplified TL
+    planet.technologyLevel = Math.max(3, this.mainworld.technologyLevel - 2);
+
+    this.generationLog.push({
+      step: "3C-SecondaryPopulation",
+      world: planet.id,
+      popCode: popCode,
+      population: planet.population,
+    });
+  }
+  // #endregion
+  // #region Phase 3D: UWP Generation
+  /**
+   * UWP GENERATION FOR ALL WORLDS
+   * Reference: Handbook page 148 - UWP Format
+   *
+   * Generates Universal World Profile for:
+   * - Mainworld (has full UWP)
+   * - Secondary worlds (has abbreviated UWP)
+   * - Moons (if populated)
+   */
+  generateUWPForAllWorlds() {
+    console.log("  Generating UWP for all worlds...\n");
+
+    const uwpResults = [];
+
+    // Mainworld UWP (full)
+    if (this.mainworld) {
+      const mainworldUWP = this.buildUWP(this.mainworld);
+      this.mainworld.uwp = mainworldUWP;
+
+      uwpResults.push({
+        world: this.mainworld.id,
+        type: "Mainworld",
+        uwp: mainworldUWP,
+        population: this.mainworld.populationCode,
+      });
+
+      console.log(`  ✓ ${this.mainworld.id}: ${mainworldUWP} (Mainworld)`);
+    }
+
+    // Secondary terrestrial planets
+    this.terrestrialPlanets.forEach((planet) => {
+      if (planet !== this.mainworld) {
+        const uwp = this.buildUWP(planet);
+        planet.uwp = uwp;
+
+        if (planet.populationCode > 0) {
+          uwpResults.push({
+            world: planet.id,
+            type: "Secondary Planet",
+            uwp: uwp,
+            population: planet.populationCode,
+          });
+
+          console.log(`  ✓ ${planet.id}: ${uwp} (Secondary)`);
+        }
+      }
+    });
+
+    // Secondary moons (if populated)
+    this.allWorlds.forEach((world) => {
+      if (world.moons && world.moons.length > 0) {
+        world.moons.forEach((moon) => {
+          if (moon !== this.mainworld && moon.populationCode > 0) {
+            const uwp = this.buildUWP(moon);
+            moon.uwp = uwp;
+
+            uwpResults.push({
+              world: moon.id,
+              type: "Secondary Moon",
+              uwp: uwp,
+              population: moon.populationCode,
+              parentWorld: world.id,
+            });
+
+            console.log(`  ✓ ${moon.id}: ${uwp} (Moon of ${world.id})`);
+          }
+        });
+      }
+    });
+
+    this.generationLog.push({
+      step: "UWP Generation",
+      action: "Generated UWP for all worlds",
+      mainworld: this.mainworld?.uwp,
+      secondaryCount: uwpResults.filter((r) => r.type !== "Mainworld").length,
+      totalPopulated: uwpResults.filter((r) => r.population > 0).length,
+    });
+
+    console.log(`\n  Total UWPs generated: ${uwpResults.length}`);
+  }
+
+  /**
+   * Build Universal World Profile (UWP) - UNIFIED FOR ALL WORLDS
+   * Reference: Handbook page 148 - UWP Format
+   * Format: Starport Size Atmosphere Hydrographics Population Government Law Tech
+   * Example: C566776-8
+   */
+  buildUWP(world) {
+    if (!world) return "X000000-0";
+
+    const toHex = (val) => {
+      if (val === undefined || val === null) return "0";
+      if (typeof val === "number") {
+        if (val > 9) return val.toString(16).toUpperCase();
+        return val.toString();
+      }
+      // Already hex string like "A", "B", "C"
+      return val.toString();
+    };
+
+    const uwp = [
+      toHex(world.starport || "X"),
+      toHex(world.size || 0),
+      toHex(world.atmosphereCode !== undefined ? world.atmosphereCode : 0),
+      toHex(world.hydrographicsCode !== undefined ? world.hydrographicsCode : 0),
+      toHex(world.populationCode || 0),
+      toHex(world.governmentCode || 0),
+      toHex(world.lawLevel || 0),
+      toHex(world.technologyLevel || 0),
+    ].join("");
+
+    return uwp;
+  }
+
+  // #endregion
+  // #region Helper Methods
+  /**
+   * Validate that world generation prerequisites are met
+   */
+  validateGenerationPrerequisites() {
+    const issues = [];
+
+    // Check star system
+    if (!this.starSystem) {
+      issues.push("Missing star system");
+      return issues;
+    }
+
+    // Check primary star
+    if (!this.starSystem.primaryStar) {
+      issues.push("Missing primary star");
+      return issues;
+    }
+
+    // Check required star properties
+    const star = this.starSystem.primaryStar;
+    if (!star.luminosity) {
+      issues.push("Primary star missing luminosity value");
+    }
+    if (!star.spectralClass) {
+      issues.push("Primary star missing spectral class");
+    }
+
+    // Check habitable zone
+    if (!this.habitableZone) {
+      issues.push("Habitable zone not calculated");
+    }
+
+    // Check worlds collection
+    if (!this.terrestrialPlanets || this.terrestrialPlanets.length === 0) {
+      issues.push("No terrestrial planets generated");
+    }
+
+    return issues;
+  }
+
   // #endregion
 }
 

@@ -11,53 +11,35 @@ try {
 
   // Phase 1: Generate stars
   console.log("✓ PHASE 1: STAR GENERATION\n");
-  const system = starGen.generateSystem();
+  const completeSystem = starGen.generateSystem();
 
-  if (!system) {
+  if (!completeSystem) {
     throw new Error("Star generation failed!");
   }
 
   // Phase 2: Generate worlds
   console.log("✓ PHASE 2: WORLD GENERATION\n");
-  const worldGen = new WorldGenerator(system);
-  const completeSystem = worldGen.generateWorlds();
+  const worldGen = new WorldGenerator(completeSystem);
+  const result = worldGen.generateWorlds();
 
-  if (!completeSystem) {
-    throw new Error("World generation failed!");
+  if (!result.mainworld) {
+    throw new Error("No mainworld generated");
   }
 
-  console.log(`\n✓ Complete system generated!`);
-  console.log(`\n📊 SYSTEM SUMMARY:`);
-  console.log(`  Primary Star: ${completeSystem.primaryStar.classification}`);
+  console.log(`\n✅ MAINWORLD DETERMINATION COMPLETE\n`);
+  console.log(`Mainworld: ${result.mainworld.id}`);
+  console.log(`Type: ${result.mainworld.candidateType}`);
 
-  console.log(`\n🌍 TERRESTRIAL PLANETS WITH TEMPERATURE & CLIMATE:`);
-  completeSystem.terrestrialPlanets.forEach((planet) => {
-    console.log(`\n  ${planet.id}:`);
-    console.log(`    Orbit: ${planet.orbit?.toFixed(2)} AU`);
-    console.log(`    Size: ${planet.size}, Atmosphere: ${planet.atmosphereCode}`);
-    console.log(`    Hydrographics: ${planet.hydrographicsCode} (${planet.hydrographicsPercent?.toFixed(1)}%)`);
+  if (result.mainworld.parentWorld) {
+    console.log(`Body: Moon of ${result.mainworld.parentWorld}`);
+    console.log(`Designation: ${result.mainworld.moonDesignation}`);
+    console.log(`Orbital Position: ${result.mainworld.orbitPD} PD`);
+  }
 
-    console.log(`\n    🌡️  TEMPERATURE:`);
-    console.log(`      Mean: ${planet.meanTemperatureCelsius?.toFixed(1)}°C (${planet.meanTemperature?.toFixed(1)}K)`);
-    console.log(`      High: ${planet.highTemperatureCelsius?.toFixed(1)}°C`);
-    console.log(`      Low: ${planet.lowTemperatureCelsius?.toFixed(1)}°C`);
-    console.log(`      Classification: ${planet.temperatureClassification}`);
-    console.log(`      Axial Tilt: ${planet.axialTilt}°${planet.isTidallyLocked ? " (TIDALLY LOCKED)" : ""}`);
-
-    console.log(`\n    🌍 CLIMATE:`);
-    console.log(`      Type: ${planet.climateType}`);
-    console.log(`      ${planet.climateDescription}`);
-
-    if (planet.climateZones) {
-      console.log(`      Zones: ${planet.climateZones.type}`);
-    }
-
-    console.log(`\n    ✓ HABITABILITY CHECK:`);
-    console.log(`      Breathable: ${planet.isBreathable ? "✓ YES" : "✗ No"}`);
-    console.log(`      Water: ${planet.hydrographicsPercent > 0 ? "✓ YES" : "✗ No"}`);
-    console.log(`      Temperature: ${planet.temperatureClassification}`);
-    console.log(`      Habitability Score: ${planet.habitabilityScore}`);
-  });
+  console.log(`\nSelection Method: ${result.mainworld.selectionMethod}`);
+  console.log(`Habitability Rating: ${result.mainworld.habitabilityRating}/9`);
+  console.log(`Resource Rating: ${result.mainworld.resourceRating}/12`);
+  console.log(`Refueling Quality: ${result.mainworld.refuelingQuality}/5`);
 
   if (completeSystem.mainworld) {
     console.log(`\n⭐ MAINWORLD: ${completeSystem.mainworld.id}`);
