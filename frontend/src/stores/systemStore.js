@@ -82,20 +82,30 @@ export const useSystemStore = defineStore("system", () => {
       // Call your API to generate the system
       const result = await systemApi.initiateStellarSurvey(systemData);
 
+      console.log("API Response:", result); // DEBUG
+
+      // ✅ FIX: Access result.system directly, not result.data.system
+      const system = result.system || result;
+
+      if (!system) {
+        throw new Error("Invalid response: no system data received");
+      }
+
       // Store the generated system
-      currentSystem.value = result.data.system;
-      generatedSystem.value = result.data.system;
+      currentSystem.value = system;
+      generatedSystem.value = system;
 
       // Process survey results
-      processSurveyResults(result.data.system);
+      processSurveyResults(system);
 
       scanProgress.value = 100;
       addLog("Survey complete.", "message");
 
-      return result.data.system;
+      return system;
     } catch (err) {
       error.value = err.message;
       addLog(`Error: ${err.message}`, "error");
+      console.error("Full error:", err); // ✅ Log full error for debugging
       throw err;
     } finally {
       isScanning.value = false;

@@ -18,7 +18,7 @@
       </div>
       <div class="status-item">
         <span class="status-label">OBJECTS DETECTED:</span>
-        <span class="status-value">{{ systemStore.starsCount }}</span>
+        <span class="status-value">{{ systemStore.starsCount || 0 }}</span>
       </div>
     </div>
 
@@ -28,31 +28,7 @@
       <input v-model="systemName" type="text" placeholder="Enter system name..." :disabled="systemStore.isScanning" />
       <button @click="startScan" :disabled="systemStore.isScanning">START SCAN</button>
       <button @click="resetScan" :disabled="systemStore.isScanning">RESET</button>
-      <button @click="exportData" :disabled="systemStore.starsCount === 0">EXPORT DATA</button>
-    </div>
-
-    <div class="status-bar">
-      <div class="status-item">
-        <span class="status-label">SCAN STATUS:</span>
-        <span class="status-value" :class="{ scanning: isScanning }">{{ status }}</span>
-      </div>
-      <div class="status-item">
-        <span class="status-label">PROGRESS:</span>
-        <ProgressBar :progress="scanProgress" />
-      </div>
-      <div class="status-item">
-        <span class="status-label">OBJECTS DETECTED:</span>
-        <span class="status-value">{{ starsDetected.length }}</span>
-      </div>
-    </div>
-
-    <ScanLog :entries="scanLog" />
-
-    <div class="control-panel">
-      <button @click="startScan" :disabled="isScanning">START SCAN</button>
-      <button @click="pauseScan" :disabled="!isScanning">PAUSE</button>
-      <button @click="resetScan">RESET</button>
-      <button @click="exportData" :disabled="starsDetected.length === 0">EXPORT DATA</button>
+      <button @click="exportData" :disabled="(systemStore.starsCount || 0) === 0">EXPORT DATA</button>
     </div>
   </div>
 </template>
@@ -98,12 +74,19 @@ export default {
       const system = this.systemStore.generatedSystem;
       if (!system) return;
 
+      // ✅ FIX: Check if starsDetected exists before using it
+      const stars = this.systemStore.starsDetected || [];
+      if (stars.length === 0) {
+        console.warn("No stars to export");
+        return;
+      }
+
       let data = `IISS STELLAR SURVEY EXPORT\n`;
       data += `===========================\n\n`;
       data += `System: ${this.systemName}\n`;
       data += `Generated: ${new Date().toISOString()}\n\n`;
 
-      this.systemStore.starsDetected.forEach((star) => {
+      stars.forEach((star) => {
         data += `Designation: ${star.designation}\n`;
         data += `Class: ${star.spectralClass}${star.subtype} ${star.luminosityClass}\n`;
         data += `Mass: ${star.mass} M☉\n`;

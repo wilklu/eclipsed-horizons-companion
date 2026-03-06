@@ -21,7 +21,7 @@ export const systemApi = {
     }
   },
 
-  // Get single system
+  // Get single system - ONLY ONE DEFINITION ✅
   async getSystem(id) {
     try {
       const response = await apiClient.get(`/systems/${id}`);
@@ -43,7 +43,7 @@ export const systemApi = {
     }
   },
 
-  // Generate system (placeholder - will be implemented in Sprint 4)
+  // Generate system using axios for consistency ✅
   async generateSystem(params) {
     try {
       const response = await apiClient.post("/systems/generate", params);
@@ -77,39 +77,19 @@ export const systemApi = {
   },
 
   /**
-   * Initiate a stellar survey scan
+   * Initiate a stellar survey scan - NOW USES AXIOS ✅
    */
   async initiateStellarSurvey(systemData) {
     try {
-      const response = await fetch("/api/systems/survey", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          systemName: systemData.systemName || "New System",
-          seed: systemData.seed || Math.random(),
-        }),
+      const response = await apiClient.post("/systems/survey", {
+        systemName: systemData.systemName || "New System",
+        seed: systemData.seed || Math.random(),
       });
-
-      if (!response.ok) {
-        throw new Error(`Survey failed: ${response.statusText}`);
-      }
-
-      return await response.json();
+      return response.data;
     } catch (error) {
       console.error("Survey error:", error);
       throw error;
     }
-  },
-
-  /**
-   * Get existing system data
-   */
-  async getSystem(systemId) {
-    const response = await fetch(`/api/systems/${systemId}`);
-    if (!response.ok) throw new Error("Failed to fetch system");
-    return response.json();
   },
 };
 
