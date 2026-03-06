@@ -3,13 +3,18 @@ const router = express.Router();
 const sqlite3 = require("sqlite3").verbose();
 const path = require("path");
 
+const { WorldGenerator } = require("../generators/WorldGenerator");
+const { StarGenerator } = require("../generators/StarGenerator");
+
+// #region Database Initialization
 // Database connection
 const dbPath = path.join(__dirname, "../database/eclipsed-horizon.db");
 const db = new sqlite3.Database(dbPath);
 
 // Enable foreign keys
 db.run("PRAGMA foreign_keys = ON");
-
+// #endregion
+// #region Generation System Endpoints
 // GET all systems
 router.get("/", (req, res) => {
   db.all("SELECT * FROM star_systems ORDER BY created_at DESC", (err, rows) => {
@@ -65,5 +70,50 @@ router.post("/survey", (req, res) => {
   // Save to database...
   res.json({ message: "Survey saved", id: 1 });
 });
+// #endregion
+// #region Stellar Survey Scanner Endpoints
+router.post("/api/systems/survey", async (req, res) => {
+  try {
+    const { systemName, seed } = req.body;
+
+    // Generate star system using your generators
+    const starGenerator = new StarGenerator();
+    const primaryStar = starGenerator.generatePrimaryStar(seed);
+
+    const worldGenerator = new WorldGenerator({
+      systemName: systemName || "Generated System",
+      primaryStar: primaryStar,
+      seed: seed,
+    });
+
+    const systemData = worldGenerator.generateWorlds();
+
+    res.json({
+      status: "success",
+      data: {
+        system: systemData,
+        timestamp: new Date().toISOString(),
+      },
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: "error",
+      message: error.message,
+    });
+  }
+});
+
+// Get system details
+router.get("/api/systems/:id", async (req, res) => {
+  try {
+    // Return previously generated system or error
+    res.json({
+      /* system data */
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+// #endregion
 
 module.exports = router;

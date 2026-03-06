@@ -1,0 +1,53 @@
+
+> backend@1.0.0 dev
+> nodemon server.js
+
+[33m[nodemon] 3.1.14[39m
+[33m[nodemon] to restart at any time, enter `rs`[39m
+[33m[nodemon] watching path(s): *.*[39m
+[33m[nodemon] watching extensions: js,mjs,cjs,json[39m
+[32m[nodemon] starting `node server.js`[39m
+[dotenv@17.3.1] injecting env (0) from .env -- tip: 🛠️  run anywhere with `dotenvx run -- yourcommand`
+/workspaces/eclipsed-horizons-companion/backend/node_modules/path-to-regexp/dist/index.js:96
+            throw new PathError(`Missing parameter name at index ${index}`, str);
+            ^
+
+PathError [TypeError]: Missing parameter name at index 1: *; visit https://git.new/pathToRegexpError for info
+    at name (/workspaces/eclipsed-horizons-companion/backend/node_modules/path-to-regexp/dist/index.js:96:19)
+    at parse (/workspaces/eclipsed-horizons-companion/backend/node_modules/path-to-regexp/dist/index.js:113:68)
+    at pathToRegexp (/workspaces/eclipsed-horizons-companion/backend/node_modules/path-to-regexp/dist/index.js:267:58)
+    at Object.match (/workspaces/eclipsed-horizons-companion/backend/node_modules/path-to-regexp/dist/index.js:237:30)
+    at matcher (/workspaces/eclipsed-horizons-companion/backend/node_modules/router/lib/layer.js:86:23)
+    at new Layer (/workspaces/eclipsed-horizons-companion/backend/node_modules/router/lib/layer.js:93:62)
+    at router.route (/workspaces/eclipsed-horizons-companion/backend/node_modules/router/index.js:428:17)
+    at app.route (/workspaces/eclipsed-horizons-companion/backend/node_modules/express/lib/application.js:257:22)
+    at app.<computed> [as get] (/workspaces/eclipsed-horizons-companion/backend/node_modules/express/lib/application.js:478:22)
+    at Object.<anonymous> (/workspaces/eclipsed-horizons-companion/backend/server.js:27:5) {
+  originalPath: '*'
+}
+
+Node.js v24.11.1
+[31m[nodemon] app crashed - waiting for file changes before starting...[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `node server.js`[39m
+[dotenv@17.3.1] injecting env (0) from .env -- tip: ⚙️  write to custom object with { processEnv: myObject }
+/workspaces/eclipsed-horizons-companion/backend/node_modules/path-to-regexp/dist/index.js:96
+            throw new PathError(`Missing parameter name at index ${index}`, str);
+            ^
+
+PathError [TypeError]: Missing parameter name at index 1: *; visit https://git.new/pathToRegexpError for info
+    at name (/workspaces/eclipsed-horizons-companion/backend/node_modules/path-to-regexp/dist/index.js:96:19)
+    at parse (/workspaces/eclipsed-horizons-companion/backend/node_modules/path-to-regexp/dist/index.js:113:68)
+    at pathToRegexp (/workspaces/eclipsed-horizons-companion/backend/node_modules/path-to-regexp/dist/index.js:267:58)
+    at Object.match (/workspaces/eclipsed-horizons-companion/backend/node_modules/path-to-regexp/dist/index.js:237:30)
+    at matcher (/workspaces/eclipsed-horizons-companion/backend/node_modules/router/lib/layer.js:86:23)
+    at new Layer (/workspaces/eclipsed-horizons-companion/backend/node_modules/router/lib/layer.js:93:62)
+    at router.use (/workspaces/eclipsed-horizons-companion/backend/node_modules/router/index.js:398:19)
+    at app.<anonymous> (/workspaces/eclipsed-horizons-companion/backend/node_modules/express/lib/application.js:222:21)
+    at Array.forEach (<anonymous>)
+    at app.use (/workspaces/eclipsed-horizons-companion/backend/node_modules/express/lib/application.js:219:7) {
+  originalPath: '*'
+}
+
+Node.js v24.11.1
+[31m[nodemon] app crashed - waiting for file changes before starting...[39m

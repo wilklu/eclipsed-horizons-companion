@@ -1,4 +1,5 @@
 const express = require("express");
+const path = require("path");
 const cors = require("cors");
 require("dotenv").config();
 
@@ -11,6 +12,7 @@ const systemRoutes = require("./routes/systems");
 // Middleware
 app.use(cors());
 app.use(express.json());
+app.use(express.static(path.join(__dirname, "../frontend/dist")));
 
 // Health check endpoint
 app.get("/api/health", (req, res) => {
@@ -19,6 +21,11 @@ app.get("/api/health", (req, res) => {
 
 // API routes
 app.use("/api/systems", systemRoutes);
+
+// Serve Vue app - use app.use() instead of app.get("*")
+app.use((req, res) => {
+  res.sendFile(path.join(__dirname, "../frontend/dist/index.html"));
+});
 
 // Start server
 app.listen(PORT, () => {

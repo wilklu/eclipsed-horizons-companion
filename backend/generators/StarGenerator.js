@@ -20,7 +20,7 @@ class StarGenerator {
    */
   generateSystem() {
     try {
-      // ✅ Initialize all properties
+      // Initialize all properties
       this.primaryStar = null;
       this.secondaryStars = [];
       this.multipleStarResults = null;
@@ -177,10 +177,10 @@ class StarGenerator {
 
       cascadePath.push("Special");
 
-      // ✅ UPDATE THE FUNCTION-LEVEL VARIABLE
+      // UPDATE THE FUNCTION-LEVEL VARIABLE
       luminosityClass = this.extractClassFromString(specialClassString);
 
-      // ✅ NOW ROLL ON TYPE COLUMN WITH DM+1
+      // NOW ROLL ON TYPE COLUMN WITH DM+1
       const typeRoll = this.roller.roll2D() + 1;
       tableEntry = this.getTableEntry(typeRoll);
       finalType = tableEntry.type; // ← This is the SPECTRAL TYPE ("G", "K", etc.)
@@ -260,10 +260,10 @@ class StarGenerator {
 
       cascadePath.push("Giants");
 
-      // ✅ UPDATE THE FUNCTION-LEVEL VARIABLE
+      // UPDATE THE FUNCTION-LEVEL VARIABLE
       luminosityClass = this.extractClassFromString(giantsClassString);
 
-      // ✅ NOW ROLL ON TYPE COLUMN WITH DM+1
+      // NOW ROLL ON TYPE COLUMN WITH DM+1
       const typeRoll = this.roller.roll2D() + 1;
       tableEntry = this.getTableEntry(typeRoll);
       finalType = tableEntry.type; // ← This is the SPECTRAL TYPE ("G", "K", etc.)
@@ -295,7 +295,7 @@ class StarGenerator {
       cascadePath.push("Hot");
     }
 
-    // ✅ APPLY CLASS IV M-TYPE ADJUSTMENT (Type roll 3-6 only)
+    // APPLY CLASS IV M-TYPE ADJUSTMENT (Type roll 3-6 only)
     if (luminosityClass === "IV") {
       const originalTypeRoll = typeRoll;
 
@@ -867,7 +867,7 @@ class StarGenerator {
       throw new Error(`Invalid roll on Star Type Determination table: ${roll2d}`);
     }
 
-    // ✅ Validate that Type column contains only spectral types
+    // Validate that Type column contains only spectral types
     const validTypes = ["O", "B", "A", "F", "G", "K", "M", "Hot", "Special"];
     if (!validTypes.includes(entry.type)) {
       throw new Error(
