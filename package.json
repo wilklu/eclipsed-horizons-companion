@@ -10,8 +10,10 @@
     "validate:data": "node scripts/test-data-validation.js",
     "validate:all": "npm run validate:yaml && npm run validate:rules && npm run validate:data",
     "sync:tables": "node scripts/sync-tables.js",
-    "build": "mkdocs build",
-    "serve": "mkdocs serve"
+    "build": "vitepress build docs",
+    "serve": "vitepress dev docs",
+    "docs:build": "vitepress build docs",
+    "docs:dev": "vitepress dev docs"
   },
   "keywords": [
     "traveller",
@@ -21,10 +23,12 @@
   "author": "Your Name",
   "license": "CC-BY-4.0",
   "dependencies": {
-    "yaml": "^2.4.1",
-    "js-yaml": "^4.1.0"
+    "js-yaml": "^4.1.0",
+    "yaml": "^2.4.1"
   },
   "devDependencies": {
-    "node": "^18.0.0"
+    "glob": "^13.0.6",
+    "node": "^18.0.0",
+    "vitepress": "^1.0.0"
   }
 }

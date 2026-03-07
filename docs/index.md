@@ -1,3 +1,18 @@
+---
+home: true
+title: Eclipsed Horizons Companion
+---
+
+# Eclipsed Horizons Companion
+
+Welcome to the documentation site for the Eclipsed Horizons Companion project.
+
+This minimal site was migrated from MkDocs to VitePress. Use `npm run docs:dev` to preview locally or `npm run docs:build` to build the static site.
+
+## Quick Links
+
+- [Home](/)
+
 # Eclipsed Horizons Companion
 
 Welcome to the comprehensive wiki for the **Eclipsed Horizons Companion** - an integrated suite of tools for Mongoose Traveller 2nd Edition.
