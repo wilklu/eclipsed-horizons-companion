@@ -8,8 +8,6 @@
         <router-link to="/">Dashboard</router-link>
         <router-link to="/generate" class="nav-link btn-primary"> + Generate System </router-link>
         <router-link to="/scanner" class="nav-link">Stellar Scanner</router-link>
-        <router-link to="/generate-system" class="nav-link">Generate System</router-link>
-        <router-link to="/system-editor" class="nav-link">Editor</router-link>
       </nav>
     </div>
   </header>

@@ -1,9 +1,9 @@
 <template>
   <div id="app" class="app-container">
-    <Header />
+    <Header></Header>
     <div class="main-content">
-      <Sidebar />
-      <RouterView class="page-content" />
+      <Sidebar></Sidebar>
+      <RouterView class="page-content"></RouterView>
     </div>
   </div>
 </template>
@@ -34,6 +34,23 @@ body {
 
 html {
   scroll-behavior: smooth;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.main-content {
+  display: flex;
+  flex: 1;
+  gap: 0;
+}
+
+.page-content {
+  flex: 1;
+  overflow-y: auto;
 }
 
 ::-webkit-scrollbar {

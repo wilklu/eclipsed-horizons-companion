@@ -277,12 +277,12 @@ const printForm = () => {
   border: 2px solid #000;
 }
 
-/* ── HEADER ── */
+/* ── HEADER (NAVY) ── */
 .form-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: #0e219a;
+  background: #0e219a; /* Navy header */
   color: #ffffff;
   padding: 8px 12px;
   border-bottom: 2px solid #000;
@@ -301,9 +301,9 @@ const printForm = () => {
   letter-spacing: 1px;
 }
 
-/* ── SECTION LABEL ── */
+/* ── SECTION LABEL (NAVY) ── */
 .section-label {
-  background: #0e219a;
+  background: #0c1f8a; /* Medium navy */
   color: #ffffff;
   font-weight: bold;
   font-size: 10px;
@@ -352,18 +352,19 @@ const printForm = () => {
 }
 
 .cell-value {
-  border-bottom: 1px solid #999;
-  min-height: 16px;
+  border: 1px solid #999;
+  border-radius: 2px;
+  padding: 4px 6px;
   font-size: 11px;
   color: #000;
-  border: none;
-  padding: 2px 0;
   font-family: Arial, sans-serif;
+  background: #fff;
 }
 
 .cell-value:focus {
   outline: none;
-  border-bottom: 2px solid #00d9ff;
+  border-color: #0e219a;
+  box-shadow: 0 0 4px rgba(14, 33, 154, 0.3);
 }
 
 /* ── SECTION BLOCK ── */
@@ -386,6 +387,7 @@ const printForm = () => {
   height: 32px;
   border: 1px solid #999;
   background: #e8e8e8;
+  color: #000;
   cursor: pointer;
   font-weight: bold;
   font-size: 10px;
@@ -398,10 +400,10 @@ const printForm = () => {
 }
 
 .subsector-tab.active {
-  background: #00d9ff;
-  color: #000;
-  border-color: #00d9ff;
-  box-shadow: 0 0 8px rgba(0, 217, 255, 0.5);
+  background: #0e219a; /* Navy blue for active */
+  color: #ffffff;
+  border-color: #0e219a;
+  box-shadow: 0 0 8px rgba(14, 33, 154, 0.5);
 }
 
 .subsector-label {
@@ -421,7 +423,7 @@ const printForm = () => {
 }
 
 .sector-table th {
-  background: #e8e8e8;
+  background: #d9dff0; /* Light navy tint */
   border: 1px solid #aaa;
   padding: 6px 4px;
   text-align: center;
@@ -430,6 +432,7 @@ const printForm = () => {
   font-size: 8px;
   letter-spacing: 0.5px;
   white-space: nowrap;
+  color: #000;
 }
 
 .sector-table td {
@@ -438,6 +441,7 @@ const printForm = () => {
   min-height: 22px;
   vertical-align: middle;
   font-size: 9px;
+  background: #fff;
 }
 
 .sector-table tbody tr:nth-child(even) td {
@@ -445,12 +449,12 @@ const printForm = () => {
 }
 
 .sector-table tbody tr:hover td {
-  background-color: rgba(0, 217, 255, 0.1);
+  background-color: rgba(14, 33, 154, 0.08);
 }
 
 .sector-table tbody tr.row-selected td {
-  background-color: rgba(0, 217, 255, 0.3);
-  border: 1px solid #00d9ff;
+  background-color: rgba(14, 33, 154, 0.15);
+  border: 1px solid #0e219a;
 }
 
 .table-input {
@@ -464,14 +468,15 @@ const printForm = () => {
 
 .table-input:focus {
   outline: none;
-  background: rgba(0, 217, 255, 0.1);
-  border-bottom: 1px solid #00d9ff;
+  background: rgba(14, 33, 154, 0.08);
+  border-bottom: 1px solid #0e219a;
 }
 
 /* ── COMMENTS BLOCK ── */
 .comments-block {
   padding: 8px 10px;
   border-top: 1px solid #ccc;
+  background: #fff;
 }
 
 .comments-label {
@@ -491,12 +496,13 @@ const printForm = () => {
   font-size: 10px;
   resize: vertical;
   border-radius: 2px;
+  background: #fff;
 }
 
 .comments-textarea:focus {
   outline: none;
-  border-color: #00d9ff;
-  box-shadow: 0 0 6px rgba(0, 217, 255, 0.3);
+  border-color: #0e219a;
+  box-shadow: 0 0 6px rgba(14, 33, 154, 0.3);
 }
 
 /* ── ACTION BUTTONS ── */
@@ -511,7 +517,7 @@ const printForm = () => {
 .btn {
   flex: 1;
   padding: 8px 12px;
-  border: none;
+  border: 1px solid #999;
   border-radius: 4px;
   cursor: pointer;
   font-weight: bold;
@@ -520,24 +526,25 @@ const printForm = () => {
 }
 
 .btn-primary {
-  background-color: #00d9ff;
-  color: #000;
+  background-color: #0e219a;
+  color: #ffffff;
+  border-color: #0e219a;
 }
 
 .btn-primary:hover {
-  background-color: #00ffff;
-  box-shadow: 0 0 12px rgba(0, 217, 255, 0.5);
+  background-color: #0a1a7a;
+  box-shadow: 0 0 12px rgba(14, 33, 154, 0.5);
 }
 
 .btn-secondary {
-  background-color: #333;
-  color: #00d9ff;
-  border: 1px solid #00d9ff;
+  background-color: #e8e8e8;
+  color: #000;
+  border: 1px solid #999;
 }
 
 .btn-secondary:hover {
-  background-color: #444;
-  box-shadow: 0 0 8px rgba(0, 217, 255, 0.3);
+  background-color: #d0d0d0;
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.2);
 }
 
 /* ── PRINT STYLES ── */
@@ -546,6 +553,11 @@ const printForm = () => {
   .subsector-tabs,
   .action-buttons {
     display: none !important;
+  }
+
+  .sector-survey-container {
+    padding: 0;
+    background: white;
   }
 
   .form-wrapper {

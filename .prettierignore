@@ -1,0 +1,12 @@
+# Ignore documentation and dev notes
+docs/
+dev-notes/
+
+# Common ignores
+node_modules/
+dist/
+build/
+coverage/
+*.min.js
+*.min.css
+package-lock.json
