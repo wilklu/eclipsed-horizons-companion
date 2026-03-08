@@ -1,0 +1,106 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Sophont Entity Schema",
+  "type": "object",
+  "required": ["sophontId", "worldId", "name", "bodyPlan", "techLevel", "metadata"],
+  "properties": {
+    "sophontId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 50,
+      "pattern": "^[a-zA-Z0-9_-]+$"
+    },
+    "worldId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 50,
+      "pattern": "^[a-zA-Z0-9_-]+$",
+      "description": "Foreign key reference to parent world"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100,
+      "description": "Sophont species name (e.g., 'Humans', 'Vargr')"
+    },
+    "bodyPlan": {
+      "type": "string",
+      "enum": ["Humanoid", "Avian", "Aquatic", "Insectoid", "Arachnoid", "Serpentine", "Amorphous", "Radial", "Exotic"],
+      "description": "Primary body morphology"
+    },
+    "culture": {
+      "type": "object",
+      "properties": {
+        "values": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["honor", "profit", "knowledge", "harmony", "survival", "exploration", "tradition", "innovation"]
+          },
+          "description": "Cultural values"
+        },
+        "taboos": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["violence", "deception", "technology", "commerce", "hierarchy", "nature", "religion"]
+          },
+          "description": "Cultural prohibitions"
+        },
+        "socialStructure": {
+          "type": "string",
+          "enum": ["tribal", "feudal", "democratic", "autocratic", "hivemind", "meritocratic"],
+          "description": "Primary social organization"
+        }
+      }
+    },
+    "population": {
+      "type": "object",
+      "properties": {
+        "current": {
+          "type": "string",
+          "description": "Population (0-C per Traveller scale)"
+        },
+        "density": {
+          "type": "number",
+          "description": "Population density per sq km"
+        },
+        "growthRate": {
+          "type": "number",
+          "description": "Annual growth rate as decimal"
+        }
+      }
+    },
+    "techLevel": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 15,
+      "description": "Species technology level"
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "lastModified": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "origin": {
+          "type": "string",
+          "description": "Species origin story or historical notes"
+        },
+        "familyTreeId": {
+          "type": ["string", "null"],
+          "description": "Reference to family tree (future feature)"
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 1000
+        }
+      }
+    }
+  }
+}

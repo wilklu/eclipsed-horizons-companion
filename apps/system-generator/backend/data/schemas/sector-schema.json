@@ -1,0 +1,78 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Sector Entity Schema",
+  "type": "object",
+  "required": ["sectorId", "galaxyId", "coordinates", "densityClass", "metadata"],
+  "properties": {
+    "sectorId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 50,
+      "pattern": "^[a-zA-Z0-9_-]+$",
+      "description": "Unique identifier for the sector"
+    },
+    "galaxyId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 50,
+      "pattern": "^[a-zA-Z0-9_-]+$",
+      "description": "Foreign key reference to parent galaxy"
+    },
+    "coordinates": {
+      "type": "object",
+      "required": ["x", "y"],
+      "properties": {
+        "x": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000,
+          "description": "X coordinate in galaxy grid"
+        },
+        "y": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000,
+          "description": "Y coordinate in galaxy grid"
+        }
+      }
+    },
+    "densityClass": {
+      "type": "integer",
+      "enum": [0, 1, 2, 3, 4, 5],
+      "description": "Traveller density classification (0=empty to 5=very dense)"
+    },
+    "densityVariation": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 50,
+      "description": "Density variation percentage from center to edge"
+    },
+    "metadata": {
+      "type": "object",
+      "required": ["createdAt", "explorationStatus"],
+      "properties": {
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "lastModified": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "explorationStatus": {
+          "type": "string",
+          "enum": ["unexplored", "partial", "surveyed", "detailed"],
+          "description": "Sector exploration level"
+        },
+        "systemCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 1000
+        }
+      }
+    }
+  }
+}
