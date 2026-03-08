@@ -5,39 +5,35 @@ title: Eclipsed Horizons Companion
 
 # Eclipsed Horizons Companion
 
-Welcome to the documentation site for the Eclipsed Horizons Companion project.
+Welcome to the **Eclipsed Horizons Companion** — a comprehensive, web-based universe creation and management system for tabletop RPG campaigns built around *Traveller 5* mechanics, independent of official canon.
 
-This minimal site was migrated from MkDocs to VitePress. Use `npm run docs:dev` to preview locally or `npm run docs:build` to build the static site.
-
-## Quick Links
-
-- [Home](/)
-
-# Eclipsed Horizons Companion
-
-Welcome to the comprehensive wiki for the **Eclipsed Horizons Companion** - an integrated suite of tools for Mongoose Traveller 2nd Edition.
+Rather than using pre-built worlds and history, the system empowers users to create their own universes from scratch — generating galaxies with realistic structure, star systems, worlds, intelligent life forms (sophonts), and procedural histories.
 
 ## Quick Navigation
 
-### 📱 Applications
+### 🗺️ Survey Tools
 
-- **[Sophont Generator](applications/sophont-generator/overview.md)** - Create custom alien species
-- **[World Builder](applications/world-builder/overview.md)** - Generate detailed worlds
-- **[Character Generator](applications/character-generator/overview.md)** - Build unique characters
+| Tool | Survey Class | Description |
+|---|---|---|
+| Galaxy Survey | Pre-Class 0 | Multi-galaxy management with density mapping |
+| Sector Survey | Class 0 | Hexagonal sector generation |
+| Star System Builder | Class I | Primary/secondary stars and planetary systems |
+| World Builder | Class II–IV | Planetary characteristics (UWP) |
+
+### 🧬 Generators
+
+- **Sophont Generator** — Create intelligent life with cultural traits and characteristic modifiers
+- **Creature Generator** — Generate fauna and flora with combat profiles
+- **History Generator** — Procedural timelines and civilizations
 
 ### 📋 House Rules
 
 [Comprehensive house rules library](house-rules/index.md) that all applications reference.
-
-### 📚 Reference Materials
-
-- [MGT 2e Baseline](reference/mgt2e-baseline.md)
-- [T5 Variants](reference/t5-variants.md)
 
 ## Getting Started
 
 New to Eclipsed Horizons? Start here:
 
 1. Read the [Quick Start Guide](getting-started/quick-start.md)
-2. Choose an [Application](applications/sophont-generator/overview.md) to explore
-3. Consult the [House Rules](house-rules/index.md) as needed
+2. Run the System Generator frontend: `cd apps/system-generator/frontend && npm install && npm run dev`
+3. Create your first galaxy in the Galaxy Survey
