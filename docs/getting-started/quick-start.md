@@ -29,5 +29,6 @@ npm run docs:dev     # preview at http://localhost:5173
 4. **World Builder** — For habitable worlds, continue to the World Builder (Class II–IV) to generate a full UWP profile.
 5. **Sophont Generator** — Use the nav bar to create intelligent species that inhabit your worlds.
 6. **History Generator** — Generate a procedural history for any civilization.
+7. **Session Planner** — Use the nav bar to generate a complete adventure session plan including hooks, NPCs, locations, complications, and encounters.
 
 All data persists in your browser's localStorage between sessions.

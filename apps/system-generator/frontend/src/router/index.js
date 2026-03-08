@@ -44,6 +44,11 @@ const routes = [
     name: "CharacterGenerator",
     component: () => import("../pages/surveys/CharacterGenerator.vue"),
   },
+  {
+    path: "/session-planner",
+    name: "SessionPlanner",
+    component: () => import("../pages/surveys/SessionPlanner.vue"),
+  },
 ];
 
 const router = createRouter({
