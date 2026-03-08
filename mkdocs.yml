@@ -1,0 +1,79 @@
+site_name: Eclipsed Horizons Companion
+site_description: Integrated Traveller Tools and House Rules Documentation
+site_author: Your Organization
+site_url: https://wilklu.github.io/eclipsed-horizons-companion/
+repo_url: https://github.com/wilklu/eclipsed-horizons-companion
+repo_name: GitHub
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  palette:
+    - scheme: light
+      primary: indigo
+      accent: blue
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: dark
+      primary: indigo
+      accent: blue
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+  features:
+    - search.suggest
+    - search.highlight
+    - content.tabs.link
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - toc.integrate
+
+plugins:
+  - search:
+      lang: en
+  - minify:
+      minify_html: true
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - tables
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Getting Started:
+      - Installation: getting-started/installation.md
+      - Quick Start: getting-started/quick-start.md
+      - Glossary: getting-started/glossary.md
+
+  - Applications:
+      - Sophont Generator:
+          - Overview: applications/sophont-generator/overview.md
+          - Usage Guide: applications/sophont-generator/usage-guide.md
+      - World Builder:
+          - Overview: applications/world-builder/overview.md
+      - Character Generator:
+          - Overview: applications/character-generator/overview.md
+
+  - House Rules:
+      - Overview: house-rules/index.md
+      - Approval Status: house-rules/approval-status.md
+      - Categories:
+          - Characteristics: house-rules/categories/characteristics.md
+          - Sensory Traits: house-rules/categories/sensory-traits.md
+          - Special Abilities: house-rules/categories/special-abilities.md
+      - Shared Tables:
+          - Characteristics: house-rules/shared-tables/characteristics-table.md
+
+  - Reference:
+      - MGT 2e Baseline: reference/mgt2e-baseline.md
+      - T5 Variants: reference/t5-variants.md
+      - Beasts & Sophonts: reference/beasts-sophonts-refs.md

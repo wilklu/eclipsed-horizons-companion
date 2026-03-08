@@ -1,0 +1,33 @@
+// Traveller 5 Standard Density Table[^1]
+/*
+DENSITY CLASSIFICATION TABLE[^1,^2]
+┌──────────────────┬──────────┬────────────┬──────────┐
+│ Density Name     │ % Density│ Per Sector │ Roll     │
+├──────────────────┼──────────┼────────────┼──────────┤
+│ Extra Galactic   │ <1%      │ 6          │ 3D≤3     │
+│ Rift             │ 3%       │ 38         │ 2D≤2     │
+│ Sparse           │ 17%      │ 216        │ 1D≤1     │
+│ Scattered        │ 33%      │ 420        │ 1D≤2     │
+│ Standard         │ 50%      │ 640        │ 1D≤3     │
+│ Dense            │ 66%      │ 840        │ 1D≤4     │
+│ Cluster          │ 83%      │ 1,060      │ 1D≤5     │
+│ Core             │ 91%      │ 1,170      │ 2D≤11    │
+└──────────────────┴──────────┴────────────┴──────────┘
+
+Each hex = 1 parsec[^15]
+1,280 hexes per sector
+
+*/
+
+const TRAVELLER_DENSITIES = {
+  "Extra Galactic": { percentage: 0.01, systemsPer1280: 6, rollTarget: 3, diceType: "3D" },
+  Rift: { percentage: 3, systemsPer1280: 38, rollTarget: 2, diceType: "2D" },
+  Sparse: { percentage: 17, systemsPer1280: 216, rollTarget: 1, diceType: "1D" },
+  Scattered: { percentage: 33, systemsPer1280: 420, rollTarget: 2, diceType: "1D" },
+  Standard: { percentage: 50, systemsPer1280: 640, rollTarget: 3, diceType: "1D" },
+  Dense: { percentage: 66, systemsPer1280: 840, rollTarget: 4, diceType: "1D" },
+  Cluster: { percentage: 83, systemsPer1280: 1060, rollTarget: 5, diceType: "1D" },
+  Core: { percentage: 91, systemsPer1280: 1170, rollTarget: 11, diceType: "2D" },
+};
+
+// Each sector = 1,280 hexes (32 columns × 40 rows)[^4]

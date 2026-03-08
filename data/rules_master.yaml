@@ -1,0 +1,128 @@
+---
+# Eclipsed Horizons Companion - Master Rules Database
+# Last Updated: 2025-01-18
+# Version: 1.0
+
+rules_metadata:
+  version: "1.0"
+  last_updated: "2025-01-18"
+  total_rules: 25
+  canonical_rules: 5
+  approved_rules: 12
+  optional_rules: 8
+
+rules:
+  # ==================== CANONICAL RULES ====================
+
+  - rule_id: "HR-001"
+    name: "Characteristics Base"
+    category: "Characteristics"
+    source: "MGT 2e"
+    source_citation: "[^36]"
+    status: "CANON"
+    description: "Use 2D6 base for all characteristics with racial modifiers (-2 to +2 per characteristic)"
+    mechanical_impact: "Foundation for character creation"
+    approved_date: "2025-01-01"
+    approved_by: "GM"
+    applications:
+      - "sophont-generator"
+      - "character-generator"
+      - "world-builder"
+    related_rules:
+      - "HR-002"
+      - "HR-005"
+    examples:
+      - "Human: All characteristics 2D6 base with 0 modifiers"
+      - "Vargr: Str +2, Dex +1, End +1, Int -1, Edu +0, Soc 0"
+    compatibility:
+      mgt2e: "100%"
+      t5: "Partial"
+      cepheus: "100%"
+
+  - rule_id: "HR-002"
+    name: "Racial Modifiers"
+    category: "Characteristics"
+    source: "MGT 2e"
+    source_citation: "[^36]"
+    status: "CANON"
+    description: "Species receive characteristic modifiers in range of -2 to +2"
+    mechanical_impact: "Applies to all sophont characteristic rolls"
+    approved_date: "2025-01-01"
+    approved_by: "GM"
+    applications:
+      - "sophont-generator"
+      - "character-generator"
+    related_rules:
+      - "HR-001"
+    examples:
+      - "Aslan base strength modifier: +2"
+      - "Droyne base endurance modifier: -1"
+
+  # ==================== APPROVED RULES ====================
+
+  - rule_id: "HR-008"
+    name: "Sensory Traits"
+    category: "Sensory Traits"
+    source: "T5"
+    source_citation: "[^38]"
+    status: "APPROVED"
+    description: "Define sensory traits as skill modifiers (+/- 1 DM) if included"
+    mechanical_impact: "+/- 1 DM to specific skills based on sensory capability"
+    approved_date: "2025-01-12"
+    approved_by: "GM"
+    applications:
+      - "sophont-generator"
+    related_rules:
+      - "HR-010"
+    examples:
+      - "Ultraviolet vision: +1 DM to Perception in UV-rich environments"
+      - "Acute hearing: +1 DM to Stealth resistance checks"
+    experimental_notes: "Monitor for balance in gameplay"
+    compatibility:
+      mgt2e: "Partial"
+      t5: "100%"
+
+  # Add more rules following this template...
+
+characteristics:
+  - id: "C1"
+    name: "Strength"
+    base_dice: "2D6"
+    range: "1-15"
+    mgt2e_base: "2D6"
+    t5_variant: "2D-4D"
+    last_updated: "2025-01-10"
+    description: "Physical power and carrying capacity"
+    affects_skills:
+      - "Athletics"
+      - "Melee Combat"
+      - "Survival"
+
+  - id: "C2"
+    name: "Dexterity"
+    base_dice: "2D6"
+    range: "1-15"
+    mgt2e_base: "2D6"
+    t5_variant: "2D-3D"
+    last_updated: "2025-01-15"
+    description: "Hand-eye coordination and reflexes"
+    affects_skills:
+      - "Piloting"
+      - "Gunnery"
+      - "Stealth"
+
+  # Add remaining characteristics...
+
+approval_log:
+  - date: "2025-01-18"
+    action: "Approved"
+    rule_id: "HR-020"
+    approved_by: "GM"
+  - date: "2025-01-15"
+    action: "Approved"
+    rule_id: "HR-006"
+    approved_by: "GM"
+  - date: "2025-01-12"
+    action: "Approved"
+    rule_id: "HR-008"
+    approved_by: "GM"

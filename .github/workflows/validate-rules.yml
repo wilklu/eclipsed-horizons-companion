@@ -1,0 +1,40 @@
+name: Validate House Rules
+
+on:
+  pull_request:
+    paths:
+      - "data/**"
+      - "docs/house-rules/**"
+      - ".github/workflows/validate-rules.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "data/**"
+      - "docs/house-rules/**"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Validate YAML format
+        run: npm run validate:yaml
+
+      - name: Validate house rules
+        run: npm run validate:rules
+
+      - name: Validate data schemas
+        run: npm run validate:data

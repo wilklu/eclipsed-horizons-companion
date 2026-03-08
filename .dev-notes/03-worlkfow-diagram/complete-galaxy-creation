@@ -1,0 +1,72 @@
+┌──────────────────────────────────────────────────────┐
+│           GALAXY SURVEY PAGE LOADS                   │
+│                (/survey/galaxy)                      │
+└────────────────────────┬─────────────────────────────┘
+                         │
+                ┌────────▼────────┐
+                │  User Actions   │
+                └────┬────────┬───┘
+                     │        │
+          ┌──────────┘        └──────────┐
+          │                              │
+    ┌─────▼──────┐               ┌──────▼──────┐
+    │ Create New │               │    Import   │
+    │   Galaxy   │               │    Galaxy   │
+    └─────┬──────┘               └──────┬──────┘
+          │                             │
+    ┌─────▼──────────────────────┐      │
+    │ Form Modal Opens:          │      │
+    │ - Name                     │      │
+    │ - Type (dropdown)          │      │
+    │ - Coordinates (X,Y)        │      │
+    └─────┬──────────────────────┘      │
+          │                             │
+    ┌─────▼───────────────────────────────────────┐
+    │ Backend Processing:                         │
+    │ 1. validateGalaxyImport()                   │
+    │ 2. generateGalaxyType()                     │
+    │ 3. calculateGalaxyDimensions()              │
+    │ 4. Build complete galaxy object             │
+    └─────┬───────────────────────────────────────┘
+          │
+    ┌─────▼────────────────────────────────────┐
+    │ galaxyStore.createGalaxy(newGalaxy)      │
+    │ Store in Pinia state                     │
+    │ (also save to localStorage for backup)   │
+    └─────┬────────────────────────────────────┘
+          │
+    ┌─────▼────────────────────────────────────┐
+    │ Display Galaxy Card in Grid              │
+    │ - Show name, type, coordinates           │
+    │ - Show statistics                        │
+    │ - Card clickable to select               │
+    └─────┬────────────────────────────────────┘
+          │
+    ┌─────▼────────────────────────────────────┐
+    │ User Selects Galaxy (click card)         │
+    └─────┬────────────────────────────────────┘
+          │
+    ┌─────▼────────────────────────────────────┐
+    │ Display Galaxy Details Panel:            │
+    │ - All properties                         │
+    │ - Statistics                             │
+    │ - Regions (if any)                       │
+    │ - Action buttons                         │
+    └─────┬────────────────────────────────────┘
+          │
+    ┌─────▼────────────────────────────────────┐
+    │ User Clicks:                             │
+    │ "🔍 Class 0 Sector Survey →"             │
+    └─────┬────────────────────────────────────┘
+          │
+    ┌─────▼────────────────────────────────────┐
+    │ Navigate to SectorSurvey                 │
+    │ Route: /survey/class-0/:galaxyId         │
+    │ Pass galaxyId as route param             │
+    │ Context preserved in store               │
+    └────────────────────────────────────────┬─┘
+                                             │
+                           ┌─────────────────▼──┐
+                           │ CLASS 0 BEGINS     │
+                           │ (Next Phase)       │
+                           └────────────────────┘

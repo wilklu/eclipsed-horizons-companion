@@ -1,0 +1,28 @@
+// Create galaxy
+const galaxy = {
+  galaxyId: "001",
+  galaxyType: {
+    classification: "Spiral",
+    morphology: {
+      arms: 4,
+      armWidth: 0.15,
+      pitchAngle: 20,
+      centralBulgeRadius: 0.2,
+    },
+  },
+  galaxyDimensions: {
+    sectorGridX: 3834,
+    sectorGridY: 3068,
+  },
+};
+
+// Query density at any sector without generating it
+const sectorCoords = { x: 1917, y: 1534 }; // Galactic center
+const density = calculateSectorDensity(galaxy, sectorCoords);
+console.log(density); // Output: "Core" or "Cluster"
+
+// Generate heatmap for visualization
+const heatmap = generateDensityHeatmap(galaxy, { resolution: 50 });
+
+// Render to canvas
+renderDensityHeatmap(galaxy, document.getElementById("densityMap"));
