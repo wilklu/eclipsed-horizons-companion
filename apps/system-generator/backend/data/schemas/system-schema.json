@@ -1,0 +1,115 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "System Entity Schema",
+  "type": "object",
+  "required": ["systemId", "sectorId", "hexCoordinates", "starCount", "primaryStar", "metadata"],
+  "properties": {
+    "systemId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 50,
+      "pattern": "^[a-zA-Z0-9_-]+$"
+    },
+    "sectorId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 50,
+      "pattern": "^[a-zA-Z0-9_-]+$",
+      "description": "Foreign key reference to parent sector"
+    },
+    "hexCoordinates": {
+      "type": "object",
+      "required": ["x", "y"],
+      "properties": {
+        "x": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 32,
+          "description": "Hex column (1-32 in standard Traveller sector)"
+        },
+        "y": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 40,
+          "description": "Hex row (1-40 in standard Traveller sector)"
+        }
+      }
+    },
+    "starCount": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 4,
+      "description": "Number of stars in the system"
+    },
+    "primaryStar": {
+      "type": "object",
+      "required": ["spectralClass"],
+      "properties": {
+        "spectralClass": {
+          "type": "string",
+          "enum": ["O", "B", "A", "F", "G", "K", "M", "L", "T", "Y", "WD"],
+          "description": "Primary star spectral class"
+        },
+        "luminosity": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Star luminosity relative to Sun"
+        },
+        "mass": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Star mass relative to Sun"
+        },
+        "age": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Star age in billions of years"
+        }
+      }
+    },
+    "companionStars": {
+      "type": "array",
+      "description": "Array of companion/secondary stars (optional)",
+      "items": {
+        "type": "object",
+        "properties": {
+          "spectralClass": {
+            "type": "string",
+            "enum": ["O", "B", "A", "F", "G", "K", "M", "L", "T", "Y", "WD"]
+          },
+          "separation": {
+            "type": "number",
+            "description": "Separation from primary in AU"
+          }
+        }
+      }
+    },
+    "habitableZone": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Distance from primary star where water-bearing worlds can exist (AU)"
+    },
+    "metadata": {
+      "type": "object",
+      "required": ["createdAt"],
+      "properties": {
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "lastModified": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "systemClass": {
+          "type": "string",
+          "description": "Optional classification (e.g., 'Binary', 'Triple')"
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 1000
+        }
+      }
+    }
+  }
+}

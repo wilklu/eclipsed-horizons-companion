@@ -1,0 +1,97 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Galaxy Entity Schema",
+  "type": "object",
+  "required": ["galaxyId", "name", "type", "morphology", "metadata"],
+  "properties": {
+    "galaxyId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 50,
+      "pattern": "^[a-zA-Z0-9_-]+$",
+      "description": "Unique identifier for the galaxy"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100,
+      "description": "Galaxy name (e.g., 'Milky Way', 'Andromeda')"
+    },
+    "type": {
+      "type": "string",
+      "enum": ["Spiral", "Elliptical", "Barred Spiral", "Irregular", "Dwarf", "Lenticular"],
+      "description": "Galaxy morphological type"
+    },
+    "morphology": {
+      "type": "object",
+      "required": ["bulgeRadius", "armCount", "coreDensity", "diskThickness"],
+      "properties": {
+        "bulgeRadius": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 50000,
+          "description": "Bulge radius in parsecs"
+        },
+        "armCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 12,
+          "description": "Number of spiral arms (0 for elliptical)"
+        },
+        "coreDensity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Core density factor (0-1)"
+        },
+        "diskThickness": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10000,
+          "description": "Disk thickness in parsecs"
+        }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "required": ["createdAt", "status", "version"],
+      "properties": {
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO 8601 timestamp when galaxy was created"
+        },
+        "lastModified": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO 8601 timestamp of last modification"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["active", "archived", "draft"],
+          "description": "Galaxy status"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Schema version for migrations"
+        }
+      }
+    },
+    "importMetadata": {
+      "type": "object",
+      "description": "Metadata for imported galaxies",
+      "properties": {
+        "isImported": {
+          "type": "boolean"
+        },
+        "sourceGalaxy": {
+          "type": ["string", "null"]
+        },
+        "originalGalaxyId": {
+          "type": ["string", "null"]
+        }
+      }
+    }
+  }
+}

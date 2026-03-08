@@ -1,0 +1,131 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "World Entity Schema",
+  "type": "object",
+  "required": ["worldId", "systemId", "name", "orbit", "uwp", "physical", "census"],
+  "properties": {
+    "worldId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 50,
+      "pattern": "^[a-zA-Z0-9_-]+$"
+    },
+    "systemId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 50,
+      "pattern": "^[a-zA-Z0-9_-]+$",
+      "description": "Foreign key reference to parent system"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100,
+      "description": "World name (e.g., 'Earth', 'Prime')"
+    },
+    "orbit": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Orbital distance from primary star in AU"
+    },
+    "uwp": {
+      "type": "string",
+      "pattern": "^[A-X]{1}[0-9A-F]{1}[0-9A-F]{1}[0-9A-F]{1}[0-9A-F]{1}[0-9A-F]{1}[0-9A-F]{1}-[0-9A-F]{1}$",
+      "description": "Universal World Profile code (Traveller format)"
+    },
+    "physical": {
+      "type": "object",
+      "required": ["size", "atmosphere", "hydrographics"],
+      "properties": {
+        "size": {
+          "type": "string",
+          "enum": ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "A"],
+          "description": "World size (0-A)"
+        },
+        "gravity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 2,
+          "description": "Surface gravity relative to Earth"
+        },
+        "atmosphere": {
+          "type": "string",
+          "enum": ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "A", "B", "C", "D", "E", "F", "X"],
+          "description": "Atmosphere type (0-F, X=exotic)"
+        },
+        "hydrographics": {
+          "type": "string",
+          "enum": ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "A"],
+          "description": "Hydrographic coverage (0-A = 0-100%)"
+        },
+        "temperature": {
+          "type": "string",
+          "enum": ["Frozen", "Cold", "Temperate", "Tropical", "Hot"],
+          "description": "Average surface temperature"
+        }
+      }
+    },
+    "census": {
+      "type": "object",
+      "required": ["population", "government", "lawLevel", "techLevel"],
+      "properties": {
+        "population": {
+          "type": "string",
+          "enum": ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "A", "B", "C"],
+          "description": "Population (0=0, 1=1-10, ..., C=10+ trillion)"
+        },
+        "government": {
+          "type": "string",
+          "enum": ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "A", "B", "C", "D", "E", "F"],
+          "description": "Government type (Traveller codes)"
+        },
+        "lawLevel": {
+          "type": "string",
+          "enum": ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "A", "B", "C", "D", "E", "F"],
+          "description": "Legal restrictions level"
+        },
+        "techLevel": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 15,
+          "description": "Technology level (TL 0-15)"
+        }
+      }
+    },
+    "tradeCodes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["Ag", "As", "Ba", "De", "Fl", "Ga", "Hi", "Ht", "Ic", "In", "Lo", "Na", "Ni", "Po", "Ri", "Wa", "Va"]
+      },
+      "description": "Trade classification codes"
+    },
+    "starport": {
+      "type": "string",
+      "enum": ["A", "B", "C", "D", "E", "X"],
+      "description": "Starport quality (from UWP)"
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "lastModified": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "habitability": {
+          "type": "string",
+          "enum": ["hostile", "marginal", "habitable", "garden"],
+          "description": "How suitable for human life"
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 1000
+        }
+      }
+    }
+  }
+}
