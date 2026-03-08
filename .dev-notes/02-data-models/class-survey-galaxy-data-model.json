@@ -1,117 +1,128 @@
 {
-"galaxies": [
-{
-"galaxyId": "001",
-"galaxyMetadata": {
-"createdAt": "2025-03-15T10:30:00Z",
-"createdBy": "userId_12345",
-"lastModified": "2025-03-15T10:30:00Z",
-"status": "active|archived|template",
-"version": 1
-},
-"galaxyCoordinates": {
-"x": 0,
-"y": 0,
-"z": 0
-},
-"galaxyNames": [
-{
-"name": "Milky Way",
-"language": "en",
-"isDefault": true,
-"alternateNames": ["Our Galaxy", "The Milky Way Galaxy"]
-},
-{
-"name": "银河系",
-"language": "zh",
-"isDefault": false,
-"alternateNames": ["银河"]
-},
-{
-"name": "Voie Lactée",
-"language": "fr",
-"isDefault": false
-}
-],
-"galaxyType": {
-"classification": "Barred Spiral",
-"subtype": "SBbc",
-"morphology": {
-"arms": 2,
-"bulgeSize": "prominent",
-"barLength": "moderate"
-}
-},
-"galaxyDimensions": {
-"sectorGridX": 32,
-"sectorGridY": 40,
-"diameterInSectors": 32,
-"thicknessInSectors": 2,
-"totalSectors": 1280
-},
-"galaxyStatistics": {
-"estimatedStarSystems": 400000000000,
-"mappedSystems": 2847,
-"exploredSystems": 1203,
-"populatedWorlds": 487,
-"knownSophonts": 12,
-"majorFactions": 3
-},
-"physicalProperties": {
-"massInSolarMasses": 100000000000,
-"radiusInParsecs": 15000,
-"ageInBillionYears": 13.2,
-"luminosity": "2 × 10^10 L☉"
-},
-"galaxyRegions": [
-{
-"regionId": "region_core",
-"regionName": "Galactic Core",
-"coordinates": {
-"x": 16,
-"y": 20
-},
-"sectorDensity": "core",
-"description": "Densely packed star systems near galactic center"
-},
-{
-"regionId": "region_spiral_1",
-"regionName": "Orion Spiral Arm",
-"coordinates": {
-"x": 20,
-"y": 25
-},
-"sectorDensity": "dense",
-"description": "Major spiral arm with abundant resources"
-}
-],
-"linkedSectors": [
-{
-"sectorId": "sector_001",
-"sectorName": "Core Sector",
-"coordinates": {
-"x": 16,
-"y": 20
-},
-"status": "mapped"
-},
-{
-"sectorId": "sector_002",
-"sectorName": "Spinward Reach",
-"coordinates": {
-"x": 20,
-"y": 25
-},
-"status": "partially_mapped"
-}
-],
-"importMetadata": {
-"isImported": false,
-"sourceGalaxy": null,
-"originalGalaxyId": null,
-"idRemappingTable": {},
-"importNotes": ""
-}
-}
-]
+  "galaxies": [
+    {
+      "galaxyId": "001",
+      "galaxyMetadata": {
+        "createdAt": "2025-03-15T10:30:00Z",
+        "createdBy": "userId_12345",
+        "lastModified": "2025-03-15T10:30:00Z",
+        "status": "active|archived|template|test|draft",
+        "version": 1
+      },
+      "galaxyCoordinates": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "galaxyNames": [
+        {
+          "name": "Milky Way",
+          "language": "en",
+          "isDefault": true,
+          "alternateNames": ["Our Galaxy", "The Milky Way Galaxy"]
+        },
+        {
+          "name": "银河系",
+          "language": "zh",
+          "isDefault": false,
+          "alternateNames": ["银河"]
+        },
+        {
+          "name": "Voie Lactée",
+          "language": "fr",
+          "isDefault": false
+        }
+      ],
+      "galaxyType": {
+        "classification": "Barred Spiral",
+        "subtype": "SBbc",
+        "morphology": {
+          "arms": 2,
+          "armWidth": 0.12,
+          "pitchAngle": 25,
+          "barLength": 0.4,
+          "barWidth": 0.08,
+          "centralBulgeRadius": 0.15,
+          "bulgeEccentricity": 0.7,
+          "diskThicknessRatio": 0.1
+        }
+      },
+      "densityProfile": {
+        "coreRadius": 0.15,
+        "coreMinDensity": "Core",
+        "coreMaxDensity": "Cluster",
+        "armDensity": "Dense",
+        "interarmDensity": "Standard",
+        "rimDensity": "Sparse"
+      },
+      "galaxyDimensions": {
+        "sectorGridX": 3834,
+        "sectorGridY": 3068,
+        "diameterInParsecs": 30000
+      },
+      "galaxyStatistics": {
+        "estimatedStarSystems": 400000000000,
+        "mappedSystems": 2847,
+        "exploredSystems": 1203,
+        "populatedWorlds": 487,
+        "knownSophonts": 12,
+        "majorFactions": 3
+      },
+      "physicalProperties": {
+        "massInSolarMasses": 100000000000,
+        "radiusInParsecs": 15000,
+        "ageInBillionYears": 13.2,
+        "luminosity": "2 × 10^10 L☉"
+      },
+      "galaxyRegions": [
+        {
+          "regionId": "region_core",
+          "regionName": "Galactic Core",
+          "coordinates": {
+            "x": 16,
+            "y": 20
+          },
+          "sectorDensity": "core",
+          "description": "Densely packed star systems near galactic center"
+        },
+        {
+          "regionId": "region_spiral_1",
+          "regionName": "Orion Spiral Arm",
+          "coordinates": {
+            "x": 20,
+            "y": 25
+          },
+          "sectorDensity": "dense",
+          "description": "Major spiral arm with abundant resources"
+        }
+      ],
+      "linkedSectors": [
+        {
+          "sectorId": "sector_001",
+          "sectorName": "Core Sector",
+          "coordinates": {
+            "x": 16,
+            "y": 20
+          },
+          "status": "mapped"
+        },
+        {
+          "sectorId": "sector_002",
+          "sectorName": "Spinward Reach",
+          "coordinates": {
+            "x": 20,
+            "y": 25
+          },
+          "status": "partially_mapped"
+        }
+      ],
+      "importMetadata": {
+        "isImported": false,
+        "sourceGalaxy": null,
+        "originalGalaxyId": null,
+        "idRemappingTable": {},
+        "importNotes": ""
+      }
+    }
+  ]
 }

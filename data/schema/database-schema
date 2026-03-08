@@ -6,21 +6,51 @@
 - [Database Type](#database-type)
 - [Table Structure](#table-structure)
   - [stars](#stars)
-  - [star_systems](#star_systems)
-  - [worlds](#worlds)
-  - [gas_giants](#gas_giants)
+  - [systems](#systems)
+  - [planets](#planets)
   - [planetoid_belts](#planetoid_belts)
   - [empty_orbit](#empty_orbit)
   - [moons](#moons)
-  - [moon_gas_giants](#moon_gas_giants)
-  - [moon_rings](#moon_rings)
+  - [rings](#rings)
   - [system_history](#system_history)
+  - [sectors](#sectors)
+  - [subsectors](#subsectors)
+  - [galaxy](#galaxy)
 - [Relationships](#relationships)
 - [Database Diagram](#database-diagram)
 
 ## Introduction
 
 Link [https://drawdb.vercel.app/editor?shareId=0e6eacce4004229bd01c87c5a44a785c]: weblink
+
+## Database type
+
+- **Database system:** SQLite
+
+## Table structure
+
+# Database Schema for Eclipsed Horizon documentation
+
+## Summary
+
+- [Introduction](#introduction)
+- [Database Type](#database-type)
+- [Table Structure](#table-structure)
+  - [stars](#stars)
+  - [systems](#systems)
+  - [planets](#planets)
+  - [planetoid_belts](#planetoid_belts)
+  - [empty_orbit](#empty_orbit)
+  - [moons](#moons)
+  - [rings](#rings)
+  - [system_history](#system_history)
+  - [sectors](#sectors)
+  - [subsectors](#subsectors)
+  - [galaxy](#galaxy)
+- [Relationships](#relationships)
+- [Database Diagram](#database-diagram)
+
+## Introduction
 
 ## Database type
 
@@ -382,6 +412,7 @@ Moons orbiting worlds
 | Name           | Type        | Settings                               | References                                       | Note |
 | -------------- | ----------- | -------------------------------------- | ------------------------------------------------ | ---- |
 | **id**         | INTEGER     | 🔑 PK, not null, unique, autoincrement | fk_sector_id_subsector,fk_sector_id_star_systems |      |
+| **galaxy_id**  | INTEGER     | null                                   |                                                  |      |
 | **name**       | TEXT(65535) | null                                   |                                                  |      |
 | **x**          | INTEGER     | null                                   |                                                  |      |
 | **y**          | INTEGER     | null                                   |                                                  |      |
@@ -405,6 +436,56 @@ Moons orbiting worlds
 | **labels**      | TEXT(65535) | null                                   |            | JSON |
 | **routes**      | TEXT(65535) | null                                   |            |      |
 
+### galaxy
+
+| Name                       | Type        | Settings                               | References           | Note                                                                          |
+| -------------------------- | ----------- | -------------------------------------- | -------------------- | ----------------------------------------------------------------------------- | -------- | -------- | ---- | ----- |
+| **id**                     | INTEGER     | 🔑 PK, not null, unique, autoincrement | fk_galaxy_id_sectors |                                                                               |
+| **createdAt**              | DATETIME    | null                                   |                      |                                                                               |
+| **createdBy**              | TEXT(65535) | null                                   |                      |                                                                               |
+| **lastmodified**           | DATETIME    | null                                   |                      |                                                                               |
+| **status**                 | TEXT(65535) | null                                   |                      | active                                                                        | archived | template | test | draft |
+| **version**                | REAL        | null                                   |                      |                                                                               |
+| **x**                      | INTEGER     | null                                   |                      |                                                                               |
+| **y**                      | INTEGER     | null                                   |                      |                                                                               |
+| **z**                      | INTEGER     | null                                   |                      |                                                                               |
+| **names**                  | TEXT(65535) | null                                   |                      | this will be a JSON containing: name, language, isDefault, and alternateNames |
+| **type**                   | TEXT(65535) | null                                   |                      | choose spiral, barred spiral, elliptical, or irregular                        |
+| **subtype**                | TEXT(65535) | null                                   |                      |                                                                               |
+| **arms**                   | INTEGER     | null                                   |                      |                                                                               |
+| **arm_width**              | REAL        | null                                   |                      |                                                                               |
+| **pitch_angle**            | INTEGER     | null                                   |                      |                                                                               |
+| **bar_length**             | REAL        | null                                   |                      |                                                                               |
+| **bar_width**              | REAL        | null                                   |                      |                                                                               |
+| **central_bulge_radius**   | REAL        | null                                   |                      |                                                                               |
+| **disk_thickness_ratio**   | REAL        | null                                   |                      |                                                                               |
+| **core_radius**            | REAL        | null                                   |                      |                                                                               |
+| **core_min_density**       | TEXT(65535) | null                                   |                      |                                                                               |
+| **core_max_density**       | TEXT(65535) | null                                   |                      |                                                                               |
+| **arm_density**            | TEXT(65535) | null                                   |                      |                                                                               |
+| **inter_arm_density**      | TEXT(65535) | null                                   |                      |                                                                               |
+| **rim_density**            | TEXT(65535) | null                                   |                      |                                                                               |
+| **width_in_sectors**       | INTEGER     | null                                   |                      |                                                                               |
+| **height_in_sectors**      | INTEGER     | null                                   |                      |                                                                               |
+| **diameter_parsecs**       | REAL        | null                                   |                      |                                                                               |
+| **estimated_star_systems** | INTEGER     | null                                   |                      |                                                                               |
+| **mapped_systems**         | INTEGER     | null                                   |                      |                                                                               |
+| **explored_systems**       | INTEGER     | null                                   |                      |                                                                               |
+| **populated_worlds**       | INTEGER     | null                                   |                      |                                                                               |
+| **known_sophonts**         | INTEGER     | null                                   |                      |                                                                               |
+| **major_factions**         | INTEGER     | null                                   |                      |                                                                               |
+| **mass**                   | INTEGER     | null                                   |                      | totaled mass of the galaxy                                                    |
+| **radius**                 | INTEGER     | null                                   |                      | radius in parsecs of the galaxy                                               |
+| **age**                    | REAL        | null                                   |                      |                                                                               |
+| **luminosity**             | REAL        | null                                   |                      | total luminosity of the galaxy                                                |
+| **regions**                | TEXT(65535) | null                                   |                      | JSON (regionId, sectorName, x, y, sectorDensity, description)                 |
+| **linked_sectors**         | TEXT(65535) | null                                   |                      | JSON ( sectorId, sectorName, x, y , status )                                  |
+| **is_imported**            | BOOLEAN     | null                                   |                      |                                                                               |
+| **source_galaxy**          | TEXT(65535) | null                                   |                      |                                                                               |
+| **origianal_galaxy_id**    | INTEGER     | null                                   |                      |                                                                               |
+| **id_remapping_table**     | TEXT(65535) | null                                   |                      | JSON                                                                          |
+| **import_notes**           | TEXT(65535) | null                                   |                      |                                                                               |
+
 ## Relationships
 
 - **systems to stars**: one_to_many
@@ -416,6 +497,7 @@ Moons orbiting worlds
 - **systems to system_history**: one_to_many
 - **sectors to subsectors**: one_to_many
 - **sectors to systems**: one_to_many
+- **galaxy to sectors**: one_to_many
 
 ## Database Diagram
 
@@ -430,6 +512,7 @@ erDiagram
 	systems ||--o{ system_history : references
 	sectors ||--o{ subsectors : references
 	sectors ||--o{ systems : references
+	galaxy ||--o{ sectors : references
 
 	stars {
 		INTEGER id
@@ -720,6 +803,7 @@ erDiagram
 
 	sectors {
 		INTEGER id
+		INTEGER galaxy_id
 		TEXT(65535) name
 		INTEGER x
 		INTEGER y
@@ -741,4 +825,53 @@ erDiagram
 		TEXT(65535) labels
 		TEXT(65535) routes
 	}
+
+	galaxy {
+		INTEGER id
+		DATETIME createdAt
+		TEXT(65535) createdBy
+		DATETIME lastmodified
+		TEXT(65535) status
+		REAL version
+		INTEGER x
+		INTEGER y
+		INTEGER z
+		TEXT(65535) names
+		TEXT(65535) type
+		TEXT(65535) subtype
+		INTEGER arms
+		REAL arm_width
+		INTEGER pitch_angle
+		REAL bar_length
+		REAL bar_width
+		REAL central_bulge_radius
+		REAL disk_thickness_ratio
+		REAL core_radius
+		TEXT(65535) core_min_density
+		TEXT(65535) core_max_density
+		TEXT(65535) arm_density
+		TEXT(65535) inter_arm_density
+		TEXT(65535) rim_density
+		INTEGER width_in_sectors
+		INTEGER height_in_sectors
+		REAL diameter_parsecs
+		INTEGER estimated_star_systems
+		INTEGER mapped_systems
+		INTEGER explored_systems
+		INTEGER populated_worlds
+		INTEGER known_sophonts
+		INTEGER major_factions
+		INTEGER mass
+		INTEGER radius
+		REAL age
+		REAL luminosity
+		TEXT(65535) regions
+		TEXT(65535) linked_sectors
+		BOOLEAN is_imported
+		TEXT(65535) source_galaxy
+		INTEGER origianal_galaxy_id
+		TEXT(65535) id_remapping_table
+		TEXT(65535) import_notes
+	}
+
 ```
