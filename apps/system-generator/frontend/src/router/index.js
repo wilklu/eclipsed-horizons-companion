@@ -39,6 +39,16 @@ const routes = [
     name: "HistoryGenerator",
     component: () => import("../pages/surveys/HistoryGenerator.vue"),
   },
+  {
+    path: "/character-generator",
+    name: "CharacterGenerator",
+    component: () => import("../pages/surveys/CharacterGenerator.vue"),
+  },
+  {
+    path: "/session-planner",
+    name: "SessionPlanner",
+    component: () => import("../pages/surveys/SessionPlanner.vue"),
+  },
 ];
 
 const router = createRouter({

@@ -11,6 +11,8 @@
         <router-link to="/sophont-generator" class="nav-link">Sophont Generator</router-link>
         <router-link to="/creature-generator" class="nav-link">Creature Generator</router-link>
         <router-link to="/history-generator" class="nav-link">History Generator</router-link>
+        <router-link to="/character-generator" class="nav-link">Character Generator</router-link>
+        <router-link to="/session-planner" class="nav-link">Session Planner</router-link>
       </nav>
     </header>
     <main class="app-main">
