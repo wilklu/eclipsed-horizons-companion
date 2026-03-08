@@ -1,5 +1,5 @@
 # Ignore documentation and dev notes
-dev-notes/
+.dev-notes/
 
 # Common ignores
 node_modules/
