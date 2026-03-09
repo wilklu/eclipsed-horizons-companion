@@ -11,7 +11,7 @@
  *   fs.writeFileSync('universe-backup.json', JSON.stringify(json, null, 2))
  */
 
-import { universeToJson, galaxyToJson } from "./sqliteToJson.js";
+import { universeToJson, galaxyToJson } from "../converters/sqliteToJson.js";
 
 /**
  * Backup entire universe

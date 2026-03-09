@@ -15,14 +15,16 @@
  */
 
 import Ajv from "ajv";
+import addFormats from "ajv-formats";
 import { readFileSync } from "fs";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const SCHEMA_DIR = join(__dirname, "..", "apps", "system-generator", "backend", "data", "schemas");
+const SCHEMA_DIR = join(__dirname, "..", "schemas");
 
 const ajv = new Ajv({ allErrors: true });
+addFormats(ajv);
 
 // Load schemas
 function loadSchema(filename) {
@@ -109,35 +111,39 @@ export function validateUniverse(universe) {
     errorCount: 0,
   };
 
-  if (universe.galaxies) {
-    results.galaxies = validateEntities(universe.galaxies, "galaxy");
-    results.isValid &= results.galaxies.every((r) => r.valid);
-    results.errorCount += results.galaxies.filter((r) => !r.valid).length;
+  // Supports both nested hierarchy (galaxy -> sectors -> systems -> worlds -> sophonts)
+  // and flat arrays at universe root.
+  const galaxies = universe.galaxies || [];
+  results.galaxies = validateEntities(galaxies, "galaxy");
+
+  const sectors = [...(universe.sectors || [])];
+  const systems = [...(universe.systems || [])];
+  const worlds = [...(universe.worlds || [])];
+  const sophonts = [...(universe.sophonts || [])];
+
+  for (const galaxy of galaxies) {
+    for (const sector of galaxy.sectors || []) {
+      sectors.push(sector);
+      for (const system of sector.systems || []) {
+        systems.push(system);
+        for (const world of system.worlds || []) {
+          worlds.push(world);
+          for (const sophont of world.sophonts || []) {
+            sophonts.push(sophont);
+          }
+        }
+      }
+    }
   }
 
-  if (universe.sectors) {
-    results.sectors = validateEntities(universe.sectors, "sector");
-    results.isValid &= results.sectors.every((r) => r.valid);
-    results.errorCount += results.sectors.filter((r) => !r.valid).length;
-  }
+  results.sectors = validateEntities(sectors, "sector");
+  results.systems = validateEntities(systems, "system");
+  results.worlds = validateEntities(worlds, "world");
+  results.sophonts = validateEntities(sophonts, "sophont");
 
-  if (universe.systems) {
-    results.systems = validateEntities(universe.systems, "system");
-    results.isValid &= results.systems.every((r) => r.valid);
-    results.errorCount += results.systems.filter((r) => !r.valid).length;
-  }
-
-  if (universe.worlds) {
-    results.worlds = validateEntities(universe.worlds, "world");
-    results.isValid &= results.worlds.every((r) => r.valid);
-    results.errorCount += results.worlds.filter((r) => !r.valid).length;
-  }
-
-  if (universe.sophonts) {
-    results.sophonts = validateEntities(universe.sophonts, "sophont");
-    results.isValid &= results.sophonts.every((r) => r.valid);
-    results.errorCount += results.sophonts.filter((r) => !r.valid).length;
-  }
+  const allResults = [results.galaxies, results.sectors, results.systems, results.worlds, results.sophonts].flat();
+  results.isValid = allResults.every((r) => r.valid);
+  results.errorCount = allResults.filter((r) => !r.valid).length;
 
   return results;
 }

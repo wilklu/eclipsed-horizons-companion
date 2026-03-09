@@ -15,9 +15,13 @@
     "docs:build": "vitepress build docs",
     "docs:dev": "vitepress dev docs",
     "db:migrate": "node scripts/migrate.js",
-    "db:reset": "rm -f apps/system-generator/backend/data/universe.db && npm run db:migrate",
+    "db:reset": "node -e \"const fs=require('fs');const p='apps/system-generator/backend/data/universe.db';if(fs.existsSync(p))fs.rmSync(p);\" && npm run db:migrate",
     "db:backup": "node scripts/backup.js",
-    "db:restore": "node scripts/restore.js"
+    "db:restore": "node scripts/restore.js",
+    "api:dev": "node apps/system-generator/backend/api/server.js",
+    "api:start": "node apps/system-generator/backend/api/server.js",
+    "api:docs": "node scripts/api-docs.js",
+    "api:docs:open": "node scripts/api-docs.js --open"
   },
   "keywords": [
     "traveller",
@@ -28,8 +32,12 @@
   "license": "CC-BY-4.0",
   "dependencies": {
     "ajv": "^8.12.0",
+    "ajv-formats": "^3.0.1",
     "better-sqlite3": "^9.2.2",
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
     "js-yaml": "^4.1.0",
+    "morgan": "^1.10.0",
     "uuid": "^9.0.1",
     "yaml": "^2.4.1"
   },

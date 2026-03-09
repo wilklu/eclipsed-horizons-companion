@@ -1,5 +1,6 @@
 <template>
   <div class="sector-survey">
+    <LoadingSpinner :isVisible="isLoading" :message="loadingMessage" />
     <SurveyNavigation
       currentClass="Class 0 – Sector Survey"
       :back-route="{ name: 'GalaxySurvey' }"
@@ -16,6 +17,31 @@
             <option value="sector">Sector (4 × 4 subsectors, 32 × 40 hexes)</option>
             <option value="subsector">Subsector (8 × 10 hexes)</option>
           </select>
+        </div>
+
+        <div class="control-group">
+          <label>Load Existing Sector:</label>
+          <select v-model="selectedSectorId" class="select-input" @change="loadSelectedSector">
+            <option value="">Select a saved sector...</option>
+            <option v-for="sector in sectorOptions" :key="sector.sectorId" :value="sector.sectorId">
+              {{ sector.label }}
+            </option>
+          </select>
+        </div>
+
+        <!-- Subsector Selection Grid -->
+        <div v-if="scope === 'subsector'" class="control-group">
+          <label>Select Subsector:</label>
+          <div class="subsector-grid">
+            <button
+              v-for="letter in SUBSECTOR_LETTERS"
+              :key="letter"
+              :class="['subsector-btn', { active: selectedSubsector === letter }]"
+              @click="selectedSubsector = letter"
+            >
+              {{ letter }}
+            </button>
+          </div>
         </div>
 
         <div class="control-group">
@@ -38,8 +64,14 @@
         </div>
 
         <div class="control-group control-action">
-          <button class="btn btn-primary" @click="generateSector">⚡ Generate Sector</button>
+          <button class="btn btn-primary" @click="generateSector">
+            ⚡ {{ scope === "subsector" ? "Generate Subsector" : "Generate Sector" }}
+          </button>
         </div>
+      </div>
+
+      <div v-if="props.galaxyId && !hasSavedSectors && !generatedSector" class="context-hint">
+        No saved sectors found for this galaxy yet. Generate your first sector to begin.
       </div>
 
       <!-- Results Grid -->
@@ -71,6 +103,13 @@
           </div>
         </div>
 
+        <div v-if="!hasSystemsInGrid" class="grid-hint warning">
+          No systems are mapped in this sector yet. Load a different sector or generate one with systems to continue.
+        </div>
+        <div v-else-if="showSelectHexHint" class="grid-hint">
+          Select an occupied hex (★) to continue to Class I Stellar Survey.
+        </div>
+
         <!-- Selected Hex Detail -->
         <div v-if="selectedHexData?.hasSystem" class="hex-detail">
           <h3>System at {{ selectedHexData.coord }}</h3>
@@ -85,9 +124,7 @@
             </div>
           </div>
           <div class="detail-actions">
-            <button class="btn btn-primary" @click="proceedToStarSystem">
-              🔭 Class I Stellar Survey →
-            </button>
+            <button class="btn btn-primary" @click="proceedToStarSystem">🔭 Class I Stellar Survey →</button>
           </div>
         </div>
       </div>
@@ -96,19 +133,48 @@
 </template>
 
 <script setup>
-import { ref, computed } from "vue";
+import { ref, computed, watchEffect, watch } from "vue";
 import { useRouter } from "vue-router";
 import SurveyNavigation from "../../components/common/SurveyNavigation.vue";
+import LoadingSpinner from "../../components/common/LoadingSpinner.vue";
+import { useSectorStore } from "../../stores/sectorStore.js";
+import { useSystemStore } from "../../stores/systemStore.js";
+import * as toastService from "../../utils/toast.js";
 
 const props = defineProps({ galaxyId: { type: String, default: null } });
 const router = useRouter();
+const sectorStore = useSectorStore();
+const systemStore = useSystemStore();
 
 // ── State ────────────────────────────────────────────────────────────────────
 const scope = ref("sector");
+const selectedSubsector = ref("A");
+const selectedSectorId = ref("");
 const sectorName = ref("");
 const density = ref("average");
 const generatedSector = ref(null);
 const selectedHex = ref(null);
+const isLoading = ref(false);
+const loadingMode = ref("generate");
+// Subsector letters in 4x4 grid (A-P)
+const SUBSECTOR_LETTERS = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P"];
+
+// Update page title dynamically
+watchEffect(() => {
+  if (sectorName.value) {
+    document.title = `Sector Survey: ${sectorName.value} | Eclipsed Horizons`;
+  } else {
+    document.title = "Sector Survey | Eclipsed Horizons";
+  }
+});
+
+watch(
+  () => props.galaxyId,
+  async (galaxyId) => {
+    await initializeSectorSelection(galaxyId);
+  },
+  { immediate: true },
+);
 
 // ── Computed ─────────────────────────────────────────────────────────────────
 const densityLabel = computed(() => {
@@ -132,12 +198,27 @@ const gridStyle = computed(() => {
   };
 });
 
-const selectedHexData = computed(() =>
-  generatedSector.value?.hexes.find((h) => h.coord === selectedHex.value) ?? null,
+const selectedHexData = computed(() => generatedSector.value?.hexes.find((h) => h.coord === selectedHex.value) ?? null);
+
+const hasSystemsInGrid = computed(() => (generatedSector.value?.systemCount ?? 0) > 0);
+const showSelectHexHint = computed(() => hasSystemsInGrid.value && !selectedHexData.value?.hasSystem);
+
+const sectorOptions = computed(() =>
+  sectorStore.sectors.map((sector) => ({
+    sectorId: sector.sectorId,
+    label: buildSectorLabel(sector),
+  })),
+);
+
+const hasSavedSectors = computed(() => sectorOptions.value.length > 0);
+
+const loadingMessage = computed(() =>
+  loadingMode.value === "load" ? "Loading sector systems..." : "Generating sector...",
 );
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const DENSITY_RATES = { core: 0.7, dense: 0.5, average: 0.3, scattered: 0.15, void: 0.03 };
+const DENSITY_CLASS_MAP = { void: 1, scattered: 2, average: 3, dense: 4, core: 5 };
 
 const SPECTRAL_WEIGHTS = [
   { type: "O", weight: 0.00003, cls: "spectral-o" },
@@ -176,12 +257,123 @@ function buildStarDesignation() {
   return `${type}${dec}${cls}`;
 }
 
+function spectralClassToCssClass(spectralClass) {
+  const code = String(spectralClass || "G")
+    .charAt(0)
+    .toUpperCase();
+  return (
+    {
+      O: "spectral-o",
+      B: "spectral-b",
+      A: "spectral-a",
+      F: "spectral-f",
+      G: "spectral-g",
+      K: "spectral-k",
+      M: "spectral-m",
+    }[code] || "spectral-g"
+  );
+}
+
+function densityFromClass(densityClass) {
+  return (
+    {
+      1: "void",
+      2: "scattered",
+      3: "average",
+      4: "dense",
+      5: "core",
+    }[densityClass] || "average"
+  );
+}
+
+function buildSectorLabel(sector) {
+  const displayName = String(sector?.metadata?.displayName || "").trim();
+  if (displayName) {
+    return `${displayName} (${sector.sectorId})`;
+  }
+  return sector?.sectorId || "Unknown sector";
+}
+
+function inferGridDimensions(sector) {
+  const metadata = sector?.metadata || {};
+  if (metadata.scope === "subsector") {
+    return { scope: "subsector", cols: 8, rows: 10 };
+  }
+  if (Number.isInteger(metadata.gridCols) && Number.isInteger(metadata.gridRows)) {
+    const inferredScope = metadata.gridCols === 8 && metadata.gridRows === 10 ? "subsector" : "sector";
+    return { scope: inferredScope, cols: metadata.gridCols, rows: metadata.gridRows };
+  }
+  const notes = String(metadata.notes || "").toLowerCase();
+  if (notes.includes("subsector")) {
+    return { scope: "subsector", cols: 8, rows: 10 };
+  }
+  return { scope: "sector", cols: 32, rows: 40 };
+}
+
+function buildHexGridFromSystems(systems, cols, rows) {
+  const occupied = new Map();
+
+  for (const system of systems) {
+    const x = Number(system?.hexCoordinates?.x);
+    const y = Number(system?.hexCoordinates?.y);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+      continue;
+    }
+
+    const safeX = Math.min(cols, Math.max(1, Math.trunc(x)));
+    const safeY = Math.min(rows, Math.max(1, Math.trunc(y)));
+    const coord = hexCoord(safeX, safeY);
+    const primaryClass = String(system?.primaryStar?.spectralClass || "G")
+      .charAt(0)
+      .toUpperCase();
+    const secondaryStars = Array.isArray(system?.companionStars)
+      ? system.companionStars
+          .map((star) => String(star?.spectralClass || "").trim())
+          .filter(Boolean)
+          .map((spectral) => `${spectral}V`)
+      : [];
+
+    occupied.set(coord, {
+      coord,
+      hasSystem: true,
+      starType: `${primaryClass}V`,
+      starClass: spectralClassToCssClass(primaryClass),
+      secondaryStars,
+      systemId: system.systemId,
+    });
+  }
+
+  const hexes = [];
+  for (let col = 1; col <= cols; col++) {
+    for (let row = 1; row <= rows; row++) {
+      const coord = hexCoord(col, row);
+      hexes.push(occupied.get(coord) ?? { coord, hasSystem: false });
+    }
+  }
+
+  return { hexes, systemCount: occupied.size };
+}
+
 function hasSecondary() {
   return Math.random() < 0.35;
 }
 
 function hexCoord(col, row) {
   return String(col).padStart(2, "0") + String(row).padStart(2, "0");
+}
+
+function sanitizeId(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 20);
+}
+
+function createSectorId(name) {
+  const token = sanitizeId(name) || "sector";
+  return `sec_${token}_${Date.now()}`.slice(0, 50);
 }
 
 const SECTOR_NAMES = [
@@ -200,50 +392,188 @@ const SECTOR_NAMES = [
 ];
 
 // ── Actions ───────────────────────────────────────────────────────────────────
+async function loadSelectedSector() {
+  if (!selectedSectorId.value) {
+    return;
+  }
+  await loadPersistedSector(selectedSectorId.value, true);
+}
+
+async function loadPersistedSector(sectorId, showToast = false) {
+  if (!props.galaxyId || !sectorId) {
+    return;
+  }
+
+  loadingMode.value = "load";
+  isLoading.value = true;
+
+  try {
+    await systemStore.loadSystems(props.galaxyId, sectorId);
+    const sector = sectorStore.sectors.find((entry) => entry.sectorId === sectorId);
+
+    if (!sector) {
+      toastService.error("Selected sector could not be found.");
+      return;
+    }
+
+    const { scope: loadedScope, cols, rows } = inferGridDimensions(sector);
+    const { hexes, systemCount } = buildHexGridFromSystems(systemStore.systems, cols, rows);
+
+    scope.value = loadedScope;
+    density.value = densityFromClass(sector.densityClass);
+    selectedSubsector.value =
+      String(sector?.metadata?.subsector || "A")
+        .charAt(0)
+        .toUpperCase() || "A";
+    sectorName.value = String(sector?.metadata?.displayName || sectorId);
+    selectedHex.value = null;
+
+    generatedSector.value = {
+      sectorId: sector.sectorId,
+      name: sectorName.value,
+      scope: loadedScope,
+      density: density.value,
+      gridCols: cols,
+      gridRows: rows,
+      hexes,
+      systemCount,
+      emptyCount: cols * rows - systemCount,
+    };
+
+    sectorStore.setCurrentSector(sectorId);
+    if (showToast) {
+      toastService.success(`Loaded sector ${sectorName.value}. Select an occupied hex to continue.`);
+    }
+  } catch (err) {
+    toastService.error(`Failed to load sector systems: ${err.message}`);
+  } finally {
+    isLoading.value = false;
+    loadingMode.value = "generate";
+  }
+}
+
+async function initializeSectorSelection(galaxyId) {
+  generatedSector.value = null;
+  selectedHex.value = null;
+  selectedSectorId.value = "";
+
+  if (!galaxyId) {
+    return;
+  }
+
+  await sectorStore.loadSectors(galaxyId);
+
+  if (sectorStore.error) {
+    toastService.error(`Failed to load sectors: ${sectorStore.error}`);
+    return;
+  }
+
+  const currentSector = sectorStore.sectors.find((sector) => sector.sectorId === sectorStore.currentSectorId);
+  const fallbackSector = sectorStore.sectors[0];
+  const initialSector = currentSector ?? fallbackSector;
+
+  if (initialSector) {
+    selectedSectorId.value = initialSector.sectorId;
+    await loadPersistedSector(initialSector.sectorId, false);
+  }
+}
+
 function randomizeSectorName() {
   sectorName.value = SECTOR_NAMES[Math.floor(Math.random() * SECTOR_NAMES.length)];
 }
 
-function generateSector() {
-  const cols = scope.value === "sector" ? 32 : 8;
-  const rows = scope.value === "sector" ? 40 : 10;
-  const rate = DENSITY_RATES[density.value] ?? 0.3;
-
-  const hexes = [];
-  let systemCount = 0;
-
-  for (let c = 1; c <= cols; c++) {
-    for (let r = 1; r <= rows; r++) {
-      const hasSystem = Math.random() < rate;
-      const coord = hexCoord(c, r);
-      if (hasSystem) {
-        const primary = weightedSpectralType();
-        const secondaryStars = hasSecondary() ? [buildStarDesignation()] : [];
-        hexes.push({
-          coord,
-          hasSystem: true,
-          starType: buildStarDesignation(),
-          starClass: primary.cls,
-          secondaryStars,
-        });
-        systemCount++;
-      } else {
-        hexes.push({ coord, hasSystem: false });
-      }
-    }
+async function generateSector() {
+  if (!props.galaxyId) {
+    toastService.error("No galaxy selected. Please create/select a galaxy first.");
+    return;
   }
 
-  generatedSector.value = {
-    name: sectorName.value || SECTOR_NAMES[Math.floor(Math.random() * SECTOR_NAMES.length)],
-    scope: scope.value,
-    density: density.value,
-    gridCols: cols,
-    gridRows: rows,
-    hexes,
-    systemCount,
-    emptyCount: cols * rows - systemCount,
-  };
-  selectedHex.value = null;
+  loadingMode.value = "generate";
+  isLoading.value = true;
+
+  try {
+    // Use setTimeout to show loading state for better UX
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    const cols = scope.value === "sector" ? 32 : 8;
+    const rows = scope.value === "sector" ? 40 : 10;
+    const rate = DENSITY_RATES[density.value] ?? 0.3;
+
+    const hexes = [];
+    let systemCount = 0;
+
+    for (let c = 1; c <= cols; c++) {
+      for (let r = 1; r <= rows; r++) {
+        const hasSystem = Math.random() < rate;
+        const coord = hexCoord(c, r);
+        if (hasSystem) {
+          const primary = weightedSpectralType();
+          const secondaryStars = hasSecondary() ? [buildStarDesignation()] : [];
+          hexes.push({
+            coord,
+            hasSystem: true,
+            starType: buildStarDesignation(),
+            starClass: primary.cls,
+            secondaryStars,
+          });
+          systemCount++;
+        } else {
+          hexes.push({ coord, hasSystem: false });
+        }
+      }
+    }
+
+    let generatedName = sectorName.value || SECTOR_NAMES[Math.floor(Math.random() * SECTOR_NAMES.length)];
+
+    // Append subsector letter if generating a subsector
+    if (scope.value === "subsector") {
+      generatedName = `${generatedName} / ${selectedSubsector.value}`;
+    }
+
+    const sectorPayload = {
+      sectorId: createSectorId(generatedName),
+      galaxyId: props.galaxyId,
+      coordinates: {
+        x: Math.floor(Math.random() * 1001),
+        y: Math.floor(Math.random() * 1001),
+      },
+      densityClass: DENSITY_CLASS_MAP[density.value] ?? 3,
+      densityVariation: +(rate * 100).toFixed(2),
+      metadata: {
+        createdAt: new Date().toISOString(),
+        lastModified: new Date().toISOString(),
+        explorationStatus: "unexplored",
+        systemCount,
+        displayName: generatedName,
+        scope: scope.value,
+        gridCols: cols,
+        gridRows: rows,
+        subsector: scope.value === "subsector" ? selectedSubsector.value : null,
+        notes: scope.value === "subsector" ? `Generated subsector ${selectedSubsector.value}` : "Generated sector",
+      },
+    };
+
+    const persistedSector = await sectorStore.createSector(sectorPayload);
+    selectedSectorId.value = persistedSector.sectorId;
+
+    generatedSector.value = {
+      sectorId: persistedSector.sectorId,
+      name: generatedName,
+      scope: scope.value,
+      density: density.value,
+      gridCols: cols,
+      gridRows: rows,
+      hexes,
+      systemCount,
+      emptyCount: cols * rows - systemCount,
+    };
+    selectedHex.value = null;
+    toastService.success(`Sector "${generatedName}" generated and saved.`);
+  } catch (err) {
+    toastService.error(`Failed to generate/save sector: ${err.message}`);
+  } finally {
+    isLoading.value = false;
+  }
 }
 
 function selectHex(hex) {
@@ -267,9 +597,14 @@ function exportSector() {
 }
 
 function proceedToStarSystem() {
+  if (!generatedSector.value?.sectorId) {
+    toastService.error("Sector has not been saved yet. Please generate sector again.");
+    return;
+  }
+
   router.push({
     name: "StarSystemBuilder",
-    params: { galaxyId: props.galaxyId ?? "000", sectorId: generatedSector.value?.name ?? "sector" },
+    params: { galaxyId: props.galaxyId ?? "000", sectorId: generatedSector.value.sectorId },
     query: { hex: selectedHex.value, star: selectedHexData.value?.starType },
   });
 }
@@ -310,8 +645,56 @@ function proceedToStarSystem() {
   font-size: 0.9rem;
 }
 
+.context-hint {
+  margin-bottom: 1rem;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid #00d9ff;
+  border-radius: 0.25rem;
+  background: rgba(0, 217, 255, 0.08);
+  color: #b7f7ff;
+  font-size: 0.9rem;
+}
+
 .control-action {
   justify-content: flex-end;
+}
+
+/* Subsector Selection Grid */
+.subsector-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.subsector-btn {
+  padding: 0.75rem;
+  background: #2a2a3e;
+  border: 2px solid #444;
+  color: #e0e0e0;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 1rem;
+  transition: all 0.2s ease;
+}
+
+.subsector-btn:hover {
+  background: #3a3a4e;
+  border-color: #00ffff;
+  transform: translateY(-2px);
+}
+
+.subsector-btn.active {
+  background: #00ffff;
+  border-color: #00ffff;
+  color: #000;
+  box-shadow: 0 0 12px rgba(0, 255, 255, 0.5);
+}
+
+.subsector-btn.active:hover {
+  background: #33ffff;
+  transform: translateY(-2px);
 }
 
 .select-input,
@@ -419,6 +802,22 @@ function proceedToStarSystem() {
   width: fit-content;
 }
 
+.grid-hint {
+  margin-top: 0.85rem;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid #00d9ff;
+  border-radius: 0.25rem;
+  background: rgba(0, 217, 255, 0.08);
+  color: #b7f7ff;
+  font-size: 0.9rem;
+}
+
+.grid-hint.warning {
+  border-color: #ffb347;
+  background: rgba(255, 179, 71, 0.1);
+  color: #ffd9a3;
+}
+
 .hex-cell {
   width: 54px;
   height: 54px;
@@ -429,7 +828,9 @@ function proceedToStarSystem() {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
   position: relative;
 }
 
@@ -461,13 +862,27 @@ function proceedToStarSystem() {
 }
 
 /* Spectral class colours */
-.spectral-o { color: #9bb0ff; }
-.spectral-b { color: #aabfff; }
-.spectral-a { color: #cad7ff; }
-.spectral-f { color: #f8f7ff; }
-.spectral-g { color: #fff4ea; }
-.spectral-k { color: #ffd2a1; }
-.spectral-m { color: #ff8c69; }
+.spectral-o {
+  color: #9bb0ff;
+}
+.spectral-b {
+  color: #aabfff;
+}
+.spectral-a {
+  color: #cad7ff;
+}
+.spectral-f {
+  color: #f8f7ff;
+}
+.spectral-g {
+  color: #fff4ea;
+}
+.spectral-k {
+  color: #ffd2a1;
+}
+.spectral-m {
+  color: #ff8c69;
+}
 
 /* Hex detail panel */
 .hex-detail {

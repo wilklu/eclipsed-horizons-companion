@@ -1,0 +1,696 @@
+{
+  "info": {
+    "name": "System Generator API",
+    "description": "Complete CRUD API for Eclipsed Horizons System Generator\n\nBase URL: http://localhost:3100/api\n\nAll endpoints support full CRUD operations:\n- GET (list & single)\n- POST (create)\n- PUT (update)\n- DELETE (remove)\n\nImport/Export endpoints for universe data exchange.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_postman_id": "system-generator-api",
+    "version": "1.0.0"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3100/api",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/health",
+          "host": ["{{baseUrl}}"],
+          "path": ["health"]
+        },
+        "description": "Check API server health status"
+      }
+    },
+    {
+      "name": "Galaxies",
+      "item": [
+        {
+          "name": "List Galaxies",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/galaxies",
+              "host": ["{{baseUrl}}"],
+              "path": ["galaxies"]
+            },
+            "description": "Get all galaxies in descending order by creation date"
+          }
+        },
+        {
+          "name": "Get Galaxy",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/galaxies/:galaxyId",
+              "host": ["{{baseUrl}}"],
+              "path": ["galaxies", ":galaxyId"],
+              "variable": [
+                {
+                  "key": "galaxyId",
+                  "value": "test-galaxy-001"
+                }
+              ]
+            },
+            "description": "Get a specific galaxy by ID"
+          }
+        },
+        {
+          "name": "Create Galaxy",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"galaxyId\": \"test-galaxy-001\",\n  \"galaxyNames\": [\n    {\n      \"name\": \"Test Galaxy\",\n      \"language\": \"English\",\n      \"isPrimary\": true\n    }\n  ],\n  \"galaxyType\": {\n    \"classification\": \"Spiral\",\n    \"subtype\": \"Barred Spiral\",\n    \"hubbleType\": \"SBc\"\n  },\n  \"galaxyCoordinates\": {\n    \"x\": 100,\n    \"y\": 200,\n    \"z\": 50,\n    \"referenceFrame\": \"galactic\"\n  },\n  \"galaxyStatistics\": {\n    \"estimatedStarSystems\": 250000000000,\n    \"estimatedPlanets\": 1000000000000,\n    \"catalogedSystems\": 1000,\n    \"inhabitedWorlds\": 50\n  },\n  \"physicalProperties\": {\n    \"diameterInLightYears\": 100000,\n    \"thicknessInLightYears\": 1000,\n    \"massInSolarMasses\": 1000000000000,\n    \"ageInBillionYears\": 13.0\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/galaxies",
+              "host": ["{{baseUrl}}"],
+              "path": ["galaxies"]
+            },
+            "description": "Create a new galaxy"
+          }
+        },
+        {
+          "name": "Update Galaxy",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"galaxyId\": \"test-galaxy-001\",\n  \"galaxyNames\": [\n    {\n      \"name\": \"Test Galaxy Updated\",\n      \"language\": \"English\",\n      \"isPrimary\": true\n    }\n  ],\n  \"galaxyType\": {\n    \"classification\": \"Spiral\",\n    \"subtype\": \"Barred Spiral\",\n    \"hubbleType\": \"SBc\"\n  },\n  \"galaxyCoordinates\": {\n    \"x\": 100,\n    \"y\": 200,\n    \"z\": 50,\n    \"referenceFrame\": \"galactic\"\n  },\n  \"galaxyStatistics\": {\n    \"estimatedStarSystems\": 250000000000,\n    \"estimatedPlanets\": 1000000000000,\n    \"catalogedSystems\": 1500,\n    \"inhabitedWorlds\": 75\n  },\n  \"physicalProperties\": {\n    \"diameterInLightYears\": 100000,\n    \"thicknessInLightYears\": 1000,\n    \"massInSolarMasses\": 1000000000000,\n    \"ageInBillionYears\": 13.0\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/galaxies/:galaxyId",
+              "host": ["{{baseUrl}}"],
+              "path": ["galaxies", ":galaxyId"],
+              "variable": [
+                {
+                  "key": "galaxyId",
+                  "value": "test-galaxy-001"
+                }
+              ]
+            },
+            "description": "Update an existing galaxy"
+          }
+        },
+        {
+          "name": "Delete Galaxy",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/galaxies/:galaxyId",
+              "host": ["{{baseUrl}}"],
+              "path": ["galaxies", ":galaxyId"],
+              "variable": [
+                {
+                  "key": "galaxyId",
+                  "value": "test-galaxy-001"
+                }
+              ]
+            },
+            "description": "Delete a galaxy and all its child entities"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Sectors",
+      "item": [
+        {
+          "name": "List Sectors",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/sectors",
+              "host": ["{{baseUrl}}"],
+              "path": ["sectors"]
+            },
+            "description": "Get all sectors"
+          }
+        },
+        {
+          "name": "Get Sectors by Galaxy",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/galaxies/:galaxyId/sectors",
+              "host": ["{{baseUrl}}"],
+              "path": ["galaxies", ":galaxyId", "sectors"],
+              "variable": [
+                {
+                  "key": "galaxyId",
+                  "value": "test-galaxy-001"
+                }
+              ]
+            },
+            "description": "Get all sectors for a specific galaxy"
+          }
+        },
+        {
+          "name": "Get Sector",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/sectors/:sectorId",
+              "host": ["{{baseUrl}}"],
+              "path": ["sectors", ":sectorId"],
+              "variable": [
+                {
+                  "key": "sectorId",
+                  "value": "test-sector-001"
+                }
+              ]
+            },
+            "description": "Get a specific sector by ID"
+          }
+        },
+        {
+          "name": "Create Sector",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sectorId\": \"test-sector-001\",\n  \"galaxyId\": \"test-galaxy-001\",\n  \"sectorName\": \"Test Sector Alpha\",\n  \"sectorCoordinates\": {\n    \"x\": 10,\n    \"y\": 20,\n    \"subsectorGrid\": \"8x10\"\n  },\n  \"density\": \"average\",\n  \"catalogedSystems\": 150\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/sectors",
+              "host": ["{{baseUrl}}"],
+              "path": ["sectors"]
+            },
+            "description": "Create a new sector"
+          }
+        },
+        {
+          "name": "Update Sector",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sectorId\": \"test-sector-001\",\n  \"galaxyId\": \"test-galaxy-001\",\n  \"sectorName\": \"Test Sector Alpha Updated\",\n  \"sectorCoordinates\": {\n    \"x\": 10,\n    \"y\": 20,\n    \"subsectorGrid\": \"8x10\"\n  },\n  \"density\": \"dense\",\n  \"catalogedSystems\": 200\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/sectors/:sectorId",
+              "host": ["{{baseUrl}}"],
+              "path": ["sectors", ":sectorId"],
+              "variable": [
+                {
+                  "key": "sectorId",
+                  "value": "test-sector-001"
+                }
+              ]
+            },
+            "description": "Update an existing sector"
+          }
+        },
+        {
+          "name": "Delete Sector",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/sectors/:sectorId",
+              "host": ["{{baseUrl}}"],
+              "path": ["sectors", ":sectorId"],
+              "variable": [
+                {
+                  "key": "sectorId",
+                  "value": "test-sector-001"
+                }
+              ]
+            },
+            "description": "Delete a sector and all its child entities"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Systems",
+      "item": [
+        {
+          "name": "List Systems",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/systems",
+              "host": ["{{baseUrl}}"],
+              "path": ["systems"]
+            },
+            "description": "Get all star systems"
+          }
+        },
+        {
+          "name": "Get Systems by Sector",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/sectors/:sectorId/systems",
+              "host": ["{{baseUrl}}"],
+              "path": ["sectors", ":sectorId", "systems"],
+              "variable": [
+                {
+                  "key": "sectorId",
+                  "value": "test-sector-001"
+                }
+              ]
+            },
+            "description": "Get all systems for a specific sector"
+          }
+        },
+        {
+          "name": "Get System",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/systems/:systemId",
+              "host": ["{{baseUrl}}"],
+              "path": ["systems", ":systemId"],
+              "variable": [
+                {
+                  "key": "systemId",
+                  "value": "test-system-001"
+                }
+              ]
+            },
+            "description": "Get a specific star system by ID"
+          }
+        },
+        {
+          "name": "Create System",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"systemId\": \"test-system-001\",\n  \"galaxyId\": \"test-galaxy-001\",\n  \"sectorId\": \"test-sector-001\",\n  \"hexCoordinate\": \"0815\",\n  \"stars\": [\n    {\n      \"designation\": \"G2V\",\n      \"spectralClass\": \"G\",\n      \"luminosityClass\": \"V\",\n      \"mass\": 1.0,\n      \"luminosity\": 1.0,\n      \"temperature\": 5778,\n      \"isPrimary\": true\n    }\n  ],\n  \"planetCount\": 8,\n  \"gasGiantCount\": 2,\n  \"asteroidBelts\": 1\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/systems",
+              "host": ["{{baseUrl}}"],
+              "path": ["systems"]
+            },
+            "description": "Create a new star system"
+          }
+        },
+        {
+          "name": "Update System",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"systemId\": \"test-system-001\",\n  \"galaxyId\": \"test-galaxy-001\",\n  \"sectorId\": \"test-sector-001\",\n  \"hexCoordinate\": \"0815\",\n  \"stars\": [\n    {\n      \"designation\": \"G2V\",\n      \"spectralClass\": \"G\",\n      \"luminosityClass\": \"V\",\n      \"mass\": 1.0,\n      \"luminosity\": 1.0,\n      \"temperature\": 5778,\n      \"isPrimary\": true\n    }\n  ],\n  \"planetCount\": 10,\n  \"gasGiantCount\": 3,\n  \"asteroidBelts\": 2\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/systems/:systemId",
+              "host": ["{{baseUrl}}"],
+              "path": ["systems", ":systemId"],
+              "variable": [
+                {
+                  "key": "systemId",
+                  "value": "test-system-001"
+                }
+              ]
+            },
+            "description": "Update an existing star system"
+          }
+        },
+        {
+          "name": "Delete System",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/systems/:systemId",
+              "host": ["{{baseUrl}}"],
+              "path": ["systems", ":systemId"],
+              "variable": [
+                {
+                  "key": "systemId",
+                  "value": "test-system-001"
+                }
+              ]
+            },
+            "description": "Delete a star system and all its child entities"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Worlds",
+      "item": [
+        {
+          "name": "List Worlds",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/worlds",
+              "host": ["{{baseUrl}}"],
+              "path": ["worlds"]
+            },
+            "description": "Get all worlds"
+          }
+        },
+        {
+          "name": "Get Worlds by System",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/systems/:systemId/worlds",
+              "host": ["{{baseUrl}}"],
+              "path": ["systems", ":systemId", "worlds"],
+              "variable": [
+                {
+                  "key": "systemId",
+                  "value": "test-system-001"
+                }
+              ]
+            },
+            "description": "Get all worlds for a specific star system"
+          }
+        },
+        {
+          "name": "Get World",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/worlds/:worldId",
+              "host": ["{{baseUrl}}"],
+              "path": ["worlds", ":worldId"],
+              "variable": [
+                {
+                  "key": "worldId",
+                  "value": "test-world-001"
+                }
+              ]
+            },
+            "description": "Get a specific world by ID"
+          }
+        },
+        {
+          "name": "Create World",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"worldId\": \"test-world-001\",\n  \"systemId\": \"test-system-001\",\n  \"worldName\": \"Test Prime\",\n  \"orbitalPosition\": 3,\n  \"uwp\": \"A788899-C\",\n  \"size\": 7,\n  \"atmosphere\": 8,\n  \"hydrographics\": 8,\n  \"population\": 8,\n  \"government\": 9,\n  \"lawLevel\": 9,\n  \"techLevel\": 12,\n  \"starport\": \"A\",\n  \"tradeCodes\": [\"Ri\", \"Hi\", \"In\"],\n  \"physicalProperties\": {\n    \"diameter\": 11200,\n    \"gravity\": 0.98,\n    \"temperature\": 288,\n    \"dayLength\": 24,\n    \"orbitalPeriod\": 365\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/worlds",
+              "host": ["{{baseUrl}}"],
+              "path": ["worlds"]
+            },
+            "description": "Create a new world"
+          }
+        },
+        {
+          "name": "Update World",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"worldId\": \"test-world-001\",\n  \"systemId\": \"test-system-001\",\n  \"worldName\": \"Test Prime Updated\",\n  \"orbitalPosition\": 3,\n  \"uwp\": \"A788899-D\",\n  \"size\": 7,\n  \"atmosphere\": 8,\n  \"hydrographics\": 8,\n  \"population\": 8,\n  \"government\": 9,\n  \"lawLevel\": 9,\n  \"techLevel\": 13,\n  \"starport\": \"A\",\n  \"tradeCodes\": [\"Ri\", \"Hi\", \"In\"],\n  \"physicalProperties\": {\n    \"diameter\": 11200,\n    \"gravity\": 0.98,\n    \"temperature\": 288,\n    \"dayLength\": 24,\n    \"orbitalPeriod\": 365\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/worlds/:worldId",
+              "host": ["{{baseUrl}}"],
+              "path": ["worlds", ":worldId"],
+              "variable": [
+                {
+                  "key": "worldId",
+                  "value": "test-world-001"
+                }
+              ]
+            },
+            "description": "Update an existing world"
+          }
+        },
+        {
+          "name": "Delete World",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/worlds/:worldId",
+              "host": ["{{baseUrl}}"],
+              "path": ["worlds", ":worldId"],
+              "variable": [
+                {
+                  "key": "worldId",
+                  "value": "test-world-001"
+                }
+              ]
+            },
+            "description": "Delete a world and all its child entities"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Sophonts",
+      "item": [
+        {
+          "name": "List Sophonts",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/sophonts",
+              "host": ["{{baseUrl}}"],
+              "path": ["sophonts"]
+            },
+            "description": "Get all sophonts"
+          }
+        },
+        {
+          "name": "Get Sophonts by World",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/worlds/:worldId/sophonts",
+              "host": ["{{baseUrl}}"],
+              "path": ["worlds", ":worldId", "sophonts"],
+              "variable": [
+                {
+                  "key": "worldId",
+                  "value": "test-world-001"
+                }
+              ]
+            },
+            "description": "Get all sophonts for a specific world"
+          }
+        },
+        {
+          "name": "Get Sophont",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/sophonts/:sophontId",
+              "host": ["{{baseUrl}}"],
+              "path": ["sophonts", ":sophontId"],
+              "variable": [
+                {
+                  "key": "sophontId",
+                  "value": "test-sophont-001"
+                }
+              ]
+            },
+            "description": "Get a specific sophont by ID"
+          }
+        },
+        {
+          "name": "Create Sophont",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sophontId\": \"test-sophont-001\",\n  \"worldId\": \"test-world-001\",\n  \"speciesName\": \"Testarians\",\n  \"bodyPlan\": \"Bilateral\",\n  \"homeEnvironment\": \"Temperate\",\n  \"biology\": {\n    \"height\": 180,\n    \"mass\": 75,\n    \"lifespan\": 80,\n    \"diet\": \"Omnivore\"\n  },\n  \"culture\": {\n    \"language\": \"Testarian\",\n    \"government\": \"Democracy\",\n    \"techLevel\": 12\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/sophonts",
+              "host": ["{{baseUrl}}"],
+              "path": ["sophonts"]
+            },
+            "description": "Create a new sophont species"
+          }
+        },
+        {
+          "name": "Update Sophont",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sophontId\": \"test-sophont-001\",\n  \"worldId\": \"test-world-001\",\n  \"speciesName\": \"Testarians Updated\",\n  \"bodyPlan\": \"Bilateral\",\n  \"homeEnvironment\": \"Temperate\",\n  \"biology\": {\n    \"height\": 180,\n    \"mass\": 75,\n    \"lifespan\": 85,\n    \"diet\": \"Omnivore\"\n  },\n  \"culture\": {\n    \"language\": \"Testarian\",\n    \"government\": \"Democracy\",\n    \"techLevel\": 13\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/sophonts/:sophontId",
+              "host": ["{{baseUrl}}"],
+              "path": ["sophonts", ":sophontId"],
+              "variable": [
+                {
+                  "key": "sophontId",
+                  "value": "test-sophont-001"
+                }
+              ]
+            },
+            "description": "Update an existing sophont species"
+          }
+        },
+        {
+          "name": "Delete Sophont",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/sophonts/:sophontId",
+              "host": ["{{baseUrl}}"],
+              "path": ["sophonts", ":sophontId"],
+              "variable": [
+                {
+                  "key": "sophontId",
+                  "value": "test-sophont-001"
+                }
+              ]
+            },
+            "description": "Delete a sophont species"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Import/Export",
+      "item": [
+        {
+          "name": "Export Universe",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/export",
+              "host": ["{{baseUrl}}"],
+              "path": ["export"]
+            },
+            "description": "Export entire universe as JSON"
+          }
+        },
+        {
+          "name": "Export Galaxy",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/export/:galaxyId",
+              "host": ["{{baseUrl}}"],
+              "path": ["export", ":galaxyId"],
+              "variable": [
+                {
+                  "key": "galaxyId",
+                  "value": "test-galaxy-001"
+                }
+              ]
+            },
+            "description": "Export a specific galaxy and all its child entities as JSON"
+          }
+        },
+        {
+          "name": "Import Universe",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"universe\": {\n    \"version\": \"1.0.0\",\n    \"exportDate\": \"2026-03-08T00:00:00Z\",\n    \"galaxies\": [\n      {\n        \"galaxyId\": \"import-test-001\",\n        \"galaxyNames\": [\n          {\n            \"name\": \"Imported Galaxy\",\n            \"language\": \"English\",\n            \"isPrimary\": true\n          }\n        ],\n        \"galaxyType\": {\n          \"classification\": \"Elliptical\",\n          \"subtype\": \"Giant Elliptical\",\n          \"hubbleType\": \"E0\"\n        },\n        \"galaxyCoordinates\": {\n          \"x\": 0,\n          \"y\": 0,\n          \"z\": 0,\n          \"referenceFrame\": \"galactic\"\n        },\n        \"galaxyStatistics\": {\n          \"estimatedStarSystems\": 100000000000,\n          \"estimatedPlanets\": 500000000000,\n          \"catalogedSystems\": 100,\n          \"inhabitedWorlds\": 10\n        },\n        \"physicalProperties\": {\n          \"diameterInLightYears\": 50000,\n          \"thicknessInLightYears\": 50000,\n          \"massInSolarMasses\": 2000000000000,\n          \"ageInBillionYears\": 12.0\n        }\n      }\n    ]\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/import",
+              "host": ["{{baseUrl}}"],
+              "path": ["import"]
+            },
+            "description": "Import a universe JSON with validation"
+          }
+        }
+      ]
+    }
+  ]
+}

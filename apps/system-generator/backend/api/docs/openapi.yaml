@@ -1,0 +1,788 @@
+openapi: 3.0.3
+info:
+  title: System Generator API
+  version: 1.0.0
+  description: |
+    REST API for the Eclipsed Horizons System Generator.
+    This spec documents the API currently exposed by `apps/system-generator/backend/api/server.js`.
+servers:
+  - url: http://localhost:3100
+    description: Local development
+
+tags:
+  - name: Health
+  - name: Galaxies
+  - name: Sectors
+  - name: Systems
+  - name: Worlds
+  - name: Sophonts
+  - name: ImportExport
+
+paths:
+  /api/health:
+    get:
+      tags: [Health]
+      summary: Health check
+      responses:
+        "200":
+          description: API is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+  /api/galaxies:
+    get:
+      tags: [Galaxies]
+      summary: List galaxies
+      responses:
+        "200":
+          description: Galaxies ordered by creation time descending
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Galaxy"
+    post:
+      tags: [Galaxies]
+      summary: Create galaxy
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GalaxyInput"
+      responses:
+        "201":
+          description: Galaxy created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Galaxy"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /api/galaxies/{id}:
+    get:
+      tags: [Galaxies]
+      summary: Get galaxy by id
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Galaxy found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Galaxy"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      tags: [Galaxies]
+      summary: Update galaxy
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GalaxyInput"
+      responses:
+        "200":
+          description: Galaxy updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Galaxy"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [Galaxies]
+      summary: Delete galaxy
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "204":
+          description: Galaxy deleted
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/galaxies/{gid}/sectors:
+    get:
+      tags: [Sectors]
+      summary: List sectors by galaxy id
+      parameters:
+        - name: gid
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Sectors for galaxy
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Sector"
+
+  /api/sectors:
+    post:
+      tags: [Sectors]
+      summary: Create sector
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SectorInput"
+      responses:
+        "201":
+          description: Sector created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Sector"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /api/sectors/{id}:
+    get:
+      tags: [Sectors]
+      summary: Get sector by id
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Sector found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Sector"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      tags: [Sectors]
+      summary: Update sector
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SectorInput"
+      responses:
+        "200":
+          description: Sector updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Sector"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [Sectors]
+      summary: Delete sector
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "204":
+          description: Sector deleted
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/galaxies/{gid}/sectors/{sid}/systems:
+    get:
+      tags: [Systems]
+      summary: List systems by galaxy and sector
+      parameters:
+        - name: gid
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: sid
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Systems for sector
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/System"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/systems:
+    post:
+      tags: [Systems]
+      summary: Create system
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SystemInput"
+      responses:
+        "201":
+          description: System created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/System"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /api/systems/{id}:
+    get:
+      tags: [Systems]
+      summary: Get system by id
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: System found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/System"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      tags: [Systems]
+      summary: Update system
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SystemInput"
+      responses:
+        "200":
+          description: System updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/System"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [Systems]
+      summary: Delete system
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "204":
+          description: System deleted
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/systems/{sid}/worlds:
+    get:
+      tags: [Worlds]
+      summary: List worlds by system id
+      parameters:
+        - name: sid
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Worlds for system
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/World"
+
+  /api/worlds:
+    post:
+      tags: [Worlds]
+      summary: Create world
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WorldInput"
+      responses:
+        "201":
+          description: World created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/World"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /api/worlds/{id}:
+    get:
+      tags: [Worlds]
+      summary: Get world by id
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: World found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/World"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      tags: [Worlds]
+      summary: Update world
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WorldInput"
+      responses:
+        "200":
+          description: World updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/World"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [Worlds]
+      summary: Delete world
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "204":
+          description: World deleted
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/worlds/{wid}/sophonts:
+    get:
+      tags: [Sophonts]
+      summary: List sophonts by world id
+      parameters:
+        - name: wid
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Sophonts for world
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Sophont"
+
+  /api/sophonts:
+    post:
+      tags: [Sophonts]
+      summary: Create sophont
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SophontInput"
+      responses:
+        "201":
+          description: Sophont created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Sophont"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /api/sophonts/{id}:
+    get:
+      tags: [Sophonts]
+      summary: Get sophont by id
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Sophont found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Sophont"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      tags: [Sophonts]
+      summary: Update sophont
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SophontInput"
+      responses:
+        "200":
+          description: Sophont updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Sophont"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [Sophonts]
+      summary: Delete sophont
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "204":
+          description: Sophont deleted
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/export:
+    get:
+      tags: [ImportExport]
+      summary: Export full universe
+      responses:
+        "200":
+          description: Universe export
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+
+  /api/export/{galaxyId}:
+    get:
+      tags: [ImportExport]
+      summary: Export single galaxy by id
+      parameters:
+        - name: galaxyId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Galaxy export
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/import:
+    post:
+      tags: [ImportExport]
+      summary: Import universe JSON
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ImportPayload"
+      responses:
+        "201":
+          description: Import completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImportResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+components:
+  parameters:
+    IdParam:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+
+  responses:
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+
+  schemas:
+    HealthResponse:
+      type: object
+      required: [status, service, dbPath, timestamp]
+      properties:
+        status:
+          type: string
+          example: ok
+        service:
+          type: string
+          example: system-generator-api
+        dbPath:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+
+    ApiError:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+        details:
+          type: object
+          nullable: true
+          additionalProperties: true
+        stack:
+          type: string
+
+    GalaxyInput:
+      type: object
+      required: [galaxyId, name, type]
+      properties:
+        galaxyId:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+        morphology:
+          type: object
+          additionalProperties: true
+        metadata:
+          type: object
+          additionalProperties: true
+        importMetadata:
+          type: object
+          additionalProperties: true
+
+    Galaxy:
+      allOf:
+        - $ref: "#/components/schemas/GalaxyInput"
+        - type: object
+          properties:
+            createdAt:
+              type: string
+            lastModified:
+              type: string
+
+    SectorInput:
+      type: object
+      required: [sectorId, galaxyId, coordinates, densityClass]
+      properties:
+        sectorId:
+          type: string
+        galaxyId:
+          type: string
+        coordinates:
+          type: object
+          additionalProperties: true
+        densityClass:
+          type: string
+        densityVariation:
+          type: number
+          nullable: true
+        metadata:
+          type: object
+          additionalProperties: true
+
+    Sector:
+      allOf:
+        - $ref: "#/components/schemas/SectorInput"
+        - type: object
+          properties:
+            createdAt:
+              type: string
+            lastModified:
+              type: string
+
+    SystemInput:
+      type: object
+      required: [systemId, sectorId, hexCoordinates, starCount, primaryStar]
+      properties:
+        systemId:
+          type: string
+        sectorId:
+          type: string
+        hexCoordinates:
+          type: object
+          additionalProperties: true
+        starCount:
+          type: integer
+        primaryStar:
+          type: object
+          additionalProperties: true
+        companionStars:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+          nullable: true
+        habitableZone:
+          type: string
+          nullable: true
+        metadata:
+          type: object
+          additionalProperties: true
+
+    System:
+      allOf:
+        - $ref: "#/components/schemas/SystemInput"
+        - type: object
+          properties:
+            createdAt:
+              type: string
+            lastModified:
+              type: string
+
+    WorldInput:
+      type: object
+      required: [worldId, systemId, name, orbit, uwp]
+      properties:
+        worldId:
+          type: string
+        systemId:
+          type: string
+        name:
+          type: string
+        orbit:
+          type: integer
+        uwp:
+          type: string
+        physical:
+          type: object
+          additionalProperties: true
+        census:
+          type: object
+          additionalProperties: true
+        tradeCodes:
+          type: array
+          items:
+            type: string
+          nullable: true
+        starport:
+          type: string
+          nullable: true
+        metadata:
+          type: object
+          additionalProperties: true
+
+    World:
+      allOf:
+        - $ref: "#/components/schemas/WorldInput"
+        - type: object
+          properties:
+            createdAt:
+              type: string
+            lastModified:
+              type: string
+
+    SophontInput:
+      type: object
+      required: [sophontId, worldId, name, bodyPlan]
+      properties:
+        sophontId:
+          type: string
+        worldId:
+          type: string
+        name:
+          type: string
+        bodyPlan:
+          type: string
+        culture:
+          type: object
+          additionalProperties: true
+        population:
+          type: object
+          additionalProperties: true
+          nullable: true
+        techLevel:
+          type: integer
+          nullable: true
+        metadata:
+          type: object
+          additionalProperties: true
+
+    Sophont:
+      allOf:
+        - $ref: "#/components/schemas/SophontInput"
+        - type: object
+          properties:
+            createdAt:
+              type: string
+            lastModified:
+              type: string
+
+    Universe:
+      type: object
+      required: [galaxies]
+      properties:
+        galaxies:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+      additionalProperties: true
+
+    ImportPayload:
+      oneOf:
+        - $ref: "#/components/schemas/Universe"
+        - type: object
+          required: [universe]
+          properties:
+            universe:
+              $ref: "#/components/schemas/Universe"
+
+    ImportResult:
+      type: object
+      required: [message, idMap, importedGalaxies]
+      properties:
+        message:
+          type: string
+          example: Import completed
+        idMap:
+          type: object
+          additionalProperties: true
+        importedGalaxies:
+          type: integer

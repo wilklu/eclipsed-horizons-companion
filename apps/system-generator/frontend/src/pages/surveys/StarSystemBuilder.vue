@@ -1,5 +1,6 @@
 <template>
   <div class="star-system-builder">
+    <LoadingSpinner :isVisible="isLoading" :message="loadingMessage" />
     <SurveyNavigation
       currentClass="Class I – Stellar Survey"
       :back-route="galaxyId ? { name: 'SectorSurvey', params: { galaxyId } } : { name: 'GalaxySurvey' }"
@@ -15,12 +16,19 @@
           <input v-model="hexCoord" placeholder="e.g. 0803" class="text-input" />
         </div>
         <div class="control-group">
+          <label>Load Existing System:</label>
+          <select v-model="selectedSystemId" class="select-input" @change="loadSelectedSystem">
+            <option value="">Select a saved system...</option>
+            <option v-for="entry in systemOptions" :key="entry.systemId" :value="entry.systemId">
+              {{ entry.label }}
+            </option>
+          </select>
+        </div>
+        <div class="control-group">
           <label>Primary Star Type:</label>
           <select v-model="primarySpectral" class="select-input">
             <option value="random">🎲 Random</option>
-            <option v-for="t in SPECTRAL_TYPES" :key="t.code" :value="t.code">
-              {{ t.code }} — {{ t.label }}
-            </option>
+            <option v-for="t in SPECTRAL_TYPES" :key="t.code" :value="t.code">{{ t.code }} — {{ t.label }}</option>
           </select>
         </div>
         <div class="control-group">
@@ -35,6 +43,13 @@
         <div class="control-group control-action">
           <button class="btn btn-primary" @click="buildSystem">⚡ Generate System</button>
         </div>
+      </div>
+
+      <div v-if="!hasSectorContext" class="context-hint warning">
+        No sector is selected. Open this page from Sector Survey to load and save systems in context.
+      </div>
+      <div v-else-if="!hasSavedSystems && !system" class="context-hint">
+        No saved systems found for this sector yet. Generate your first system to continue.
       </div>
 
       <!-- System Display -->
@@ -92,18 +107,9 @@
               <span>Too Cold</span>
             </div>
             <div class="hz-bar">
-              <div
-                class="hz-region hz-hot"
-                :style="{ width: '30%' }"
-              ></div>
-              <div
-                class="hz-region hz-zone"
-                :style="{ width: '25%' }"
-              ></div>
-              <div
-                class="hz-region hz-cold"
-                :style="{ width: '45%' }"
-              ></div>
+              <div class="hz-region hz-hot" :style="{ width: '30%' }"></div>
+              <div class="hz-region hz-zone" :style="{ width: '25%' }"></div>
+              <div class="hz-region hz-cold" :style="{ width: '45%' }"></div>
             </div>
             <div class="hz-distances">
               <span>0 AU</span>
@@ -129,11 +135,7 @@
               </tr>
             </thead>
             <tbody>
-              <tr
-                v-for="(planet, i) in system.planets"
-                :key="i"
-                :class="{ habitable: planet.zone === 'habitable' }"
-              >
+              <tr v-for="(planet, i) in system.planets" :key="i" :class="{ habitable: planet.zone === 'habitable' }">
                 <td>{{ i + 1 }}</td>
                 <td>{{ planet.name }}</td>
                 <td>{{ planet.type }}</td>
@@ -148,13 +150,12 @@
 
         <!-- Actions -->
         <div class="action-buttons">
-          <button
-            v-if="system.planets.some((p) => p.zone === 'habitable')"
-            class="btn btn-primary"
-            @click="proceedToWorldBuilder"
-          >
+          <button v-if="canProceedToWorldBuilder" class="btn btn-primary" @click="proceedToWorldBuilder">
             🌍 Class II–IV World Builder →
           </button>
+          <div v-if="system.persistedSystemId && !system.planets.length" class="system-hint">
+            Loaded persisted system. Planet catalog details may be unavailable, but you can continue to World Builder.
+          </div>
         </div>
       </div>
     </div>
@@ -162,15 +163,19 @@
 </template>
 
 <script setup>
-import { ref } from "vue";
+import { computed, ref, watch, watchEffect } from "vue";
 import { useRouter } from "vue-router";
 import SurveyNavigation from "../../components/common/SurveyNavigation.vue";
+import LoadingSpinner from "../../components/common/LoadingSpinner.vue";
+import { useSystemStore } from "../../stores/systemStore.js";
+import * as toastService from "../../utils/toast.js";
 
 const props = defineProps({
   galaxyId: { type: String, default: null },
   sectorId: { type: String, default: null },
 });
 const router = useRouter();
+const systemStore = useSystemStore();
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const SPECTRAL_TYPES = [
@@ -190,7 +195,40 @@ const ORBIT_TYPES = ["Close", "Near", "Far", "Distant"];
 const hexCoord = ref(router.currentRoute.value.query.hex ?? "0101");
 const primarySpectral = ref(router.currentRoute.value.query.star?.charAt(0) ?? "random");
 const multiplicity = ref("random");
+const selectedSystemId = ref("");
 const system = ref(null);
+const isLoading = ref(false);
+const loadingMode = ref("generate");
+
+const systemOptions = computed(() =>
+  systemStore.systems.map((entry) => ({
+    systemId: entry.systemId,
+    label: buildSystemLabel(entry),
+  })),
+);
+
+const loadingMessage = computed(() => (loadingMode.value === "load" ? "Loading system..." : "Building star system..."));
+
+const canProceedToWorldBuilder = computed(() => Boolean(system.value?.persistedSystemId));
+const hasSavedSystems = computed(() => systemOptions.value.length > 0);
+const hasSectorContext = computed(() => Boolean(props.galaxyId && props.sectorId));
+
+// Update page title dynamically
+watchEffect(() => {
+  if (system.value && system.value.systemId) {
+    document.title = `Star System: ${system.value.systemId} | Eclipsed Horizons`;
+  } else {
+    document.title = "Star System Builder | Eclipsed Horizons";
+  }
+});
+
+watch(
+  () => [props.galaxyId, props.sectorId],
+  async ([galaxyId, sectorId]) => {
+    await initializeSystemSelection(galaxyId, sectorId);
+  },
+  { immediate: true },
+);
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function pickSpectral() {
@@ -219,8 +257,8 @@ function buildStar(spectralEntry, role) {
 }
 
 function calcHabitableZone(luminosity) {
-  const inner = +(Math.sqrt(luminosity / 1.1)).toFixed(2);
-  const outer = +(Math.sqrt(luminosity / 0.53)).toFixed(2);
+  const inner = +Math.sqrt(luminosity / 1.1).toFixed(2);
+  const outer = +Math.sqrt(luminosity / 0.53).toFixed(2);
   const frost = +(Math.sqrt(luminosity / 0.04) * 0.5).toFixed(2);
   return { innerAU: Math.max(inner, 0.01), outerAU: outer, frostLineAU: frost };
 }
@@ -250,35 +288,232 @@ function buildPlanets(hz) {
   return orbits;
 }
 
-// ── Actions ───────────────────────────────────────────────────────────────────
-function buildSystem() {
-  const primaryEntry =
-    primarySpectral.value === "random"
-      ? pickSpectral()
-      : SPECTRAL_TYPES.find((t) => t.code === primarySpectral.value) ?? pickSpectral();
+function sanitizeId(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 16);
+}
 
-  let starCount = 1;
-  if (multiplicity.value === "binary") starCount = 2;
-  else if (multiplicity.value === "trinary") starCount = 3;
-  else if (multiplicity.value === "random") {
-    const r = Math.random();
-    starCount = r < 0.5 ? 1 : r < 0.8 ? 2 : 3;
-  }
-
-  const stars = [buildStar(primaryEntry, "primary")];
-  for (let i = 1; i < starCount; i++) {
-    stars.push(buildStar(pickSpectral(), "secondary"));
-  }
-
-  const hz = calcHabitableZone(stars[0].luminosity);
-  const planets = buildPlanets(hz);
-
-  system.value = {
-    systemId: hexCoord.value || "0000",
-    stars,
-    habitableZone: hz,
-    planets,
+function parseHexCoordinate(rawCoord) {
+  const value = String(rawCoord || "0101")
+    .replace(/[^0-9]/g, "")
+    .padStart(4, "0")
+    .slice(0, 4);
+  const x = Math.min(32, Math.max(1, Number(value.slice(0, 2)) || 1));
+  const y = Math.min(40, Math.max(1, Number(value.slice(2, 4)) || 1));
+  return {
+    x,
+    y,
+    normalized: `${String(x).padStart(2, "0")}${String(y).padStart(2, "0")}`,
   };
+}
+
+function toSpectralClass(star) {
+  const code = String(star?.spectralClass || "")
+    .trim()
+    .charAt(0)
+    .toUpperCase();
+  return ["O", "B", "A", "F", "G", "K", "M", "L", "T", "Y"].includes(code) ? code : "G";
+}
+
+function buildSystemLabel(entry) {
+  const x = Number(entry?.hexCoordinates?.x);
+  const y = Number(entry?.hexCoordinates?.y);
+  if (Number.isFinite(x) && Number.isFinite(y)) {
+    const coord = `${String(x).padStart(2, "0")}${String(y).padStart(2, "0")}`;
+    return `${coord} (${entry.systemId})`;
+  }
+  return entry?.systemId || "Unknown system";
+}
+
+function starFromPersisted(spectralClass, role) {
+  const spectral = toSpectralClass({ spectralClass });
+  return {
+    designation: `${spectral}V`,
+    spectralClass: `${spectral}V`,
+    massInSolarMasses: 1,
+    luminosity: 1,
+    temperatureK: 5800,
+    orbitType: role === "primary" ? null : "Near",
+  };
+}
+
+function hydrateSystemFromPersisted(persistedSystem) {
+  const metadata = persistedSystem?.metadata || {};
+  const survey = metadata.generatedSurvey || null;
+  const x = Number(persistedSystem?.hexCoordinates?.x) || 1;
+  const y = Number(persistedSystem?.hexCoordinates?.y) || 1;
+  const normalizedCoord = `${String(x).padStart(2, "0")}${String(y).padStart(2, "0")}`;
+
+  if (survey?.stars && survey?.habitableZone && survey?.planets) {
+    return {
+      systemId: normalizedCoord,
+      persistedSystemId: persistedSystem.systemId,
+      stars: survey.stars,
+      habitableZone: survey.habitableZone,
+      planets: survey.planets,
+    };
+  }
+
+  const primary = starFromPersisted(persistedSystem?.primaryStar?.spectralClass, "primary");
+  const companions = Array.isArray(persistedSystem?.companionStars)
+    ? persistedSystem.companionStars.map((entry) => starFromPersisted(entry?.spectralClass, "secondary"))
+    : [];
+  const hzInner = Number(persistedSystem?.habitableZone) || 1;
+
+  return {
+    systemId: normalizedCoord,
+    persistedSystemId: persistedSystem.systemId,
+    stars: [primary, ...companions],
+    habitableZone: {
+      innerAU: +hzInner.toFixed(2),
+      outerAU: +(hzInner * 1.6).toFixed(2),
+      frostLineAU: +(hzInner * 3.2).toFixed(2),
+    },
+    planets: [],
+  };
+}
+
+// ── Actions ───────────────────────────────────────────────────────────────────
+async function loadSelectedSystem() {
+  if (!selectedSystemId.value) {
+    return;
+  }
+  await loadPersistedSystem(selectedSystemId.value, true);
+}
+
+async function loadPersistedSystem(systemId, showToast = false) {
+  const persisted = systemStore.systems.find((entry) => entry.systemId === systemId);
+  if (!persisted) {
+    toastService.error("Selected system could not be found.");
+    return;
+  }
+
+  loadingMode.value = "load";
+  isLoading.value = true;
+
+  try {
+    system.value = hydrateSystemFromPersisted(persisted);
+    hexCoord.value = system.value.systemId;
+    const primaryCode = toSpectralClass(system.value.stars[0]);
+    primarySpectral.value = primaryCode;
+    systemStore.setCurrentSystem(systemId);
+    if (showToast) {
+      toastService.success(`Loaded system ${system.value.systemId}.`);
+    }
+  } finally {
+    isLoading.value = false;
+    loadingMode.value = "generate";
+  }
+}
+
+async function initializeSystemSelection(galaxyId, sectorId) {
+  system.value = null;
+  selectedSystemId.value = "";
+
+  if (!galaxyId || !sectorId) {
+    return;
+  }
+
+  await systemStore.loadSystems(galaxyId, sectorId);
+  if (systemStore.error) {
+    toastService.error(`Failed to load systems: ${systemStore.error}`);
+    return;
+  }
+
+  const currentSystem = systemStore.systems.find((entry) => entry.systemId === systemStore.currentSystemId);
+  const fallbackSystem = systemStore.systems[0];
+  const initialSystem = currentSystem ?? fallbackSystem;
+  if (initialSystem) {
+    selectedSystemId.value = initialSystem.systemId;
+    await loadPersistedSystem(initialSystem.systemId, false);
+  }
+}
+
+async function buildSystem() {
+  if (!props.sectorId) {
+    toastService.error("No sector selected. Please generate/select a sector first.");
+    return;
+  }
+
+  loadingMode.value = "generate";
+  isLoading.value = true;
+
+  try {
+    // Use setTimeout to show loading state for better UX
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    const primaryEntry =
+      primarySpectral.value === "random"
+        ? pickSpectral()
+        : (SPECTRAL_TYPES.find((t) => t.code === primarySpectral.value) ?? pickSpectral());
+
+    let starCount = 1;
+    if (multiplicity.value === "binary") starCount = 2;
+    else if (multiplicity.value === "trinary") starCount = 3;
+    else if (multiplicity.value === "random") {
+      const r = Math.random();
+      starCount = r < 0.5 ? 1 : r < 0.8 ? 2 : 3;
+    }
+
+    const stars = [buildStar(primaryEntry, "primary")];
+    for (let i = 1; i < starCount; i++) {
+      stars.push(buildStar(pickSpectral(), "secondary"));
+    }
+
+    const hz = calcHabitableZone(stars[0].luminosity);
+    const planets = buildPlanets(hz);
+    const hex = parseHexCoordinate(hexCoord.value);
+    const now = new Date().toISOString();
+    const newSystemId = `sys_${sanitizeId(props.sectorId)}_${hex.normalized}_${Date.now()}`.slice(0, 50);
+
+    const systemPayload = {
+      systemId: newSystemId,
+      sectorId: props.sectorId,
+      hexCoordinates: { x: hex.x, y: hex.y },
+      starCount,
+      primaryStar: {
+        spectralClass: toSpectralClass(stars[0]),
+        luminosity: stars[0].luminosity,
+        mass: stars[0].massInSolarMasses,
+        age: +(Math.random() * 12 + 1).toFixed(2),
+      },
+      companionStars: stars.slice(1).map((star, index) => ({
+        spectralClass: toSpectralClass(star),
+        separation: +((index + 1) * (0.5 + Math.random() * 5)).toFixed(2),
+      })),
+      habitableZone: hz.innerAU,
+      metadata: {
+        createdAt: now,
+        lastModified: now,
+        systemClass: starCount === 1 ? "Single" : starCount === 2 ? "Binary" : "Trinary",
+        generatedSurvey: {
+          stars,
+          habitableZone: hz,
+          planets,
+        },
+      },
+    };
+
+    const persistedSystem = await systemStore.createSystem(systemPayload);
+
+    system.value = {
+      systemId: hex.normalized,
+      persistedSystemId: persistedSystem.systemId,
+      stars,
+      habitableZone: hz,
+      planets,
+    };
+    selectedSystemId.value = persistedSystem.systemId;
+    toastService.success(`System ${hex.normalized} generated and saved.`);
+  } catch (err) {
+    toastService.error(`Failed to generate/save system: ${err.message}`);
+  } finally {
+    isLoading.value = false;
+  }
 }
 
 function regenerateSystem() {
@@ -297,10 +532,20 @@ function exportSystem() {
 }
 
 function proceedToWorldBuilder() {
+  const persistedSystemId = system.value?.persistedSystemId;
+  if (!persistedSystemId) {
+    toastService.error("System is not persisted yet. Please generate system again.");
+    return;
+  }
+
   router.push({
     name: "WorldBuilder",
-    params: { systemId: system.value.systemId },
-    query: { star: system.value.stars[0].designation },
+    params: { systemId: persistedSystemId },
+    query: {
+      star: system.value.stars[0].designation,
+      galaxyId: props.galaxyId ?? "",
+      sectorId: props.sectorId ?? "",
+    },
   });
 }
 </script>
@@ -338,6 +583,22 @@ function proceedToWorldBuilder() {
   color: #00ffff;
   font-weight: bold;
   font-size: 0.9rem;
+}
+
+.context-hint {
+  margin-bottom: 1rem;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid #00d9ff;
+  border-radius: 0.25rem;
+  background: rgba(0, 217, 255, 0.08);
+  color: #b7f7ff;
+  font-size: 0.9rem;
+}
+
+.context-hint.warning {
+  border-color: #ffb347;
+  background: rgba(255, 179, 71, 0.1);
+  color: #ffd9a3;
 }
 
 .control-action {
@@ -505,9 +766,15 @@ function proceedToWorldBuilder() {
   margin-bottom: 0.4rem;
 }
 
-.hz-hot { background: #ff6b6b; }
-.hz-zone { background: #6bcf7f; }
-.hz-cold { background: #6b9fff; }
+.hz-hot {
+  background: #ff6b6b;
+}
+.hz-zone {
+  background: #6bcf7f;
+}
+.hz-cold {
+  background: #6b9fff;
+}
 
 .hz-distances {
   display: flex;
@@ -550,10 +817,22 @@ function proceedToWorldBuilder() {
   text-transform: capitalize;
 }
 
-.zone-badge.hot { background: #ff6b6b33; color: #ff6b6b; }
-.zone-badge.habitable { background: #6bcf7f33; color: #6bcf7f; }
-.zone-badge.warm { background: #ffd93d33; color: #ffd93d; }
-.zone-badge.cold { background: #6b9fff33; color: #6b9fff; }
+.zone-badge.hot {
+  background: #ff6b6b33;
+  color: #ff6b6b;
+}
+.zone-badge.habitable {
+  background: #6bcf7f33;
+  color: #6bcf7f;
+}
+.zone-badge.warm {
+  background: #ffd93d33;
+  color: #ffd93d;
+}
+.zone-badge.cold {
+  background: #6b9fff33;
+  color: #6b9fff;
+}
 
 .empty-state {
   color: #555;
@@ -568,5 +847,14 @@ function proceedToWorldBuilder() {
   margin-top: 1.5rem;
   padding-top: 1.5rem;
   border-top: 1px solid #333;
+}
+
+.system-hint {
+  font-size: 0.85rem;
+  color: #b7f7ff;
+  border: 1px solid #00d9ff;
+  border-radius: 0.25rem;
+  background: rgba(0, 217, 255, 0.08);
+  padding: 0.45rem 0.65rem;
 }
 </style>

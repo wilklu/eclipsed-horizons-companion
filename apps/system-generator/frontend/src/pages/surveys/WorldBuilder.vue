@@ -1,8 +1,9 @@
 <template>
   <div class="world-builder">
+    <LoadingSpinner :isVisible="isLoading" :message="loadingMessage" />
     <SurveyNavigation
       currentClass="Classes II–IV – World Builder"
-      :back-route="{ name: 'StarSystemBuilder', params: { galaxyId: '000', sectorId: 'sector' } }"
+      :back-route="backRoute"
       @regenerate="regenerateWorld"
       @export="exportWorld"
     />
@@ -16,6 +17,13 @@
             <input v-model="worldName" placeholder="Enter world name…" class="text-input" />
             <button class="btn btn-secondary" @click="randomizeName">🎲</button>
           </div>
+        </div>
+        <div class="control-group">
+          <label>Load Existing World:</label>
+          <select v-model="selectedWorldId" class="select-input" @change="loadSelectedWorld">
+            <option value="">Select a saved world...</option>
+            <option v-for="entry in worldOptions" :key="entry.worldId" :value="entry.worldId">{{ entry.label }}</option>
+          </select>
         </div>
         <div class="control-group">
           <label>Primary Star Class:</label>
@@ -33,6 +41,13 @@
         <div class="control-group control-action">
           <button class="btn btn-primary" @click="generateWorld">⚡ Generate World</button>
         </div>
+      </div>
+
+      <div v-if="!hasSystemContext" class="context-hint warning">
+        No system is selected. Open this page from Star System Builder to load and save worlds in context.
+      </div>
+      <div v-else-if="!hasSavedWorlds && !world" class="context-hint">
+        No saved worlds found for this system yet. Generate your first world to continue.
       </div>
 
       <!-- World Profile -->
@@ -141,12 +156,8 @@
         </div>
 
         <div class="action-buttons">
-          <button class="btn btn-primary" @click="goToSophontGenerator">
-            🧬 Sophont Generator →
-          </button>
-          <button class="btn btn-primary" @click="goToHistoryGenerator">
-            📜 History Generator →
-          </button>
+          <button class="btn btn-primary" @click="goToSophontGenerator">🧬 Sophont Generator →</button>
+          <button class="btn btn-primary" @click="goToHistoryGenerator">📜 History Generator →</button>
         </div>
       </div>
     </div>
@@ -154,12 +165,24 @@
 </template>
 
 <script setup>
-import { ref } from "vue";
-import { useRouter } from "vue-router";
+import { computed, ref, watch, watchEffect } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import SurveyNavigation from "../../components/common/SurveyNavigation.vue";
+import LoadingSpinner from "../../components/common/LoadingSpinner.vue";
+import { useWorldStore } from "../../stores/worldStore.js";
+import * as toastService from "../../utils/toast.js";
 
-defineProps({ systemId: { type: String, default: null } });
+const props = defineProps({ systemId: { type: String, default: null } });
 const router = useRouter();
+const route = useRoute();
+const worldStore = useWorldStore();
+const backRoute = computed(() => ({
+  name: "StarSystemBuilder",
+  params: {
+    galaxyId: route.query.galaxyId || "000",
+    sectorId: route.query.sectorId || "sector",
+  },
+}));
 
 // ── Tables ────────────────────────────────────────────────────────────────────
 const ATMOSPHERE_TABLE = {
@@ -238,14 +261,78 @@ const STARPORT_TABLE = {
 };
 
 const WORLD_NAMES = [
-  "Arrakis", "Hestia", "Lycan", "Varna", "Oxtus", "Theron", "Velan", "Korreth",
-  "Solvaris", "Durath", "Mirela", "Ashford", "Phaedra", "Calyx", "Numeria",
+  "Arrakis",
+  "Hestia",
+  "Lycan",
+  "Varna",
+  "Oxtus",
+  "Theron",
+  "Velan",
+  "Korreth",
+  "Solvaris",
+  "Durath",
+  "Mirela",
+  "Ashford",
+  "Phaedra",
+  "Calyx",
+  "Numeria",
 ];
+
+const ALLOWED_TRADE_CODES = new Set([
+  "Ag",
+  "As",
+  "Ba",
+  "De",
+  "Fl",
+  "Ga",
+  "Hi",
+  "Ht",
+  "Ic",
+  "In",
+  "Lo",
+  "Na",
+  "Ni",
+  "Po",
+  "Ri",
+  "Wa",
+  "Va",
+]);
 
 // ── State ─────────────────────────────────────────────────────────────────────
 const worldName = ref("");
 const starClass = ref("random");
+const selectedWorldId = ref("");
 const world = ref(null);
+const isLoading = ref(false);
+const loadingMode = ref("generate");
+
+const worldOptions = computed(() =>
+  worldStore.worlds.map((entry) => ({
+    worldId: entry.worldId,
+    label: buildWorldLabel(entry),
+  })),
+);
+const hasSavedWorlds = computed(() => worldOptions.value.length > 0);
+const hasSystemContext = computed(() => Boolean(props.systemId));
+
+const loadingMessage = computed(() => (loadingMode.value === "load" ? "Loading world..." : "Building world..."));
+
+// Update page title dynamically
+watchEffect(() => {
+  if (world.value && world.value.name) {
+    document.title = `World: ${world.value.name} | Eclipsed Horizons`;
+  } else {
+    document.title = "World Builder | Eclipsed Horizons";
+  }
+});
+
+watch(
+  () => props.systemId,
+  async (systemId) => {
+    await initializeWorldSelection(systemId);
+  },
+  { immediate: true },
+);
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function d6(n = 2) {
@@ -274,115 +361,371 @@ function formatPop(pop) {
 
 const STAR_TEMP_MOD = { O: +4, B: +3, A: +2, F: +1, G: 0, K: -1, M: -2 };
 
+function hexDigitToNumber(value) {
+  const token = String(value || "0")
+    .trim()
+    .toUpperCase();
+  if (!token) return 0;
+  const code = token.charCodeAt(0);
+  if (code >= 48 && code <= 57) return code - 48;
+  if (code >= 65 && code <= 70) return code - 55;
+  return 0;
+}
+
+function temperatureCategoryFromApi(temp) {
+  switch (String(temp || "").toLowerCase()) {
+    case "frozen":
+      return "Frozen";
+    case "cold":
+      return "Cold";
+    case "temperate":
+      return "Temperate";
+    case "tropical":
+      return "Hot";
+    case "hot":
+      return "Scorching";
+    default:
+      return "Temperate";
+  }
+}
+
+function avgTempFromApi(temp) {
+  switch (String(temp || "").toLowerCase()) {
+    case "frozen":
+      return -80;
+    case "cold":
+      return -10;
+    case "temperate":
+      return 15;
+    case "tropical":
+      return 38;
+    case "hot":
+      return 70;
+    default:
+      return 15;
+  }
+}
+
+function buildWorldLabel(entry) {
+  const name = String(entry?.name || "Unnamed");
+  const uwp = String(entry?.uwp || "").trim();
+  return uwp ? `${name} (${uwp})` : `${name} (${entry.worldId})`;
+}
+
+function hydrateWorldFromPersisted(persistedWorld) {
+  const physical = persistedWorld?.physical || {};
+  const census = persistedWorld?.census || {};
+  const metadata = persistedWorld?.metadata || {};
+  const survey = metadata.generatedSurvey || {};
+
+  const size = hexDigitToNumber(physical.size);
+  const atmosphereCode = hexDigitToNumber(physical.atmosphere);
+  const hydrographics = hexDigitToNumber(physical.hydrographics);
+  const populationCode = hexDigitToNumber(census.population);
+  const governmentCode = hexDigitToNumber(census.government);
+  const lawLevel = hexDigitToNumber(census.lawLevel);
+  const techLevel = Number(census.techLevel) || 0;
+
+  return {
+    persistedWorldId: persistedWorld.worldId,
+    name: persistedWorld.name,
+    uwp: persistedWorld.uwp,
+    size,
+    diameterKm: size === 0 ? 800 : size * 1600,
+    gravity: Number(physical.gravity) || +(size * 0.1 + 0.05).toFixed(2),
+    atmosphereCode,
+    atmosphereDesc: ATMOSPHERE_TABLE[atmosphereCode] ?? "Unusual",
+    hydrographics,
+    avgTempC: Number.isFinite(survey.avgTempC) ? survey.avgTempC : avgTempFromApi(physical.temperature),
+    tempCategory: survey.tempCategory || temperatureCategoryFromApi(physical.temperature),
+    orbitalPeriodDays: survey.orbitalPeriodDays || Math.round(200 + Math.random() * 1200),
+    dayLengthHours: survey.dayLengthHours || +(15 + Math.random() * 50).toFixed(1),
+    axialTilt: survey.axialTilt || Math.round(Math.random() * 40),
+    moons: survey.moons || 0,
+    magnetosphere: survey.magnetosphere || "Unknown",
+    populationCode,
+    population: Number.isFinite(survey.populationEstimate)
+      ? survey.populationEstimate
+      : populationCode === 0
+        ? 0
+        : Math.round(Math.pow(10, populationCode)),
+    governmentCode,
+    governmentDesc: GOVERNMENT_TABLE[governmentCode] ?? "Unknown",
+    lawLevel,
+    lawDesc: LAW_TABLE[lawLevel] ?? "Unknown",
+    techLevel,
+    techDesc: TECH_TABLE[techLevel] ?? "Unknown",
+    starport: persistedWorld.starport || "X",
+    starportDesc: STARPORT_TABLE[persistedWorld.starport] ?? "Unknown",
+    tradeCodes: Array.isArray(persistedWorld.tradeCodes) ? persistedWorld.tradeCodes : [],
+  };
+}
+
 // ── Actions ───────────────────────────────────────────────────────────────────
+async function loadSelectedWorld() {
+  if (!selectedWorldId.value) {
+    return;
+  }
+  await loadPersistedWorld(selectedWorldId.value, true);
+}
+
+async function loadPersistedWorld(worldId, showToast = false) {
+  const persisted = worldStore.worlds.find((entry) => entry.worldId === worldId);
+  if (!persisted) {
+    toastService.error("Selected world could not be found.");
+    return;
+  }
+
+  loadingMode.value = "load";
+  isLoading.value = true;
+
+  try {
+    world.value = hydrateWorldFromPersisted(persisted);
+    worldName.value = world.value.name;
+    worldStore.setCurrentWorld(worldId);
+    if (showToast) {
+      toastService.success(`Loaded world ${world.value.name}.`);
+    }
+  } finally {
+    isLoading.value = false;
+    loadingMode.value = "generate";
+  }
+}
+
+async function initializeWorldSelection(systemId) {
+  world.value = null;
+  selectedWorldId.value = "";
+
+  if (!systemId) {
+    return;
+  }
+
+  await worldStore.loadWorlds(systemId);
+  if (worldStore.error) {
+    toastService.error(`Failed to load worlds: ${worldStore.error}`);
+    return;
+  }
+
+  const currentWorld = worldStore.worlds.find((entry) => entry.worldId === worldStore.currentWorldId);
+  const fallbackWorld = worldStore.worlds[0];
+  const initialWorld = currentWorld ?? fallbackWorld;
+  if (initialWorld) {
+    selectedWorldId.value = initialWorld.worldId;
+    await loadPersistedWorld(initialWorld.worldId, false);
+  }
+}
+
 function randomizeName() {
   worldName.value = WORLD_NAMES[Math.floor(Math.random() * WORLD_NAMES.length)];
 }
 
-function generateWorld() {
-  const star =
-    starClass.value === "random"
-      ? ["O", "B", "A", "F", "G", "G", "G", "K", "K", "M", "M", "M"][Math.floor(Math.random() * 12)]
-      : starClass.value;
+async function generateWorld() {
+  if (!props.systemId) {
+    toastService.error("No system selected. Please generate/select a system first.");
+    return;
+  }
 
-  const tempMod = STAR_TEMP_MOD[star] ?? 0;
+  loadingMode.value = "generate";
+  isLoading.value = true;
 
-  const size = clamp(d6() - 2, 0, 10);
-  const atmoRaw = clamp(d6() - 7 + size, 0, 15);
-  const atmosphereCode = atmoRaw;
-  const atmosphereDesc = ATMOSPHERE_TABLE[atmoRaw] ?? "Unusual";
-  const hydrographics =
-    atmoRaw === 0 || atmoRaw === 1 ? 0 : clamp(d6() - 7 + atmoRaw, 0, 10);
+  try {
+    // Use setTimeout to show loading state for better UX
+    await new Promise((resolve) => setTimeout(resolve, 300));
 
-  const popCode = clamp(d6() - 2, 0, 12);
-  const population = popCode === 0 ? 0 : Math.round(Math.pow(10, popCode) * (0.5 + Math.random()));
-  const governmentCode = clamp(d6() - 7 + popCode, 0, 13);
-  const governmentDesc = GOVERNMENT_TABLE[governmentCode] ?? "Unknown";
-  const lawLevel = clamp(d6() - 7 + governmentCode, 0, 9);
-  const lawDesc = LAW_TABLE[lawLevel] ?? "Unknown";
+    const star =
+      starClass.value === "random"
+        ? ["O", "B", "A", "F", "G", "G", "G", "K", "K", "M", "M", "M"][Math.floor(Math.random() * 12)]
+        : starClass.value;
 
-  const starportRoll = d6();
-  const starportCode =
-    starportRoll <= 2 ? "X" : starportRoll <= 4 ? "E" : starportRoll <= 6 ? "D" :
-    starportRoll <= 8 ? "C" : starportRoll <= 10 ? "B" : "A";
+    const tempMod = STAR_TEMP_MOD[star] ?? 0;
 
-  let techBase = d6(1);
-  if (starportCode === "A") techBase += 6;
-  else if (starportCode === "B") techBase += 4;
-  else if (starportCode === "C") techBase += 2;
-  if (size <= 1) techBase += 2;
-  else if (size <= 4) techBase += 1;
-  if (atmosphereCode <= 3 || atmosphereCode >= 10) techBase += 1;
-  if (hydrographics === 0 || hydrographics >= 9) techBase += 1;
-  if (popCode >= 9) techBase += 2;
-  else if (popCode >= 1) techBase += 1;
-  if (governmentCode === 0 || governmentCode === 5) techBase += 1;
-  const techLevel = clamp(techBase - 1, 0, 15);
+    const size = clamp(d6() - 2, 0, 10);
+    const atmoRaw = clamp(d6() - 7 + size, 0, 15);
+    const atmosphereCode = atmoRaw;
+    const atmosphereDesc = ATMOSPHERE_TABLE[atmoRaw] ?? "Unusual";
+    const hydrographics = atmoRaw === 0 || atmoRaw === 1 ? 0 : clamp(d6() - 7 + atmoRaw, 0, 10);
 
-  // Trade codes
-  const tradeCodes = [];
-  if (atmoRaw >= 4 && atmoRaw <= 9 && hydrographics >= 4 && hydrographics <= 8 && popCode >= 5 && popCode <= 7) tradeCodes.push("Ag");
-  if (size === 0 && atmoRaw === 0 && hydrographics === 0) tradeCodes.push("As");
-  if (popCode === 0 && governmentCode === 0 && lawLevel === 0) tradeCodes.push("Ba");
-  if (atmoRaw >= 2 && hydrographics === 0) tradeCodes.push("De");
-  if (atmoRaw >= 10 && hydrographics >= 1) tradeCodes.push("Fl");
-  if (size >= 6 && (atmoRaw === 5 || atmoRaw === 6 || atmoRaw === 8) && hydrographics >= 5) tradeCodes.push("Ga");
-  if (popCode >= 9) tradeCodes.push("Hi");
-  if (techLevel >= 12) tradeCodes.push("Ht");
-  if (hydrographics >= 1 && hydrographics <= 5 && atmoRaw <= 3) tradeCodes.push("Ic");
-  if ((atmoRaw <= 2 || atmoRaw === 4 || atmoRaw === 7 || atmoRaw === 9) && popCode >= 9) tradeCodes.push("In");
-  if (popCode >= 1 && popCode <= 3) tradeCodes.push("Lo");
-  if (techLevel <= 5) tradeCodes.push("Lt");
-  if (atmoRaw <= 3 && hydrographics <= 3 && popCode >= 6) tradeCodes.push("Na");
-  if (popCode >= 4 && popCode <= 6) tradeCodes.push("Ni");
-  if (atmoRaw >= 2 && atmoRaw <= 5 && hydrographics <= 3) tradeCodes.push("Po");
-  if ((atmoRaw === 6 || atmoRaw === 8) && popCode >= 6 && governmentCode >= 4 && governmentCode <= 9) tradeCodes.push("Ri");
-  if (hydrographics >= 10) tradeCodes.push("Wa");
-  if (atmoRaw === 0) tradeCodes.push("Va");
+    const popCode = clamp(d6() - 2, 0, 12);
+    const population = popCode === 0 ? 0 : Math.round(Math.pow(10, popCode) * (0.5 + Math.random()));
+    const governmentCode = clamp(d6() - 7 + popCode, 0, 13);
+    const governmentDesc = GOVERNMENT_TABLE[governmentCode] ?? "Unknown";
+    const lawLevel = clamp(d6() - 7 + governmentCode, 0, 9);
+    const lawDesc = LAW_TABLE[lawLevel] ?? "Unknown";
 
-  const diameterKm = size === 0 ? 800 : size * 1600;
-  const gravity = +(size * 0.1 + 0.05).toFixed(2);
+    const starportRoll = d6();
+    const starportCode =
+      starportRoll <= 2
+        ? "X"
+        : starportRoll <= 4
+          ? "E"
+          : starportRoll <= 6
+            ? "D"
+            : starportRoll <= 8
+              ? "C"
+              : starportRoll <= 10
+                ? "B"
+                : "A";
 
-  const baseTemp = 15 + tempMod * 15 + (atmoRaw >= 6 ? 20 : 0) - (hydrographics * 2);
-  const avgTempC = Math.round(baseTemp);
-  const tempCategory =
-    avgTempC < -50 ? "Frozen" : avgTempC < 0 ? "Cold" : avgTempC < 30 ? "Temperate" :
-    avgTempC < 60 ? "Hot" : "Scorching";
+    let techBase = d6(1);
+    if (starportCode === "A") techBase += 6;
+    else if (starportCode === "B") techBase += 4;
+    else if (starportCode === "C") techBase += 2;
+    if (size <= 1) techBase += 2;
+    else if (size <= 4) techBase += 1;
+    if (atmosphereCode <= 3 || atmosphereCode >= 10) techBase += 1;
+    if (hydrographics === 0 || hydrographics >= 9) techBase += 1;
+    if (popCode >= 9) techBase += 2;
+    else if (popCode >= 1) techBase += 1;
+    if (governmentCode === 0 || governmentCode === 5) techBase += 1;
+    const techLevel = clamp(techBase - 1, 0, 15);
 
-  const uwp = `${starportCode}${toHex(size)}${toHex(atmosphereCode)}${toHex(hydrographics)}${toHex(popCode)}${toHex(governmentCode)}${toHex(lawLevel)}-${toHex(techLevel)}`;
+    // Trade codes
+    const tradeCodes = [];
+    if (atmoRaw >= 4 && atmoRaw <= 9 && hydrographics >= 4 && hydrographics <= 8 && popCode >= 5 && popCode <= 7)
+      tradeCodes.push("Ag");
+    if (size === 0 && atmoRaw === 0 && hydrographics === 0) tradeCodes.push("As");
+    if (popCode === 0 && governmentCode === 0 && lawLevel === 0) tradeCodes.push("Ba");
+    if (atmoRaw >= 2 && hydrographics === 0) tradeCodes.push("De");
+    if (atmoRaw >= 10 && hydrographics >= 1) tradeCodes.push("Fl");
+    if (size >= 6 && (atmoRaw === 5 || atmoRaw === 6 || atmoRaw === 8) && hydrographics >= 5) tradeCodes.push("Ga");
+    if (popCode >= 9) tradeCodes.push("Hi");
+    if (techLevel >= 12) tradeCodes.push("Ht");
+    if (hydrographics >= 1 && hydrographics <= 5 && atmoRaw <= 3) tradeCodes.push("Ic");
+    if ((atmoRaw <= 2 || atmoRaw === 4 || atmoRaw === 7 || atmoRaw === 9) && popCode >= 9) tradeCodes.push("In");
+    if (popCode >= 1 && popCode <= 3) tradeCodes.push("Lo");
+    if (techLevel <= 5) tradeCodes.push("Lt");
+    if (atmoRaw <= 3 && hydrographics <= 3 && popCode >= 6) tradeCodes.push("Na");
+    if (popCode >= 4 && popCode <= 6) tradeCodes.push("Ni");
+    if (atmoRaw >= 2 && atmoRaw <= 5 && hydrographics <= 3) tradeCodes.push("Po");
+    if ((atmoRaw === 6 || atmoRaw === 8) && popCode >= 6 && governmentCode >= 4 && governmentCode <= 9)
+      tradeCodes.push("Ri");
+    if (hydrographics >= 10) tradeCodes.push("Wa");
+    if (atmoRaw === 0) tradeCodes.push("Va");
 
-  world.value = {
-    name: worldName.value || WORLD_NAMES[Math.floor(Math.random() * WORLD_NAMES.length)],
-    uwp,
-    // Physical
-    size,
-    diameterKm,
-    gravity,
-    atmosphereCode,
-    atmosphereDesc,
-    hydrographics,
-    avgTempC,
-    tempCategory,
-    // System
-    orbitalPeriodDays: Math.round(200 + Math.random() * 1200),
-    dayLengthHours: +(15 + Math.random() * 50).toFixed(1),
-    axialTilt: Math.round(Math.random() * 40),
-    moons: Math.floor(Math.random() * 4),
-    magnetosphere: Math.random() < 0.5 ? "Present" : "Absent",
-    // Census
-    populationCode: popCode,
-    population,
-    governmentCode,
-    governmentDesc,
-    lawLevel,
-    lawDesc,
-    techLevel,
-    techDesc: TECH_TABLE[techLevel] ?? "Unknown",
-    starport: starportCode,
-    starportDesc: STARPORT_TABLE[starportCode] ?? "Unknown",
-    // Trade
-    tradeCodes,
-  };
+    const normalizedTradeCodes = tradeCodes.filter((code) => ALLOWED_TRADE_CODES.has(code));
+
+    const diameterKm = size === 0 ? 800 : size * 1600;
+    const gravity = +(size * 0.1 + 0.05).toFixed(2);
+
+    const baseTemp = 15 + tempMod * 15 + (atmoRaw >= 6 ? 20 : 0) - hydrographics * 2;
+    const avgTempC = Math.round(baseTemp);
+    const tempCategory =
+      avgTempC < -50
+        ? "Frozen"
+        : avgTempC < 0
+          ? "Cold"
+          : avgTempC < 30
+            ? "Temperate"
+            : avgTempC < 60
+              ? "Hot"
+              : "Scorching";
+    const apiTemperature =
+      avgTempC < -50
+        ? "Frozen"
+        : avgTempC < 0
+          ? "Cold"
+          : avgTempC < 30
+            ? "Temperate"
+            : avgTempC < 55
+              ? "Tropical"
+              : "Hot";
+
+    const uwp = `${starportCode}${toHex(size)}${toHex(atmosphereCode)}${toHex(hydrographics)}${toHex(popCode)}${toHex(governmentCode)}${toHex(lawLevel)}-${toHex(techLevel)}`;
+    const generatedName = worldName.value || WORLD_NAMES[Math.floor(Math.random() * WORLD_NAMES.length)];
+    const orbitAU = +(0.2 + Math.random() * 12).toFixed(2);
+    const now = new Date().toISOString();
+    const worldId = `wld_${String(props.systemId).replace(/[^a-zA-Z0-9_-]/g, "_")}_${Date.now()}`.slice(0, 50);
+    const habitability =
+      apiTemperature === "Temperate" && atmosphereCode >= 4 && atmosphereCode <= 9 && hydrographics >= 3
+        ? "habitable"
+        : apiTemperature === "Cold" || apiTemperature === "Tropical"
+          ? "marginal"
+          : "hostile";
+
+    const worldPayload = {
+      worldId,
+      systemId: props.systemId,
+      name: generatedName,
+      orbit: orbitAU,
+      uwp,
+      physical: {
+        size: toHex(size),
+        gravity,
+        atmosphere: toHex(atmosphereCode),
+        hydrographics: toHex(hydrographics),
+        temperature: apiTemperature,
+      },
+      census: {
+        population: toHex(popCode),
+        government: toHex(governmentCode),
+        lawLevel: toHex(lawLevel),
+        techLevel,
+      },
+      tradeCodes: normalizedTradeCodes,
+      starport: starportCode,
+      metadata: {
+        createdAt: now,
+        lastModified: now,
+        habitability,
+        generatedSurvey: {
+          avgTempC,
+          tempCategory,
+          orbitalPeriodDays: Math.round(200 + Math.random() * 1200),
+          dayLengthHours: +(15 + Math.random() * 50).toFixed(1),
+          axialTilt: Math.round(Math.random() * 40),
+          moons: Math.floor(Math.random() * 4),
+          magnetosphere: Math.random() < 0.5 ? "Present" : "Absent",
+          populationEstimate: population,
+        },
+      },
+    };
+
+    const persistedWorld = await worldStore.createWorld(worldPayload);
+
+    const generatedSurvey = worldPayload.metadata.generatedSurvey;
+
+    world.value = {
+      persistedWorldId: persistedWorld.worldId,
+      name: generatedName,
+      uwp,
+      // Physical
+      size,
+      diameterKm,
+      gravity,
+      atmosphereCode,
+      atmosphereDesc,
+      hydrographics,
+      avgTempC,
+      tempCategory,
+      // System
+      orbitalPeriodDays: generatedSurvey.orbitalPeriodDays,
+      dayLengthHours: generatedSurvey.dayLengthHours,
+      axialTilt: generatedSurvey.axialTilt,
+      moons: generatedSurvey.moons,
+      magnetosphere: generatedSurvey.magnetosphere,
+      // Census
+      populationCode: popCode,
+      population,
+      governmentCode,
+      governmentDesc,
+      lawLevel,
+      lawDesc,
+      techLevel,
+      techDesc: TECH_TABLE[techLevel] ?? "Unknown",
+      starport: starportCode,
+      starportDesc: STARPORT_TABLE[starportCode] ?? "Unknown",
+      // Trade
+      tradeCodes: normalizedTradeCodes,
+    };
+
+    selectedWorldId.value = persistedWorld.worldId;
+
+    toastService.success(`World "${generatedName}" generated and saved.`);
+  } catch (err) {
+    toastService.error(`Failed to generate/save world: ${err.message}`);
+  } finally {
+    isLoading.value = false;
+  }
 }
 
 function regenerateWorld() {
@@ -401,11 +744,29 @@ function exportWorld() {
 }
 
 function goToSophontGenerator() {
-  router.push({ name: "SophontGenerator" });
+  const worldId = world.value?.persistedWorldId || worldStore.currentWorldId || "";
+  router.push({
+    name: "SophontGenerator",
+    query: {
+      worldId,
+      systemId: props.systemId || "",
+      galaxyId: route.query.galaxyId || "",
+      sectorId: route.query.sectorId || "",
+    },
+  });
 }
 
 function goToHistoryGenerator() {
-  router.push({ name: "HistoryGenerator" });
+  const worldId = world.value?.persistedWorldId || worldStore.currentWorldId || "";
+  router.push({
+    name: "HistoryGenerator",
+    query: {
+      worldId,
+      systemId: props.systemId || "",
+      galaxyId: route.query.galaxyId || "",
+      sectorId: route.query.sectorId || "",
+    },
+  });
 }
 </script>
 
@@ -444,7 +805,25 @@ function goToHistoryGenerator() {
   font-size: 0.9rem;
 }
 
-.control-action { justify-content: flex-end; }
+.context-hint {
+  margin-bottom: 1rem;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid #00d9ff;
+  border-radius: 0.25rem;
+  background: rgba(0, 217, 255, 0.08);
+  color: #b7f7ff;
+  font-size: 0.9rem;
+}
+
+.context-hint.warning {
+  border-color: #ffb347;
+  background: rgba(255, 179, 71, 0.1);
+  color: #ffd9a3;
+}
+
+.control-action {
+  justify-content: flex-end;
+}
 
 .select-input,
 .text-input {
@@ -456,8 +835,13 @@ function goToHistoryGenerator() {
   font-size: 0.9rem;
 }
 
-.name-row { display: flex; gap: 0.5rem; }
-.name-row .text-input { flex: 1; }
+.name-row {
+  display: flex;
+  gap: 0.5rem;
+}
+.name-row .text-input {
+  flex: 1;
+}
 
 .btn {
   padding: 0.6rem 1.25rem;
@@ -469,10 +853,21 @@ function goToHistoryGenerator() {
   transition: all 0.2s;
 }
 
-.btn-primary { background: #00d9ff; color: #000; }
-.btn-primary:hover { background: #00ffff; box-shadow: 0 0 12px rgba(0, 217, 255, 0.4); }
-.btn-secondary { background: #444; color: #e0e0e0; }
-.btn-secondary:hover { background: #555; }
+.btn-primary {
+  background: #00d9ff;
+  color: #000;
+}
+.btn-primary:hover {
+  background: #00ffff;
+  box-shadow: 0 0 12px rgba(0, 217, 255, 0.4);
+}
+.btn-secondary {
+  background: #444;
+  color: #e0e0e0;
+}
+.btn-secondary:hover {
+  background: #555;
+}
 
 /* World display */
 .world-display {
@@ -491,12 +886,24 @@ function goToHistoryGenerator() {
   border-bottom: 1px solid #333;
 }
 
-.world-icon { font-size: 3rem; }
+.world-icon {
+  font-size: 3rem;
+}
 
-.world-header h2 { color: #00d9ff; margin: 0 0 0.5rem; }
+.world-header h2 {
+  color: #00d9ff;
+  margin: 0 0 0.5rem;
+}
 
-.uwp-display { display: flex; align-items: center; gap: 1rem; }
-.uwp-label { color: #888; font-size: 0.85rem; }
+.uwp-display {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+.uwp-label {
+  color: #888;
+  font-size: 0.85rem;
+}
 .uwp-code {
   font-family: monospace;
   font-size: 1.2rem;
@@ -519,14 +926,38 @@ function goToHistoryGenerator() {
   padding: 1.25rem;
 }
 
-.world-section h3 { color: #00ffff; margin-bottom: 1rem; }
+.world-section h3 {
+  color: #00ffff;
+  margin-bottom: 1rem;
+}
 
-.prop-list { display: flex; flex-direction: column; gap: 0.5rem; }
-.prop-row { display: flex; gap: 0.75rem; font-size: 0.9rem; padding: 0.3rem 0; border-bottom: 1px solid #1a1a3a; }
-.prop-label { color: #00ffff; min-width: 150px; font-weight: bold; }
-.prop-value { color: #e0e0e0; font-family: monospace; }
+.prop-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.prop-row {
+  display: flex;
+  gap: 0.75rem;
+  font-size: 0.9rem;
+  padding: 0.3rem 0;
+  border-bottom: 1px solid #1a1a3a;
+}
+.prop-label {
+  color: #00ffff;
+  min-width: 150px;
+  font-weight: bold;
+}
+.prop-value {
+  color: #e0e0e0;
+  font-family: monospace;
+}
 
-.trade-codes { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.trade-codes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
 .trade-badge {
   background: rgba(0, 217, 255, 0.15);
   color: #00d9ff;
@@ -538,7 +969,11 @@ function goToHistoryGenerator() {
   font-family: monospace;
 }
 
-.empty-state { color: #555; font-style: italic; padding: 0.5rem 0; }
+.empty-state {
+  color: #555;
+  font-style: italic;
+  padding: 0.5rem 0;
+}
 
 .action-buttons {
   display: flex;

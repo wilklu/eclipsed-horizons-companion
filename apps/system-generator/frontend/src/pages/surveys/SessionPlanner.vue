@@ -54,9 +54,7 @@
             <h2>{{ session.title }}</h2>
             <p class="session-tagline">{{ session.missionType }} · {{ session.setting }}</p>
           </div>
-          <div class="threat-badge" :class="session.threatLevel">
-            {{ session.threatLevel.toUpperCase() }} THREAT
-          </div>
+          <div class="threat-badge" :class="session.threatLevel">{{ session.threatLevel.toUpperCase() }} THREAT</div>
         </div>
 
         <!-- Overview stats -->
@@ -135,67 +133,163 @@
 </template>
 
 <script setup>
-import { ref } from "vue";
+import { ref, onMounted } from "vue";
 import SurveyNavigation from "../../components/common/SurveyNavigation.vue";
+
+// Set page title
+onMounted(() => {
+  document.title = "Session Planner | Eclipsed Horizons";
+});
 
 // ── Lookup tables ─────────────────────────────────────────────────────────────
 const MISSION_TYPES = [
-  "Rescue Operation", "Smuggling Run", "Corporate Espionage", "Exploration Survey",
-  "Assassination Contract", "Diplomatic Escort", "Salvage Mission", "Bounty Hunt",
-  "Courier Run", "Military Raid", "Scientific Expedition", "Prison Break",
+  "Rescue Operation",
+  "Smuggling Run",
+  "Corporate Espionage",
+  "Exploration Survey",
+  "Assassination Contract",
+  "Diplomatic Escort",
+  "Salvage Mission",
+  "Bounty Hunt",
+  "Courier Run",
+  "Military Raid",
+  "Scientific Expedition",
+  "Prison Break",
 ];
 
 const SETTINGS = [
-  "Space Station", "Megacity Underbelly", "Frontier Colony", "Derelict Starship",
-  "Alien Ruin", "Orbital Platform", "Desert Outpost", "Underwater Habitat",
-  "Jungle World", "Ice Moon", "Corporate Arcology", "Asteroid Mining Camp",
+  "Space Station",
+  "Megacity Underbelly",
+  "Frontier Colony",
+  "Derelict Starship",
+  "Alien Ruin",
+  "Orbital Platform",
+  "Desert Outpost",
+  "Underwater Habitat",
+  "Jungle World",
+  "Ice Moon",
+  "Corporate Arcology",
+  "Asteroid Mining Camp",
 ];
 
 const TITLE_PREFIXES = [
-  "Operation", "The", "Project", "Mission", "Incident at", "Flight of the",
-  "Shadow of", "Echoes from", "The Last", "Blood in",
+  "Operation",
+  "The",
+  "Project",
+  "Mission",
+  "Incident at",
+  "Flight of the",
+  "Shadow of",
+  "Echoes from",
+  "The Last",
+  "Blood in",
 ];
 
 const TITLE_NOUNS = [
-  "Iron Veil", "Shattered Sun", "Dying Star", "Pale Frontier", "Red Meridian",
-  "Silent Orbit", "Broken Gate", "Ember Station", "Cold Margin", "Fractured Void",
-  "Dark Meridian", "Hollow Star",
+  "Iron Veil",
+  "Shattered Sun",
+  "Dying Star",
+  "Pale Frontier",
+  "Red Meridian",
+  "Silent Orbit",
+  "Broken Gate",
+  "Ember Station",
+  "Cold Margin",
+  "Fractured Void",
+  "Dark Meridian",
+  "Hollow Star",
 ];
 
 const NPC_FIRST_NAMES = [
-  "Kael", "Voss", "Mira", "Taryn", "Dex", "Sable", "Oran", "Lyss",
-  "Harken", "Zena", "Corvin", "Petra", "Yael", "Strix", "Bren",
+  "Kael",
+  "Voss",
+  "Mira",
+  "Taryn",
+  "Dex",
+  "Sable",
+  "Oran",
+  "Lyss",
+  "Harken",
+  "Zena",
+  "Corvin",
+  "Petra",
+  "Yael",
+  "Strix",
+  "Bren",
 ];
 
 const NPC_LAST_NAMES = [
-  "Ashford", "Morrow", "Vance", "Drex", "Colton", "Ilde", "Ferris",
-  "Quell", "Strand", "Orvyn", "Kade", "Renn", "Solari", "Vex",
+  "Ashford",
+  "Morrow",
+  "Vance",
+  "Drex",
+  "Colton",
+  "Ilde",
+  "Ferris",
+  "Quell",
+  "Strand",
+  "Orvyn",
+  "Kade",
+  "Renn",
+  "Solari",
+  "Vex",
 ];
 
 const NPC_ROLES = [
-  "Mission Contact", "Antagonist", "Rival Operative", "Local Fixer", "Informant",
-  "Corporate Handler", "Corrupt Official", "Ally in Distress", "Undercover Agent",
+  "Mission Contact",
+  "Antagonist",
+  "Rival Operative",
+  "Local Fixer",
+  "Informant",
+  "Corporate Handler",
+  "Corrupt Official",
+  "Ally in Distress",
+  "Undercover Agent",
   "Weapons Dealer",
 ];
 
 const NPC_MOTIVES = [
-  "Profit above all else", "Revenge against a former partner", "Protecting their family",
-  "Ideological conviction", "Coerced by a third party", "Pure survival instinct",
-  "Ambition for power", "Misguided loyalty", "Redemption for past crimes",
+  "Profit above all else",
+  "Revenge against a former partner",
+  "Protecting their family",
+  "Ideological conviction",
+  "Coerced by a third party",
+  "Pure survival instinct",
+  "Ambition for power",
+  "Misguided loyalty",
+  "Redemption for past crimes",
   "Fear of exposure",
 ];
 
 const LOCATION_TEMPLATES = [
-  { name: "The Rust Quarter", description: "A derelict industrial district riddled with abandoned machinery and desperate locals." },
-  { name: "Highport Concourse", description: "A busy transit hub where every faction has eyes and deals are struck in plain sight." },
-  { name: "Sector Zero Vault", description: "A heavily secured data facility buried beneath the station's oldest section." },
+  {
+    name: "The Rust Quarter",
+    description: "A derelict industrial district riddled with abandoned machinery and desperate locals.",
+  },
+  {
+    name: "Highport Concourse",
+    description: "A busy transit hub where every faction has eyes and deals are struck in plain sight.",
+  },
+  {
+    name: "Sector Zero Vault",
+    description: "A heavily secured data facility buried beneath the station's oldest section.",
+  },
   { name: "The Sunken Yards", description: "Flooded shipyards where smugglers hide cargo among half-submerged hulls." },
-  { name: "Executive Level 9", description: "Gleaming corporate offices with armed security and plenty of secrets on the servers." },
-  { name: "The Warrens", description: "A maze of shanties and tunnels housing thousands who never appear on any census." },
+  {
+    name: "Executive Level 9",
+    description: "Gleaming corporate offices with armed security and plenty of secrets on the servers.",
+  },
+  {
+    name: "The Warrens",
+    description: "A maze of shanties and tunnels housing thousands who never appear on any census.",
+  },
   { name: "Outer Ring Docks", description: "Rough docking bays used by independent freighters and pirates alike." },
   { name: "Archive Node Delta", description: "An ancient data archive maintained by a secretive order of librarians." },
   { name: "The Cracked Dome", description: "A failed habitat dome, now a lawless settlement on the frontier." },
-  { name: "Reactor Core Sublevel", description: "The boiling heart of the station — only the desperate or foolish come here." },
+  {
+    name: "Reactor Core Sublevel",
+    description: "The boiling heart of the station — only the desperate or foolish come here.",
+  },
 ];
 
 const HOOK_TEMPLATES = [
@@ -230,15 +324,31 @@ const ENCOUNTER_TEMPLATES = [
   { type: "Combat", description: "A security squad closes in after an alarm is triggered.", difficulty: "Medium" },
   { type: "Social", description: "A suspicious customs official demands to inspect cargo.", difficulty: "Low" },
   { type: "Combat", description: "Rival operatives ambush the group at a bottleneck.", difficulty: "High" },
-  { type: "Exploration", description: "A sealed compartment hides an unexpected survivor — or threat.", difficulty: "Low" },
+  {
+    type: "Exploration",
+    description: "A sealed compartment hides an unexpected survivor — or threat.",
+    difficulty: "Low",
+  },
   { type: "Chase", description: "Pursuit through crowded corridors after a blown cover.", difficulty: "Medium" },
   { type: "Social", description: "A local gang boss wants a cut before granting passage.", difficulty: "Medium" },
   { type: "Hazard", description: "A failing airlock threatens to decompress the compartment.", difficulty: "High" },
-  { type: "Combat", description: "Automated defence turrets activate on an unexpected frequency.", difficulty: "Medium" },
+  {
+    type: "Combat",
+    description: "Automated defence turrets activate on an unexpected frequency.",
+    difficulty: "Medium",
+  },
   { type: "Social", description: "An NPC recognises a crew member and demands answers.", difficulty: "Low" },
-  { type: "Exploration", description: "Evidence of a prior crew who met a grim fate is discovered.", difficulty: "Low" },
+  {
+    type: "Exploration",
+    description: "Evidence of a prior crew who met a grim fate is discovered.",
+    difficulty: "Low",
+  },
   { type: "Chase", description: "A patrol ship locks on and begins an intercept course.", difficulty: "High" },
-  { type: "Hazard", description: "Structural collapse traps part of the team on the wrong side.", difficulty: "Medium" },
+  {
+    type: "Hazard",
+    description: "Structural collapse traps part of the team on the wrong side.",
+    difficulty: "Medium",
+  },
 ];
 
 const GM_NOTE_TEMPLATES = [
@@ -299,7 +409,7 @@ function generateSession() {
     threatLevel: resolvedThreat,
     overview: {
       "Mission Type": resolvedMission,
-      "Setting": resolvedSetting,
+      Setting: resolvedSetting,
       "Threat Level": resolvedThreat.charAt(0).toUpperCase() + resolvedThreat.slice(1),
       "Est. Duration": pick(["1 session", "2 sessions", "3 sessions"]),
       "Primary Objective": pick([
@@ -347,7 +457,10 @@ function exportSession() {
   min-height: calc(100vh - 60px);
 }
 
-.survey-content { padding: 2rem; flex: 1; }
+.survey-content {
+  padding: 2rem;
+  flex: 1;
+}
 
 .control-panel {
   display: flex;
@@ -359,11 +472,27 @@ function exportSession() {
   border-radius: 0.5rem;
 }
 
-.control-group { display: flex; flex-direction: column; gap: 0.5rem; min-width: 200px; }
-.control-group label { color: #00ffff; font-weight: bold; font-size: 0.9rem; }
-.control-action { justify-content: flex-end; }
-.name-row { display: flex; gap: 0.5rem; }
-.name-row .text-input { flex: 1; }
+.control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 200px;
+}
+.control-group label {
+  color: #00ffff;
+  font-weight: bold;
+  font-size: 0.9rem;
+}
+.control-action {
+  justify-content: flex-end;
+}
+.name-row {
+  display: flex;
+  gap: 0.5rem;
+}
+.name-row .text-input {
+  flex: 1;
+}
 
 .select-input,
 .text-input {
@@ -375,11 +504,30 @@ function exportSession() {
   font-size: 0.9rem;
 }
 
-.btn { padding: 0.6rem 1.25rem; border: none; border-radius: 0.25rem; cursor: pointer; font-weight: bold; font-size: 0.9rem; transition: all 0.2s; }
-.btn-primary { background: #00d9ff; color: #000; }
-.btn-primary:hover { background: #00ffff; box-shadow: 0 0 12px rgba(0, 217, 255, 0.4); }
-.btn-secondary { background: #444; color: #e0e0e0; }
-.btn-secondary:hover { background: #555; }
+.btn {
+  padding: 0.6rem 1.25rem;
+  border: none;
+  border-radius: 0.25rem;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 0.9rem;
+  transition: all 0.2s;
+}
+.btn-primary {
+  background: #00d9ff;
+  color: #000;
+}
+.btn-primary:hover {
+  background: #00ffff;
+  box-shadow: 0 0 12px rgba(0, 217, 255, 0.4);
+}
+.btn-secondary {
+  background: #444;
+  color: #e0e0e0;
+}
+.btn-secondary:hover {
+  background: #555;
+}
 
 /* Session display */
 .session-display {
@@ -400,8 +548,15 @@ function exportSession() {
   flex-wrap: wrap;
 }
 
-.session-header h2 { color: #00d9ff; margin: 0 0 0.3rem; }
-.session-tagline { color: #888; font-size: 0.9rem; margin: 0; }
+.session-header h2 {
+  color: #00d9ff;
+  margin: 0 0 0.3rem;
+}
+.session-tagline {
+  color: #888;
+  font-size: 0.9rem;
+  margin: 0;
+}
 
 .threat-badge {
   padding: 0.4rem 1rem;
@@ -411,9 +566,21 @@ function exportSession() {
   letter-spacing: 0.08em;
   white-space: nowrap;
 }
-.threat-badge.low { background: rgba(46, 204, 113, 0.2); color: #2ecc71; border: 1px solid #2ecc71; }
-.threat-badge.medium { background: rgba(241, 196, 15, 0.2); color: #f1c40f; border: 1px solid #f1c40f; }
-.threat-badge.high { background: rgba(231, 76, 60, 0.2); color: #e74c3c; border: 1px solid #e74c3c; }
+.threat-badge.low {
+  background: rgba(46, 204, 113, 0.2);
+  color: #2ecc71;
+  border: 1px solid #2ecc71;
+}
+.threat-badge.medium {
+  background: rgba(241, 196, 15, 0.2);
+  color: #f1c40f;
+  border: 1px solid #f1c40f;
+}
+.threat-badge.high {
+  background: rgba(231, 76, 60, 0.2);
+  color: #e74c3c;
+  border: 1px solid #e74c3c;
+}
 
 .key-stats {
   display: grid;
@@ -422,9 +589,22 @@ function exportSession() {
   margin-bottom: 2rem;
 }
 
-.kstat { background: #12122e; border-radius: 0.4rem; padding: 0.75rem 1rem; }
-.kstat-label { font-size: 0.75rem; color: #888; text-transform: uppercase; margin-bottom: 0.3rem; }
-.kstat-value { color: #e0e0e0; font-size: 0.9rem; font-weight: bold; }
+.kstat {
+  background: #12122e;
+  border-radius: 0.4rem;
+  padding: 0.75rem 1rem;
+}
+.kstat-label {
+  font-size: 0.75rem;
+  color: #888;
+  text-transform: uppercase;
+  margin-bottom: 0.3rem;
+}
+.kstat-value {
+  color: #e0e0e0;
+  font-size: 0.9rem;
+  font-weight: bold;
+}
 
 .session-grid {
   display: grid;
@@ -438,7 +618,9 @@ function exportSession() {
   padding: 1rem 1.25rem;
 }
 
-.session-section.full-width { grid-column: 1 / -1; }
+.session-section.full-width {
+  grid-column: 1 / -1;
+}
 
 .session-section h3 {
   color: #00d9ff;
@@ -451,45 +633,169 @@ function exportSession() {
 }
 
 /* Hooks */
-.hook-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.6rem; }
-.hook-item { color: #bbb; font-size: 0.85rem; line-height: 1.5; padding-left: 1rem; position: relative; }
-.hook-item::before { content: "›"; position: absolute; left: 0; color: #00d9ff; }
+.hook-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.hook-item {
+  color: #bbb;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  padding-left: 1rem;
+  position: relative;
+}
+.hook-item::before {
+  content: "›";
+  position: absolute;
+  left: 0;
+  color: #00d9ff;
+}
 
 /* NPCs */
-.npc-list { display: flex; flex-direction: column; gap: 0.75rem; }
-.npc-card { background: #1a1a3e; border-radius: 0.3rem; padding: 0.6rem 0.75rem; }
-.npc-name { color: #fff; font-weight: bold; font-size: 0.9rem; }
-.npc-role { color: #00d9ff; font-size: 0.8rem; margin: 0.15rem 0; }
-.npc-motive { color: #888; font-size: 0.8rem; font-style: italic; }
+.npc-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.npc-card {
+  background: #1a1a3e;
+  border-radius: 0.3rem;
+  padding: 0.6rem 0.75rem;
+}
+.npc-name {
+  color: #fff;
+  font-weight: bold;
+  font-size: 0.9rem;
+}
+.npc-role {
+  color: #00d9ff;
+  font-size: 0.8rem;
+  margin: 0.15rem 0;
+}
+.npc-motive {
+  color: #888;
+  font-size: 0.8rem;
+  font-style: italic;
+}
 
 /* Locations */
-.location-list { display: flex; flex-direction: column; gap: 0.75rem; }
-.location-card { background: #1a1a3e; border-radius: 0.3rem; padding: 0.6rem 0.75rem; }
-.location-name { color: #fff; font-weight: bold; font-size: 0.9rem; margin-bottom: 0.25rem; }
-.location-desc { color: #bbb; font-size: 0.82rem; line-height: 1.5; }
+.location-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.location-card {
+  background: #1a1a3e;
+  border-radius: 0.3rem;
+  padding: 0.6rem 0.75rem;
+}
+.location-name {
+  color: #fff;
+  font-weight: bold;
+  font-size: 0.9rem;
+  margin-bottom: 0.25rem;
+}
+.location-desc {
+  color: #bbb;
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
 
 /* Complications */
-.complication-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.6rem; }
-.complication-item { color: #bbb; font-size: 0.85rem; line-height: 1.5; padding-left: 1rem; position: relative; }
-.complication-item::before { content: "!"; position: absolute; left: 0; color: #e74c3c; font-weight: bold; }
+.complication-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.complication-item {
+  color: #bbb;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  padding-left: 1rem;
+  position: relative;
+}
+.complication-item::before {
+  content: "!";
+  position: absolute;
+  left: 0;
+  color: #e74c3c;
+  font-weight: bold;
+}
 
 /* Encounters */
-.encounter-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 0.75rem; }
-.encounter-card { background: #1a1a3e; border-radius: 0.3rem; padding: 0.6rem 0.75rem; }
-.encounter-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem; }
-.encounter-type { color: #00d9ff; font-size: 0.8rem; font-weight: bold; text-transform: uppercase; }
-.encounter-difficulty { font-size: 0.75rem; font-weight: bold; padding: 0.15rem 0.5rem; border-radius: 0.2rem; }
-.encounter-difficulty.low { color: #2ecc71; background: rgba(46, 204, 113, 0.15); }
-.encounter-difficulty.medium { color: #f1c40f; background: rgba(241, 196, 15, 0.15); }
-.encounter-difficulty.high { color: #e74c3c; background: rgba(231, 76, 60, 0.15); }
-.encounter-desc { color: #bbb; font-size: 0.82rem; line-height: 1.5; }
+.encounter-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 0.75rem;
+}
+.encounter-card {
+  background: #1a1a3e;
+  border-radius: 0.3rem;
+  padding: 0.6rem 0.75rem;
+}
+.encounter-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.35rem;
+}
+.encounter-type {
+  color: #00d9ff;
+  font-size: 0.8rem;
+  font-weight: bold;
+  text-transform: uppercase;
+}
+.encounter-difficulty {
+  font-size: 0.75rem;
+  font-weight: bold;
+  padding: 0.15rem 0.5rem;
+  border-radius: 0.2rem;
+}
+.encounter-difficulty.low {
+  color: #2ecc71;
+  background: rgba(46, 204, 113, 0.15);
+}
+.encounter-difficulty.medium {
+  color: #f1c40f;
+  background: rgba(241, 196, 15, 0.15);
+}
+.encounter-difficulty.high {
+  color: #e74c3c;
+  background: rgba(231, 76, 60, 0.15);
+}
+.encounter-desc {
+  color: #bbb;
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
 
 /* GM Notes */
-.gm-notes { padding-left: 1.25rem; margin: 0; display: flex; flex-direction: column; gap: 0.5rem; }
-.gm-notes li { color: #bbb; font-size: 0.85rem; line-height: 1.5; }
+.gm-notes {
+  padding-left: 1.25rem;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.gm-notes li {
+  color: #bbb;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
 
 @media (max-width: 700px) {
-  .session-grid { grid-template-columns: 1fr; }
-  .session-section.full-width { grid-column: 1; }
+  .session-grid {
+    grid-template-columns: 1fr;
+  }
+  .session-section.full-width {
+    grid-column: 1;
+  }
 }
 </style>

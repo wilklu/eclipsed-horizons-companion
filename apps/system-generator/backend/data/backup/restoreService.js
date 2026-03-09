@@ -15,7 +15,7 @@
  */
 
 import { validateUniverse } from "../validators/jsonValidator.js";
-import { jsonUniverseToSqlite } from "./jsonToSqlite.js";
+import { jsonUniverseToSqlite } from "../converters/jsonToSqlite.js";
 
 /**
  * Restore from backup with validation

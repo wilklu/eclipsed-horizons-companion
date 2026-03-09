@@ -1,5 +1,6 @@
 <template>
   <div id="app-root">
+    <ToastContainer />
     <header class="app-header">
       <div class="header-brand">
         <span class="brand-icon">🌌</span>
@@ -16,17 +17,70 @@
       </nav>
     </header>
     <main class="app-main">
-      <router-view />
+      <ErrorBoundary ref="errorBoundary" @retry="handleRetry">
+        <router-view />
+      </ErrorBoundary>
     </main>
   </div>
 </template>
 
 <script setup>
-import { computed } from "vue";
+import { ref, computed, onMounted, onErrorCaptured } from "vue";
+import { useRoute } from "vue-router";
 import { useGalaxyStore } from "./stores/galaxyStore.js";
+import ToastContainer from "./components/common/ToastContainer.vue";
+import ErrorBoundary from "./components/common/ErrorBoundary.vue";
 
+const route = useRoute();
 const galaxyStore = useGalaxyStore();
 const galaxyId = computed(() => galaxyStore.getCurrentGalaxy?.galaxyId ?? null);
+const errorBoundary = ref(null);
+
+// Global error handler
+onErrorCaptured((err, instance, info) => {
+  console.error("App error captured:", err, info);
+  if (errorBoundary.value) {
+    errorBoundary.value.showError(err);
+  }
+  return false; // Prevent propagation
+});
+
+// Hydrate store on app load
+onMounted(async () => {
+  try {
+    // Load all galaxies from API
+    await galaxyStore.loadGalaxies();
+
+    // If there's a galaxyId in the route params or localStorage, set it as current
+    const routeGalaxyId = route.params.galaxyId;
+    const storedGalaxyId = galaxyStore.currentGalaxyId;
+
+    if (routeGalaxyId) {
+      // URL param takes precedence
+      galaxyStore.setCurrentGalaxy(routeGalaxyId);
+    } else if (storedGalaxyId) {
+      // Verify the stored galaxy still exists in the loaded list
+      const galaxyExists = galaxyStore.galaxies.some((g) => g.galaxyId === storedGalaxyId);
+      if (!galaxyExists && galaxyStore.galaxies.length > 0) {
+        // If stored galaxy doesn't exist, default to first available
+        galaxyStore.setCurrentGalaxy(galaxyStore.galaxies[0].galaxyId);
+      }
+    } else if (galaxyStore.galaxies.length > 0) {
+      // No stored galaxy, default to first one
+      galaxyStore.setCurrentGalaxy(galaxyStore.galaxies[0].galaxyId);
+    }
+  } catch (error) {
+    console.error("Failed to load galaxies:", error);
+    if (errorBoundary.value) {
+      errorBoundary.value.showError(error);
+    }
+  }
+});
+
+function handleRetry() {
+  // Retry loading galaxies
+  galaxyStore.loadGalaxies();
+}
 </script>
 
 <style>
@@ -88,7 +142,9 @@ body {
   font-size: 0.9rem;
   padding: 0.25rem 0.5rem;
   border-radius: 0.25rem;
-  transition: color 0.2s, background 0.2s;
+  transition:
+    color 0.2s,
+    background 0.2s;
 }
 
 .nav-link:hover,

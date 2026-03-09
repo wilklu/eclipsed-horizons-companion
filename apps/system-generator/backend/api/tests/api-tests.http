@@ -1,0 +1,406 @@
+###
+# System Generator API Tests
+# Use with REST Client extension in VS Code
+# Base URL: http://localhost:3100
+###
+
+@baseUrl = http://localhost:3100/api
+@contentType = application/json
+
+### Health Check
+GET {{baseUrl}}/health
+
+###############################################################################
+# GALAXIES
+###############################################################################
+
+### List all galaxies
+GET {{baseUrl}}/galaxies
+
+### Get galaxy by ID
+GET {{baseUrl}}/galaxies/test-galaxy-001
+
+### Create new galaxy
+POST {{baseUrl}}/galaxies
+Content-Type: {{contentType}}
+
+{
+  "galaxyId": "test-galaxy-001",
+  "galaxyNames": [
+    {
+      "name": "Test Galaxy",
+      "language": "English",
+      "isPrimary": true
+    }
+  ],
+  "galaxyType": {
+    "classification": "Spiral",
+    "subtype": "Barred Spiral",
+    "hubbleType": "SBc"
+  },
+  "galaxyCoordinates": {
+    "x": 100,
+    "y": 200,
+    "z": 50,
+    "referenceFrame": "galactic"
+  },
+  "galaxyStatistics": {
+    "estimatedStarSystems": 250000000000,
+    "estimatedPlanets": 1000000000000,
+    "catalogedSystems": 1000,
+    "inhabitedWorlds": 50
+  },
+  "physicalProperties": {
+    "diameterInLightYears": 100000,
+    "thicknessInLightYears": 1000,
+    "massInSolarMasses": 1000000000000,
+    "ageInBillionYears": 13.0
+  }
+}
+
+### Update galaxy
+PUT {{baseUrl}}/galaxies/test-galaxy-001
+Content-Type: {{contentType}}
+
+{
+  "galaxyId": "test-galaxy-001",
+  "galaxyNames": [
+    {
+      "name": "Test Galaxy Updated",
+      "language": "English",
+      "isPrimary": true
+    }
+  ],
+  "galaxyType": {
+    "classification": "Spiral",
+    "subtype": "Barred Spiral",
+    "hubbleType": "SBc"
+  },
+  "galaxyCoordinates": {
+    "x": 100,
+    "y": 200,
+    "z": 50,
+    "referenceFrame": "galactic"
+  },
+  "galaxyStatistics": {
+    "estimatedStarSystems": 250000000000,
+    "estimatedPlanets": 1000000000000,
+    "catalogedSystems": 1500,
+    "inhabitedWorlds": 75
+  },
+  "physicalProperties": {
+    "diameterInLightYears": 100000,
+    "thicknessInLightYears": 1000,
+    "massInSolarMasses": 1000000000000,
+    "ageInBillionYears": 13.0
+  }
+}
+
+### Delete galaxy
+DELETE {{baseUrl}}/galaxies/test-galaxy-001
+
+###############################################################################
+# SECTORS
+###############################################################################
+
+### List all sectors
+GET {{baseUrl}}/sectors
+
+### Get sectors for a galaxy
+GET {{baseUrl}}/galaxies/test-galaxy-001/sectors
+
+### Get sector by ID
+GET {{baseUrl}}/sectors/test-sector-001
+
+### Create new sector
+POST {{baseUrl}}/sectors
+Content-Type: {{contentType}}
+
+{
+  "sectorId": "test-sector-001",
+  "galaxyId": "test-galaxy-001",
+  "sectorName": "Test Sector Alpha",
+  "sectorCoordinates": {
+    "x": 10,
+    "y": 20,
+    "subsectorGrid": "8x10"
+  },
+  "density": "average",
+  "catalogedSystems": 150
+}
+
+### Update sector
+PUT {{baseUrl}}/sectors/test-sector-001
+Content-Type: {{contentType}}
+
+{
+  "sectorId": "test-sector-001",
+  "galaxyId": "test-galaxy-001",
+  "sectorName": "Test Sector Alpha Updated",
+  "sectorCoordinates": {
+    "x": 10,
+    "y": 20,
+    "subsectorGrid": "8x10"
+  },
+  "density": "dense",
+  "catalogedSystems": 200
+}
+
+### Delete sector
+DELETE {{baseUrl}}/sectors/test-sector-001
+
+###############################################################################
+# SYSTEMS
+###############################################################################
+
+### List all systems
+GET {{baseUrl}}/systems
+
+### Get systems for a sector
+GET {{baseUrl}}/sectors/test-sector-001/systems
+
+### Get system by ID
+GET {{baseUrl}}/systems/test-system-001
+
+### Create new system
+POST {{baseUrl}}/systems
+Content-Type: {{contentType}}
+
+{
+  "systemId": "test-system-001",
+  "galaxyId": "test-galaxy-001",
+  "sectorId": "test-sector-001",
+  "hexCoordinate": "0815",
+  "stars": [
+    {
+      "designation": "G2V",
+      "spectralClass": "G",
+      "luminosityClass": "V",
+      "mass": 1.0,
+      "luminosity": 1.0,
+      "temperature": 5778,
+      "isPrimary": true
+    }
+  ],
+  "planetCount": 8,
+  "gasGiantCount": 2,
+  "asteroidBelts": 1
+}
+
+### Update system
+PUT {{baseUrl}}/systems/test-system-001
+Content-Type: {{contentType}}
+
+{
+  "systemId": "test-system-001",
+  "galaxyId": "test-galaxy-001",
+  "sectorId": "test-sector-001",
+  "hexCoordinate": "0815",
+  "stars": [
+    {
+      "designation": "G2V",
+      "spectralClass": "G",
+      "luminosityClass": "V",
+      "mass": 1.0,
+      "luminosity": 1.0,
+      "temperature": 5778,
+      "isPrimary": true
+    }
+  ],
+  "planetCount": 10,
+  "gasGiantCount": 3,
+  "asteroidBelts": 2
+}
+
+### Delete system
+DELETE {{baseUrl}}/systems/test-system-001
+
+###############################################################################
+# WORLDS
+###############################################################################
+
+### List all worlds
+GET {{baseUrl}}/worlds
+
+### Get worlds for a system
+GET {{baseUrl}}/systems/test-system-001/worlds
+
+### Get world by ID
+GET {{baseUrl}}/worlds/test-world-001
+
+### Create new world
+POST {{baseUrl}}/worlds
+Content-Type: {{contentType}}
+
+{
+  "worldId": "test-world-001",
+  "systemId": "test-system-001",
+  "worldName": "Test Prime",
+  "orbitalPosition": 3,
+  "uwp": "A788899-C",
+  "size": 7,
+  "atmosphere": 8,
+  "hydrographics": 8,
+  "population": 8,
+  "government": 9,
+  "lawLevel": 9,
+  "techLevel": 12,
+  "starport": "A",
+  "tradeCodes": ["Ri", "Hi", "In"],
+  "physicalProperties": {
+    "diameter": 11200,
+    "gravity": 0.98,
+    "temperature": 288,
+    "dayLength": 24,
+    "orbitalPeriod": 365
+  }
+}
+
+### Update world
+PUT {{baseUrl}}/worlds/test-world-001
+Content-Type: {{contentType}}
+
+{
+  "worldId": "test-world-001",
+  "systemId": "test-system-001",
+  "worldName": "Test Prime Updated",
+  "orbitalPosition": 3,
+  "uwp": "A788899-D",
+  "size": 7,
+  "atmosphere": 8,
+  "hydrographics": 8,
+  "population": 8,
+  "government": 9,
+  "lawLevel": 9,
+  "techLevel": 13,
+  "starport": "A",
+  "tradeCodes": ["Ri", "Hi", "In"],
+  "physicalProperties": {
+    "diameter": 11200,
+    "gravity": 0.98,
+    "temperature": 288,
+    "dayLength": 24,
+    "orbitalPeriod": 365
+  }
+}
+
+### Delete world
+DELETE {{baseUrl}}/worlds/test-world-001
+
+###############################################################################
+# SOPHONTS
+###############################################################################
+
+### List all sophonts
+GET {{baseUrl}}/sophonts
+
+### Get sophonts for a world
+GET {{baseUrl}}/worlds/test-world-001/sophonts
+
+### Get sophont by ID
+GET {{baseUrl}}/sophonts/test-sophont-001
+
+### Create new sophont
+POST {{baseUrl}}/sophonts
+Content-Type: {{contentType}}
+
+{
+  "sophontId": "test-sophont-001",
+  "worldId": "test-world-001",
+  "speciesName": "Testarians",
+  "bodyPlan": "Bilateral",
+  "homeEnvironment": "Temperate",
+  "biology": {
+    "height": 180,
+    "mass": 75,
+    "lifespan": 80,
+    "diet": "Omnivore"
+  },
+  "culture": {
+    "language": "Testarian",
+    "government": "Democracy",
+    "techLevel": 12
+  }
+}
+
+### Update sophont
+PUT {{baseUrl}}/sophonts/test-sophont-001
+Content-Type: {{contentType}}
+
+{
+  "sophontId": "test-sophont-001",
+  "worldId": "test-world-001",
+  "speciesName": "Testarians Updated",
+  "bodyPlan": "Bilateral",
+  "homeEnvironment": "Temperate",
+  "biology": {
+    "height": 180,
+    "mass": 75,
+    "lifespan": 85,
+    "diet": "Omnivore"
+  },
+  "culture": {
+    "language": "Testarian",
+    "government": "Democracy",
+    "techLevel": 13
+  }
+}
+
+### Delete sophont
+DELETE {{baseUrl}}/sophonts/test-sophont-001
+
+###############################################################################
+# IMPORT/EXPORT
+###############################################################################
+
+### Export entire universe
+GET {{baseUrl}}/export
+
+### Export specific galaxy
+GET {{baseUrl}}/export/test-galaxy-001
+
+### Import universe
+POST {{baseUrl}}/import
+Content-Type: {{contentType}}
+
+{
+  "universe": {
+    "version": "1.0.0",
+    "exportDate": "2026-03-08T00:00:00Z",
+    "galaxies": [
+      {
+        "galaxyId": "import-test-001",
+        "galaxyNames": [
+          {
+            "name": "Imported Galaxy",
+            "language": "English",
+            "isPrimary": true
+          }
+        ],
+        "galaxyType": {
+          "classification": "Elliptical",
+          "subtype": "Giant Elliptical",
+          "hubbleType": "E0"
+        },
+        "galaxyCoordinates": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "referenceFrame": "galactic"
+        },
+        "galaxyStatistics": {
+          "estimatedStarSystems": 100000000000,
+          "estimatedPlanets": 500000000000,
+          "catalogedSystems": 100,
+          "inhabitedWorlds": 10
+        },
+        "physicalProperties": {
+          "diameterInLightYears": 50000,
+          "thicknessInLightYears": 50000,
+          "massInSolarMasses": 2000000000000,
+          "ageInBillionYears": 12.0
+        }
+      }
+    ]
+  }
+}

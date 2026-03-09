@@ -1,10 +1,11 @@
 <template>
   <div class="sophont-generator">
+    <LoadingSpinner :isVisible="isLoading" :message="loadingMessage" />
     <SurveyNavigation
       currentClass="Sophont Generator"
       :show-regenerate="!!sophont"
       :show-export="!!sophont"
-      :back-route="{ name: 'GalaxySurvey' }"
+      :back-route="backRoute"
       @regenerate="generateSophont"
       @export="exportSophont"
     />
@@ -18,6 +19,15 @@
             <input v-model="speciesName" placeholder="Enter species name…" class="text-input" />
             <button class="btn btn-secondary" @click="randomizeName">🎲</button>
           </div>
+        </div>
+        <div class="control-group">
+          <label>Load Existing Sophont:</label>
+          <select v-model="selectedSophontId" class="select-input" @change="loadSelectedSophont">
+            <option value="">Select a saved sophont...</option>
+            <option v-for="entry in sophontOptions" :key="entry.sophontId" :value="entry.sophontId">
+              {{ entry.label }}
+            </option>
+          </select>
         </div>
         <div class="control-group">
           <label>Body Plan:</label>
@@ -36,6 +46,16 @@
         <div class="control-group control-action">
           <button class="btn btn-primary" @click="generateSophont">⚡ Generate Sophont</button>
         </div>
+      </div>
+
+      <div v-if="!activeWorldId" class="context-hint warning">
+        No world is selected. Open this page from World Builder to save and reload sophonts for that world.
+      </div>
+      <div v-else-if="!hasSavedSophonts && !sophont" class="context-hint">
+        No saved sophonts found for this world yet. Generate your first sophont to continue.
+      </div>
+      <div v-else-if="hasSavedSophonts && !sophont" class="context-hint">
+        Select a saved sophont from the dropdown or generate a new one.
       </div>
 
       <!-- Sophont Profile -->
@@ -138,18 +158,39 @@
 </template>
 
 <script setup>
-import { ref } from "vue";
+import { computed, ref, watch, watchEffect } from "vue";
+import { useRoute } from "vue-router";
 import SurveyNavigation from "../../components/common/SurveyNavigation.vue";
+import LoadingSpinner from "../../components/common/LoadingSpinner.vue";
+import { useSophontStore } from "../../stores/sophontStore.js";
+import { useWorldStore } from "../../stores/worldStore.js";
+import * as toastService from "../../utils/toast.js";
+
+const route = useRoute();
+const sophontStore = useSophontStore();
+const worldStore = useWorldStore();
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const BODY_PLANS = [
-  "Bilateral Symmetry", "Radial Symmetry", "Asymmetric", "Segmented",
-  "Aquatic", "Arboreal", "Insectoid", "Avian",
+  "Bilateral Symmetry",
+  "Radial Symmetry",
+  "Asymmetric",
+  "Segmented",
+  "Aquatic",
+  "Arboreal",
+  "Insectoid",
+  "Avian",
 ];
 
 const HOME_ENVS = [
-  "Dense Atmosphere", "Thin Atmosphere", "Aquatic", "Arctic",
-  "Desert", "Forest", "Mountain", "Underground",
+  "Dense Atmosphere",
+  "Thin Atmosphere",
+  "Aquatic",
+  "Arctic",
+  "Desert",
+  "Forest",
+  "Mountain",
+  "Underground",
 ];
 
 const SENSORY_TRAITS_POOL = [
@@ -166,22 +207,40 @@ const SENSORY_TRAITS_POOL = [
 ];
 
 const SPECIAL_ABILITIES_POOL = [
-  "Natural Armour (armour 2)", "Amphibious", "Flight (limited)",
-  "Regeneration (minor wounds)", "Psionic Potential",
-  "Toxin Resistance", "Camouflage (natural)", "Bioluminescence",
-  "Venom (melee attack, 1D damage)", "Exoskeleton (+1 armour)",
+  "Natural Armour (armour 2)",
+  "Amphibious",
+  "Flight (limited)",
+  "Regeneration (minor wounds)",
+  "Psionic Potential",
+  "Toxin Resistance",
+  "Camouflage (natural)",
+  "Bioluminescence",
+  "Venom (melee attack, 1D damage)",
+  "Exoskeleton (+1 armour)",
 ];
 
 const SOCIAL_STRUCTURES = [
-  "Hive Mind (partial)", "Clan-based Tribes", "Matriarchal Hierarchy",
-  "Patriarchal Hierarchy", "Meritocracy", "Theocracy",
-  "Technocracy", "Democratic Collective", "Nomadic Bands",
+  "Hive Mind (partial)",
+  "Clan-based Tribes",
+  "Matriarchal Hierarchy",
+  "Patriarchal Hierarchy",
+  "Meritocracy",
+  "Theocracy",
+  "Technocracy",
+  "Democratic Collective",
+  "Nomadic Bands",
 ];
 
 const GOVERNMENTS = [
-  "None (anarchy)", "Council of Elders", "Corporate Council",
-  "Hereditary Monarchy", "Elected Senate", "Military Junta",
-  "Religious Authority", "AI Governance", "Federation",
+  "None (anarchy)",
+  "Council of Elders",
+  "Corporate Council",
+  "Hereditary Monarchy",
+  "Elected Senate",
+  "Military Junta",
+  "Religious Authority",
+  "AI Governance",
+  "Federation",
 ];
 
 const TAGLINES = [
@@ -200,11 +259,69 @@ const SPECIES_SUFFIXES = ["athi", "oni", "ek", "ara", "ites", "oth", "ians", "en
 
 const ICONS = ["👽", "🦎", "🐙", "🦑", "🕷️", "🦂", "🐦", "🦈", "🐉", "🦋"];
 
+const API_CULTURE_VALUES = [
+  "honor",
+  "profit",
+  "knowledge",
+  "harmony",
+  "survival",
+  "exploration",
+  "tradition",
+  "innovation",
+];
+const API_CULTURE_TABOOS = ["violence", "deception", "technology", "commerce", "hierarchy", "nature", "religion"];
+
 // ── State ─────────────────────────────────────────────────────────────────────
 const speciesName = ref("");
 const bodyPlan = ref("random");
 const homeEnvironment = ref("random");
+const selectedSophontId = ref("");
 const sophont = ref(null);
+const isLoading = ref(false);
+const loadingMode = ref("generate");
+
+const activeWorldId = computed(() => String(route.query.worldId || worldStore.currentWorldId || ""));
+const activeSystemId = computed(() => String(route.query.systemId || ""));
+
+const backRoute = computed(() => {
+  if (activeSystemId.value) {
+    return {
+      name: "WorldBuilder",
+      params: { systemId: activeSystemId.value },
+      query: {
+        galaxyId: route.query.galaxyId || "",
+        sectorId: route.query.sectorId || "",
+      },
+    };
+  }
+  return { name: "GalaxySurvey" };
+});
+
+const sophontOptions = computed(() =>
+  sophontStore.sophonts.map((entry) => ({
+    sophontId: entry.sophontId,
+    label: `${entry.name} (${entry.sophontId})`,
+  })),
+);
+const hasSavedSophonts = computed(() => sophontOptions.value.length > 0);
+
+const loadingMessage = computed(() => (loadingMode.value === "load" ? "Loading sophont..." : "Generating sophont..."));
+
+watchEffect(() => {
+  if (sophont.value?.name) {
+    document.title = `Sophont: ${sophont.value.name} | Eclipsed Horizons`;
+  } else {
+    document.title = "Sophont Generator | Eclipsed Horizons";
+  }
+});
+
+watch(
+  activeWorldId,
+  async (worldId) => {
+    await initializeSophontSelection(worldId);
+  },
+  { immediate: true },
+);
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function pick(arr) {
@@ -217,16 +334,54 @@ function d6(n = 1) {
   return t;
 }
 
-// ── Actions ───────────────────────────────────────────────────────────────────
-function randomizeName() {
-  speciesName.value = pick(SPECIES_PREFIXES) + pick(SPECIES_SUFFIXES);
+function pickUnique(arr, count) {
+  return [...arr].sort(() => Math.random() - 0.5).slice(0, count);
 }
 
-function generateSophont() {
+function sanitizeId(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 20);
+}
+
+function mapBodyPlanToApi(value) {
+  return (
+    {
+      "Bilateral Symmetry": "Humanoid",
+      "Radial Symmetry": "Radial",
+      Asymmetric: "Exotic",
+      Segmented: "Insectoid",
+      Aquatic: "Aquatic",
+      Arboreal: "Humanoid",
+      Insectoid: "Insectoid",
+      Avian: "Avian",
+    }[value] || "Exotic"
+  );
+}
+
+function mapSocialStructureToApi(value) {
+  return (
+    {
+      "Hive Mind (partial)": "hivemind",
+      "Clan-based Tribes": "tribal",
+      "Matriarchal Hierarchy": "feudal",
+      "Patriarchal Hierarchy": "feudal",
+      Meritocracy: "meritocratic",
+      Theocracy: "autocratic",
+      Technocracy: "meritocratic",
+      "Democratic Collective": "democratic",
+      "Nomadic Bands": "tribal",
+    }[value] || "tribal"
+  );
+}
+
+function buildGeneratedProfile() {
   const bp = bodyPlan.value === "random" ? pick(BODY_PLANS) : bodyPlan.value;
   const env = homeEnvironment.value === "random" ? pick(HOME_ENVS) : homeEnvironment.value;
 
-  // Characteristic modifiers (must sum to ≤ 0 for balance)
   const rawMods = {
     Strength: d6(1) - 4,
     Dexterity: d6(1) - 4,
@@ -235,22 +390,16 @@ function generateSophont() {
     Education: d6(1) - 4,
     "Social Standing": d6(1) - 4,
   };
-  // Clamp each to [-2, +2]
-  const charModifiers = Object.fromEntries(
-    Object.entries(rawMods).map(([k, v]) => [k, Math.min(2, Math.max(-2, v))]),
-  );
+  const charModifiers = Object.fromEntries(Object.entries(rawMods).map(([k, v]) => [k, Math.min(2, Math.max(-2, v))]));
 
-  // Random sensory traits (2–4)
-  const shuffled = [...SENSORY_TRAITS_POOL].sort(() => Math.random() - 0.5);
-  const sensoryTraits = shuffled.slice(0, 2 + Math.floor(Math.random() * 3));
-
-  // Special abilities (0–2)
+  const sensoryTraits = [...SENSORY_TRAITS_POOL]
+    .sort(() => Math.random() - 0.5)
+    .slice(0, 2 + Math.floor(Math.random() * 3));
   const abilityPool = [...SPECIAL_ABILITIES_POOL].sort(() => Math.random() - 0.5);
   const specialAbilities = Math.random() < 0.3 ? abilityPool.slice(0, 1 + Math.floor(Math.random() * 2)) : [];
-
   const techLevel = Math.floor(Math.random() * 16);
 
-  sophont.value = {
+  return {
     name: speciesName.value || pick(SPECIES_PREFIXES) + pick(SPECIES_SUFFIXES),
     icon: pick(ICONS),
     tagline: pick(TAGLINES),
@@ -278,6 +427,158 @@ function generateSophont() {
     ftlCapable: techLevel >= 9,
     specialAbilities,
   };
+}
+
+function hydrateSophontFromPersisted(persisted) {
+  if (persisted?.metadata?.generatedProfile) {
+    return persisted.metadata.generatedProfile;
+  }
+
+  return {
+    name: persisted?.name || "Unknown Sophont",
+    icon: "👽",
+    tagline: persisted?.metadata?.origin || "Recovered from persisted record",
+    biology: {
+      "Body Plan": persisted?.bodyPlan || "Unknown",
+      "Home Environment": "Unknown",
+    },
+    charModifiers: {
+      Strength: 0,
+      Dexterity: 0,
+      Endurance: 0,
+      Intelligence: 0,
+      Education: 0,
+      "Social Standing": 0,
+    },
+    sensoryTraits: [],
+    culture: {
+      Values: Array.isArray(persisted?.culture?.values) ? persisted.culture.values.join(", ") : "Unknown",
+      Taboos: Array.isArray(persisted?.culture?.taboos) ? persisted.culture.taboos.join(", ") : "Unknown",
+      Structure: persisted?.culture?.socialStructure || "Unknown",
+    },
+    techLevel: Number(persisted?.techLevel) || 0,
+    socialStructure: persisted?.culture?.socialStructure || "Unknown",
+    government: "Unknown",
+    ftlCapable: Number(persisted?.techLevel) >= 9,
+    specialAbilities: [],
+  };
+}
+
+// ── Actions ───────────────────────────────────────────────────────────────────
+function randomizeName() {
+  speciesName.value = pick(SPECIES_PREFIXES) + pick(SPECIES_SUFFIXES);
+}
+
+async function loadSelectedSophont() {
+  if (!selectedSophontId.value) {
+    return;
+  }
+  await loadPersistedSophont(selectedSophontId.value, true);
+}
+
+async function loadPersistedSophont(sophontId, showToast = false) {
+  const persisted = sophontStore.sophonts.find((entry) => entry.sophontId === sophontId);
+  if (!persisted) {
+    toastService.error("Selected sophont could not be found.");
+    return;
+  }
+
+  loadingMode.value = "load";
+  isLoading.value = true;
+
+  try {
+    sophont.value = hydrateSophontFromPersisted(persisted);
+    speciesName.value = sophont.value.name;
+    sophontStore.setCurrentSophont(sophontId);
+    if (showToast) {
+      toastService.success(`Loaded sophont ${sophont.value.name}.`);
+    }
+  } finally {
+    isLoading.value = false;
+    loadingMode.value = "generate";
+  }
+}
+
+async function initializeSophontSelection(worldId) {
+  sophont.value = null;
+  selectedSophontId.value = "";
+
+  if (!worldId) {
+    sophontStore.sophonts = [];
+    return;
+  }
+
+  await sophontStore.loadSophonts(worldId);
+  if (sophontStore.error) {
+    toastService.error(`Failed to load sophonts: ${sophontStore.error}`);
+    return;
+  }
+
+  const currentSophont = sophontStore.sophonts.find((entry) => entry.sophontId === sophontStore.currentSophontId);
+  const fallbackSophont = sophontStore.sophonts[0];
+  const initialSophont = currentSophont ?? fallbackSophont;
+  if (initialSophont) {
+    selectedSophontId.value = initialSophont.sophontId;
+    await loadPersistedSophont(initialSophont.sophontId, false);
+  }
+}
+
+async function generateSophont() {
+  if (!activeWorldId.value) {
+    toastService.error("No world selected. Open Sophont Generator from World Builder to enable persistence.");
+    return;
+  }
+
+  loadingMode.value = "generate";
+  isLoading.value = true;
+
+  try {
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    const generatedProfile = buildGeneratedProfile();
+    sophont.value = generatedProfile;
+
+    const now = new Date().toISOString();
+    const sophontId = `sop_${sanitizeId(generatedProfile.name)}_${Date.now()}`.slice(0, 50);
+    const populationCode = String(
+      Math.floor(Math.random() * 13)
+        .toString(16)
+        .toUpperCase(),
+    );
+
+    const sophontPayload = {
+      sophontId,
+      worldId: activeWorldId.value,
+      name: generatedProfile.name,
+      bodyPlan: mapBodyPlanToApi(generatedProfile.biology["Body Plan"]),
+      culture: {
+        values: pickUnique(API_CULTURE_VALUES, 2),
+        taboos: pickUnique(API_CULTURE_TABOOS, 2),
+        socialStructure: mapSocialStructureToApi(generatedProfile.socialStructure),
+      },
+      population: {
+        current: populationCode,
+        density: +(Math.random() * 500).toFixed(2),
+        growthRate: +((Math.random() - 0.2) * 0.05).toFixed(4),
+      },
+      techLevel: generatedProfile.techLevel,
+      metadata: {
+        createdAt: now,
+        lastModified: now,
+        origin: generatedProfile.tagline,
+        generatedProfile,
+      },
+    };
+
+    const persistedSophont = await sophontStore.createSophont(sophontPayload);
+    selectedSophontId.value = persistedSophont.sophontId;
+
+    toastService.success(`Sophont "${generatedProfile.name}" generated and saved.`);
+  } catch (err) {
+    toastService.error(`Failed to generate/save sophont: ${err.message}`);
+  } finally {
+    isLoading.value = false;
+  }
 }
 
 function exportSophont() {
@@ -327,9 +628,16 @@ function exportSophont() {
   font-size: 0.9rem;
 }
 
-.control-action { justify-content: flex-end; }
-.name-row { display: flex; gap: 0.5rem; }
-.name-row .text-input { flex: 1; }
+.control-action {
+  justify-content: flex-end;
+}
+.name-row {
+  display: flex;
+  gap: 0.5rem;
+}
+.name-row .text-input {
+  flex: 1;
+}
 
 .select-input,
 .text-input {
@@ -351,10 +659,37 @@ function exportSophont() {
   transition: all 0.2s;
 }
 
-.btn-primary { background: #00d9ff; color: #000; }
-.btn-primary:hover { background: #00ffff; box-shadow: 0 0 12px rgba(0, 217, 255, 0.4); }
-.btn-secondary { background: #444; color: #e0e0e0; }
-.btn-secondary:hover { background: #555; }
+.btn-primary {
+  background: #00d9ff;
+  color: #000;
+}
+.btn-primary:hover {
+  background: #00ffff;
+  box-shadow: 0 0 12px rgba(0, 217, 255, 0.4);
+}
+.btn-secondary {
+  background: #444;
+  color: #e0e0e0;
+}
+.btn-secondary:hover {
+  background: #555;
+}
+
+.context-hint {
+  margin-bottom: 1rem;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid #00d9ff;
+  border-radius: 0.25rem;
+  background: rgba(0, 217, 255, 0.08);
+  color: #b7f7ff;
+  font-size: 0.9rem;
+}
+
+.context-hint.warning {
+  border-color: #ffb347;
+  background: rgba(255, 179, 71, 0.1);
+  color: #ffd9a3;
+}
 
 .sophont-display {
   background: #1a1a2e;
@@ -372,9 +707,18 @@ function exportSophont() {
   border-bottom: 1px solid #333;
 }
 
-.sophont-icon { font-size: 3rem; }
-.sophont-header h2 { color: #00d9ff; margin: 0 0 0.4rem; }
-.sophont-tagline { color: #aaa; font-style: italic; margin: 0; }
+.sophont-icon {
+  font-size: 3rem;
+}
+.sophont-header h2 {
+  color: #00d9ff;
+  margin: 0 0 0.4rem;
+}
+.sophont-tagline {
+  color: #aaa;
+  font-style: italic;
+  margin: 0;
+}
 
 .sophont-grid {
   display: grid;
@@ -388,9 +732,16 @@ function exportSophont() {
   padding: 1.25rem;
 }
 
-.sophont-section h3 { color: #00ffff; margin-bottom: 1rem; }
+.sophont-section h3 {
+  color: #00ffff;
+  margin-bottom: 1rem;
+}
 
-.prop-list { display: flex; flex-direction: column; gap: 0.4rem; }
+.prop-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
 .prop-row {
   display: flex;
   gap: 0.75rem;
@@ -398,8 +749,15 @@ function exportSophont() {
   padding: 0.3rem 0;
   border-bottom: 1px solid #1a1a3a;
 }
-.prop-label { color: #00ffff; min-width: 140px; font-weight: bold; }
-.prop-value { color: #e0e0e0; font-family: monospace; }
+.prop-label {
+  color: #00ffff;
+  min-width: 140px;
+  font-weight: bold;
+}
+.prop-value {
+  color: #e0e0e0;
+  font-family: monospace;
+}
 
 .chars-grid {
   display: grid;
@@ -414,13 +772,31 @@ function exportSophont() {
   text-align: center;
 }
 
-.char-name { font-size: 0.75rem; color: #888; margin-bottom: 0.3rem; }
-.char-mod { font-size: 1.3rem; font-weight: bold; font-family: monospace; }
-.char-mod.pos { color: #6bcf7f; }
-.char-mod.neg { color: #ff6b6b; }
-.char-mod.zero { color: #888; }
+.char-name {
+  font-size: 0.75rem;
+  color: #888;
+  margin-bottom: 0.3rem;
+}
+.char-mod {
+  font-size: 1.3rem;
+  font-weight: bold;
+  font-family: monospace;
+}
+.char-mod.pos {
+  color: #6bcf7f;
+}
+.char-mod.neg {
+  color: #ff6b6b;
+}
+.char-mod.zero {
+  color: #888;
+}
 
-.trait-list { display: flex; flex-direction: column; gap: 0.6rem; }
+.trait-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
 .trait-item {
   display: flex;
   align-items: baseline;
@@ -430,11 +806,27 @@ function exportSophont() {
   background: #0d0d2b;
   border-radius: 0.3rem;
 }
-.trait-name { color: #fff; font-weight: bold; font-size: 0.9rem; }
-.trait-dm { font-family: monospace; font-size: 0.85rem; font-weight: bold; }
-.trait-dm.pos { color: #6bcf7f; }
-.trait-dm.neg { color: #ff6b6b; }
-.trait-desc { color: #888; font-size: 0.8rem; width: 100%; }
+.trait-name {
+  color: #fff;
+  font-weight: bold;
+  font-size: 0.9rem;
+}
+.trait-dm {
+  font-family: monospace;
+  font-size: 0.85rem;
+  font-weight: bold;
+}
+.trait-dm.pos {
+  color: #6bcf7f;
+}
+.trait-dm.neg {
+  color: #ff6b6b;
+}
+.trait-desc {
+  color: #888;
+  font-size: 0.8rem;
+  width: 100%;
+}
 
 .ability-item {
   padding: 0.4rem 0.75rem;
@@ -446,5 +838,9 @@ function exportSophont() {
   margin-bottom: 0.4rem;
 }
 
-.empty-state { color: #555; font-style: italic; padding: 0.3rem 0; }
+.empty-state {
+  color: #555;
+  font-style: italic;
+  padding: 0.3rem 0;
+}
 </style>

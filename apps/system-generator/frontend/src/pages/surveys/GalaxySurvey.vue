@@ -1,14 +1,36 @@
 <template>
   <div class="galaxy-survey">
+    <LoadingSpinner :isVisible="isLoading" message="Loading galaxies..." />
+    <ConfirmDialog
+      :isOpen="confirmDialog.isOpen"
+      :title="confirmDialog.title"
+      :message="confirmDialog.message"
+      :confirmText="confirmDialog.confirmText"
+      @confirm="confirmDeleteGalaxy"
+      @cancel="cancelDeleteGalaxy"
+    />
+
     <SurveyNavigation :currentClass="'Galaxy'" @regenerate="regenerateGalaxy" @export="exportGalaxy" />
 
     <div class="survey-content">
+      <!-- Error Message Display -->
+      <div v-if="errorMessage" class="error-banner">
+        <div class="error-content">
+          <span class="error-icon">⚠️</span>
+          <span>{{ errorMessage }}</span>
+          <button @click="clearError" class="error-close">✕</button>
+        </div>
+      </div>
+
       <!-- Galaxy Creation/Selection -->
       <div class="control-panel">
         <div class="control-group">
           <label>Galaxy Operation:</label>
           <button @click="showNewGalaxyForm = true" class="btn btn-primary">➕ Create New Galaxy</button>
           <button @click="showImportForm = true" class="btn btn-secondary">📥 Import Galaxy</button>
+          <button @click="refreshGalaxies" class="btn btn-secondary" title="Refresh galaxies from server">
+            🔄 Refresh
+          </button>
         </div>
       </div>
 
@@ -23,10 +45,9 @@
         >
           <div class="galaxy-icon">🌌</div>
           <div class="galaxy-info">
-            <h3>{{ galaxy.galaxyNames[0].name }}</h3>
-            <p class="type">{{ galaxy.galaxyType.subtype }}</p>
-            <p class="coords">({{ galaxy.galaxyCoordinates.x }}, {{ galaxy.galaxyCoordinates.y }})</p>
-            <p class="systems">{{ formatNumber(galaxy.galaxyStatistics.estimatedStarSystems) }} systems</p>
+            <h3>{{ galaxy.name }}</h3>
+            <p class="type">{{ galaxy.type }}</p>
+            <p class="id">{{ galaxy.galaxyId }}</p>
           </div>
         </div>
       </div>
@@ -34,8 +55,8 @@
       <!-- Selected Galaxy Details -->
       <div v-if="currentGalaxy" class="galaxy-details">
         <div class="details-header">
-          <h2>{{ currentGalaxy.galaxyNames[0].name }}</h2>
-          <div class="galaxy-type-badge">{{ currentGalaxy.galaxyType.subtype }}</div>
+          <h2>{{ currentGalaxy.name }}</h2>
+          <div class="galaxy-type-badge">{{ currentGalaxy.type }}</div>
         </div>
 
         <div class="details-grid">
@@ -49,62 +70,49 @@
               </div>
               <div class="property">
                 <span class="label">Type:</span>
-                <span class="value">{{ currentGalaxy.galaxyType.classification }}</span>
+                <span class="value">{{ currentGalaxy.type }}</span>
               </div>
               <div class="property">
-                <span class="label">Age:</span>
-                <span class="value"> {{ currentGalaxy.physicalProperties.ageInBillionYears }} billion years </span>
+                <span class="label">Bulge Radius:</span>
+                <span class="value">{{ currentGalaxy.morphology?.bulgeRadius || "N/A" }} pc</span>
               </div>
               <div class="property">
-                <span class="label">Diameter:</span>
-                <span class="value">
-                  {{ currentGalaxy.galaxyDimensions.diameterInParsecs.toLocaleString() }} parsecs
-                </span>
+                <span class="label">Disk Thickness:</span>
+                <span class="value">{{ currentGalaxy.morphology?.diskThickness || "N/A" }} pc</span>
               </div>
             </div>
           </section>
 
-          <!-- Statistics -->
+          <!-- Morphology Details -->
           <section class="detail-section">
-            <h3>📈 Statistics</h3>
+            <h3>🔬 Morphology</h3>
             <div class="property-list">
               <div class="property">
-                <span class="label">Estimated Systems:</span>
-                <span class="value">
-                  {{ formatNumber(currentGalaxy.galaxyStatistics.estimatedStarSystems) }}
-                </span>
+                <span class="label">Spiral Arms:</span>
+                <span class="value">{{ currentGalaxy.morphology?.armCount || 0 }}</span>
               </div>
               <div class="property">
-                <span class="label">Mapped Systems:</span>
-                <span class="value">
-                  {{ currentGalaxy.galaxyStatistics.mappedSystems }}
-                </span>
-              </div>
-              <div class="property">
-                <span class="label">Explored Systems:</span>
-                <span class="value">
-                  {{ currentGalaxy.galaxyStatistics.exploredSystems }}
-                </span>
-              </div>
-              <div class="property">
-                <span class="label">Populated Worlds:</span>
-                <span class="value">
-                  {{ currentGalaxy.galaxyStatistics.populatedWorlds }}
-                </span>
+                <span class="label">Core Density Factor:</span>
+                <span class="value">{{ (currentGalaxy.morphology?.coreDensity * 100).toFixed(1) }}%</span>
               </div>
             </div>
           </section>
 
-          <!-- Regions -->
-          <section class="detail-section" v-if="currentGalaxy.galaxyRegions?.length">
-            <h3>🗺️ Regions</h3>
-            <div class="region-list">
-              <div v-for="region in currentGalaxy.galaxyRegions" :key="region.regionId" class="region-item">
-                <strong>{{ region.regionName }}</strong>
-                <p>{{ region.description }}</p>
-                <span class="density-badge" :class="region.sectorDensity">
-                  {{ region.sectorDensity }}
-                </span>
+          <!-- Metadata -->
+          <section class="detail-section">
+            <h3>📋 Metadata</h3>
+            <div class="property-list">
+              <div class="property">
+                <span class="label">Created:</span>
+                <span class="value">{{ new Date(currentGalaxy.metadata?.createdAt).toLocaleDateString() }}</span>
+              </div>
+              <div class="property">
+                <span class="label">Last Modified:</span>
+                <span class="value">{{ new Date(currentGalaxy.metadata?.lastModified).toLocaleDateString() }}</span>
+              </div>
+              <div class="property">
+                <span class="label">Status:</span>
+                <span class="value">{{ currentGalaxy.metadata?.status || "Active" }}</span>
               </div>
             </div>
           </section>
@@ -114,7 +122,7 @@
         <div class="action-buttons">
           <button @click="proceedToClass0" class="btn btn-primary">🔍 Class 0 Sector Survey →</button>
           <button @click="editGalaxy" class="btn btn-secondary">✏️ Edit Galaxy</button>
-          <button @click="deleteGalaxy" class="btn btn-danger">🗑️ Delete Galaxy</button>
+          <button @click="showDeleteConfirm" class="btn btn-danger">🗑️ Delete Galaxy</button>
         </div>
       </div>
 
@@ -124,29 +132,41 @@
           <h2>Create New Galaxy</h2>
           <form @submit.prevent="createNewGalaxy">
             <div class="form-group">
-              <label>Galaxy Name (Primary):</label>
-              <input v-model="newGalaxyForm.primaryName" required />
+              <label>Galaxy Name:</label>
+              <input v-model="newGalaxyForm.name" required />
             </div>
             <div class="form-group">
               <label>Galaxy Type:</label>
-              <select v-model="newGalaxyForm.galaxyType">
+              <select v-model="newGalaxyForm.type">
                 <option value="Spiral">Spiral</option>
                 <option value="Barred Spiral">Barred Spiral</option>
                 <option value="Elliptical">Elliptical</option>
                 <option value="Lenticular">Lenticular</option>
                 <option value="Irregular">Irregular</option>
+                <option value="Dwarf">Dwarf</option>
               </select>
             </div>
             <div class="form-group">
-              <label>Coordinates - X:</label>
-              <input v-model.number="newGalaxyForm.coordinateX" type="number" />
+              <label>Bulge Radius (parsecs):</label>
+              <input v-model.number="newGalaxyForm.bulgeRadius" type="number" min="5000" max="50000" />
             </div>
             <div class="form-group">
-              <label>Coordinates - Y:</label>
-              <input v-model.number="newGalaxyForm.coordinateY" type="number" />
+              <label>Spiral Arms:</label>
+              <input v-model.number="newGalaxyForm.armCount" type="number" min="2" max="12" />
+            </div>
+            <div class="form-group">
+              <label>Core Density (0-1):</label>
+              <input v-model.number="newGalaxyForm.coreDensity" type="number" min="0.01" max="1" step="0.01" />
+            </div>
+            <div class="form-group">
+              <label>Disk Thickness (parsecs):</label>
+              <input v-model.number="newGalaxyForm.diskThickness" type="number" min="500" max="10000" />
             </div>
             <div class="form-actions">
-              <button type="submit" class="btn btn-primary">Create Galaxy</button>
+              <button type="button" @click="randomizeGalaxyParams" class="btn btn-info">🎲 Randomize</button>
+              <button type="submit" class="btn btn-primary" :disabled="isLoading">
+                {{ isLoading ? "Creating..." : "Create Galaxy" }}
+              </button>
               <button type="button" @click="showNewGalaxyForm = false" class="btn btn-secondary">Cancel</button>
             </div>
           </form>
@@ -161,14 +181,6 @@
             <div class="form-group">
               <label>Select Galaxy File (JSON):</label>
               <input type="file" @change="handleFileSelect" accept=".json" required />
-            </div>
-            <div class="form-group">
-              <label>Target Coordinates - X:</label>
-              <input v-model.number="importForm.targetX" type="number" />
-            </div>
-            <div class="form-group">
-              <label>Target Coordinates - Y:</label>
-              <input v-model.number="importForm.targetY" type="number" />
             </div>
             <div v-if="importProgress > 0" class="progress-bar">
               <div class="progress-fill" :style="{ width: importProgress + '%' }">{{ importProgress }}%</div>
@@ -187,86 +199,150 @@
 </template>
 
 <script setup>
-import { ref, computed } from "vue";
-import { useRouter } from "vue-router";
+import { ref, computed, onMounted, watchEffect } from "vue";
+import { useRouter, useRoute } from "vue-router";
 import { useGalaxyStore } from "../../stores/galaxyStore.js";
 import SurveyNavigation from "../../components/common/SurveyNavigation.vue";
+import LoadingSpinner from "../../components/common/LoadingSpinner.vue";
+import ConfirmDialog from "../../components/common/ConfirmDialog.vue";
+import * as toastService from "../../utils/toast.js";
 
 const router = useRouter();
+const route = useRoute();
 const galaxyStore = useGalaxyStore();
 
 const galaxies = computed(() => galaxyStore.getAllGalaxies);
 const currentGalaxy = computed(() => galaxyStore.getCurrentGalaxy);
 const importInProgress = computed(() => galaxyStore.importInProgress);
 const importProgress = computed(() => galaxyStore.importProgress);
+const isLoading = computed(() => galaxyStore.isLoading);
 
 const showNewGalaxyForm = ref(false);
 const showImportForm = ref(false);
+const errorMessage = ref("");
+
+const confirmDialog = ref({
+  isOpen: false,
+  title: "Delete Galaxy",
+  message: "Are you sure? This action cannot be undone.",
+  confirmText: "Delete",
+  galaxyIdToDelete: null,
+});
 
 const newGalaxyForm = ref({
-  primaryName: "",
-  galaxyType: "Spiral",
-  coordinateX: 0,
-  coordinateY: 0,
+  name: "",
+  type: "Spiral",
+  bulgeRadius: 5000,
+  armCount: 2,
+  coreDensity: 0.7,
+  diskThickness: 1000,
 });
 
 const importForm = ref({
-  targetX: 0,
-  targetY: 0,
   fileData: null,
 });
+
+// Update page title dynamically
+watchEffect(() => {
+  const galaxy = currentGalaxy.value;
+  if (galaxy && galaxy.name) {
+    document.title = `Galaxy Survey: ${galaxy.name} | Eclipsed Horizons`;
+  } else {
+    document.title = "Galaxy Survey | Eclipsed Horizons";
+  }
+});
+
+// Handle route errors and ensure galaxy state is synced before navigation.
+onMounted(async () => {
+  const errorCode = route.query.error;
+  if (errorCode === "invalid-galaxy") {
+    errorMessage.value = "⚠️ Invalid galaxy selected. Please select a valid galaxy before proceeding.";
+  } else if (errorCode === "invalid-sector") {
+    errorMessage.value = "⚠️ Invalid sector selected. Please select a valid sector before proceeding.";
+  } else if (errorCode === "invalid-system") {
+    errorMessage.value = "⚠️ Invalid system selected. Please select a valid system before proceeding.";
+  }
+
+  try {
+    await galaxyStore.loadGalaxies();
+
+    // Recover from stale local selection (for example after DB reset/import changes).
+    if (!galaxyStore.getCurrentGalaxy && galaxyStore.galaxies.length > 0) {
+      galaxyStore.setCurrentGalaxy(galaxyStore.galaxies[0].galaxyId);
+    }
+  } catch (err) {
+    toastService.error(`Failed to load galaxies: ${err.message}`);
+  }
+});
+
+function clearError() {
+  errorMessage.value = "";
+  // Remove error from URL
+  router.replace({ query: {} });
+}
 
 function selectGalaxy(galaxyId) {
   galaxyStore.setCurrentGalaxy(galaxyId);
 }
 
+function randomizeGalaxyParams() {
+  const galaxyTypes = ["Spiral", "Barred Spiral", "Elliptical", "Lenticular", "Irregular", "Dwarf"];
+
+  newGalaxyForm.value.type = galaxyTypes[Math.floor(Math.random() * galaxyTypes.length)];
+  newGalaxyForm.value.bulgeRadius = 5000 + Math.floor(Math.random() * 45000); // 5000-50000
+  newGalaxyForm.value.armCount = 2 + Math.floor(Math.random() * 11); // 2-12
+  newGalaxyForm.value.coreDensity = Math.round((0.01 + Math.random() * 0.99) * 100) / 100; // 0-1 with 2 decimals
+  newGalaxyForm.value.diskThickness = 500 + Math.floor(Math.random() * 9500); // 500-10000
+
+  toastService.info("Galaxy parameters randomized!");
+}
+
 async function createNewGalaxy() {
-  const { calculateGalaxyDimensions, generateGalaxyType } = await import("../../utils/galaxySizeCalculator.js");
+  if (!newGalaxyForm.value.name.trim()) {
+    toastService.error("Please enter a galaxy name");
+    return;
+  }
 
-  const galaxyType = generateGalaxyType();
-  const dimensions = calculateGalaxyDimensions({ galaxyType: newGalaxyForm.value.galaxyType });
+  const normalizedName = newGalaxyForm.value.name.trim().toLowerCase();
+  const nameAlreadyExists = galaxies.value.some((g) => (g.name || "").trim().toLowerCase() === normalizedName);
+  if (nameAlreadyExists) {
+    toastService.error("A galaxy with this name already exists. Please choose a different name.");
+    return;
+  }
 
-  const newGalaxy = {
-    galaxyCoordinates: {
-      x: newGalaxyForm.value.coordinateX,
-      y: newGalaxyForm.value.coordinateY,
-      z: 0,
-    },
-    galaxyNames: [
-      {
-        name: newGalaxyForm.value.primaryName,
-        language: "en",
-        isDefault: true,
+  try {
+    const newGalaxy = {
+      galaxyId: `gal-${Date.now()}`,
+      name: newGalaxyForm.value.name,
+      type: newGalaxyForm.value.type,
+      morphology: {
+        bulgeRadius: newGalaxyForm.value.bulgeRadius,
+        armCount: newGalaxyForm.value.armCount,
+        coreDensity: newGalaxyForm.value.coreDensity,
+        diskThickness: newGalaxyForm.value.diskThickness,
       },
-    ],
-    galaxyType,
-    galaxyDimensions: dimensions,
-    galaxyStatistics: {
-      estimatedStarSystems: dimensions.estimatedStarSystems,
-      mappedSystems: 0,
-      exploredSystems: 0,
-      populatedWorlds: 0,
-      knownSophonts: 0,
-      majorFactions: 0,
-    },
-    physicalProperties: {
-      massInSolarMasses: 100000000000,
-      radiusInParsecs: dimensions.radiusInParsecs,
-      ageInBillionYears: 13.2,
-      luminosity: "1 × 10^10 L☉",
-    },
-    galaxyRegions: [],
-    linkedSectors: [],
-  };
+      metadata: {
+        createdAt: new Date().toISOString(),
+        lastModified: new Date().toISOString(),
+        status: "active",
+        version: 1,
+      },
+    };
 
-  galaxyStore.createGalaxy(newGalaxy);
-  showNewGalaxyForm.value = false;
-  newGalaxyForm.value = {
-    primaryName: "",
-    galaxyType: "Spiral",
-    coordinateX: 0,
-    coordinateY: 0,
-  };
+    await galaxyStore.createGalaxy(newGalaxy);
+    toastService.success(`Galaxy "${newGalaxyForm.value.name}" created successfully!`);
+    showNewGalaxyForm.value = false;
+    newGalaxyForm.value = {
+      name: "",
+      type: "Spiral",
+      bulgeRadius: 5000,
+      armCount: 2,
+      coreDensity: 0.7,
+      diskThickness: 1000,
+    };
+  } catch (err) {
+    toastService.error(`Failed to create galaxy: ${err.message}`);
+  }
 }
 
 function handleFileSelect(event) {
@@ -274,29 +350,52 @@ function handleFileSelect(event) {
   if (file) {
     const reader = new FileReader();
     reader.onload = (e) => {
-      importForm.value.fileData = JSON.parse(e.target.result);
+      try {
+        importForm.value.fileData = JSON.parse(e.target.result);
+        toastService.info("File loaded successfully");
+      } catch (err) {
+        toastService.error("Invalid JSON file format");
+      }
     };
     reader.readAsText(file);
   }
 }
 
 async function importGalaxyData() {
-  if (!importForm.value.fileData) return;
+  if (!importForm.value.fileData) {
+    toastService.error("Please select a file to import");
+    return;
+  }
 
-  await galaxyStore.importGalaxy(importForm.value.fileData, {
-    x: importForm.value.targetX,
-    y: importForm.value.targetY,
-    z: 0,
-  });
+  try {
+    await galaxyStore.importGalaxy(importForm.value.fileData);
+    toastService.success("Galaxy imported successfully!");
+    showImportForm.value = false;
+    importForm.value = { fileData: null };
+  } catch (err) {
+    toastService.error(`Failed to import galaxy: ${err.message}`);
+  }
+}
 
-  showImportForm.value = false;
-  importForm.value = { targetX: 0, targetY: 0, fileData: null };
+async function refreshGalaxies() {
+  try {
+    await galaxyStore.loadGalaxies();
+    toastService.info("Galaxies refreshed");
+  } catch (err) {
+    toastService.error(`Failed to refresh galaxies: ${err.message}`);
+  }
 }
 
 function proceedToClass0() {
+  const galaxyId = currentGalaxy.value?.galaxyId;
+  if (!galaxyId) {
+    toastService.error("Please select a valid galaxy before opening Sector Survey.");
+    return;
+  }
+
   router.push({
     name: "SectorSurvey",
-    params: { galaxyId: currentGalaxy.value.galaxyId },
+    params: { galaxyId },
   });
 }
 
@@ -304,24 +403,50 @@ function editGalaxy() {
   // TODO: Implement edit functionality
 }
 
-function deleteGalaxy() {
-  if (confirm("Delete this galaxy? This cannot be undone.")) {
-    galaxyStore.deleteGalaxy(currentGalaxy.value.galaxyId);
+function showDeleteConfirm() {
+  if (currentGalaxy.value) {
+    confirmDialog.value.isOpen = true;
+    confirmDialog.value.galaxyIdToDelete = currentGalaxy.value.galaxyId;
   }
+}
+
+async function confirmDeleteGalaxy() {
+  confirmDialog.value.isOpen = false;
+  const galaxyId = confirmDialog.value.galaxyIdToDelete;
+  if (!galaxyId) return;
+
+  try {
+    const galaxyName = galaxies.value.find((g) => g.galaxyId === galaxyId)?.galaxyNames[0].name;
+    await galaxyStore.deleteGalaxy(galaxyId);
+    toastService.success(`Galaxy "${galaxyName}" deleted successfully`);
+  } catch (err) {
+    toastService.error(`Failed to delete galaxy: ${err.message}`);
+  }
+}
+
+function cancelDeleteGalaxy() {
+  confirmDialog.value.isOpen = false;
+  confirmDialog.value.galaxyIdToDelete = null;
 }
 
 function regenerateGalaxy() {
   // TODO: Implement regeneration
+  toastService.info("Regeneration not yet implemented");
 }
 
 function exportGalaxy() {
-  const dataStr = JSON.stringify(currentGalaxy.value, null, 2);
-  const dataBlob = new Blob([dataStr], { type: "application/json" });
-  const url = URL.createObjectURL(dataBlob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `${currentGalaxy.value.galaxyNames[0].name}-Galaxy.json`;
-  link.click();
+  try {
+    const dataStr = JSON.stringify(currentGalaxy.value, null, 2);
+    const dataBlob = new Blob([dataStr], { type: "application/json" });
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${currentGalaxy.value.galaxyNames[0].name}-Galaxy.json`;
+    link.click();
+    toastService.success("Galaxy exported successfully");
+  } catch (err) {
+    toastService.error(`Failed to export galaxy: ${err.message}`);
+  }
 }
 
 function formatNumber(num) {
@@ -335,6 +460,43 @@ function formatNumber(num) {
 <style scoped>
 .galaxy-survey {
   padding: 2rem;
+}
+
+.error-banner {
+  background: rgba(220, 38, 38, 0.15);
+  border-left: 4px solid #dc2626;
+  padding: 0.75rem 1.5rem;
+  margin: 0 0 1.5rem 0;
+  border-radius: 0.25rem;
+}
+
+.error-content {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: #fca5a5;
+  font-size: 0.9rem;
+}
+
+.error-icon {
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+
+.error-close {
+  margin-left: auto;
+  background: transparent;
+  border: none;
+  color: #fca5a5;
+  cursor: pointer;
+  font-size: 0.9rem;
+  padding: 0;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.error-close:hover {
+  color: #dc2626;
 }
 
 .control-panel {
@@ -559,6 +721,16 @@ function formatNumber(num) {
 
 .btn-danger:hover {
   background: #ff6666;
+}
+
+.btn-info {
+  background: #44aaff;
+  color: #fff;
+}
+
+.btn-info:hover {
+  background: #66bbff;
+  box-shadow: 0 0 10px rgba(68, 170, 255, 0.5);
 }
 
 .modal-overlay {
