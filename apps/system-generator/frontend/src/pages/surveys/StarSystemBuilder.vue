@@ -70,7 +70,19 @@
               :class="i === 0 ? 'primary' : 'secondary'"
             >
               <div class="star-role">{{ i === 0 ? "Primary" : i === 1 ? "Secondary" : "Tertiary" }}</div>
-              <div class="star-designation">{{ star.designation }}</div>
+              <div class="star-designation-row">
+                <div class="star-designation">{{ star.systemDesignation ?? star.designation }}</div>
+                <div
+                  class="designation-combined-chip"
+                  v-if="
+                    star.systemDesignationCombined &&
+                    star.systemDesignationCombined.length > 1 &&
+                    star.systemDesignationCombined !== (star.systemDesignation ?? star.designation)
+                  "
+                >
+                  {{ star.systemDesignationCombined }}
+                </div>
+              </div>
               <div class="star-props">
                 <div class="prop">
                   <span class="prop-label">Spectral Class:</span>
@@ -85,8 +97,34 @@
                   <span class="prop-value">{{ star.luminosity }} L☉</span>
                 </div>
                 <div class="prop">
+                  <span class="prop-label">Abs. Magnitude:</span>
+                  <span class="prop-value">{{ star.absoluteMagnitude ?? "—" }}</span>
+                </div>
+                <div class="prop">
                   <span class="prop-label">Temperature:</span>
                   <span class="prop-value">{{ star.temperatureK.toLocaleString() }} K</span>
+                </div>
+                <div class="prop">
+                  <span class="prop-label">Color:</span>
+                  <span
+                    class="prop-color-chip"
+                    :style="{ backgroundColor: star.visualColor || '#ffffff' }"
+                    :title="star.spectralClass || 'Unknown'"
+                  ></span>
+                </div>
+                <div class="prop" v-if="star.rotationPeriodDays">
+                  <span class="prop-label">Rotation:</span>
+                  <span class="prop-value">{{ star.rotationPeriodDays.toFixed(2) }} days</span>
+                </div>
+                <div class="prop" v-if="star.mainSequenceLifetimeGyr">
+                  <span class="prop-label">MS Lifetime:</span>
+                  <span class="prop-value">{{ star.mainSequenceLifetimeGyr.toFixed(2) }} Gyr</span>
+                </div>
+                <div class="prop" v-if="star.evolutionaryStatus">
+                  <span class="prop-label">Evolution:</span>
+                  <span class="prop-value"
+                    >{{ star.evolutionaryStatus.status }} ({{ star.evolutionaryStatus.percentComplete }}%)</span
+                  >
                 </div>
                 <div class="prop" v-if="i > 0">
                   <span class="prop-label">Orbit Type:</span>
@@ -170,11 +208,17 @@ import LoadingSpinner from "../../components/common/LoadingSpinner.vue";
 import { useSystemStore } from "../../stores/systemStore.js";
 import * as toastService from "../../utils/toast.js";
 import {
+  calculateAbsoluteMagnitude,
+  calculateEvolutionaryStatus,
+  calculateMainSequenceLifetime,
+  estimateRotationPeriod,
   estimateStarMassAndTemperature,
   generatePrimaryStar,
   generateStarSubtype,
+  getStarVisualColor,
   toPersistedSpectralClass,
 } from "../../utils/primaryStarGenerator.js";
+import { generateIISSProfile } from "../../utils/iissProfileGenerator.js";
 
 const props = defineProps({
   galaxyId: { type: String, default: null },
@@ -648,6 +692,24 @@ async function buildSystem() {
       stars.push(buildStar(pickSpectral().code, "secondary"));
     }
 
+    // Calculate new star properties for each star
+    stars.forEach((star, idx) => {
+      const ageGyr = systemPayload?.primaryStar?.age ?? +(Math.random() * 12 + 1).toFixed(2);
+      star.absoluteMagnitude = calculateAbsoluteMagnitude({ luminosity: star.luminosity });
+      star.visualColor = getStarVisualColor({ spectralClass: star.spectralClass });
+      star.rotationPeriodDays = estimateRotationPeriod({
+        massInSolarMasses: star.massInSolarMasses,
+        luminosityClass: star.luminosityClass || "V",
+      });
+      star.mainSequenceLifetimeGyr = calculateMainSequenceLifetime({ massInSolarMasses: star.massInSolarMasses });
+      if (star.mainSequenceLifetimeGyr) {
+        star.evolutionaryStatus = calculateEvolutionaryStatus({
+          ageGyr,
+          lifetimeGyr: star.mainSequenceLifetimeGyr,
+        });
+      }
+    });
+
     const hz = calcHabitableZone(stars[0].luminosity);
     const planets = buildPlanets(hz);
     const hex = parseHexCoordinate(hexCoord.value);
@@ -685,12 +747,21 @@ async function buildSystem() {
 
     const persistedSystem = await systemStore.createSystem(systemPayload);
 
+    // Generate IISS profile for the system
+    const tempSystem = {
+      stars,
+      ageGyr: systemPayload.primaryStar.age,
+      metadata: systemPayload.metadata,
+    };
+    const iissProfile = generateIISSProfile(tempSystem);
+
     system.value = {
       systemId: hex.normalized,
       persistedSystemId: persistedSystem.systemId,
       stars,
       habitableZone: hz,
       planets,
+      iissProfile,
     };
     selectedSystemId.value = persistedSystem.systemId;
     toastService.success(`System ${hex.normalized} generated and saved.`);
@@ -893,12 +964,33 @@ function proceedToWorldBuilder() {
   margin-bottom: 0.25rem;
 }
 
+.star-designation-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
 .star-designation {
   font-size: 1.1rem;
   font-weight: bold;
   color: #fff;
   font-family: monospace;
-  margin-bottom: 0.75rem;
+}
+
+.designation-combined-chip {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: bold;
+  padding: 0.25rem 0.5rem;
+  background: linear-gradient(135deg, #00d9ff, #00ffff);
+  color: #000;
+  border-radius: 0.25rem;
+  font-family: monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  box-shadow: 0 0 8px rgba(0, 217, 255, 0.5);
 }
 
 .star-props {
@@ -921,6 +1013,15 @@ function proceedToWorldBuilder() {
 .prop-value {
   color: #e0e0e0;
   font-family: monospace;
+}
+
+.prop-color-chip {
+  display: inline-block;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 50%;
+  border: 1px solid #444;
+  flex-shrink: 0;
 }
 
 /* HZ */
