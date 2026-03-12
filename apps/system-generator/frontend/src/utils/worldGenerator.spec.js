@@ -16,6 +16,9 @@ import {
   calculateHZCO,
   calculateHZCODeviation,
   calculatePlanetoidBeltQuantityDm,
+  calculateBeltBulk,
+  calculateBeltSignificantBodies,
+  calculateBeltSpan,
   calculateSecondarySpread,
   calculateSecondarySpreads,
   calculateSystemSpread,
@@ -64,6 +67,18 @@ import {
   assignSignificantMoonQuantities,
   rollSignificantMoonSizeForParent,
   assignSignificantMoonSizes,
+  calculateMoonOrbitLimits,
+  applyMoonRemovalByLimits,
+  calculateMoonOrbitRangeMor,
+  rollMoonOrbitPd,
+  assignSignificantMoonOrbits,
+  calculateMoonOrbitDm,
+  rollMoonOrbitEccentricity,
+  rollMoonOrbitDirection,
+  calculateMoonOrbitalPeriodHours,
+  generateSignificantRings,
+  formatRingProfile,
+  assignSignificantMoonAndRingCharacteristics,
   resolveInsignificantMoonQuantityForSlot,
   assignInsignificantMoonQuantities,
   rollWorldEccentricity,
@@ -71,9 +86,28 @@ import {
   generateSystemWorldPlacement,
   calculateHabitableZoneBoundsForHzco,
   lookupHabitableZoneRegionDm,
+  ATMOSPHERE_CODE_TABLE,
+  lookupAtmosphereCodeInfo,
+  calculateAtmosphereVariantDm,
+  rollAtmospherePressureBar,
   rollWorldAtmosphereCode,
   rollWorldHydrographicsCode,
   identifyMainworldCandidates,
+  rollWorldDiameter,
+  TERRESTRIAL_COMPOSITIONS,
+  determineTerrestrialComposition,
+  rollTerrestrialDensity,
+  calculateWorldGravity,
+  calculateWorldMass,
+  calculateWorldEscapeVelocity,
+  calculateWorldOrbitalVelocitySurface,
+  calculateWorldOrbitalVelocityAtAltitude,
+  formatWorldSizeProfile,
+  formatBeltProfile,
+  generateBeltCharacteristics,
+  rollBeltComposition,
+  rollBeltResourceRating,
+  rollBeltSignificantBodyOrbit,
 } from "./worldGenerator.js";
 
 // ── Deterministic RNG helpers ──────────────────────────────────────────────────
@@ -472,6 +506,242 @@ describe("generatePlanetoidBelts", () => {
     const stars = [{ spectralClass: "G", luminosityClass: "V" }];
     const result = generatePlanetoidBelts({ stars, rng: rngFor2d(3) });
     expect(Array.isArray(result.dmBreakdown)).toBe(true);
+  });
+});
+
+// ── Planetoid Belt Characteristics (Chapter 5) ───────────────────────────────
+
+describe("calculateBeltSpan", () => {
+  it("replicates Aab PI span example with adjacent gas giant DM", () => {
+    // Spread 0.5, roll 6 with DM-1 => total 5; span = 0.5 * 5 / 10 = 0.25
+    const result = calculateBeltSpan({
+      orbit: 2.7,
+      spread: 0.5,
+      hasOuterGasGiant: true,
+      rng: rngFor2d(6),
+    });
+
+    expect(result.total).toBe(5);
+    expect(result.span).toBeCloseTo(0.25, 10);
+    expect(result.innerBoundary).toBeCloseTo(2.575, 10);
+    expect(result.outerBoundary).toBeCloseTo(2.825, 10);
+  });
+
+  it("derives spread when not provided", () => {
+    // spreadRoll=6 => spread 0.84 at orbit 1.4; roll=7 and outermost DM+3 => total 10
+    const result = calculateBeltSpan({
+      orbit: 1.4,
+      isOutermostOrbit: true,
+      rng: rngFor2dSequence(6, 7),
+    });
+
+    expect(result.spreadSource).toBe("derived");
+    expect(result.spreadRoll).toBe(6);
+    expect(result.spread).toBeCloseTo(0.84, 10);
+    expect(result.span).toBeCloseTo(0.84, 10);
+  });
+});
+
+describe("rollBeltComposition", () => {
+  it("replicates Aab PI composition example", () => {
+    // roll 6, inside HZCO DM-4 => total 2 row
+    // m: 40 + (3*5) = 55, s: 15 + (5*5) = 40, c: 2, other: 3
+    const rng = seqRng(2 / 6, 2 / 6, 2 / 6, 4 / 6, 1 / 6);
+    const result = rollBeltComposition({ orbit: 2.7, hzco: 3.3, rng });
+
+    expect(result.total).toBe(2);
+    expect(result.mTypePercent).toBe(55);
+    expect(result.sTypePercent).toBe(40);
+    expect(result.cTypePercent).toBe(2);
+    expect(result.otherTypePercent).toBe(3);
+  });
+
+  it("removes overflow from m-type first, then s-type", () => {
+    // <=0 row with max rolls: m=90, s=30, c=0 => 120 => trim 20 from m => 70/30/0
+    const rng = seqRng(0, 0, 5 / 6, 5 / 6);
+    const result = rollBeltComposition({ orbit: 1.0, hzco: 3.0, rng });
+
+    expect(result.mTypePercent).toBe(70);
+    expect(result.sTypePercent).toBe(30);
+    expect(result.cTypePercent).toBe(0);
+    expect(result.otherTypePercent).toBe(0);
+  });
+
+  it("applies DM+4 beyond HZCO+2", () => {
+    // roll 6 + DM+4 => total 10 row
+    const rng = seqRng(2 / 6, 2 / 6, 0, 0, 5 / 6);
+    const result = rollBeltComposition({ orbit: 6.0, hzco: 3.0, rng });
+
+    expect(result.total).toBe(10);
+    expect(result.mTypePercent).toBe(1);
+    expect(result.sTypePercent).toBe(10);
+    expect(result.cTypePercent).toBe(80);
+    expect(result.otherTypePercent).toBe(9);
+  });
+});
+
+describe("calculateBeltBulk", () => {
+  it("applies age and c-type DMs", () => {
+    // roll 4 => base 2; age 4.5 => DM-2; c=33 => DM+3; final 3
+    const result = calculateBeltBulk({ systemAgeByr: 4.5, cTypePercent: 33, rng: rngFor2d(4) });
+    expect(result.bulk).toBe(3);
+  });
+
+  it("clamps bulk to minimum 1", () => {
+    const result = calculateBeltBulk({ systemAgeByr: 12, cTypePercent: 0, rng: rngFor2d(2) });
+    expect(result.bulk).toBe(1);
+  });
+});
+
+describe("rollBeltResourceRating", () => {
+  it("replicates sample resource formula result", () => {
+    // roll 11 => 11-7 +4 +2 -2 = 8
+    const result = rollBeltResourceRating({ bulk: 4, mTypePercent: 22, cTypePercent: 18, rng: rngFor2d(11) });
+    expect(result.rating).toBe(8);
+    expect(result.ratingCode).toBe("8");
+  });
+
+  it("enforces minimum rating 2", () => {
+    const result = rollBeltResourceRating({ bulk: 1, mTypePercent: 0, cTypePercent: 90, rng: rngFor2d(2) });
+    expect(result.rating).toBe(2);
+  });
+
+  it("applies industrial depletion before final cap", () => {
+    // roll 10 => base 3; DM bulk+m-c = 8+2-0 = +10 => raw 13; depletion 1D=6 => 7
+    const rng = seqRng(4 / 6, 4 / 6, 5 / 6);
+    const result = rollBeltResourceRating({
+      bulk: 8,
+      mTypePercent: 20,
+      cTypePercent: 0,
+      industrialDepletion: true,
+      rng,
+    });
+    expect(result.raw).toBe(13);
+    expect(result.industrialDepletionRoll).toBe(6);
+    expect(result.rating).toBe(7);
+  });
+});
+
+describe("calculateBeltSignificantBodies", () => {
+  it("replicates Aab PI outcome of 0 Size 1 and 3 Size S bodies", () => {
+    const result = calculateBeltSignificantBodies({
+      bulk: 3,
+      beltOrbit: 2.7,
+      hzco: 3.3,
+      span: 0.25,
+      rng: rngFor2dSequence(8, 12),
+    });
+
+    expect(result.size1.count).toBe(0);
+    expect(result.sizeS.count).toBe(3);
+  });
+
+  it("applies compact-span and outer-zone modifiers", () => {
+    // Size 1: 10-12+6+2-4 = 2
+    // Size S: 12-12+6+3 = 9, then span<0.1 => ceil(9/2)=5
+    const result = calculateBeltSignificantBodies({
+      bulk: 6,
+      beltOrbit: 7.0,
+      hzco: 3.0,
+      span: 0.05,
+      rng: rngFor2dSequence(10, 12),
+    });
+
+    expect(result.size1.count).toBe(2);
+    expect(result.sizeS.count).toBe(5);
+    expect(result.sizeS.compactSpanHalved).toBe(true);
+  });
+
+  it("applies optional outermost variance for large Size S counts", () => {
+    // Pre-variance Size S = 61, multiply by 1/3 and add 1 => 21
+    const rng = seqRng(0, 0, 5 / 6, 5 / 6, 0, 4 / 6, 0);
+    const result = calculateBeltSignificantBodies({
+      bulk: 60,
+      span: 1.2,
+      isOutermostOrbit: true,
+      applyOptionalVariance: true,
+      rng,
+    });
+
+    expect(result.sizeS.optionalVariance).toEqual({
+      multiplierNumerator: 1,
+      multiplierDenominator: 3,
+      additive: 1,
+    });
+    expect(result.sizeS.count).toBe(21);
+  });
+});
+
+describe("rollBeltSignificantBodyOrbit", () => {
+  it("uses the Belt Orbit + ((2D-7)*span/8) formula", () => {
+    // roll 8 => +1 * 0.25 / 8 = +0.03125
+    const result = rollBeltSignificantBodyOrbit({ beltOrbit: 2.7, span: 0.25, rng: rngFor2d(8) });
+    expect(result.orbit).toBeCloseTo(2.73125, 10);
+  });
+
+  it("applies optional span variance factor", () => {
+    const result = rollBeltSignificantBodyOrbit({
+      beltOrbit: 2.7,
+      span: 0.25,
+      spanVarianceFactor: 0.1,
+      rng: rngFor2d(7),
+    });
+    expect(result.orbit).toBeCloseTo(2.725, 10);
+  });
+});
+
+describe("formatBeltProfile", () => {
+  it("formats Aab PI style profile", () => {
+    const profile = formatBeltProfile({
+      span: 0.25,
+      mTypePercent: 55,
+      sTypePercent: 40,
+      cTypePercent: 2,
+      otherTypePercent: 3,
+      bulk: 3,
+      resourceRating: 11,
+      size1Bodies: 0,
+      sizeSBodies: 3,
+    });
+    expect(profile).toBe("0.25-55.40.02.03-3-B-0-3");
+  });
+
+  it("zero-pads composition fields and trims span zeros", () => {
+    const profile = formatBeltProfile({
+      span: 0.3,
+      mTypePercent: 5,
+      sTypePercent: 6,
+      cTypePercent: 7,
+      otherTypePercent: 82,
+      bulk: 6,
+      resourceRating: 8,
+      size1Bodies: 2,
+      sizeSBodies: 8,
+    });
+    expect(profile).toBe("0.3-05.06.07.82-6-8-2-8");
+  });
+});
+
+describe("generateBeltCharacteristics", () => {
+  it("returns a deterministic full profile bundle", () => {
+    const result = generateBeltCharacteristics({
+      orbit: 2.7,
+      spread: 0.5,
+      hzco: 3.3,
+      systemAgeByr: 6.3,
+      hasInnerGasGiant: true,
+      rng: fixedRng(0),
+    });
+
+    expect(result.profile).toBe("0.05-65.05.00.30-1-2-0-0");
+    expect(
+      result.composition.mTypePercent +
+        result.composition.sTypePercent +
+        result.composition.cTypePercent +
+        result.composition.otherTypePercent,
+    ).toBe(100);
+    expect(result.bulk.bulk).toBe(1);
+    expect(result.resourceRating.rating).toBe(2);
   });
 });
 
@@ -2975,6 +3245,288 @@ describe("assignSignificantMoonSizes", () => {
   });
 });
 
+// ── Significant Moon and Ring Characteristics (Chapter 5) ───────────────────
+
+describe("calculateMoonOrbitLimits", () => {
+  it("calculates Hill sphere and Roche limit values for the Zed Aab IV example", () => {
+    const result = calculateMoonOrbitLimits({
+      orbitalDistanceAu: 1.06,
+      eccentricity: 0.1,
+      planetMassEarth: 1200,
+      starMassSolar: 1.836,
+      planetDiameterKm: 14 * 12800,
+    });
+
+    expect(result).not.toBeNull();
+    expect(result.hillSphereAu).toBeCloseTo(0.083, 2);
+    expect(result.hillSphereKm).toBeCloseTo(12385400, -3);
+    expect(result.hillSpherePd).toBeCloseTo(69.11, 1);
+    expect(result.hillSphereMoonLimitPd).toBeCloseTo(34.56, 1);
+    expect(result.rocheLimitPd).toBeCloseTo(1.537, 3);
+  });
+
+  it("returns null for invalid required inputs", () => {
+    expect(calculateMoonOrbitLimits({ orbitalDistanceAu: 1.0, planetMassEarth: 10 })).toBeNull();
+  });
+});
+
+describe("applyMoonRemovalByLimits", () => {
+  it("converts first lost moon to a ring when limit is below Roche", () => {
+    const result = applyMoonRemovalByLimits({
+      hillSphereMoonLimitPd: 1.2,
+      significantMoonCount: 3,
+      significantRingCount: 0,
+    });
+
+    expect(result.significantMoonCount).toBe(0);
+    expect(result.significantRingCount).toBe(1);
+    expect(result.convertedFirstMoonToRing).toBe(true);
+  });
+
+  it("removes all rings too when limit drops below 0.5 PD", () => {
+    const result = applyMoonRemovalByLimits({
+      hillSphereMoonLimitPd: 0.4,
+      significantMoonCount: 2,
+      significantRingCount: 2,
+    });
+
+    expect(result.significantMoonCount).toBe(0);
+    expect(result.significantRingCount).toBe(0);
+    expect(result.noSignificantRingsAllowed).toBe(true);
+  });
+});
+
+describe("calculateMoonOrbitRangeMor", () => {
+  it("matches MOR example: floor(34.56) - 2 = 32", () => {
+    const result = calculateMoonOrbitRangeMor({ hillSphereMoonLimitPd: 34.56, moonCount: 5 });
+    expect(result.rawMor).toBe(32);
+    expect(result.mor).toBe(32);
+  });
+
+  it("caps very large MOR to 200 + moonCount", () => {
+    const result = calculateMoonOrbitRangeMor({ hillSphereMoonLimitPd: 260.9, moonCount: 5 });
+    expect(result.rawMor).toBe(258);
+    expect(result.mor).toBe(205);
+  });
+});
+
+describe("rollMoonOrbitPd", () => {
+  it("applies MOR<60 DM+1 to range roll and computes Inner-range orbit", () => {
+    const rng = seqRng(0, 3 / 6, 2 / 6); // range=1 (+1 DM => inner), orbit roll=7 => 5 after -2
+    const result = rollMoonOrbitPd({ mor: 32, rng });
+
+    expect(result.rangeDm).toBe(1);
+    expect(result.range).toBe("inner");
+    expect(result.orbitPd).toBeCloseTo((5 * 32) / 60 + 2, 10);
+    expect(result.roundedOrbitPd).toBe(5);
+  });
+
+  it("supports optional +/-0.5 PD variance", () => {
+    const rng = seqRng(3 / 6, 3 / 6, 2 / 6, 0.9); // middle range, +0.4 variance
+    const result = rollMoonOrbitPd({ mor: 80, addLinearVariance: true, rng });
+    expect(result.variance).toBeCloseTo(0.4, 10);
+  });
+});
+
+describe("assignSignificantMoonOrbits", () => {
+  it("rolls and sorts moon orbits ascending", () => {
+    const rng = seqRng(
+      4 / 6,
+      5 / 6,
+      5 / 6, // moon 1 outer high
+      0,
+      0,
+      0, // moon 2 inner low
+      3 / 6,
+      3 / 6,
+      2 / 6, // moon 3 middle
+    );
+
+    const result = assignSignificantMoonOrbits({ moonCount: 3, mor: 32, rng });
+    const rounded = result.moonOrbits.map((o) => o.roundedOrbitPd);
+    expect(rounded).toEqual([2, 14, 36]);
+  });
+
+  it("bumps exact duplicate rounded orbits outward", () => {
+    const rng = seqRng(
+      0,
+      0,
+      0, // moon 1 -> rounded 2
+      0,
+      0,
+      0, // moon 2 -> rounded 2, adjusted to 3
+    );
+
+    const result = assignSignificantMoonOrbits({ moonCount: 2, mor: 32, rng });
+    expect(result.moonOrbits[0].roundedOrbitPd).toBe(2);
+    expect(result.moonOrbits[1].roundedOrbitPd).toBe(3);
+    expect(result.moonOrbits[1].adjustedForCollision).toBe(true);
+  });
+});
+
+describe("calculateMoonOrbitDm", () => {
+  it("returns expected DMs for range and MOR overflow", () => {
+    expect(calculateMoonOrbitDm({ range: "inner" }).dm).toBe(-1);
+    expect(calculateMoonOrbitDm({ range: "middle" }).dm).toBe(1);
+    expect(calculateMoonOrbitDm({ range: "outer" }).dm).toBe(4);
+    expect(calculateMoonOrbitDm({ range: "outer", exceedsMor: true }).dm).toBe(10);
+  });
+});
+
+describe("rollMoonOrbitEccentricity", () => {
+  it("uses moon-range DM with the shared eccentricity table", () => {
+    const result = rollMoonOrbitEccentricity({
+      range: "outer",
+      rng: rngFor2dSequence(7, 8),
+    });
+
+    expect(result.dm).toBe(4);
+    expect(result.eccentricityRoll.firstRoll).toBe(7);
+    expect(result.eccentricityRoll.firstRollTotal).toBe(11);
+    expect(result.eccentricity).toBeGreaterThan(0.05);
+  });
+});
+
+describe("rollMoonOrbitDirection", () => {
+  it("marks retrograde on 10+ after moon-range DMs", () => {
+    const result = rollMoonOrbitDirection({ range: "inner", rng: rngFor2d(11) });
+    expect(result.total).toBe(10);
+    expect(result.retrograde).toBe(true);
+  });
+});
+
+describe("calculateMoonOrbitalPeriodHours", () => {
+  it("matches the Zed Prime period example (~624.69h, ~26.03d)", () => {
+    const result = calculateMoonOrbitalPeriodHours({
+      orbitPd: 22,
+      parentDiameterKm: 14 * 12800,
+      planetMassEarth: 1200,
+    });
+
+    expect(result.orbitKm).toBe(3942400);
+    expect(result.periodHours).toBeCloseTo(624.69, 1);
+    expect(result.periodDays).toBeCloseTo(26.03, 2);
+    expect(result.periodHoursPdMethod).toBeCloseTo(result.periodHours, 2);
+  });
+});
+
+describe("generateSignificantRings", () => {
+  it("moves overlapping outer rings outward to be adjacent", () => {
+    const result = generateSignificantRings({
+      ringCount: 2,
+      rng: fixedRng(0),
+    });
+
+    expect(result.rings).toHaveLength(2);
+    expect(result.rings[0].centerPd).toBeCloseTo(0.65, 10);
+    expect(result.rings[0].spanPd).toBeCloseTo(0.1, 10);
+    expect(result.rings[1].centerPd).toBeCloseTo(0.75, 10);
+    expect(result.rings[1].innerEdgePd).toBeCloseTo(result.rings[0].outerEdgePd, 10);
+    expect(result.rings[1].adjustedForOverlap).toBe(true);
+  });
+
+  it("creates moon-carved ring gaps beyond Roche when moon orbit intersects", () => {
+    const rng = seqRng(
+      5 / 6,
+      5 / 6, // center roll 12 -> 1.9 PD
+      0,
+      0,
+      0, // span roll 3 -> 0.10 PD
+      0, // gap multiplier roll 1 -> x3
+    );
+
+    const result = generateSignificantRings({
+      ringCount: 1,
+      moons: [{ orbitPd: 1.9, diameterKm: 1000 }],
+      rng,
+    });
+
+    expect(result.gaps).toHaveLength(1);
+    expect(result.gaps[0].gapMultiplier).toBe(3);
+    expect(result.gaps[0].gapWidthKm).toBe(3000);
+  });
+});
+
+describe("formatRingProfile", () => {
+  it("formats detailed ring shorthand as R0#:C-S,...", () => {
+    const profile = formatRingProfile({
+      rings: [
+        { centerPd: 0.65, spanPd: 0.1 },
+        { centerPd: 0.75, spanPd: 0.1 },
+      ],
+    });
+    expect(profile).toBe("R02:0.65-0.1,0.75-0.1");
+  });
+});
+
+describe("assignSignificantMoonAndRingCharacteristics", () => {
+  it("adds moon/ring chapter details to eligible slots", () => {
+    const result = assignSignificantMoonAndRingCharacteristics({
+      slots: [
+        {
+          slotId: "P-1",
+          starKey: "primary",
+          orbit: 1,
+          eccentricity: 0.1,
+          primaryWorldType: "gasGiant",
+          basicDiameterKm: 179200,
+          gasGiantMassEarth: 1200,
+          significantMoonCountAfterSizing: 2,
+          significantRingCount: 1,
+          significantMoonSizeDetails: [
+            { isRing: false, sizeCode: "5" },
+            { isRing: false, sizeCode: "GS4", isGasGiantMoon: true, gasGiantDiameterTerran: 4, gasGiantMassEarth: 10 },
+            { isRing: true, sizeCode: "R" },
+          ],
+        },
+      ],
+      stars: [{ spectralClass: "G2 V", luminosityClass: "V", massSolar: 1 }],
+      rng: fixedRng(0),
+    });
+
+    const updated = result.slots[0];
+    expect(updated.significantMoonOrbitLimits).toBeTruthy();
+    expect(updated.significantMoonOrbitRangeMor.mor).toBeGreaterThan(0);
+    expect(updated.significantMoonOrbitDetails).toHaveLength(2);
+    expect(updated.significantRingDetails).toHaveLength(1);
+    expect(updated.significantRingProfile.startsWith("R01:")).toBe(true);
+    expect(updated.significantMoonRingCharacteristics).toBeTruthy();
+    expect(result.totals.worldsWithCharacteristics).toBe(1);
+  });
+
+  it("removes moons and rings when Hill-sphere moon limit is too small", () => {
+    const result = assignSignificantMoonAndRingCharacteristics({
+      slots: [
+        {
+          slotId: "P-2",
+          starKey: "primary",
+          orbit: 0.05,
+          eccentricity: 0,
+          primaryWorldType: "gasGiant",
+          basicDiameterKm: 30000,
+          gasGiantMassEarth: 0.01,
+          significantMoonCountAfterSizing: 2,
+          significantRingCount: 1,
+          significantMoonSizeDetails: [
+            { isRing: false, sizeCode: "3" },
+            { isRing: false, sizeCode: "4" },
+            { isRing: true, sizeCode: "R" },
+          ],
+        },
+      ],
+      stars: [{ spectralClass: "G2 V", luminosityClass: "V", massSolar: 1 }],
+      rng: fixedRng(0),
+    });
+
+    const updated = result.slots[0];
+    expect(updated.significantMoonCountAfterLimitChecks).toBe(0);
+    expect(updated.significantRingCountAfterLimitChecks).toBe(0);
+    expect(updated.significantMoonLimitAdjustments.noSignificantRingsAllowed).toBe(true);
+    expect(updated.significantMoonOrbitDetails).toHaveLength(0);
+    expect(updated.significantRingDetails).toHaveLength(0);
+  });
+});
+
 // ── Insignificant Moons: Step 12 ────────────────────────────────────────────
 
 describe("resolveInsignificantMoonQuantityForSlot", () => {
@@ -3260,7 +3812,7 @@ describe("assignWorldsEccentricities", () => {
 });
 
 describe("generateSystemWorldPlacement", () => {
-  it("runs deterministic Step 1-12 flow and returns slotted worlds", () => {
+  it("runs deterministic Step 1-13 flow and returns slotted worlds", () => {
     const stars = [
       { spectralClass: "G2 V", luminosityClass: "V", luminosity: 1 },
       { spectralClass: "K5 V", luminosityClass: "V", orbitType: "Near" },
@@ -3277,6 +3829,7 @@ describe("generateSystemWorldPlacement", () => {
     expect(result).toHaveProperty("steps.step10");
     expect(result).toHaveProperty("steps.step11");
     expect(result).toHaveProperty("steps.step12");
+    expect(result).toHaveProperty("steps.step13");
     expect(Array.isArray(result.slots)).toBe(true);
     expect(result.slots.length).toBeGreaterThan(0);
     expect(result.steps.step8.slots.length).toBe(result.slots.length);
@@ -3284,6 +3837,7 @@ describe("generateSystemWorldPlacement", () => {
     expect(result.steps.step10).toHaveProperty("totals.significantMoons");
     expect(result.steps.step11).toHaveProperty("totals.significantRings");
     expect(result.steps.step12).toHaveProperty("totals.insignificantMoons");
+    expect(result.steps.step13).toHaveProperty("totals.worldsWithCharacteristics");
 
     const firstEligibleWorld = result.slots.find((slot) =>
       ["terrestrialPlanet", "gasGiant", "mainworld"].includes(slot.primaryWorldType),
@@ -3296,6 +3850,19 @@ describe("generateSystemWorldPlacement", () => {
         expect(firstEligibleWorld).toHaveProperty("significantMoonSizes");
       }
       expect(firstEligibleWorld).toHaveProperty("insignificantMoonQuantity");
+    }
+
+    const enrichedWorld = result.slots.find(
+      (slot) =>
+        (slot.significantMoonCountAfterSizing ?? 0) > 0 ||
+        (slot.significantRingCount ?? 0) > 0 ||
+        (slot.significantMoonQuantity ?? 0) > 0 ||
+        slot.hasSignificantRing,
+    );
+    if (enrichedWorld) {
+      expect(enrichedWorld).toHaveProperty("significantMoonRingCharacteristics");
+      expect(enrichedWorld).toHaveProperty("significantMoonOrbitLimits");
+      expect(enrichedWorld).toHaveProperty("significantRingProfile");
     }
   });
 
@@ -3334,6 +3901,10 @@ describe("rollWorldAtmosphereCode", () => {
     expect(rollWorldAtmosphereCode({ size: 1 })).toEqual({ roll: null, atmosphereCode: 0 });
   });
 
+  it("returns atmosphere 0 with no roll for Size S", () => {
+    expect(rollWorldAtmosphereCode({ sizeCode: "S" })).toEqual({ roll: null, atmosphereCode: 0 });
+  });
+
   it("computes 2D-7+Size for Size 5 (Zed Aab IV d: roll 8 → atmo 6)", () => {
     // 2D roll = 8 → 8 - 7 + 5 = 6
     const { roll, atmosphereCode } = rollWorldAtmosphereCode({ size: 5, rng: rngFor2d(8) });
@@ -3351,6 +3922,96 @@ describe("rollWorldAtmosphereCode", () => {
     // roll 12, size 15: 12 - 7 + 15 = 20 → clamped to 15
     const { atmosphereCode } = rollWorldAtmosphereCode({ size: 15, rng: rngFor2d(12) });
     expect(atmosphereCode).toBe(15);
+  });
+
+  it("applies size-based variant DM-2 for size 2-4", () => {
+    // roll 7, size 3: base 3; variant DM-2 => 1
+    const { atmosphereCode } = rollWorldAtmosphereCode({
+      size: 3,
+      useSizeThinAtmosphereVariant: true,
+      rng: rngFor2d(7),
+    });
+    expect(atmosphereCode).toBe(1);
+  });
+
+  it("applies gravity-based variant DM-2 when gravity is below 0.4G", () => {
+    // roll 7, size 5: base 5; gravity DM-2 => 3
+    const { atmosphereCode } = rollWorldAtmosphereCode({
+      size: 5,
+      gravity: 0.39,
+      useGravityAtmosphereVariant: true,
+      rng: rngFor2d(7),
+    });
+    expect(atmosphereCode).toBe(3);
+  });
+
+  it("applies gravity-based variant DM-1 between 0.4G and 0.5G", () => {
+    // roll 7, size 5: base 5; gravity DM-1 => 4
+    const { atmosphereCode } = rollWorldAtmosphereCode({
+      size: 5,
+      gravity: 0.45,
+      useGravityAtmosphereVariant: true,
+      rng: rngFor2d(7),
+    });
+    expect(atmosphereCode).toBe(4);
+  });
+
+  it("uses gravity variant as alternative to size variant when both are enabled", () => {
+    // size variant would be DM-2, gravity variant is DM-1 here; result should use DM-1
+    const { atmosphereCode } = rollWorldAtmosphereCode({
+      size: 3,
+      gravity: 0.45,
+      useSizeThinAtmosphereVariant: true,
+      useGravityAtmosphereVariant: true,
+      rng: rngFor2d(7),
+    });
+    expect(atmosphereCode).toBe(2);
+  });
+});
+
+describe("calculateAtmosphereVariantDm", () => {
+  it("returns size variant DM-2 for size 2-4", () => {
+    expect(calculateAtmosphereVariantDm({ size: 4, useSizeThinAtmosphereVariant: true }).dm).toBe(-2);
+  });
+
+  it("returns gravity variant DM-2 below 0.4G and DM-1 below 0.5G", () => {
+    expect(calculateAtmosphereVariantDm({ gravity: 0.39, useGravityAtmosphereVariant: true }).dm).toBe(-2);
+    expect(calculateAtmosphereVariantDm({ gravity: 0.45, useGravityAtmosphereVariant: true }).dm).toBe(-1);
+  });
+});
+
+describe("lookupAtmosphereCodeInfo", () => {
+  it("resolves metadata for numeric and coded atmosphere values", () => {
+    const atmoA = lookupAtmosphereCodeInfo(10);
+    const atmoH = lookupAtmosphereCodeInfo("H");
+
+    expect(atmoA.composition).toBe("Exotic");
+    expect(atmoH.survivalGearRequired).toBe("Not Survivable");
+  });
+
+  it("returns null for unknown atmosphere input", () => {
+    expect(lookupAtmosphereCodeInfo("Q")).toBeNull();
+  });
+
+  it("exposes Table 29 metadata for standard atmosphere", () => {
+    expect(ATMOSPHERE_CODE_TABLE["6"].pressureRangeBar).toEqual([0.7, 1.49]);
+    expect(ATMOSPHERE_CODE_TABLE["6"].survivalGearRequired).toBe("None");
+  });
+});
+
+describe("rollAtmospherePressureBar", () => {
+  it("rolls pressure inside numeric pressure bands", () => {
+    const pressure = rollAtmospherePressureBar({ atmosphereCode: 6, rng: fixedRng(0.5) });
+    expect(pressure.variableRange).toBe(false);
+    expect(pressure.minBar).toBeCloseTo(0.7, 10);
+    expect(pressure.maxBar).toBeCloseTo(1.49, 10);
+    expect(pressure.pressureBar).toBeCloseTo(1.095, 3);
+  });
+
+  it("returns variable range metadata for exotic/corrosive/insidious/unusual atmospheres", () => {
+    const pressure = rollAtmospherePressureBar({ atmosphereCode: "A" });
+    expect(pressure.variableRange).toBe(true);
+    expect(pressure.pressureBar).toBeNull();
   });
 });
 
@@ -3505,6 +4166,25 @@ describe("identifyMainworldCandidates", () => {
     expect(c.hydrographicsCode).toBe(6);
   });
 
+  it("treats Size S candidate as atmosphere 0 and hydrographics 0", () => {
+    const slots = [
+      {
+        slotId: "P-S",
+        orbit: 3.1,
+        primaryWorldType: "terrestrialPlanet",
+        sizeCode: "S",
+        secondaryWorldTypes: [],
+      },
+    ];
+
+    const result = identifyMainworldCandidates({ slots, hzco: 3.3, rollPhysical: true, rng: rngFor2dSequence(12, 12) });
+    const c = result.candidates[0];
+    expect(c.atmosphereRoll).toBeNull();
+    expect(c.atmosphereCode).toBe(0);
+    expect(c.hydrographicsRoll).toBeNull();
+    expect(c.hydrographicsCode).toBe(0);
+  });
+
   it("returns correct HZ bounds for normal HZCO", () => {
     const result = identifyMainworldCandidates({ slots: [], hzco: 3.3, rollPhysical: false });
     expect(result.habitableZone).toEqual({ innerOrbit: 2.3, outerOrbit: 4.3 });
@@ -3540,5 +4220,321 @@ describe("identifyMainworldCandidates", () => {
     const result = identifyMainworldCandidates({ slots, hzco: 3.3, rollPhysical: false });
     const orbits = result.candidates.map((c) => c.orbit);
     expect(orbits).toEqual([2.5, 3.3, 4.0]);
+  });
+});
+
+// ── Chapter 5: World Physical Characteristics ────────────────────────────────
+
+describe("rollWorldDiameter", () => {
+  it("returns 0 diameter for Size 0 with no rolls", () => {
+    const result = rollWorldDiameter({ sizeCode: "0" });
+    expect(result.diameterKm).toBe(0);
+    expect(result.d3Roll).toBeNull();
+    expect(result.d6Roll).toBeNull();
+    expect(result.d100Roll).toBeNull();
+  });
+
+  it("returns 0 diameter for Size R with no rolls", () => {
+    const result = rollWorldDiameter({ sizeCode: "R" });
+    expect(result.diameterKm).toBe(0);
+    expect(result.d6Roll).toBeNull();
+  });
+
+  it("replicates the Zed mainworld Size 5 example: D3=2 +600, D6=4 +300, d100=63 → 8163km", () => {
+    // seqRng values: [D3-backing-d6, diameter-D6, d100]
+    // rng=0.5 → floor(0.5×6)+1=4; rollD3=ceil(4/2)=2 → increase=600
+    // rng=0.5 → d6=4 → increase=300; 900 < 1600 so no reroll
+    // rng=0.63 → floor(0.63×100)=63
+    const rng = seqRng(0.5, 0.5, 0.63);
+    const result = rollWorldDiameter({ sizeCode: "5", rng });
+    expect(result.minimumDiameter).toBe(7200);
+    expect(result.d3Increase).toBe(600);
+    expect(result.d6Increase).toBe(300);
+    expect(result.d100Roll).toBe(63);
+    expect(result.diameterKm).toBe(8163);
+  });
+
+  it("skips d100 when rollD100=false", () => {
+    const rng = seqRng(0.5, 0.5);
+    const result = rollWorldDiameter({ sizeCode: "5", rollD100: false, rng });
+    expect(result.d100Roll).toBeNull();
+    expect(result.diameterKm).toBe(7200 + 600 + 300);
+  });
+
+  it("rerolls D3+D6 when combined increase ≥ 1600 (D3=3 +1200, D6=5 +400 → reroll)", () => {
+    // rng=4/6 → d6=5 → D3=ceil(5/2)=3 → 1200; rng=4/6 → d6=5 → +400; 1600≥1600 → reroll
+    // rng=1/6 → d6=2 → D3=ceil(2/2)=1 → 0; rng=0 → d6=1 → 0; done
+    // rng=0.5 → d100=50; Size F min=23200 → 23200+0+0+50=23250
+    const rng = seqRng(4 / 6, 4 / 6, 1 / 6, 0, 0.5);
+    const result = rollWorldDiameter({ sizeCode: "F", rng });
+    expect(result.d3Increase).toBe(0);
+    expect(result.d6Increase).toBe(0);
+    expect(result.d100Roll).toBe(50);
+    expect(result.diameterKm).toBe(23250);
+  });
+
+  it("rolls Size S: D6 1–4 only, adds to 400km minimum + d100", () => {
+    // rng=0.5 → d6=4 → increase=300; rng cycles to 0.5 → d100=50
+    const rng = seqRng(0.5, 0.5);
+    const result = rollWorldDiameter({ sizeCode: "S", rng });
+    expect(result.minimumDiameter).toBe(400);
+    expect(result.d3Roll).toBeNull();
+    expect(result.d6Increase).toBe(300);
+    expect(result.diameterKm).toBe(750);
+  });
+
+  it("rerolls Size S D6 when result is 5 or 6", () => {
+    // rng=4/6 → d6=5 → ≥5 reroll; rng=1/6 → d6=2 → increase=100; rng cycles → d100=50
+    const rng = seqRng(4 / 6, 1 / 6, 0.5);
+    const result = rollWorldDiameter({ sizeCode: "S", rng });
+    expect(result.d6Increase).toBe(100);
+    expect(result.diameterKm).toBe(550);
+  });
+
+  it("returns null for an unknown size code", () => {
+    expect(rollWorldDiameter({ sizeCode: "Z" })).toBeNull();
+  });
+
+  it("accepts numeric size value", () => {
+    const rng = seqRng(0.5, 0.5, 0.5);
+    const result = rollWorldDiameter({ sizeCode: 8, rollD100: false, rng });
+    expect(result.sizeCode).toBe("8");
+    expect(result.minimumDiameter).toBe(12000);
+  });
+});
+
+describe("determineTerrestrialComposition", () => {
+  it("replicates Zed mainworld: Size 5, orbit 3.1, HZCO 3.3, roll 10 → Rock and Metal", () => {
+    // Size 5: no size DM; orbit 3.1 ≤ 3.3 → DM+1; total=10+1=11 → rockAndMetal (≤11)
+    const result = determineTerrestrialComposition({
+      sizeValue: 5,
+      orbit: 3.1,
+      hzco: 3.3,
+      rng: rngFor2d(10),
+    });
+    expect(result.roll).toBe(10);
+    expect(result.totalRoll).toBe(11);
+    expect(result.compositionKey).toBe("rockAndMetal");
+    expect(result.composition).toBe(TERRESTRIAL_COMPOSITIONS.rockAndMetal);
+  });
+
+  it("applies DM-1 for Size 0–4", () => {
+    // Size 2: DM-1; no orbit/hzco; roll 7 → total 6 → mostlyRock (≤6)
+    const result = determineTerrestrialComposition({ sizeValue: 2, rng: rngFor2d(7) });
+    expect(result.dms.find((d) => d.label.includes("Size 0"))).toBeDefined();
+    expect(result.totalRoll).toBe(6);
+    expect(result.compositionKey).toBe("mostlyRock");
+  });
+
+  it("applies DM+1 for Size 6–9", () => {
+    // Size 7: DM+1; roll 7 → total 8 → rockAndMetal (≤11)
+    const result = determineTerrestrialComposition({ sizeValue: 7, rng: rngFor2d(7) });
+    expect(result.totalRoll).toBe(8);
+    expect(result.compositionKey).toBe("rockAndMetal");
+  });
+
+  it("applies DM+3 for Size A–F", () => {
+    // Size 10 (A): DM+3; no orbit/hzco; roll 10 → total 13 → mostlyMetal (≤14)
+    const result = determineTerrestrialComposition({ sizeValue: 10, rng: rngFor2d(10) });
+    expect(result.totalRoll).toBe(13);
+    expect(result.compositionKey).toBe("mostlyMetal");
+  });
+
+  it("applies DM-1 for beyond HZCO plus DM-1 per full orbit# beyond", () => {
+    // Size 0: DM-1; orbit 6.0, HZCO 3.3 → beyond by 2.7 → DM-1 + DM-2 = DM-3; total DM=-4
+    // Roll 5 → total 5-4=1 → mostlyIce (≤2)
+    const result = determineTerrestrialComposition({
+      sizeValue: 0,
+      orbit: 6.0,
+      hzco: 3.3,
+      rng: rngFor2d(5),
+    });
+    expect(result.totalRoll).toBe(1);
+    expect(result.compositionKey).toBe("mostlyIce");
+  });
+
+  it("applies DM-1 for system age > 10 Gyr", () => {
+    // Size 5: no size DM; systemAgeByr=11 → DM-1; roll 7 → total 6 → mostlyRock
+    const result = determineTerrestrialComposition({ sizeValue: 5, systemAgeByr: 11, rng: rngFor2d(7) });
+    expect(result.totalRoll).toBe(6);
+    expect(result.compositionKey).toBe("mostlyRock");
+  });
+
+  it("classifies extreme cold outer world as exoticIce", () => {
+    // Size 1: DM-1; orbit 12.0, HZCO 3.3 → beyond DM-1, 8 full orbits → DM-8; total DM=-10
+    // Roll 2 → total -8 → exoticIce (≤-4)
+    const result = determineTerrestrialComposition({
+      sizeValue: 1,
+      orbit: 12.0,
+      hzco: 3.3,
+      rng: rngFor2d(2),
+    });
+    expect(result.totalRoll).toBeLessThanOrEqual(-4);
+    expect(result.compositionKey).toBe("exoticIce");
+  });
+
+  it("classifies hot dense world as compressedMetal", () => {
+    // Size 15 (F): DM+3; at HZCO → DM+1; roll 12 → total 16 → compressedMetal (>14)
+    const result = determineTerrestrialComposition({
+      sizeValue: 15,
+      orbit: 3.3,
+      hzco: 3.3,
+      rng: rngFor2d(12),
+    });
+    expect(result.compositionKey).toBe("compressedMetal");
+  });
+});
+
+describe("rollTerrestrialDensity", () => {
+  it("replicates Zed mainworld: Rock and Metal, roll 9 → density 1.03", () => {
+    const result = rollTerrestrialDensity({ compositionKey: "rockAndMetal", rng: rngFor2d(9) });
+    expect(result.roll).toBe(9);
+    expect(result.density).toBe(1.03);
+  });
+
+  it("Exotic Ice roll 2 → density 0.03", () => {
+    expect(rollTerrestrialDensity({ compositionKey: "exoticIce", rng: rngFor2d(2) }).density).toBe(0.03);
+  });
+
+  it("Compressed Metal roll 12 → density 2.00", () => {
+    expect(rollTerrestrialDensity({ compositionKey: "compressedMetal", rng: rngFor2d(12) }).density).toBe(2.0);
+  });
+
+  it("Mostly Ice roll 10 → density 0.41 (source table value, not 0.42)", () => {
+    expect(rollTerrestrialDensity({ compositionKey: "mostlyIce", rng: rngFor2d(10) }).density).toBe(0.41);
+  });
+
+  it("returns null for unknown composition key", () => {
+    expect(rollTerrestrialDensity({ compositionKey: "plasma" })).toBeNull();
+  });
+});
+
+describe("calculateWorldGravity", () => {
+  it("Terra (diameter 12742, density 1.0) → gravity 1.0", () => {
+    expect(calculateWorldGravity({ diameterKm: 12742, density: 1.0 })).toBeCloseTo(1.0, 10);
+  });
+
+  it("replicates Zed mainworld: diameter 8163, density 1.03 → ~0.66G", () => {
+    const gravity = calculateWorldGravity({ diameterKm: 8163, density: 1.03 });
+    expect(gravity).toBeCloseTo(0.66, 2);
+  });
+
+  it("returns null for non-finite inputs", () => {
+    expect(calculateWorldGravity({ diameterKm: NaN, density: 1.0 })).toBeNull();
+    expect(calculateWorldGravity({ diameterKm: 12742 })).toBeNull();
+  });
+});
+
+describe("calculateWorldMass", () => {
+  it("Terra (diameter 12742, density 1.0) → mass 1.0", () => {
+    expect(calculateWorldMass({ diameterKm: 12742, density: 1.0 })).toBeCloseTo(1.0, 10);
+  });
+
+  it("replicates Zed mainworld: diameter 8163, density 1.03 → ~0.27 Terra", () => {
+    const mass = calculateWorldMass({ diameterKm: 8163, density: 1.03 });
+    expect(mass).toBeCloseTo(0.27, 2);
+  });
+
+  it("returns null for non-finite inputs", () => {
+    expect(calculateWorldMass({ diameterKm: undefined, density: 1.0 })).toBeNull();
+  });
+});
+
+describe("calculateWorldEscapeVelocity", () => {
+  it("Terra (mass 1.0, diameter 12742) → escape velocity 11186 m/s", () => {
+    expect(calculateWorldEscapeVelocity({ mass: 1.0, diameterKm: 12742 })).toBeCloseTo(11186, 0);
+  });
+
+  it("replicates Zed mainworld: ~7262 m/s (within 20 m/s tolerance for rounding)", () => {
+    const mass = calculateWorldMass({ diameterKm: 8163, density: 1.03 });
+    const escV = calculateWorldEscapeVelocity({ mass, diameterKm: 8163 });
+    expect(escV).toBeGreaterThan(7240);
+    expect(escV).toBeLessThan(7300);
+  });
+
+  it("returns null for diameterKm <= 0", () => {
+    expect(calculateWorldEscapeVelocity({ mass: 1.0, diameterKm: 0 })).toBeNull();
+    expect(calculateWorldEscapeVelocity({ mass: 1.0, diameterKm: -100 })).toBeNull();
+  });
+});
+
+describe("calculateWorldOrbitalVelocitySurface", () => {
+  it("Terra: escV 11186 / √2 ≈ 7909 m/s", () => {
+    expect(calculateWorldOrbitalVelocitySurface({ escapeVelocity: 11186 })).toBeCloseTo(7909.7, 1);
+  });
+
+  it("replicates Zed mainworld: ~5135 m/s (within 10 m/s)", () => {
+    const mass = calculateWorldMass({ diameterKm: 8163, density: 1.03 });
+    const escV = calculateWorldEscapeVelocity({ mass, diameterKm: 8163 });
+    const orbV = calculateWorldOrbitalVelocitySurface({ escapeVelocity: escV });
+    expect(orbV).toBeGreaterThan(5120);
+    expect(orbV).toBeLessThan(5160);
+  });
+
+  it("returns null for non-finite escapeVelocity", () => {
+    expect(calculateWorldOrbitalVelocitySurface({ escapeVelocity: NaN })).toBeNull();
+  });
+});
+
+describe("calculateWorldOrbitalVelocityAtAltitude", () => {
+  it("Terra at surface (h=0): matches surface orbital velocity formula", () => {
+    // 11186 × √(1 / (2 × 6371 / 6371)) = 11186 × √(1/2) ≈ 7909 m/s
+    const orbV = calculateWorldOrbitalVelocityAtAltitude({ mass: 1.0, diameterKm: 12742, altitudeKm: 0 });
+    expect(orbV).toBeCloseTo(7909.7, 1);
+  });
+
+  it("replicates Zed mainworld at 500km altitude: ~4847 m/s (within 20 m/s)", () => {
+    const mass = calculateWorldMass({ diameterKm: 8163, density: 1.03 });
+    const orbV = calculateWorldOrbitalVelocityAtAltitude({ mass, diameterKm: 8163, altitudeKm: 500 });
+    expect(orbV).toBeGreaterThan(4830);
+    expect(orbV).toBeLessThan(4870);
+  });
+
+  it("returns null for non-finite inputs", () => {
+    expect(calculateWorldOrbitalVelocityAtAltitude({ mass: 1.0, diameterKm: 12742, altitudeKm: NaN })).toBeNull();
+  });
+});
+
+describe("formatWorldSizeProfile", () => {
+  it("replicates Zed mainworld Size profile: '5-8163-1.03-0.66-0.27'", () => {
+    const diameterKm = 8163;
+    const density = 1.03;
+    const gravity = calculateWorldGravity({ diameterKm, density });
+    const mass = calculateWorldMass({ diameterKm, density });
+    const profile = formatWorldSizeProfile({
+      sizeCode: "5",
+      diameterKm,
+      density,
+      gravity,
+      mass,
+    });
+    expect(profile).toBe("5-8163-1.03-0.66-0.27");
+  });
+
+  it("rounds diameter to nearest integer", () => {
+    const profile = formatWorldSizeProfile({
+      sizeCode: "5",
+      diameterKm: 8163.7,
+      density: 1.0,
+      gravity: 0.64,
+      mass: 0.26,
+    });
+    expect(profile.split("-")[1]).toBe("8164");
+  });
+
+  it("uses '?' for non-finite values", () => {
+    const profile = formatWorldSizeProfile({
+      sizeCode: "5",
+      diameterKm: NaN,
+      density: 1.03,
+      gravity: 0.66,
+      mass: 0.27,
+    });
+    expect(profile.split("-")[1]).toBe("?");
+  });
+
+  it("handles missing sizeCode", () => {
+    const profile = formatWorldSizeProfile({ diameterKm: 12742, density: 1.0, gravity: 1.0, mass: 1.0 });
+    expect(profile.startsWith("?-")).toBe(true);
   });
 });

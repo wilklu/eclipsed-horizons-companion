@@ -1215,6 +1215,874 @@ export function assignSignificantMoonSizes({ slots = [], rng = Math.random } = {
   };
 }
 
+// ── Significant Moon and Ring Characteristics (WBH Chapter 5) ───────────────
+
+const AU_IN_KM = 149597870.9;
+const EARTH_MASS_TO_SOLAR_MASS = 0.000003;
+const DEFAULT_ROCHE_DENSITY_RATIO = 2;
+const DEFAULT_ROCHE_LIMIT_PD = 1.22 * Math.cbrt(DEFAULT_ROCHE_DENSITY_RATIO); // ~1.537
+
+/**
+ * Calculate moon-orbit limits using Hill sphere and Roche limit approximations.
+ *
+ * Hill Sphere (AU):
+ *   AU x (1 - ecc) x cbrt(m / (3 x M))
+ *   where m is planet mass in solar units (Earth mass x 0.000003)
+ *
+ * Hill Sphere (PD):
+ *   HillSphere(AU) x 149,597,870.9 / PlanetDiameter(km)
+ *
+ * Hill Sphere Moon Limit:
+ *   HillSphere(PD) / 2
+ *
+ * Roche Limit (PD):
+ *   1.22 x cbrt(primaryDensity / secondaryDensity)
+ *   or simplified default with density ratio 2 (~1.537 PD)
+ *
+ * @param {object} options
+ * @param {number} options.orbitalDistanceAu
+ * @param {number} [options.eccentricity=0]
+ * @param {number} options.planetMassEarth
+ * @param {number} options.starMassSolar
+ * @param {number} options.planetDiameterKm
+ * @param {number} [options.primaryDensity]
+ * @param {number} [options.secondaryDensity]
+ * @param {number} [options.defaultDensityRatio=2]
+ * @returns {{
+ *   hillSphereAu: number,
+ *   hillSphereKm: number,
+ *   hillSpherePd: number,
+ *   hillSphereMoonLimitPd: number,
+ *   hillSphereMoonLimitPdRoundedDown: number,
+ *   rocheLimitPd: number,
+ * } | null}
+ */
+export function calculateMoonOrbitLimits({
+  orbitalDistanceAu,
+  eccentricity = 0,
+  planetMassEarth,
+  starMassSolar,
+  planetDiameterKm,
+  primaryDensity,
+  secondaryDensity,
+  defaultDensityRatio = DEFAULT_ROCHE_DENSITY_RATIO,
+} = {}) {
+  const distanceAu = Number(orbitalDistanceAu);
+  const ecc = Number(eccentricity);
+  const massEarth = Number(planetMassEarth);
+  const massSolar = Number(starMassSolar);
+  const diameterKm = Number(planetDiameterKm);
+
+  if (
+    !Number.isFinite(distanceAu) ||
+    !Number.isFinite(ecc) ||
+    !Number.isFinite(massEarth) ||
+    !Number.isFinite(massSolar) ||
+    !Number.isFinite(diameterKm) ||
+    massSolar <= 0 ||
+    diameterKm <= 0 ||
+    distanceAu < 0
+  ) {
+    return null;
+  }
+
+  const planetMassSolar = Math.max(0, massEarth) * EARTH_MASS_TO_SOLAR_MASS;
+  const hillSphereAu = distanceAu * Math.max(0, 1 - ecc) * Math.cbrt(planetMassSolar / (3 * massSolar));
+  const hillSphereKm = hillSphereAu * AU_IN_KM;
+  const hillSpherePd = hillSphereKm / diameterKm;
+  const hillSphereMoonLimitPd = hillSpherePd / 2;
+
+  let rocheLimitPd;
+  if (
+    Number.isFinite(primaryDensity) &&
+    Number.isFinite(secondaryDensity) &&
+    primaryDensity > 0 &&
+    secondaryDensity > 0
+  ) {
+    rocheLimitPd = 1.22 * Math.cbrt(primaryDensity / secondaryDensity);
+  } else {
+    rocheLimitPd = 1.22 * Math.cbrt(Math.max(0.0001, Number(defaultDensityRatio) || DEFAULT_ROCHE_DENSITY_RATIO));
+  }
+
+  return {
+    hillSphereAu,
+    hillSphereKm,
+    hillSpherePd,
+    hillSphereMoonLimitPd,
+    hillSphereMoonLimitPdRoundedDown: Math.floor(hillSphereMoonLimitPd),
+    rocheLimitPd,
+  };
+}
+
+/**
+ * Apply moon/ring removals when the Hill sphere moon limit is too small.
+ *
+ * Rules:
+ * - If limit < 1.5 PD: no significant moons remain.
+ *   The first lost moon becomes an additional significant ring.
+ * - If limit < 0.5 PD: no significant rings can remain either.
+ *
+ * @param {object} options
+ * @param {number} options.hillSphereMoonLimitPd
+ * @param {number} [options.significantMoonCount=0]
+ * @param {number} [options.significantRingCount=0]
+ * @returns {{
+ *   significantMoonCount: number,
+ *   significantRingCount: number,
+ *   removedMoons: number,
+ *   convertedFirstMoonToRing: boolean,
+ *   noSignificantRingsAllowed: boolean,
+ * }}
+ */
+export function applyMoonRemovalByLimits({
+  hillSphereMoonLimitPd,
+  significantMoonCount = 0,
+  significantRingCount = 0,
+} = {}) {
+  const limit = Number(hillSphereMoonLimitPd);
+  let moons = Math.max(0, Math.floor(Number(significantMoonCount) || 0));
+  let rings = Math.max(0, Math.floor(Number(significantRingCount) || 0));
+
+  let convertedFirstMoonToRing = false;
+  let noSignificantRingsAllowed = false;
+  const removedMoons = moons;
+
+  if (Number.isFinite(limit) && limit < 1.5) {
+    if (moons > 0) {
+      rings += 1;
+      convertedFirstMoonToRing = true;
+    }
+    moons = 0;
+  }
+
+  if (Number.isFinite(limit) && limit < 0.5) {
+    rings = 0;
+    noSignificantRingsAllowed = true;
+  }
+
+  return {
+    significantMoonCount: moons,
+    significantRingCount: rings,
+    removedMoons,
+    convertedFirstMoonToRing,
+    noSignificantRingsAllowed,
+  };
+}
+
+/**
+ * Calculate Moon Orbit Range (MOR).
+ *
+ * MOR = floor(HillSphereMoonLimitPd) - 2
+ * If MOR > 200, use min(MOR, 200 + moonCount).
+ *
+ * @param {object} options
+ * @param {number} options.hillSphereMoonLimitPd
+ * @param {number} [options.moonCount=0]
+ * @returns {{ rawMor: number, mor: number }}
+ */
+export function calculateMoonOrbitRangeMor({ hillSphereMoonLimitPd, moonCount = 0 } = {}) {
+  const rawMor = Math.floor(Number(hillSphereMoonLimitPd) || 0) - 2;
+  const boundedMor = rawMor > 200 ? Math.min(rawMor, 200 + Math.max(0, Math.floor(Number(moonCount) || 0))) : rawMor;
+  return {
+    rawMor,
+    mor: Math.max(0, boundedMor),
+  };
+}
+
+function classifyMoonOrbitRange(rangeRollTotal) {
+  if (rangeRollTotal <= 3) return "inner";
+  if (rangeRollTotal <= 5) return "middle";
+  return "outer";
+}
+
+/**
+ * Roll one significant moon orbit in planetary diameters (PD).
+ *
+ * Table 28 range roll: 1D (+1 DM when MOR < 60)
+ * Inner:  (2D-2) x MOR / 60 + 2
+ * Middle: (2D-2) x MOR / 30 + MOR/6 + 3
+ * Outer:  (2D-2) x MOR / 20 + MOR/2 + 4
+ *
+ * Optional linear variance in [-0.5, +0.5) PD can be added.
+ *
+ * @param {object} options
+ * @param {number} options.mor
+ * @param {boolean} [options.addLinearVariance=false]
+ * @param {Function} [options.rng=Math.random]
+ * @returns {{
+ *   mor: number,
+ *   rangeRoll: number,
+ *   rangeDm: number,
+ *   rangeRollTotal: number,
+ *   range: 'inner'|'middle'|'outer',
+ *   orbitRoll: number,
+ *   orbitPd: number,
+ *   roundedOrbitPd: number,
+ *   variance: number,
+ *   exceedsMor: boolean,
+ * } | null}
+ */
+export function rollMoonOrbitPd({ mor, addLinearVariance = false, rng = Math.random } = {}) {
+  const morValue = Number(mor);
+  if (!Number.isFinite(morValue) || morValue <= 0) return null;
+
+  const rangeRoll = roll1d(rng);
+  const rangeDm = morValue < 60 ? 1 : 0;
+  const rangeRollTotal = rangeRoll + rangeDm;
+  const range = classifyMoonOrbitRange(rangeRollTotal);
+
+  const orbitRoll = roll2d(rng) - 2;
+  let orbitPd;
+  if (range === "inner") {
+    orbitPd = (orbitRoll * morValue) / 60 + 2;
+  } else if (range === "middle") {
+    orbitPd = (orbitRoll * morValue) / 30 + morValue / 6 + 3;
+  } else {
+    orbitPd = (orbitRoll * morValue) / 20 + morValue / 2 + 4;
+  }
+
+  const variance = addLinearVariance ? rng() - 0.5 : 0;
+  orbitPd += variance;
+
+  return {
+    mor: morValue,
+    rangeRoll,
+    rangeDm,
+    rangeRollTotal,
+    range,
+    orbitRoll,
+    orbitPd,
+    roundedOrbitPd: Math.round(orbitPd),
+    variance,
+    exceedsMor: orbitPd > morValue,
+  };
+}
+
+/**
+ * Roll and assign significant moon orbits, optionally sorting by ascending PD.
+ *
+ * @param {object} options
+ * @param {number} options.moonCount
+ * @param {number} options.mor
+ * @param {boolean} [options.addLinearVariance=false]
+ * @param {boolean} [options.sortAscending=true]
+ * @param {boolean} [options.resolveDuplicateRoundedOrbits=true]
+ * @param {Function} [options.rng=Math.random]
+ * @returns {{ mor: number, moonOrbits: Array<object> }}
+ */
+export function assignSignificantMoonOrbits({
+  moonCount,
+  mor,
+  addLinearVariance = false,
+  sortAscending = true,
+  resolveDuplicateRoundedOrbits = true,
+  rng = Math.random,
+} = {}) {
+  const count = Math.max(0, Math.floor(Number(moonCount) || 0));
+  const moonOrbits = [];
+
+  for (let i = 0; i < count; i += 1) {
+    const rolled = rollMoonOrbitPd({ mor, addLinearVariance, rng });
+    if (!rolled) break;
+    moonOrbits.push({
+      ...rolled,
+      originalIndex: i,
+      assignedIndex: i,
+      adjustedForCollision: false,
+    });
+  }
+
+  const ordered = sortAscending ? [...moonOrbits].sort((a, b) => a.orbitPd - b.orbitPd) : [...moonOrbits];
+  ordered.forEach((entry, index) => {
+    entry.assignedIndex = index;
+  });
+
+  if (resolveDuplicateRoundedOrbits && ordered.length > 1) {
+    for (let i = 1; i < ordered.length; i += 1) {
+      const previous = ordered[i - 1];
+      const current = ordered[i];
+      if (current.roundedOrbitPd <= previous.roundedOrbitPd) {
+        current.roundedOrbitPd = previous.roundedOrbitPd + 1;
+        current.orbitPd = Math.max(current.orbitPd, current.roundedOrbitPd);
+        current.adjustedForCollision = true;
+      }
+    }
+  }
+
+  return {
+    mor: Number(mor),
+    moonOrbits: ordered,
+  };
+}
+
+/**
+ * Calculate DM used for optional moon eccentricity and retrograde checks.
+ *
+ * DMs:
+ * - inner: -1
+ * - middle: +1
+ * - outer: +4
+ * - exceeds MOR: +6
+ *
+ * @param {object} options
+ * @param {'inner'|'middle'|'outer'} options.range
+ * @param {boolean} [options.exceedsMor=false]
+ * @returns {{ dm: number, notes: string[] }}
+ */
+export function calculateMoonOrbitDm({ range, exceedsMor = false } = {}) {
+  const notes = [];
+  let dm = 0;
+
+  if (range === "inner") {
+    dm -= 1;
+    notes.push("DM-1 inner-range moon");
+  } else if (range === "middle") {
+    dm += 1;
+    notes.push("DM+1 middle-range moon");
+  } else {
+    dm += 4;
+    notes.push("DM+4 outer-range moon");
+  }
+
+  if (exceedsMor) {
+    dm += 6;
+    notes.push("DM+6 moon exceeds MOR");
+  }
+
+  return { dm, notes };
+}
+
+/**
+ * Roll optional eccentricity for a moon orbit using moon-range DMs.
+ *
+ * @param {object} options
+ * @param {'inner'|'middle'|'outer'} options.range
+ * @param {boolean} [options.exceedsMor=false]
+ * @param {Function} [options.rng=Math.random]
+ * @returns {{ dm: number, notes: string[], eccentricityRoll: ReturnType<typeof rollWorldEccentricity>, eccentricity: number }}
+ */
+export function rollMoonOrbitEccentricity({ range, exceedsMor = false, rng = Math.random } = {}) {
+  const dmResult = calculateMoonOrbitDm({ range, exceedsMor });
+  const eccentricityRoll = rollWorldEccentricity({
+    rng,
+    anomalousEccentricityDm: dmResult.dm,
+  });
+
+  return {
+    dm: dmResult.dm,
+    notes: dmResult.notes,
+    eccentricityRoll,
+    eccentricity: eccentricityRoll.eccentricity,
+  };
+}
+
+/**
+ * Roll optional moon orbital direction (retrograde on 10+ with moon-range DMs).
+ *
+ * @param {object} options
+ * @param {'inner'|'middle'|'outer'} options.range
+ * @param {boolean} [options.exceedsMor=false]
+ * @param {Function} [options.rng=Math.random]
+ * @returns {{ roll: number, dm: number, total: number, retrograde: boolean, notes: string[] }}
+ */
+export function rollMoonOrbitDirection({ range, exceedsMor = false, rng = Math.random } = {}) {
+  const dmResult = calculateMoonOrbitDm({ range, exceedsMor });
+  const roll = roll2d(rng);
+  const total = roll + dmResult.dm;
+  return {
+    roll,
+    dm: dmResult.dm,
+    total,
+    retrograde: total >= 10,
+    notes: dmResult.notes,
+  };
+}
+
+/**
+ * Calculate moon orbital period from PD/km and parent mass.
+ *
+ * Method A (PD/size):
+ *   0.176927 x sqrt(((PD x SizeUnits)^3) / Mp)
+ * where SizeUnits = parentDiameterKm / 1600
+ *
+ * Method B (km):
+ *   sqrt((OrbitKm^3) / Mp) / 361730
+ *
+ * @param {object} options
+ * @param {number} options.orbitPd
+ * @param {number} options.parentDiameterKm
+ * @param {number} options.planetMassEarth
+ * @param {number} [options.moonMassEarth=0]
+ * @param {boolean} [options.includeMoonMass=false]
+ * @returns {{ orbitKm: number, effectiveMassEarth: number, periodHours: number, periodDays: number, periodHoursPdMethod: number } | null}
+ */
+export function calculateMoonOrbitalPeriodHours({
+  orbitPd,
+  parentDiameterKm,
+  planetMassEarth,
+  moonMassEarth = 0,
+  includeMoonMass = false,
+} = {}) {
+  const pd = Number(orbitPd);
+  const diameterKm = Number(parentDiameterKm);
+  const mp = Number(planetMassEarth);
+  const mm = Number(moonMassEarth);
+
+  if (
+    !Number.isFinite(pd) ||
+    !Number.isFinite(diameterKm) ||
+    !Number.isFinite(mp) ||
+    pd <= 0 ||
+    diameterKm <= 0 ||
+    mp <= 0
+  ) {
+    return null;
+  }
+
+  const effectiveMassEarth = mp + (includeMoonMass && Number.isFinite(mm) ? Math.max(0, mm) : 0);
+  if (effectiveMassEarth <= 0) return null;
+
+  const orbitKm = pd * diameterKm;
+  const sizeUnits = diameterKm / 1600;
+  const periodHoursPdMethod = 0.176927 * Math.sqrt((pd * sizeUnits) ** 3 / effectiveMassEarth);
+  const periodHours = Math.sqrt(orbitKm ** 3 / effectiveMassEarth) / 361730;
+
+  return {
+    orbitKm,
+    effectiveMassEarth,
+    periodHours,
+    periodDays: periodHours / 24,
+    periodHoursPdMethod,
+  };
+}
+
+function formatSignedDecimal(value) {
+  if (!Number.isFinite(value)) return "?";
+  return String(Number(value.toFixed(2))).replace(/\.0+$/, "");
+}
+
+/**
+ * Roll significant ring geometries and apply overlap adjustments.
+ *
+ * Ring centre: 0.4 + (2D / 8)
+ * Ring span:   (3D / 100) + 0.07
+ *
+ * When overlaps occur, outer rings are moved outward to be adjacent.
+ * Optional moon-gap records are added when a ring extending beyond Roche
+ * overlaps a moon orbit.
+ *
+ * @param {object} options
+ * @param {number} options.ringCount
+ * @param {number} [options.rocheLimitPd=1.537]
+ * @param {number} [options.minimumInnerEdgePd=0.55]
+ * @param {number} [options.parentDiameterKm]
+ * @param {Array<{ orbitPd: number, diameterKm?: number }>} [options.moons=[]]
+ * @param {Function} [options.rng=Math.random]
+ * @returns {{ rings: Array<object>, gaps: Array<object> }}
+ */
+export function generateSignificantRings({
+  ringCount,
+  rocheLimitPd = DEFAULT_ROCHE_LIMIT_PD,
+  minimumInnerEdgePd = 0.55,
+  parentDiameterKm,
+  moons = [],
+  rng = Math.random,
+} = {}) {
+  const count = Math.max(0, Math.floor(Number(ringCount) || 0));
+  const rings = [];
+
+  for (let i = 0; i < count; i += 1) {
+    const centerRoll = roll2d(rng);
+    const spanRoll = roll3d(rng);
+    let centerPd = 0.4 + centerRoll / 8;
+    let spanPd = spanRoll / 100 + 0.07;
+
+    let adjustedForOverlap = false;
+    if (rings.length > 0) {
+      const previous = rings[rings.length - 1];
+      const innerCandidate = centerPd - spanPd / 2;
+      if (innerCandidate < previous.outerEdgePd) {
+        centerPd = previous.centerPd + (previous.spanPd + spanPd) / 2;
+        adjustedForOverlap = true;
+      }
+    }
+
+    let innerEdgePd = centerPd - spanPd / 2;
+    let outerEdgePd = centerPd + spanPd / 2;
+
+    if (adjustedForOverlap && innerEdgePd < minimumInnerEdgePd) {
+      const maxSpan = Math.max(0, (centerPd - minimumInnerEdgePd) * 2);
+      spanPd = Math.min(spanPd, maxSpan);
+      innerEdgePd = centerPd - spanPd / 2;
+      outerEdgePd = centerPd + spanPd / 2;
+    }
+
+    rings.push({
+      index: i + 1,
+      centerRoll,
+      spanRoll,
+      centerPd,
+      spanPd,
+      innerEdgePd,
+      outerEdgePd,
+      adjustedForOverlap,
+      exceedsRocheLimit: outerEdgePd > rocheLimitPd,
+    });
+  }
+
+  const gaps = [];
+  for (const ring of rings) {
+    if (!ring.exceedsRocheLimit) continue;
+
+    for (let i = 0; i < moons.length; i += 1) {
+      const moon = moons[i] ?? {};
+      const moonOrbitPd = Number(moon.orbitPd);
+      const moonDiameterKm = Number(moon.diameterKm);
+      if (!Number.isFinite(moonOrbitPd) || moonOrbitPd < ring.innerEdgePd || moonOrbitPd > ring.outerEdgePd) {
+        continue;
+      }
+
+      const gapMultiplier = roll1d(rng) + 2;
+      const baseDiameterKm = Number.isFinite(moonDiameterKm)
+        ? moonDiameterKm
+        : Number.isFinite(parentDiameterKm)
+          ? Number(parentDiameterKm) / 10
+          : 0;
+
+      gaps.push({
+        ringIndex: ring.index,
+        moonIndex: i + 1,
+        moonOrbitPd,
+        gapMultiplier,
+        gapWidthKm: gapMultiplier * Math.max(0, baseDiameterKm),
+      });
+    }
+  }
+
+  return { rings, gaps };
+}
+
+/**
+ * Format ring profile: R0#:C-S,C-S,...
+ *
+ * @param {{ rings?: Array<{ centerPd: number, spanPd: number }> }} options
+ * @returns {string}
+ */
+export function formatRingProfile({ rings = [] } = {}) {
+  const count = Math.max(0, rings.length);
+  const prefix = `R${String(count).padStart(2, "0")}`;
+  if (count === 0) return `${prefix}:`;
+
+  const body = rings
+    .map((ring) => `${formatSignedDecimal(Number(ring?.centerPd))}-${formatSignedDecimal(Number(ring?.spanPd))}`)
+    .join(",");
+  return `${prefix}:${body}`;
+}
+
+function firstFinitePositive(values = []) {
+  for (const value of values) {
+    const numeric = Number(value);
+    if (Number.isFinite(numeric) && numeric > 0) return numeric;
+  }
+  return null;
+}
+
+function resolveSlotStarMassSolar({ stars = [], slotStarKey } = {}) {
+  const secondaryIndex = secondaryIndexFromStarKey(slotStarKey);
+  const primaryStar = stars[0] ?? {};
+  const parentStar = secondaryIndex >= 0 ? (stars[secondaryIndex + 1] ?? primaryStar) : primaryStar;
+
+  const parentMass = firstFinitePositive([
+    parentStar?.massSolar,
+    parentStar?.stellarMassSolar,
+    parentStar?.mass,
+    parentStar?.stellarMass,
+  ]);
+  if (parentMass) {
+    return {
+      value: parentMass,
+      source: secondaryIndex >= 0 ? `secondary-${secondaryIndex + 1}` : "primary",
+    };
+  }
+
+  const totalMass = stars.reduce((sum, star) => {
+    const mass = firstFinitePositive([star?.massSolar, star?.stellarMassSolar, star?.mass, star?.stellarMass]);
+    return sum + (mass ?? 0);
+  }, 0);
+
+  if (totalMass > 0) {
+    return {
+      value: totalMass,
+      source: "sum-of-stars",
+    };
+  }
+
+  return {
+    value: 1,
+    source: "fallback-sol",
+  };
+}
+
+function resolveParentDiameterKmForMoonMath(slot) {
+  const direct = firstFinitePositive([slot?.basicDiameterKm]);
+  if (direct) return direct;
+
+  const gasDiameterTerran = Number(slot?.gasGiantDiameterTerran);
+  if (Number.isFinite(gasDiameterTerran) && gasDiameterTerran > 0) {
+    return gasDiameterTerran * BASIC_TERRESTRIAL_WORLD_DIAMETER_BY_SIZE["8"];
+  }
+
+  return null;
+}
+
+function resolveParentMassEarthForMoonMath(slot, parentDiameterKm) {
+  const explicit = firstFinitePositive([slot?.gasGiantMassEarth, slot?.massEarth, slot?.worldMassEarth]);
+  if (explicit) return { value: explicit, source: "slot" };
+
+  if (Number.isFinite(parentDiameterKm) && parentDiameterKm > 0) {
+    const estimated = calculateWorldMass({ diameterKm: parentDiameterKm, density: 1 });
+    if (Number.isFinite(estimated) && estimated > 0) {
+      return {
+        value: estimated,
+        source: "estimated-density-1",
+      };
+    }
+  }
+
+  return {
+    value: null,
+    source: "missing",
+  };
+}
+
+function resolveMoonDiameterKmFromSizeDetail(moon) {
+  if (Number.isFinite(moon?.basicDiameterKm) && Number(moon.basicDiameterKm) > 0) {
+    return Number(moon.basicDiameterKm);
+  }
+
+  const gasDiameterTerran = Number(moon?.gasGiantDiameterTerran);
+  if (Number.isFinite(gasDiameterTerran) && gasDiameterTerran > 0) {
+    return gasDiameterTerran * BASIC_TERRESTRIAL_WORLD_DIAMETER_BY_SIZE["8"];
+  }
+
+  const sizeCode = normalizeBasicWorldSizeCode(moon?.sizeCode);
+  const terrestrialDiameter = lookupBasicTerrestrialWorldDiameter(sizeCode);
+  if (Number.isFinite(terrestrialDiameter) && terrestrialDiameter > 0) {
+    return terrestrialDiameter;
+  }
+
+  return null;
+}
+
+/**
+ * Enrich slots with significant moon/ring geometry and orbital characteristics.
+ *
+ * This pass consumes Step 11+12 fields and appends Chapter 5 details:
+ * moon limits/removals, MOR, moon orbits, optional direction/eccentricity,
+ * moon periods, ring geometry, ring gaps, and ring profile string.
+ *
+ * @param {object} options
+ * @param {Array<object>} [options.slots=[]]
+ * @param {Array<object>} [options.stars=[]]
+ * @param {boolean} [options.addMoonLinearVariance=false]
+ * @param {boolean} [options.includeMoonDirectionAndEccentricity=true]
+ * @param {Function} [options.rng=Math.random]
+ * @returns {{
+ *   slots: Array<object>,
+ *   totals: {
+ *     worldsProcessed: number,
+ *     worldsWithCharacteristics: number,
+ *     moonsAfterLimitChecks: number,
+ *     ringsAfterLimitChecks: number
+ *   }
+ * }}
+ */
+export function assignSignificantMoonAndRingCharacteristics({
+  slots = [],
+  stars = [],
+  addMoonLinearVariance = false,
+  includeMoonDirectionAndEccentricity = true,
+  rng = Math.random,
+} = {}) {
+  let worldsProcessed = 0;
+  let worldsWithCharacteristics = 0;
+  let moonsAfterLimitChecks = 0;
+  let ringsAfterLimitChecks = 0;
+
+  const updatedSlots = slots.map((slot) => {
+    const initialMoonCount = Math.max(
+      0,
+      Math.floor(Number(slot?.significantMoonCountAfterSizing ?? slot?.significantMoonQuantity) || 0),
+    );
+    const initialRingCount = Math.max(0, Math.floor(Number(slot?.significantRingCount) || 0));
+
+    if (initialMoonCount <= 0 && initialRingCount <= 0) {
+      return slot;
+    }
+
+    worldsProcessed += 1;
+
+    const parentDiameterKm = resolveParentDiameterKmForMoonMath(slot);
+    const parentMass = resolveParentMassEarthForMoonMath(slot, parentDiameterKm);
+    const starMass = resolveSlotStarMassSolar({ stars, slotStarKey: slot?.starKey });
+    const orbitAsAu = Number(slot?.orbit);
+    const eccentricity = Number.isFinite(slot?.eccentricity) ? Number(slot.eccentricity) : 0;
+
+    const limitsRoll =
+      Number.isFinite(orbitAsAu) &&
+      orbitAsAu > 0 &&
+      Number.isFinite(parentDiameterKm) &&
+      parentDiameterKm > 0 &&
+      Number.isFinite(parentMass.value) &&
+      parentMass.value > 0
+        ? calculateMoonOrbitLimits({
+            orbitalDistanceAu: orbitAsAu,
+            eccentricity,
+            planetMassEarth: parentMass.value,
+            starMassSolar: starMass.value,
+            planetDiameterKm: parentDiameterKm,
+          })
+        : null;
+
+    const limits = limitsRoll ?? {
+      hillSphereAu: null,
+      hillSphereKm: null,
+      hillSpherePd: null,
+      hillSphereMoonLimitPd: Number.POSITIVE_INFINITY,
+      hillSphereMoonLimitPdRoundedDown: null,
+      rocheLimitPd: DEFAULT_ROCHE_LIMIT_PD,
+    };
+
+    const limitAdjustment = applyMoonRemovalByLimits({
+      hillSphereMoonLimitPd: limits.hillSphereMoonLimitPd,
+      significantMoonCount: initialMoonCount,
+      significantRingCount: initialRingCount,
+    });
+
+    const mor = calculateMoonOrbitRangeMor({
+      hillSphereMoonLimitPd: limits.hillSphereMoonLimitPd,
+      moonCount: limitAdjustment.significantMoonCount,
+    });
+
+    const moonOrbitAssignments = assignSignificantMoonOrbits({
+      moonCount: limitAdjustment.significantMoonCount,
+      mor: mor.mor,
+      addLinearVariance: addMoonLinearVariance,
+      sortAscending: true,
+      resolveDuplicateRoundedOrbits: true,
+      rng,
+    });
+
+    const sourceMoonDetails = (slot?.significantMoonSizeDetails ?? []).filter((moon) => !moon?.isRing);
+    const moonOrbitDetails = moonOrbitAssignments.moonOrbits.map((orbitRecord, moonIndex) => {
+      const sourceMoon = sourceMoonDetails[moonIndex] ?? null;
+      const moonDiameterKm = resolveMoonDiameterKmFromSizeDetail(sourceMoon);
+      const moonMassEarth =
+        firstFinitePositive([sourceMoon?.gasGiantMassEarth, sourceMoon?.massEarth]) ??
+        (Number.isFinite(moonDiameterKm) && moonDiameterKm > 0
+          ? calculateWorldMass({
+              diameterKm: moonDiameterKm,
+              density: 1,
+            })
+          : null);
+
+      const period =
+        Number.isFinite(parentDiameterKm) &&
+        parentDiameterKm > 0 &&
+        Number.isFinite(parentMass.value) &&
+        parentMass.value > 0
+          ? calculateMoonOrbitalPeriodHours({
+              orbitPd: orbitRecord.orbitPd,
+              parentDiameterKm,
+              planetMassEarth: parentMass.value,
+              moonMassEarth,
+              includeMoonMass: false,
+            })
+          : null;
+
+      const eccentricityRoll = includeMoonDirectionAndEccentricity
+        ? rollMoonOrbitEccentricity({
+            range: orbitRecord.range,
+            exceedsMor: orbitRecord.exceedsMor,
+            rng,
+          })
+        : null;
+      const directionRoll = includeMoonDirectionAndEccentricity
+        ? rollMoonOrbitDirection({
+            range: orbitRecord.range,
+            exceedsMor: orbitRecord.exceedsMor,
+            rng,
+          })
+        : null;
+
+      return {
+        moonIndex: moonIndex + 1,
+        sourceMoon,
+        diameterKm: moonDiameterKm,
+        massEarth: moonMassEarth,
+        ...orbitRecord,
+        period,
+        eccentricityRoll,
+        directionRoll,
+      };
+    });
+
+    const ringsRoll = generateSignificantRings({
+      ringCount: limitAdjustment.significantRingCount,
+      rocheLimitPd: limits.rocheLimitPd,
+      parentDiameterKm,
+      moons: moonOrbitDetails.map((moon) => ({
+        orbitPd: moon.orbitPd,
+        diameterKm: moon.diameterKm,
+      })),
+      rng,
+    });
+
+    const ringProfile = formatRingProfile({ rings: ringsRoll.rings });
+
+    worldsWithCharacteristics += 1;
+    moonsAfterLimitChecks += limitAdjustment.significantMoonCount;
+    ringsAfterLimitChecks += limitAdjustment.significantRingCount;
+
+    return {
+      ...slot,
+      significantMoonCountAfterLimitChecks: limitAdjustment.significantMoonCount,
+      significantRingCountAfterLimitChecks: limitAdjustment.significantRingCount,
+      significantMoonOrbitLimits: limits,
+      significantMoonLimitAdjustments: limitAdjustment,
+      significantMoonOrbitRangeMor: mor,
+      significantMoonOrbitDetails: moonOrbitDetails,
+      significantRingDetails: ringsRoll.rings,
+      significantRingGaps: ringsRoll.gaps,
+      significantRingProfile: ringProfile,
+      significantMoonRingCharacteristics: {
+        assumptions: {
+          orbitDistanceAuSource: Number.isFinite(orbitAsAu) ? "slot.orbit" : "missing",
+          starMassSolarSource: starMass.source,
+          parentMassEarthSource: parentMass.source,
+        },
+        limits,
+        limitAdjustment,
+        mor,
+        moonOrbits: moonOrbitDetails,
+        rings: ringsRoll.rings,
+        ringGaps: ringsRoll.gaps,
+        ringProfile,
+      },
+    };
+  });
+
+  return {
+    slots: updatedSlots,
+    totals: {
+      worldsProcessed,
+      worldsWithCharacteristics,
+      moonsAfterLimitChecks,
+      ringsAfterLimitChecks,
+    },
+  };
+}
+
 // ── Insignificant Moon Quantity (Rule Of Thumb) ─────────────────────────────
 
 function isInsignificantMoonCandidatePrimaryWorldType(primaryWorldType) {
@@ -1707,6 +2575,613 @@ export function generatePlanetoidBelts({ stars = [], gasGiantCount = 0, rng = Ma
     total,
     dmBreakdown,
   };
+}
+
+// ── Planetoid Belt Characteristics (WBH Chapter 5) ──────────────────────────
+
+const BELT_COMPOSITION_BANDS = Object.freeze([
+  { max: 0, key: "LE_0" },
+  { max: 1, key: "1" },
+  { max: 2, key: "2" },
+  { max: 3, key: "3" },
+  { max: 4, key: "4" },
+  { max: 5, key: "5" },
+  { max: 6, key: "6" },
+  { max: 7, key: "7" },
+  { max: 8, key: "8" },
+  { max: 9, key: "9" },
+  { max: 10, key: "10" },
+  { max: 11, key: "11" },
+  { max: Infinity, key: "GE_12" },
+]);
+
+function rollBeltCompositionRow(key, rng = Math.random) {
+  const d = () => roll1d(rng);
+  const d3 = () => Math.ceil(roll1d(rng) / 2);
+
+  switch (key) {
+    case "LE_0":
+      return { mTypePercent: 60 + d() * 5, sTypePercent: d() * 5, cTypePercent: 0 };
+    case "1":
+      return { mTypePercent: 50 + d() * 5, sTypePercent: 5 + d() * 5, cTypePercent: d3() };
+    case "2":
+      return { mTypePercent: 40 + d() * 5, sTypePercent: 15 + d() * 5, cTypePercent: d() };
+    case "3":
+      return { mTypePercent: 25 + d() * 5, sTypePercent: 30 + d() * 5, cTypePercent: d() };
+    case "4":
+      return { mTypePercent: 15 + d() * 5, sTypePercent: 35 + d() * 5, cTypePercent: 5 + d() };
+    case "5":
+      return { mTypePercent: 5 + d() * 5, sTypePercent: 40 + d() * 5, cTypePercent: 5 + d() * 2 };
+    case "6":
+      return { mTypePercent: d() * 5, sTypePercent: 40 + d() * 5, cTypePercent: d() * 5 };
+    case "7":
+      return { mTypePercent: 5 + d() * 2, sTypePercent: 35 + d() * 5, cTypePercent: 10 + d() * 5 };
+    case "8":
+      return { mTypePercent: 5 + d(), sTypePercent: 30 + d() * 5, cTypePercent: 20 + d() * 5 };
+    case "9":
+      return { mTypePercent: d(), sTypePercent: 15 + d() * 5, cTypePercent: 40 + d() * 5 };
+    case "10":
+      return { mTypePercent: d(), sTypePercent: 5 + d() * 5, cTypePercent: 50 + d() * 5 };
+    case "11":
+      return { mTypePercent: d3(), sTypePercent: 5 + d() * 2, cTypePercent: 60 + d() * 5 };
+    case "GE_12":
+    default:
+      return { mTypePercent: 0, sTypePercent: d(), cTypePercent: 70 + d() * 5 };
+  }
+}
+
+/**
+ * Calculate a belt span around its center orbit.
+ *
+ * Formula: Belt Span = Spread x (2D + DM) / 10
+ *
+ * DMs:
+ *   - DM-1 if next inner or outer slot has a gas giant
+ *   - DM+3 if the belt is in the outermost orbit slot
+ *
+ * If spread is not provided, an estimated spread is used:
+ *   spread = (2D x 0.1) x Orbit#
+ *
+ * @param {object} options
+ * @param {number} options.orbit
+ * @param {number} [options.spread]
+ * @param {boolean} [options.hasInnerGasGiant=false]
+ * @param {boolean} [options.hasOuterGasGiant=false]
+ * @param {boolean} [options.isOutermostOrbit=false]
+ * @param {Function} [options.rng=Math.random]
+ * @returns {{
+ *   orbit: number,
+ *   spread: number,
+ *   spreadSource: string,
+ *   spreadRoll: number | null,
+ *   roll: number,
+ *   dm: number,
+ *   total: number,
+ *   span: number,
+ *   halfSpan: number,
+ *   innerBoundary: number,
+ *   outerBoundary: number,
+ *   dmBreakdown: string[],
+ * }}
+ */
+export function calculateBeltSpan({
+  orbit,
+  spread,
+  hasInnerGasGiant = false,
+  hasOuterGasGiant = false,
+  isOutermostOrbit = false,
+  rng = Math.random,
+} = {}) {
+  const orbitValue = Number.isFinite(orbit) ? Number(orbit) : 0;
+
+  let spreadValue = Number.isFinite(spread) ? Number(spread) : null;
+  let spreadRoll = null;
+  let spreadSource = "provided";
+
+  if (!Number.isFinite(spreadValue)) {
+    spreadRoll = roll2d(rng);
+    spreadValue = spreadRoll * 0.1 * Math.max(0, orbitValue);
+    spreadSource = "derived";
+  }
+
+  const roll = roll2d(rng);
+  const dmBreakdown = [];
+  let dm = 0;
+
+  if (hasInnerGasGiant || hasOuterGasGiant) {
+    dm -= 1;
+    dmBreakdown.push("DM-1: Adjacent inner/outer slot contains a gas giant");
+  }
+
+  if (isOutermostOrbit) {
+    dm += 3;
+    dmBreakdown.push("DM+3: Belt occupies the outermost orbital slot");
+  }
+
+  if (dmBreakdown.length === 0) dmBreakdown.push("No DMs applicable");
+
+  const total = roll + dm;
+  const span = spreadValue * (total / 10);
+  const halfSpan = span / 2;
+
+  return {
+    orbit: orbitValue,
+    spread: spreadValue,
+    spreadSource,
+    spreadRoll,
+    roll,
+    dm,
+    total,
+    span,
+    halfSpan,
+    innerBoundary: orbitValue - halfSpan,
+    outerBoundary: orbitValue + halfSpan,
+    dmBreakdown,
+  };
+}
+
+/**
+ * Roll m/s/c composition percentages for a belt from Table 27.
+ *
+ * DM rules:
+ *   - Orbit inside HZCO: DM-4
+ *   - Orbit beyond HZCO+2: DM+4
+ *
+ * If m+s+c > 100, excess is removed from m first, then s.
+ * If m+s+c < 100, remainder is tracked as other.
+ *
+ * @param {object} options
+ * @param {number} [options.orbit]
+ * @param {number} [options.hzco]
+ * @param {Function} [options.rng=Math.random]
+ * @returns {{
+ *   roll: number,
+ *   dm: number,
+ *   total: number,
+ *   mTypePercent: number,
+ *   sTypePercent: number,
+ *   cTypePercent: number,
+ *   otherTypePercent: number,
+ *   dmBreakdown: string[],
+ * }}
+ */
+export function rollBeltComposition({ orbit, hzco, rng = Math.random } = {}) {
+  const roll = roll2d(rng);
+  const dmBreakdown = [];
+  let dm = 0;
+
+  if (Number.isFinite(orbit) && Number.isFinite(hzco)) {
+    if (orbit < hzco) {
+      dm -= 4;
+      dmBreakdown.push("DM-4: Belt Orbit# is inside HZCO");
+    } else if (orbit > hzco + 2) {
+      dm += 4;
+      dmBreakdown.push("DM+4: Belt Orbit# is beyond HZCO+2");
+    }
+  }
+
+  if (dmBreakdown.length === 0) dmBreakdown.push("No DMs applicable");
+
+  const total = roll + dm;
+  const row =
+    BELT_COMPOSITION_BANDS.find((band) => total <= band.max) ??
+    BELT_COMPOSITION_BANDS[BELT_COMPOSITION_BANDS.length - 1];
+
+  let { mTypePercent, sTypePercent, cTypePercent } = rollBeltCompositionRow(row.key, rng);
+  mTypePercent = Math.max(0, Math.round(mTypePercent));
+  sTypePercent = Math.max(0, Math.round(sTypePercent));
+  cTypePercent = Math.max(0, Math.round(cTypePercent));
+
+  let otherTypePercent = 0;
+  let totalPercent = mTypePercent + sTypePercent + cTypePercent;
+
+  if (totalPercent > 100) {
+    let excess = totalPercent - 100;
+
+    const removeM = Math.min(mTypePercent, excess);
+    mTypePercent -= removeM;
+    excess -= removeM;
+
+    const removeS = Math.min(sTypePercent, excess);
+    sTypePercent -= removeS;
+    excess -= removeS;
+
+    if (excess > 0) {
+      cTypePercent = Math.max(0, cTypePercent - excess);
+    }
+  } else if (totalPercent < 100) {
+    otherTypePercent = 100 - totalPercent;
+  }
+
+  totalPercent = mTypePercent + sTypePercent + cTypePercent + otherTypePercent;
+  if (totalPercent !== 100) {
+    otherTypePercent += 100 - totalPercent;
+  }
+
+  return {
+    roll,
+    dm,
+    total,
+    mTypePercent,
+    sTypePercent,
+    cTypePercent,
+    otherTypePercent,
+    dmBreakdown,
+  };
+}
+
+/**
+ * Calculate belt bulk.
+ *
+ * Formula: Belt Bulk = (2D - 2) + DMs
+ * DMs:
+ *   - DM - floor(systemAgeByr / 2)
+ *   - DM + floor(cTypePercent / 10)
+ * Final bulk has minimum 1.
+ *
+ * @param {object} options
+ * @param {number} [options.systemAgeByr=0]
+ * @param {number} [options.cTypePercent=0]
+ * @param {Function} [options.rng=Math.random]
+ * @returns {{ roll: number, base: number, dm: number, bulk: number, dmBreakdown: string[] }}
+ */
+export function calculateBeltBulk({ systemAgeByr = 0, cTypePercent = 0, rng = Math.random } = {}) {
+  const roll = roll2d(rng);
+  const base = roll - 2;
+  const dmBreakdown = [];
+
+  const ageDm = -Math.floor(Math.max(0, Number(systemAgeByr) || 0) / 2);
+  const compositionDm = Math.floor(Math.max(0, Number(cTypePercent) || 0) / 10);
+
+  if (ageDm !== 0) dmBreakdown.push(`DM${ageDm}: System age adjustment`);
+  if (compositionDm !== 0) dmBreakdown.push(`DM+${compositionDm}: c-type percentage adjustment`);
+  if (dmBreakdown.length === 0) dmBreakdown.push("No DMs applicable");
+
+  const dm = ageDm + compositionDm;
+  const bulk = Math.max(1, base + dm);
+
+  return { roll, base, dm, bulk, dmBreakdown };
+}
+
+/**
+ * Roll belt resource rating.
+ *
+ * Formula: Resource = (2D - 7) + DMs
+ * DMs:
+ *   - DM + bulk
+ *   - DM + floor(mTypePercent / 10)
+ *   - DM - floor(cTypePercent / 10)
+ *
+ * Optional depletion:
+ *   - If industrially exploited, subtract 1D before final cap.
+ *
+ * Final rating is clamped to 2..12.
+ *
+ * @param {object} options
+ * @param {number} [options.bulk=1]
+ * @param {number} [options.mTypePercent=0]
+ * @param {number} [options.cTypePercent=0]
+ * @param {boolean} [options.industrialDepletion=false]
+ * @param {Function} [options.rng=Math.random]
+ * @returns {{
+ *   roll: number,
+ *   base: number,
+ *   dm: number,
+ *   raw: number,
+ *   industrialDepletionRoll: number,
+ *   rating: number,
+ *   ratingCode: string,
+ *   dmBreakdown: string[],
+ * }}
+ */
+export function rollBeltResourceRating({
+  bulk = 1,
+  mTypePercent = 0,
+  cTypePercent = 0,
+  industrialDepletion = false,
+  rng = Math.random,
+} = {}) {
+  const roll = roll2d(rng);
+  const base = roll - 7;
+
+  const dmBulk = Math.floor(Number(bulk) || 0);
+  const dmM = Math.floor(Math.max(0, Number(mTypePercent) || 0) / 10);
+  const dmC = Math.floor(-(Math.max(0, Number(cTypePercent) || 0) / 10));
+  const dm = dmBulk + dmM + dmC;
+
+  const dmBreakdown = [`DM+${dmBulk}: Belt bulk`, `DM+${dmM}: m-type percentage`, `DM${dmC}: c-type percentage`];
+
+  const raw = base + dm;
+  const industrialDepletionRoll = industrialDepletion ? roll1d(rng) : 0;
+  const afterDepletion = raw - industrialDepletionRoll;
+  const rating = Math.max(2, Math.min(12, afterDepletion));
+
+  return {
+    roll,
+    base,
+    dm,
+    raw,
+    industrialDepletionRoll,
+    rating,
+    ratingCode: toEHex(rating) ?? String(rating),
+    dmBreakdown,
+  };
+}
+
+/**
+ * Determine counts of Size 1 and Size S significant bodies in a belt.
+ *
+ * Size 1 Formula: 2D - 12 + bulk + DMs
+ * DMs: +2 beyond HZCO+3, -4 if span < 0.1
+ *
+ * Size S Formula: 2D - 12 + bulk + DMs
+ * DMs: +1 for HZCO+2..+3, +3 beyond HZCO+3, +1 if span > 1.0
+ * Additional rule: if span < 0.1, divide Size S result by 2 (round up).
+ *
+ * Optional variance:
+ *   - If Size S > 50 and outermost orbit, multiply by (1D / D3) and add 1D.
+ *
+ * @param {object} options
+ * @param {number} options.bulk
+ * @param {number} [options.beltOrbit]
+ * @param {number} [options.hzco]
+ * @param {number} [options.span=0]
+ * @param {boolean} [options.isOutermostOrbit=false]
+ * @param {boolean} [options.applyOptionalVariance=false]
+ * @param {Function} [options.rng=Math.random]
+ * @returns {{
+ *   size1: { roll: number, dm: number, count: number, dmBreakdown: string[] },
+ *   sizeS: {
+ *     roll: number,
+ *     dm: number,
+ *     count: number,
+ *     dmBreakdown: string[],
+ *     compactSpanHalved: boolean,
+ *     optionalVariance: null | { multiplierNumerator: number, multiplierDenominator: number, additive: number }
+ *   },
+ * }}
+ */
+export function calculateBeltSignificantBodies({
+  bulk,
+  beltOrbit,
+  hzco,
+  span = 0,
+  isOutermostOrbit = false,
+  applyOptionalVariance = false,
+  rng = Math.random,
+} = {}) {
+  const bulkValue = Math.max(0, Math.floor(Number(bulk) || 0));
+  const spanValue = Number.isFinite(span) ? Number(span) : 0;
+
+  const size1Roll = roll2d(rng);
+  const size1Breakdown = [];
+  let size1Dm = 0;
+
+  if (Number.isFinite(beltOrbit) && Number.isFinite(hzco) && beltOrbit > hzco + 3) {
+    size1Dm += 2;
+    size1Breakdown.push("DM+2: Belt Orbit# beyond HZCO+3");
+  }
+
+  if (spanValue < 0.1) {
+    size1Dm -= 4;
+    size1Breakdown.push("DM-4: Belt span less than 0.1");
+  }
+
+  if (size1Breakdown.length === 0) size1Breakdown.push("No DMs applicable");
+
+  const size1Raw = size1Roll - 12 + bulkValue + size1Dm;
+  const size1Count = Math.max(0, size1Raw);
+
+  const sizeSRoll = roll2d(rng);
+  const sizeSBreakdown = [];
+  let sizeSDm = 0;
+
+  if (Number.isFinite(beltOrbit) && Number.isFinite(hzco)) {
+    if (beltOrbit > hzco + 3) {
+      sizeSDm += 3;
+      sizeSBreakdown.push("DM+3: Belt Orbit# beyond HZCO+3");
+    } else if (beltOrbit > hzco + 2) {
+      sizeSDm += 1;
+      sizeSBreakdown.push("DM+1: Belt Orbit# between HZCO+2 and HZCO+3");
+    }
+  }
+
+  if (spanValue > 1.0) {
+    sizeSDm += 1;
+    sizeSBreakdown.push("DM+1: Belt span greater than 1.0");
+  }
+
+  if (sizeSBreakdown.length === 0) sizeSBreakdown.push("No DMs applicable");
+
+  let sizeSCount = Math.max(0, sizeSRoll - 12 + bulkValue + sizeSDm);
+  let compactSpanHalved = false;
+  if (spanValue < 0.1 && sizeSCount > 0) {
+    sizeSCount = Math.ceil(sizeSCount / 2);
+    compactSpanHalved = true;
+  }
+
+  let optionalVariance = null;
+  if (applyOptionalVariance && isOutermostOrbit && sizeSCount > 50) {
+    const multiplierNumerator = roll1d(rng);
+    const multiplierDenominator = Math.ceil(roll1d(rng) / 2);
+    const additive = roll1d(rng);
+
+    sizeSCount = Math.max(0, Math.round(sizeSCount * (multiplierNumerator / multiplierDenominator)) + additive);
+    optionalVariance = { multiplierNumerator, multiplierDenominator, additive };
+  }
+
+  return {
+    size1: {
+      roll: size1Roll,
+      dm: size1Dm,
+      count: size1Count,
+      dmBreakdown: size1Breakdown,
+    },
+    sizeS: {
+      roll: sizeSRoll,
+      dm: sizeSDm,
+      count: sizeSCount,
+      dmBreakdown: sizeSBreakdown,
+      compactSpanHalved,
+      optionalVariance,
+    },
+  };
+}
+
+/**
+ * Roll Orbit# for a significant body in a belt.
+ *
+ * Formula: Belt Orbit# + ((2D - 7) x Belt Span / 8)
+ *
+ * @param {object} options
+ * @param {number} options.beltOrbit
+ * @param {number} options.span
+ * @param {number} [options.spanVarianceFactor=0] Optional additive proportion of span (e.g. 0.1 for +10%).
+ * @param {Function} [options.rng=Math.random]
+ * @returns {{ roll: number, offset: number, orbit: number, spanVarianceFactor: number }}
+ */
+export function rollBeltSignificantBodyOrbit({ beltOrbit, span, spanVarianceFactor = 0, rng = Math.random } = {}) {
+  const roll = roll2d(rng);
+  const spanValue = Number.isFinite(span) ? Number(span) : 0;
+  const orbitValue = Number.isFinite(beltOrbit) ? Number(beltOrbit) : 0;
+  const offset = ((roll - 7) * spanValue) / 8;
+  const variance = spanValue * (Number.isFinite(spanVarianceFactor) ? spanVarianceFactor : 0);
+  return {
+    roll,
+    offset,
+    orbit: orbitValue + offset + variance,
+    spanVarianceFactor: Number.isFinite(spanVarianceFactor) ? spanVarianceFactor : 0,
+  };
+}
+
+/**
+ * Format belt profile shorthand: S-CC.CC.CC.CC-B-R-#-s
+ *
+ * @param {object} options
+ * @param {number} options.span
+ * @param {number} options.mTypePercent
+ * @param {number} options.sTypePercent
+ * @param {number} options.cTypePercent
+ * @param {number} options.otherTypePercent
+ * @param {number} options.bulk
+ * @param {number|string} options.resourceRating
+ * @param {number} options.size1Bodies
+ * @param {number} options.sizeSBodies
+ * @returns {string}
+ */
+export function formatBeltProfile({
+  span,
+  mTypePercent,
+  sTypePercent,
+  cTypePercent,
+  otherTypePercent,
+  bulk,
+  resourceRating,
+  size1Bodies,
+  sizeSBodies,
+} = {}) {
+  const fmtSpan = Number.isFinite(span) ? String(Number(span).toFixed(2)).replace(/\.?0+$/, "") : "?";
+  const fmtPct = (value) => {
+    if (!Number.isFinite(value)) return "??";
+    const clamped = Math.max(0, Math.min(99, Math.round(value)));
+    return String(clamped).padStart(2, "0");
+  };
+  const fmtInt = (value) => (Number.isFinite(value) ? String(Math.max(0, Math.round(value))) : "?");
+
+  let resource = "?";
+  if (Number.isFinite(resourceRating)) {
+    resource = toEHex(resourceRating) ?? String(Math.round(resourceRating));
+  } else if (typeof resourceRating === "string" && resourceRating.trim()) {
+    resource = resourceRating.trim().toUpperCase();
+  }
+
+  return [
+    fmtSpan,
+    [fmtPct(mTypePercent), fmtPct(sTypePercent), fmtPct(cTypePercent), fmtPct(otherTypePercent)].join("."),
+    fmtInt(bulk),
+    resource,
+    fmtInt(size1Bodies),
+    fmtInt(sizeSBodies),
+  ].join("-");
+}
+
+/**
+ * Generate full planetoid belt characteristics bundle for one belt.
+ *
+ * @param {object} options
+ * @param {number} options.orbit
+ * @param {number} [options.spread]
+ * @param {number} [options.hzco]
+ * @param {number} [options.systemAgeByr=0]
+ * @param {boolean} [options.hasInnerGasGiant=false]
+ * @param {boolean} [options.hasOuterGasGiant=false]
+ * @param {boolean} [options.isOutermostOrbit=false]
+ * @param {boolean} [options.industrialDepletion=false]
+ * @param {boolean} [options.applyOptionalVariance=false]
+ * @param {Function} [options.rng=Math.random]
+ * @returns {{
+ *   span: ReturnType<typeof calculateBeltSpan>,
+ *   composition: ReturnType<typeof rollBeltComposition>,
+ *   bulk: ReturnType<typeof calculateBeltBulk>,
+ *   resourceRating: ReturnType<typeof rollBeltResourceRating>,
+ *   significantBodies: ReturnType<typeof calculateBeltSignificantBodies>,
+ *   profile: string,
+ * }}
+ */
+export function generateBeltCharacteristics({
+  orbit,
+  spread,
+  hzco,
+  systemAgeByr = 0,
+  hasInnerGasGiant = false,
+  hasOuterGasGiant = false,
+  isOutermostOrbit = false,
+  industrialDepletion = false,
+  applyOptionalVariance = false,
+  rng = Math.random,
+} = {}) {
+  const span = calculateBeltSpan({
+    orbit,
+    spread,
+    hasInnerGasGiant,
+    hasOuterGasGiant,
+    isOutermostOrbit,
+    rng,
+  });
+
+  const composition = rollBeltComposition({ orbit, hzco, rng });
+  const bulk = calculateBeltBulk({ systemAgeByr, cTypePercent: composition.cTypePercent, rng });
+  const resourceRating = rollBeltResourceRating({
+    bulk: bulk.bulk,
+    mTypePercent: composition.mTypePercent,
+    cTypePercent: composition.cTypePercent,
+    industrialDepletion,
+    rng,
+  });
+
+  const significantBodies = calculateBeltSignificantBodies({
+    bulk: bulk.bulk,
+    beltOrbit: orbit,
+    hzco,
+    span: span.span,
+    isOutermostOrbit,
+    applyOptionalVariance,
+    rng,
+  });
+
+  const profile = formatBeltProfile({
+    span: span.span,
+    mTypePercent: composition.mTypePercent,
+    sTypePercent: composition.sTypePercent,
+    cTypePercent: composition.cTypePercent,
+    otherTypePercent: composition.otherTypePercent,
+    bulk: bulk.bulk,
+    resourceRating: resourceRating.rating,
+    size1Bodies: significantBodies.size1.count,
+    sizeSBodies: significantBodies.sizeS.count,
+  });
+
+  return { span, composition, bulk, resourceRating, significantBodies, profile };
 }
 
 // ── Terrestrial Planets ──────────────────────────────────────────────────────
@@ -5250,7 +6725,13 @@ export function generateSystemWorldPlacement({
     slots: step11.slots,
   });
 
-  const finalSlots = step12.slots;
+  const step13 = assignSignificantMoonAndRingCharacteristics({
+    slots: step12.slots,
+    stars: normalizedStars,
+    rng,
+  });
+
+  const finalSlots = step13.slots;
 
   return {
     stars: {
@@ -5271,6 +6752,8 @@ export function generateSystemWorldPlacement({
       significantRings: step11.totals.significantRings,
       gasGiantMoons: step11.totals.gasGiantMoons,
       insignificantMoons: step12.totals.insignificantMoons,
+      significantMoonsAfterLimitChecks: step13.totals.moonsAfterLimitChecks,
+      significantRingsAfterLimitChecks: step13.totals.ringsAfterLimitChecks,
     },
     steps: {
       step1,
@@ -5291,6 +6774,7 @@ export function generateSystemWorldPlacement({
       step10,
       step11,
       step12,
+      step13,
     },
     hzco,
     slots: finalSlots,
@@ -5303,21 +6787,326 @@ export function generateSystemWorldPlacement({
 // ── Mainworld Candidate Identification ─────────────────────────────────────
 
 /**
+ * Table 29 atmosphere metadata keyed by Traveller atmosphere code.
+ */
+export const ATMOSPHERE_CODE_TABLE = Object.freeze({
+  0: Object.freeze({
+    code: "0",
+    composition: "None",
+    pressureRangeBar: [0.0, 0.0009],
+    spanBar: 0.0009,
+    survivalGearRequired: "Vacc Suit",
+    notes: "Examples: Mercury, Luna",
+  }),
+  1: Object.freeze({
+    code: "1",
+    composition: "Trace",
+    pressureRangeBar: [0.001, 0.09],
+    spanBar: 0.089,
+    survivalGearRequired: "Vacc Suit",
+    notes: "Example: Mars",
+  }),
+  2: Object.freeze({
+    code: "2",
+    composition: "Very Thin, Tainted",
+    pressureRangeBar: [0.1, 0.42],
+    spanBar: 0.32,
+    survivalGearRequired: "Respirator and Filter",
+    notes: "",
+  }),
+  3: Object.freeze({
+    code: "3",
+    composition: "Very Thin",
+    pressureRangeBar: [0.1, 0.42],
+    spanBar: 0.32,
+    survivalGearRequired: "Respirator",
+    notes: "",
+  }),
+  4: Object.freeze({
+    code: "4",
+    composition: "Thin, Tainted",
+    pressureRangeBar: [0.43, 0.7],
+    spanBar: 0.27,
+    survivalGearRequired: "Filter",
+    notes: "",
+  }),
+  5: Object.freeze({
+    code: "5",
+    composition: "Thin",
+    pressureRangeBar: [0.43, 0.7],
+    spanBar: 0.27,
+    survivalGearRequired: "None",
+    notes: "",
+  }),
+  6: Object.freeze({
+    code: "6",
+    composition: "Standard",
+    pressureRangeBar: [0.7, 1.49],
+    spanBar: 0.79,
+    survivalGearRequired: "None",
+    notes: "Example: Terra",
+  }),
+  7: Object.freeze({
+    code: "7",
+    composition: "Standard, Tainted",
+    pressureRangeBar: [0.7, 1.49],
+    spanBar: 0.79,
+    survivalGearRequired: "Filter",
+    notes: "",
+  }),
+  8: Object.freeze({
+    code: "8",
+    composition: "Dense",
+    pressureRangeBar: [1.5, 2.49],
+    spanBar: 0.99,
+    survivalGearRequired: "None",
+    notes: "",
+  }),
+  9: Object.freeze({
+    code: "9",
+    composition: "Dense, Tainted",
+    pressureRangeBar: [1.5, 2.49],
+    spanBar: 0.99,
+    survivalGearRequired: "Filter",
+    notes: "",
+  }),
+  A: Object.freeze({
+    code: "A",
+    composition: "Exotic",
+    pressureRangeBar: null,
+    spanBar: null,
+    survivalGearRequired: "Air Supply",
+    notes: "Example: Titan",
+  }),
+  B: Object.freeze({
+    code: "B",
+    composition: "Corrosive",
+    pressureRangeBar: null,
+    spanBar: null,
+    survivalGearRequired: "Vacc Suit",
+    notes: "Example: Venus",
+  }),
+  C: Object.freeze({
+    code: "C",
+    composition: "Insidious",
+    pressureRangeBar: null,
+    spanBar: null,
+    survivalGearRequired: "Vacc Suit",
+    notes: "",
+  }),
+  D: Object.freeze({
+    code: "D",
+    composition: "Very Dense",
+    pressureRangeBar: [2.5, 10.0],
+    spanBar: 7.5,
+    survivalGearRequired: "Varies by altitude",
+    notes: "",
+  }),
+  E: Object.freeze({
+    code: "E",
+    composition: "Low",
+    pressureRangeBar: [0.1, 0.42],
+    spanBar: 0.32,
+    survivalGearRequired: "Varies by altitude",
+    notes: "",
+  }),
+  F: Object.freeze({
+    code: "F",
+    composition: "Unusual",
+    pressureRangeBar: null,
+    spanBar: null,
+    survivalGearRequired: "Varies",
+    notes: "",
+  }),
+  G: Object.freeze({
+    code: "G",
+    composition: "Gas, Helium",
+    pressureRangeBar: null,
+    spanBar: null,
+    survivalGearRequired: "HEV Suit",
+    notes: "Dense helium-dominated gas",
+  }),
+  H: Object.freeze({
+    code: "H",
+    composition: "Gas, Hydrogen",
+    pressureRangeBar: null,
+    spanBar: null,
+    survivalGearRequired: "Not Survivable",
+    notes: "Gas Dwarf",
+  }),
+});
+
+function normalizeAtmosphereCodeInput(atmosphereCode) {
+  if (typeof atmosphereCode === "number") {
+    return toEHex(Math.floor(atmosphereCode));
+  }
+
+  const normalized = String(atmosphereCode ?? "")
+    .trim()
+    .toUpperCase();
+  if (!normalized) return null;
+
+  if (/^[0-9A-H]$/.test(normalized)) {
+    return normalized;
+  }
+
+  return null;
+}
+
+/**
+ * Resolve atmosphere metadata for a numeric or code atmosphere value.
+ *
+ * @param {string|number} atmosphereCode
+ * @returns {object|null}
+ */
+export function lookupAtmosphereCodeInfo(atmosphereCode) {
+  const code = normalizeAtmosphereCodeInput(atmosphereCode);
+  if (!code) return null;
+  return ATMOSPHERE_CODE_TABLE[code] ?? null;
+}
+
+/**
+ * Calculate optional atmosphere-roll variants.
+ *
+ * Variant options:
+ * - Size-based variant: DM-2 for size 2-4.
+ * - Gravity-based variant (alternative to size variant):
+ *   DM-2 for gravity < 0.4, DM-1 for gravity >= 0.4 and < 0.5.
+ *
+ * @param {object} options
+ * @param {number} [options.size]
+ * @param {number} [options.gravity]
+ * @param {boolean} [options.useSizeThinAtmosphereVariant=false]
+ * @param {boolean} [options.useGravityAtmosphereVariant=false]
+ * @returns {{ dm: number, notes: string[] }}
+ */
+export function calculateAtmosphereVariantDm({
+  size,
+  gravity,
+  useSizeThinAtmosphereVariant = false,
+  useGravityAtmosphereVariant = false,
+} = {}) {
+  let dm = 0;
+  const notes = [];
+
+  if (useGravityAtmosphereVariant) {
+    const gravityValue = Number(gravity);
+    if (Number.isFinite(gravityValue) && gravityValue < 0.4) {
+      dm -= 2;
+      notes.push("DM-2: gravity below 0.4G");
+    } else if (Number.isFinite(gravityValue) && gravityValue < 0.5) {
+      dm -= 1;
+      notes.push("DM-1: gravity between 0.4G and 0.5G");
+    }
+    return { dm, notes };
+  }
+
+  const sizeValue = Math.floor(Number(size));
+  if (useSizeThinAtmosphereVariant && Number.isFinite(sizeValue) && sizeValue >= 2 && sizeValue <= 4) {
+    dm -= 2;
+    notes.push("DM-2: size 2-4 thin-atmosphere variant");
+  }
+
+  return { dm, notes };
+}
+
+/**
+ * Roll atmospheric pressure from the table pressure range.
+ *
+ * Variable-range atmospheres (A, B, C, F, G, H) return `pressureBar: null`.
+ *
+ * @param {object} options
+ * @param {string|number} options.atmosphereCode
+ * @param {Function} [options.rng=Math.random]
+ * @returns {{
+ *   code: string|null,
+ *   pressureRoll: number|null,
+ *   pressureBar: number|null,
+ *   minBar: number|null,
+ *   maxBar: number|null,
+ *   spanBar: number|null,
+ *   variableRange: boolean,
+ * } | null}
+ */
+export function rollAtmospherePressureBar({ atmosphereCode, rng = Math.random } = {}) {
+  const info = lookupAtmosphereCodeInfo(atmosphereCode);
+  if (!info) return null;
+
+  const range = info.pressureRangeBar;
+  if (!Array.isArray(range) || range.length !== 2) {
+    return {
+      code: info.code,
+      pressureRoll: null,
+      pressureBar: null,
+      minBar: null,
+      maxBar: null,
+      spanBar: info.spanBar,
+      variableRange: true,
+    };
+  }
+
+  const [minBar, maxBar] = range;
+  const pressureRoll = rng();
+  return {
+    code: info.code,
+    pressureRoll,
+    pressureBar: minBar + pressureRoll * (maxBar - minBar),
+    minBar,
+    maxBar,
+    spanBar: info.spanBar,
+    variableRange: false,
+  };
+}
+
+/**
  * Roll atmosphere code for a candidate world using T5 rules.
  *
  * Formula: 2D − 7 + Size, clamped to 0–15.
- * Worlds of Size 0 or 1 automatically receive atmosphere 0 (no roll needed).
+ * Worlds of Size 0, 1, or S automatically receive atmosphere 0 (no roll needed).
+ *
+ * Optional variants:
+ * - Size variant: DM-2 for size 2-4.
+ * - Gravity variant (alternative): DM-2 below 0.4G, DM-1 for 0.4G-0.5G.
  *
  * @param {object} options
- * @param {number} options.size  World size value (integer 0–15).
+ * @param {number|string} options.size  World size value (integer 0-15) or size code.
+ * @param {string|number} [options.sizeCode] Optional explicit size code override.
+ * @param {number} [options.gravity] Optional world gravity for gravity-based variant.
+ * @param {boolean} [options.useSizeThinAtmosphereVariant=false]
+ * @param {boolean} [options.useGravityAtmosphereVariant=false]
  * @param {Function} [options.rng=Math.random]
  * @returns {{ roll: number|null, atmosphereCode: number }}
  */
-export function rollWorldAtmosphereCode({ size, rng = Math.random } = {}) {
-  const sizeVal = Math.max(0, Math.floor(Number(size) || 0));
-  if (sizeVal <= 1) return { roll: null, atmosphereCode: 0 };
+export function rollWorldAtmosphereCode({
+  size,
+  sizeCode,
+  gravity,
+  useSizeThinAtmosphereVariant = false,
+  useGravityAtmosphereVariant = false,
+  rng = Math.random,
+} = {}) {
+  const resolvedSizeCode = normalizeBasicWorldSizeCode(sizeCode ?? size);
+  const explicitSize = Number(size);
+  const sizeFromCode = sizeValueFromCode(resolvedSizeCode);
+  const sizeVal = Math.max(
+    0,
+    Math.floor(Number.isFinite(explicitSize) ? explicitSize : Number.isFinite(sizeFromCode) ? sizeFromCode : 0),
+  );
+
+  if (resolvedSizeCode === "S" || sizeVal <= 1) return { roll: null, atmosphereCode: 0 };
+
+  const dmResult = calculateAtmosphereVariantDm({
+    size: sizeVal,
+    gravity,
+    useSizeThinAtmosphereVariant,
+    useGravityAtmosphereVariant,
+  });
+
   const roll = roll2d(rng);
-  return { roll, atmosphereCode: Math.max(0, Math.min(15, roll - 7 + sizeVal)) };
+  return {
+    roll,
+    atmosphereCode: Math.max(0, Math.min(15, roll - 7 + sizeVal + dmResult.dm)),
+  };
 }
 
 /**
@@ -5404,7 +7193,7 @@ export function identifyMainworldCandidates({ slots = [], hzco, rollPhysical = t
 
     if (isDirectCandidate && orbit >= innerOrbit && orbit <= outerOrbit) {
       const sizeCode = String(slot.sizeCode ?? slot.size ?? "0");
-      const sizeValue = Number.isFinite(slot.sizeValue) ? slot.sizeValue : (fromEHex(sizeCode) ?? 0);
+      const sizeValue = Number.isFinite(slot.sizeValue) ? slot.sizeValue : (sizeValueFromCode(sizeCode) ?? 0);
       const deviation = calculateHZCODeviation(orbit, hzco);
       const effectiveDeviation = calculateEffectiveHZCODeviation(orbit, hzco);
       const regionDm = lookupHabitableZoneRegionDm(effectiveDeviation);
@@ -5449,7 +7238,7 @@ export function identifyMainworldCandidates({ slots = [], hzco, rollPhysical = t
       moonDetails.forEach((moon, moonIdx) => {
         if (moon.isRing) return;
         const moonSizeCode = String(moon.sizeCode ?? "S");
-        const moonSizeValue = Number.isFinite(moon.sizeValue) ? moon.sizeValue : (fromEHex(moonSizeCode) ?? 0);
+        const moonSizeValue = Number.isFinite(moon.sizeValue) ? moon.sizeValue : (sizeValueFromCode(moonSizeCode) ?? 0);
         if (moonSizeValue < 2) return; // Size 0/1 → no atmosphere
 
         const deviation = calculateHZCODeviation(orbit, hzco);
@@ -5494,4 +7283,401 @@ export function identifyMainworldCandidates({ slots = [], hzco, rollPhysical = t
 
   candidates.sort((a, b) => a.orbit - b.orbit);
   return { habitableZone: { innerOrbit, outerOrbit }, candidates };
+}
+
+// ── Chapter 5: World Physical Characteristics ─────────────────────────────────
+
+// ── SIZE: Diameter ────────────────────────────────────────────────────────────
+
+/**
+ * Minimum diameter (km) for each world size code per Table 22.
+ * Terrestrial sizes span 1,600 km per code; Size S spans 400 km.
+ */
+const WORLD_SIZE_MIN_DIAMETER_KM = Object.freeze({
+  0: 0,
+  R: 0,
+  S: 400,
+  1: 800,
+  2: 2400,
+  3: 4000,
+  4: 5600,
+  5: 7200,
+  6: 8800,
+  7: 10400,
+  8: 12000,
+  9: 13600,
+  A: 15200,
+  B: 16800,
+  C: 18400,
+  D: 20000,
+  E: 21600,
+  F: 23200,
+});
+
+/** D3 result → diameter increase for Size 1+ worlds (Table 23). */
+const D3_DIAMETER_INCREASE_KM = Object.freeze({ 1: 0, 2: 600, 3: 1200 });
+
+/** D6 result → diameter increase (Table 24). Used for Size S and 1+. */
+const D6_DIAMETER_INCREASE_KM = Object.freeze({ 1: 0, 2: 100, 3: 200, 4: 300, 5: 400, 6: 500 });
+
+/**
+ * Roll the actual diameter of a terrestrial world (WBH Tables 22–24).
+ *
+ * - Size 0/R: always 0 km (belt or ring; no rolls).
+ * - Size S: D6 result 1–4 only (reroll 5/6) → diameter increase from 400 km minimum.
+ * - Size 1–F: D3 + D6 from size minimum (reroll both if combined increase ≥ 1,600 km).
+ * - Optional d100 (0–99) adds per-km variance; set `rollD100: false` to omit.
+ *
+ * @param {object} options
+ * @param {string|number} options.sizeCode  World size code (0, R, S, 1–9, A–F).
+ * @param {boolean} [options.rollD100=true]  Include a d100 fine-detail roll.
+ * @param {Function} [options.rng=Math.random]
+ * @returns {{
+ *   sizeCode: string,
+ *   minimumDiameter: number,
+ *   d3Roll: number|null,
+ *   d3Increase: number,
+ *   d6Roll: number|null,
+ *   d6Increase: number,
+ *   d100Roll: number|null,
+ *   diameterKm: number,
+ * } | null}
+ */
+export function rollWorldDiameter({ sizeCode, rollD100 = true, rng = Math.random } = {}) {
+  const code =
+    normalizeBasicWorldSizeCode(sizeCode) ??
+    String(sizeCode ?? "")
+      .trim()
+      .toUpperCase();
+  if (!Object.prototype.hasOwnProperty.call(WORLD_SIZE_MIN_DIAMETER_KM, code)) return null;
+
+  const minimumDiameter = WORLD_SIZE_MIN_DIAMETER_KM[code];
+
+  if (code === "0" || code === "R") {
+    return {
+      sizeCode: code,
+      minimumDiameter: 0,
+      d3Roll: null,
+      d3Increase: 0,
+      d6Roll: null,
+      d6Increase: 0,
+      d100Roll: null,
+      diameterKm: 0,
+    };
+  }
+
+  let d3Roll = null,
+    d3Increase = 0,
+    d6Roll,
+    d6Increase;
+
+  if (code === "S") {
+    // Size S: D6 result 1–4 only; reroll 5 or 6
+    do {
+      d6Roll = roll1d(rng);
+    } while (d6Roll >= 5);
+    d6Increase = D6_DIAMETER_INCREASE_KM[d6Roll];
+  } else {
+    // Size 1–F: D3 + D6; reroll pair if combined increase ≥ 1,600
+    do {
+      d3Roll = Math.ceil(roll1d(rng) / 2);
+      d6Roll = roll1d(rng);
+      d3Increase = D3_DIAMETER_INCREASE_KM[d3Roll];
+      d6Increase = D6_DIAMETER_INCREASE_KM[d6Roll];
+    } while (d3Increase + d6Increase >= 1600);
+  }
+
+  const d100Roll = rollD100 ? Math.floor(rng() * 100) : null;
+  const diameterKm = minimumDiameter + d3Increase + d6Increase + (d100Roll ?? 0);
+
+  return { sizeCode: code, minimumDiameter, d3Roll, d3Increase, d6Roll, d6Increase, d100Roll, diameterKm };
+}
+
+// ── SIZE: Composition and Density ─────────────────────────────────────────────
+
+/**
+ * Terrestrial Composition result bands for Table 25 (2D + DMs), sorted ascending.
+ *
+ * Note: the source table header shows "≤ 4 → Exotic Ice" which is believed to be a
+ * typographic error for "≤ −4"; the corrected contiguous ranges are used here, matching
+ * the adjacent "-3–2 → Mostly Ice" row and producing physically consistent results.
+ */
+const TERRESTRIAL_COMPOSITION_BANDS = Object.freeze([
+  [-4, "exoticIce"],
+  [2, "mostlyIce"],
+  [6, "mostlyRock"],
+  [11, "rockAndMetal"],
+  [14, "mostlyMetal"],
+  [Infinity, "compressedMetal"],
+]);
+
+/** Human-readable labels for terrestrial composition keys. */
+export const TERRESTRIAL_COMPOSITIONS = Object.freeze({
+  exoticIce: "Exotic Ice",
+  mostlyIce: "Mostly Ice",
+  mostlyRock: "Mostly Rock",
+  rockAndMetal: "Rock and Metal",
+  mostlyMetal: "Mostly Metal",
+  compressedMetal: "Compressed Metal",
+});
+
+/**
+ * Terrestrial Density Table 26.
+ * Indexed by composition key, then by 2D roll result (2–12).
+ */
+const TERRESTRIAL_DENSITY_TABLE = Object.freeze({
+  exoticIce: Object.freeze({
+    2: 0.03,
+    3: 0.06,
+    4: 0.09,
+    5: 0.12,
+    6: 0.15,
+    7: 0.18,
+    8: 0.21,
+    9: 0.24,
+    10: 0.27,
+    11: 0.3,
+    12: 0.33,
+  }),
+  mostlyIce: Object.freeze({
+    2: 0.18,
+    3: 0.21,
+    4: 0.24,
+    5: 0.27,
+    6: 0.3,
+    7: 0.33,
+    8: 0.36,
+    9: 0.39,
+    10: 0.41,
+    11: 0.44,
+    12: 0.47,
+  }),
+  mostlyRock: Object.freeze({
+    2: 0.5,
+    3: 0.53,
+    4: 0.56,
+    5: 0.59,
+    6: 0.62,
+    7: 0.65,
+    8: 0.68,
+    9: 0.71,
+    10: 0.74,
+    11: 0.77,
+    12: 0.8,
+  }),
+  rockAndMetal: Object.freeze({
+    2: 0.82,
+    3: 0.85,
+    4: 0.88,
+    5: 0.91,
+    6: 0.94,
+    7: 0.97,
+    8: 1.0,
+    9: 1.03,
+    10: 1.06,
+    11: 1.09,
+    12: 1.12,
+  }),
+  mostlyMetal: Object.freeze({
+    2: 1.15,
+    3: 1.18,
+    4: 1.21,
+    5: 1.24,
+    6: 1.27,
+    7: 1.3,
+    8: 1.33,
+    9: 1.36,
+    10: 1.39,
+    11: 1.42,
+    12: 1.45,
+  }),
+  compressedMetal: Object.freeze({
+    2: 1.5,
+    3: 1.55,
+    4: 1.6,
+    5: 1.65,
+    6: 1.7,
+    7: 1.75,
+    8: 1.8,
+    9: 1.85,
+    10: 1.9,
+    11: 1.95,
+    12: 2.0,
+  }),
+});
+
+/**
+ * Determine the terrestrial composition of a world via 2D + DMs (Table 25).
+ *
+ * DMs applied:
+ *   Size 0–4: DM−1 | Size 6–9: DM+1 | Size A–F: DM+3 (Size 5 has no size DM)
+ *   Orbit ≤ HZCO: DM+1 | Orbit > HZCO: DM−1, and DM−1 per full Orbit# beyond HZCO
+ *   System age > 10 Gyr: DM−1
+ *
+ * @param {object} options
+ * @param {number} [options.sizeValue=5]      World size value (0–15).
+ * @param {number} [options.orbit]            World Orbit# (enables proximity DMs when provided with hzco).
+ * @param {number} [options.hzco]             System HZCO (enables proximity DMs when provided with orbit).
+ * @param {number} [options.systemAgeByr=0]   System age in billions of years.
+ * @param {Function} [options.rng=Math.random]
+ * @returns {{
+ *   roll: number,
+ *   dms: Array<{ label: string, value: number }>,
+ *   totalRoll: number,
+ *   compositionKey: string,
+ *   composition: string,
+ * }}
+ */
+export function determineTerrestrialComposition({
+  sizeValue = 5,
+  orbit,
+  hzco,
+  systemAgeByr = 0,
+  rng = Math.random,
+} = {}) {
+  const sv = Math.max(0, Math.floor(Number(sizeValue) || 0));
+  const dms = [];
+
+  // Size DMs (Size 5 has no size DM)
+  if (sv <= 4) dms.push({ label: "Size 0\u20134", value: -1 });
+  else if (sv >= 6 && sv <= 9) dms.push({ label: "Size 6\u20139", value: 1 });
+  else if (sv >= 10) dms.push({ label: "Size A\u2013F", value: 3 });
+
+  // Orbital proximity DMs
+  if (Number.isFinite(orbit) && Number.isFinite(hzco)) {
+    if (orbit <= hzco) {
+      dms.push({ label: "At HZCO or closer", value: 1 });
+    } else {
+      dms.push({ label: "Further than HZCO", value: -1 });
+      const fullOrbitsBeyond = Math.floor(orbit - hzco);
+      if (fullOrbitsBeyond > 0) {
+        dms.push({ label: `${fullOrbitsBeyond} full Orbit# beyond HZCO`, value: -fullOrbitsBeyond });
+      }
+    }
+  }
+
+  // Age DM
+  if (Number.isFinite(systemAgeByr) && systemAgeByr > 10) {
+    dms.push({ label: "System age > 10 Gyr", value: -1 });
+  }
+
+  const totalDm = dms.reduce((sum, d) => sum + d.value, 0);
+  const roll = roll2d(rng);
+  const totalRoll = roll + totalDm;
+
+  const band = TERRESTRIAL_COMPOSITION_BANDS.find(([max]) => totalRoll <= max);
+  const compositionKey = band ? band[1] : "compressedMetal";
+
+  return { roll, dms, totalRoll, compositionKey, composition: TERRESTRIAL_COMPOSITIONS[compositionKey] };
+}
+
+/**
+ * Roll the density for a terrestrial world from Table 26.
+ *
+ * @param {object} options
+ * @param {string} options.compositionKey  Composition key from determineTerrestrialComposition.
+ * @param {Function} [options.rng=Math.random]
+ * @returns {{ roll: number, density: number } | null}
+ */
+export function rollTerrestrialDensity({ compositionKey, rng = Math.random } = {}) {
+  const column = TERRESTRIAL_DENSITY_TABLE[compositionKey];
+  if (!column) return null;
+  const roll = roll2d(rng);
+  return { roll, density: column[roll] ?? null };
+}
+
+// ── SIZE: Gravity, Mass, and Velocity ─────────────────────────────────────────
+
+/** Terra reference constants. */
+const TERRA_DIAMETER_KM = 12742;
+const TERRA_RADIUS_KM = 6371;
+const TERRA_ESCAPE_VELOCITY_MS = 11186;
+
+/**
+ * Calculate surface gravity (G, relative to Terra).
+ * Formula: Density × (DiameterKm ÷ Diameter⊕)
+ *
+ * @param {{ diameterKm: number, density: number }} options
+ * @returns {number|null}
+ */
+export function calculateWorldGravity({ diameterKm, density } = {}) {
+  if (!Number.isFinite(diameterKm) || !Number.isFinite(density)) return null;
+  return density * (diameterKm / TERRA_DIAMETER_KM);
+}
+
+/**
+ * Calculate world mass (Terra = 1.0).
+ * Formula: Density × (DiameterKm ÷ Diameter⊕)³
+ *
+ * @param {{ diameterKm: number, density: number }} options
+ * @returns {number|null}
+ */
+export function calculateWorldMass({ diameterKm, density } = {}) {
+  if (!Number.isFinite(diameterKm) || !Number.isFinite(density)) return null;
+  const d = diameterKm / TERRA_DIAMETER_KM;
+  return density * d * d * d;
+}
+
+/**
+ * Calculate escape velocity from the world surface (m/s).
+ * Formula: √( Mass ÷ (DiameterKm ÷ Diameter⊕) ) × 11,186
+ *
+ * @param {{ mass: number, diameterKm: number }} options
+ * @returns {number|null}
+ */
+export function calculateWorldEscapeVelocity({ mass, diameterKm } = {}) {
+  if (!Number.isFinite(mass) || !Number.isFinite(diameterKm) || diameterKm <= 0) return null;
+  return Math.sqrt(mass / (diameterKm / TERRA_DIAMETER_KM)) * TERRA_ESCAPE_VELOCITY_MS;
+}
+
+/**
+ * Calculate orbital velocity at the world surface (m/s).
+ * Formula: EscapeVelocity ÷ √2
+ *
+ * @param {{ escapeVelocity: number }} options
+ * @returns {number|null}
+ */
+export function calculateWorldOrbitalVelocitySurface({ escapeVelocity } = {}) {
+  if (!Number.isFinite(escapeVelocity)) return null;
+  return escapeVelocity / Math.SQRT2;
+}
+
+/**
+ * Calculate orbital velocity at altitude above the world surface (m/s).
+ * Formula: 11,186 × √( Mass ÷ (2 × (Radius + h) ÷ Radius⊕) )
+ *
+ * @param {{ mass: number, diameterKm: number, altitudeKm: number }} options
+ * @returns {number|null}
+ */
+export function calculateWorldOrbitalVelocityAtAltitude({ mass, diameterKm, altitudeKm } = {}) {
+  if (!Number.isFinite(mass) || !Number.isFinite(diameterKm) || !Number.isFinite(altitudeKm)) {
+    return null;
+  }
+  const radiusKm = diameterKm / 2;
+  return TERRA_ESCAPE_VELOCITY_MS * Math.sqrt(mass / ((2 * (radiusKm + altitudeKm)) / TERRA_RADIUS_KM));
+}
+
+// ── SIZE: Profile String ──────────────────────────────────────────────────────
+
+/**
+ * Format the world Size profile string: S‑Dkm‑D‑G‑M
+ *
+ * Fields: Size code – Diameter (km) – Density (2dp) – Gravity (2dp) – Mass (2dp)
+ *
+ * @example
+ * formatWorldSizeProfile({ sizeCode: '5', diameterKm: 8163, density: 1.03, gravity: 0.66, mass: 0.27 })
+ * // → '5-8163-1.03-0.66-0.27'
+ *
+ * @param {{ sizeCode: string|number, diameterKm: number, density: number, gravity: number, mass: number }} options
+ * @returns {string}
+ */
+export function formatWorldSizeProfile({ sizeCode, diameterKm, density, gravity, mass } = {}) {
+  const fmt2 = (v) => (Number.isFinite(v) ? Number(v).toFixed(2) : "?");
+  return [
+    String(sizeCode ?? "?"),
+    Number.isFinite(diameterKm) ? String(Math.round(diameterKm)) : "?",
+    fmt2(density),
+    fmt2(gravity),
+    fmt2(mass),
+  ].join("-");
 }
