@@ -587,6 +587,7 @@ const MAX_ECCENTRICITY = 0.999;
 const KM_PER_AU = 149597870.9;
 const DAYS_PER_YEAR = 365.25;
 const HOURS_PER_YEAR = 8766;
+const EARTH_MASS_TO_SOLAR_MASS = 0.000003;
 const SOLAR_DIAMETER_AU = 0.009305;
 const GIANT_MAO_DIAMETER_MULTIPLIER = 2;
 const GIANT_ORBIT_CLASSES = new Set(["Ia", "Ib", "II", "III"]);
@@ -810,6 +811,33 @@ export function calculateStarOrbitPeriodYears({
   }
 
   return roundTo(Math.sqrt(separationAu ** 3 / combinedMass), 10);
+}
+
+export function calculatePlanetOrbitPeriodYears({
+  orbitAu,
+  interiorStellarMassInSolarMasses,
+  planetMassInEarthMasses = 0,
+  includePlanetMass = false,
+} = {}) {
+  if (!Number.isFinite(orbitAu) || orbitAu < 0) {
+    return null;
+  }
+
+  const stellarMass = Number(interiorStellarMassInSolarMasses);
+  if (!Number.isFinite(stellarMass) || stellarMass <= 0) {
+    return null;
+  }
+
+  const planetaryMassSolar =
+    includePlanetMass && Number.isFinite(planetMassInEarthMasses)
+      ? Math.max(0, Number(planetMassInEarthMasses)) * EARTH_MASS_TO_SOLAR_MASS
+      : 0;
+  const denominatorMass = stellarMass + planetaryMassSolar;
+  if (denominatorMass <= 0) {
+    return null;
+  }
+
+  return roundTo(Math.sqrt(orbitAu ** 3 / denominatorMass), 10);
 }
 
 export function convertOrbitPeriodYearsToDays({ periodYears } = {}) {

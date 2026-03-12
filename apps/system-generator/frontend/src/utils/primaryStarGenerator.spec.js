@@ -8,6 +8,7 @@ import {
   calculateMultipleStarPresenceDm,
   calculateNonPrimaryStarDm,
   calculateOrbitSeparationBounds,
+  calculatePlanetOrbitPeriodYears,
   calculateMainSequenceLifespanGyr,
   calculateStarOrbitPeriodYears,
   calculateStarFinalAgeGyr,
@@ -784,6 +785,40 @@ describe("Orbit# utilities", () => {
     });
 
     expect(result).toBeCloseTo(Math.sqrt(32), 10);
+  });
+
+  it("calculates planetary period for a single-star orbit", () => {
+    const periodYears = calculatePlanetOrbitPeriodYears({
+      orbitAu: 0.208,
+      interiorStellarMassInSolarMasses: 0.626,
+    });
+
+    expect(periodYears).toBeCloseTo(0.1199, 4);
+    expect(convertOrbitPeriodYearsToDays({ periodYears })).toBeCloseTo(43.79, 2);
+  });
+
+  it("calculates planetary period using summed interior stellar masses", () => {
+    const periodYears = calculatePlanetOrbitPeriodYears({
+      orbitAu: 12,
+      interiorStellarMassInSolarMasses: 0.929 + 0.907 + 0.626,
+    });
+
+    expect(periodYears).toBeCloseTo(26.493, 3);
+  });
+
+  it("optionally includes large-planet mass in the denominator", () => {
+    const withoutPlanetMass = calculatePlanetOrbitPeriodYears({
+      orbitAu: 10,
+      interiorStellarMassInSolarMasses: 0.5,
+    });
+    const withPlanetMass = calculatePlanetOrbitPeriodYears({
+      orbitAu: 10,
+      interiorStellarMassInSolarMasses: 0.5,
+      planetMassInEarthMasses: 500000,
+      includePlanetMass: true,
+    });
+
+    expect(withPlanetMass).toBeLessThan(withoutPlanetMass);
   });
 
   it("converts stellar orbit period from years to days and hours", () => {

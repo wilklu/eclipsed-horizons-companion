@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { generateIISSProfile, parseIISSProfile } from "./iissProfileGenerator.js";
+import {
+  formatIISSGasGiantNote,
+  generateIISSProfile,
+  generatePlanetarySystemLongProfile,
+  generatePlanetarySystemProfiles,
+  generatePlanetarySystemShortProfile,
+  parseIISSProfile,
+} from "./iissProfileGenerator.js";
 
 describe("iissProfileGenerator", () => {
   describe("generateIISSProfile", () => {
@@ -153,6 +160,92 @@ describe("iissProfileGenerator", () => {
     });
   });
 
+  describe("planetary system profiles", () => {
+    it("generates short profile with eHex world counts", () => {
+      const profile = generatePlanetarySystemShortProfile({
+        worldPlacement: {
+          counts: {
+            afterAnomalies: {
+              gasGiantCount: 4,
+              planetoidBeltCount: 2,
+              terrestrialPlanetCount: 12,
+            },
+          },
+          steps: {
+            step2: { baselineNumber: -2 },
+            step5: { roundedSpread: 0.5 },
+          },
+        },
+      });
+
+      expect(profile).toBe("4-2-C-0-0.5");
+    });
+
+    it("generates long profile with M/GM/PM world tokens", () => {
+      const longProfile = generatePlanetarySystemLongProfile({
+        stars: [],
+        worldPlacement: {
+          steps: {
+            step2: { baselineNumber: 3 },
+            step3: { baselineOrbit: 2 },
+            step5: { roundedSpread: 0.5 },
+          },
+        },
+        planets: [
+          { parentDesignation: "A", starKey: "primary", orbitNumber: 1.0, sourceType: "terrestrialPlanet" },
+          {
+            parentDesignation: "A",
+            starKey: "primary",
+            orbitNumber: 2.1,
+            sourceType: "gasGiant",
+            hasMainworldSecondary: true,
+          },
+          { parentDesignation: "A", starKey: "primary", orbitNumber: 4.0, sourceType: "planetoidBelt" },
+          {
+            parentDesignation: "B",
+            starKey: "secondary-1",
+            orbitNumber: 3.0,
+            sourceType: "planetoidBelt",
+            hasMainworldSecondary: true,
+          },
+          { parentDesignation: "B", starKey: "secondary-1", orbitNumber: 5.0, sourceType: "gasGiant" },
+          { parentDesignation: "C", starKey: "secondary-2", orbitNumber: 0.5, sourceType: "mainworld" },
+          { parentDesignation: "C", starKey: "secondary-2", orbitNumber: 1.2, sourceType: "terrestrialPlanet" },
+        ],
+      });
+
+      expect(longProfile).toBe("A-2-T-GM-P-0.5:B-0-PM-G-0.5:C-2-M-T-0.5");
+    });
+
+    it("generates short and long profiles together", () => {
+      const profiles = generatePlanetarySystemProfiles({
+        worldPlacement: {
+          counts: {
+            gasGiants: 1,
+            planetoidBelts: 0,
+            terrestrialPlanets: 2,
+          },
+          steps: {
+            step2: { baselineNumber: 4 },
+            step3: { baselineOrbit: 3 },
+            step5: { roundedSpread: 1 },
+          },
+        },
+        stars: [{ spectralClass: "G2 V" }],
+        planets: [
+          { starKey: "primary", orbitNumber: 2.0, sourceType: "terrestrialPlanet" },
+          { starKey: "primary", orbitNumber: 3.5, sourceType: "gasGiant" },
+          { starKey: "primary", orbitNumber: 4.1, sourceType: "terrestrialPlanet" },
+        ],
+      });
+
+      expect(profiles).toEqual({
+        shortProfile: "1-0-2-4-1",
+        longProfile: "A-2-T-G-T-1",
+      });
+    });
+  });
+
   describe("parseIISSProfile", () => {
     it("parses single star profile", () => {
       const profileString = "G2 V-V-1.02-1.01-1.05-5.5";
@@ -217,6 +310,40 @@ describe("iissProfileGenerator", () => {
       expect(parsed.primary.spectral).toBe(system.stars[0].spectralClass.split(" ")[0]); // G2
       expect(parsed.primary.mass).toBe(1.02);
       expect(parsed.primary.age).toBe(5.5);
+    });
+  });
+
+  describe("formatIISSGasGiantNote", () => {
+    it("formats full gas giant sizing note from slot metadata", () => {
+      const note = formatIISSGasGiantNote({
+        sourceType: "gasGiant",
+        sizeCode: "GMB",
+        gasGiantDiameterTerran: 11,
+        gasGiantMassEarth: 340,
+      });
+
+      expect(note).toBe("GG-GMB-D11-M340");
+    });
+
+    it("can derive SAH code from category and diameter codes", () => {
+      const note = formatIISSGasGiantNote({
+        sourceType: "Gas Giant",
+        gasGiantCategoryCode: "GL",
+        gasGiantDiameterCode: "J",
+        gasGiantDiameterTerran: 18,
+        gasGiantMassEarth: 3000,
+      });
+
+      expect(note).toBe("GG-GLJ-D18-M3000");
+    });
+
+    it("returns empty string for non-gas worlds with no giant metadata", () => {
+      const note = formatIISSGasGiantNote({
+        sourceType: "terrestrialPlanet",
+        sizeCode: "6",
+      });
+
+      expect(note).toBe("");
     });
   });
 });

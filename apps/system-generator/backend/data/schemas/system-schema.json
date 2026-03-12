@@ -103,11 +103,63 @@
         },
         "systemClass": {
           "type": "string",
-          "description": "Optional classification (e.g., 'Binary', 'Triple')"
+          "description": "Optional classification (e.g., 'Single', 'Binary', 'Trinary')"
+        },
+        "systemName": {
+          "type": "string",
+          "description": "Human-readable system designation label (e.g., 'Alpha Crucis')"
         },
         "notes": {
           "type": "string",
           "maxLength": 1000
+        },
+        "generatedSurvey": {
+          "type": "object",
+          "description": "Full survey data persisted by the system generator, including world placement, star data, and computed profiles",
+          "properties": {
+            "iissProfile": {
+              "type": "string",
+              "description": "IISS stellar profile string in Traveller 5 format (e.g., 'G2V-V-1-1-1-5:B-6-0.1-M5V-V-0.2-0.2-0.01')"
+            },
+            "planetarySystemProfile": {
+              "type": "object",
+              "description": "Computed planetary system profiles used for quick system summary output",
+              "properties": {
+                "shortProfile": {
+                  "type": "string",
+                  "description": "Short planetary profile in G-P-T-N-S format. G = gas giant count (eHex), P = planetoid belt count (eHex), T = terrestrial planet count (eHex), N = baseline number (placement index nearest habitable zone ≥ 0), S = system spread (rounded orbit-number increment between worlds)",
+                  "examples": ["2-1-3-4-0.5", "1-0-2-3-0.3", "0-0-0-0-0"]
+                },
+                "longProfile": {
+                  "type": "string",
+                  "description": "Long planetary profile in St-N-W...-S format, segmented by parent star. St = star designation (e.g., A, B, Cab), N = segment baseline (1-based index of world nearest habitable zone, or 0 if all worlds are outside HZ), W = world tokens in ascending orbit order (G=gas giant, P=planetoid belt, T=terrestrial, M=mainworld surface world, GM=gas giant hosting a mainworld moon, PM=planetoid belt hosting a mainworld moon), S = system spread. Multi-star segments separated by colons.",
+                  "examples": ["A-4-T-G-M-G-T-0.5", "A-4-T-G-M-G-T-0.5:B-2-T-GM-T-0.5", ""]
+                }
+              },
+              "additionalProperties": false
+            },
+            "stars": {
+              "type": "array",
+              "description": "Array of generated star objects with spectral, physical, and orbital data"
+            },
+            "planets": {
+              "type": "array",
+              "description": "Array of generated planet/world placement objects"
+            },
+            "worldPlacement": {
+              "type": "object",
+              "description": "Full world placement pipeline result including steps 1-10 counts, orbits, spread, and slot assignments"
+            },
+            "habitableZone": {
+              "type": "object",
+              "description": "Habitable zone extents (innerAU, outerAU, frostLineAU)"
+            },
+            "primaryGeneration": {
+              "type": "object",
+              "description": "Primary star generation roll data and pipeline results"
+            }
+          },
+          "additionalProperties": true
         }
       }
     }

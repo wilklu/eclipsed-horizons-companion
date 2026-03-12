@@ -1,3 +1,5 @@
+import { lookupHZCO } from "./worldGenerator.js";
+
 /**
  * IISS Star System Profile Generator
  *
@@ -99,6 +101,334 @@ function formatCompanionProfile(star, designation, orbitNumber, eccentricity) {
   const luminosity = roundProfile(star.luminosity ?? 1);
 
   return `${des}-${orbit}-${ecc}-${spectral}-${lumClass}-${mass}-${diameter}-${luminosity}`;
+}
+
+/**
+ * Build a compact IISS-style note for gas giant sizing metadata.
+ *
+ * Format: GG-<SAH>-<D#>-<M#>
+ * Example: GG-GMB-D11-M340
+ *
+ * @param {{
+ *   sourceType?: string,
+ *   type?: string,
+ *   sizeCode?: string,
+ *   gasGiantCategoryCode?: string,
+ *   gasGiantDiameterCode?: string,
+ *   gasGiantDiameterTerran?: number,
+ *   gasGiantMassEarth?: number
+ * }} [world]
+ * @returns {string}
+ */
+export function formatIISSGasGiantNote(world) {
+  const sourceType = String(world?.sourceType ?? world?.type ?? "")
+    .trim()
+    .toLowerCase();
+
+  const isGasGiant = sourceType === "gasgiant" || sourceType === "gas giant" || sourceType === "gas_giant";
+
+  const rawSizeCode = String(world?.sizeCode ?? "")
+    .trim()
+    .toUpperCase();
+  const sizeMatch = rawSizeCode.match(/^G([SML])([0-9A-HJ-NP-Z])$/);
+
+  const categoryCode = String(world?.gasGiantCategoryCode ?? (sizeMatch ? `G${sizeMatch[1]}` : ""))
+    .trim()
+    .toUpperCase();
+  const diameterCode = String(world?.gasGiantDiameterCode ?? (sizeMatch ? sizeMatch[2] : ""))
+    .trim()
+    .toUpperCase();
+
+  const diameterTerran = Number(world?.gasGiantDiameterTerran);
+  const massEarth = Number(world?.gasGiantMassEarth);
+
+  const sahCode = sizeMatch ? rawSizeCode : categoryCode && diameterCode ? `${categoryCode}${diameterCode}` : "";
+  const hasDiameter = Number.isFinite(diameterTerran) && diameterTerran > 0;
+  const hasMass = Number.isFinite(massEarth) && massEarth > 0;
+
+  if (!isGasGiant && !sahCode && !hasDiameter && !hasMass) {
+    return "";
+  }
+
+  const parts = ["GG"];
+
+  if (sahCode) {
+    parts.push(sahCode);
+  }
+
+  if (hasDiameter) {
+    parts.push(`D${Math.round(diameterTerran)}`);
+  }
+
+  if (hasMass) {
+    parts.push(`M${Math.round(massEarth)}`);
+  }
+
+  return parts.join("-");
+}
+
+const EHEX_DIGITS = "0123456789ABCDEFGHJKLMNPQRSTUVWXYZ";
+
+function toEhexCount(value) {
+  const count = Math.max(0, Math.floor(Number(value) || 0));
+  if (count < EHEX_DIGITS.length) {
+    return EHEX_DIGITS[count];
+  }
+  return String(count);
+}
+
+function normalizePlanetarySpread(worldPlacement) {
+  const roundedSpread = Number(worldPlacement?.steps?.step5?.roundedSpread);
+  if (Number.isFinite(roundedSpread)) {
+    return roundProfile(roundedSpread);
+  }
+
+  const spread = Number(worldPlacement?.steps?.step5?.spread);
+  if (Number.isFinite(spread)) {
+    return roundProfile(spread);
+  }
+
+  return "0";
+}
+
+function normalizePlanetaryBaseline(worldPlacement) {
+  const baselineNumber = Number(worldPlacement?.steps?.step2?.baselineNumber);
+  if (!Number.isFinite(baselineNumber)) {
+    return 0;
+  }
+  return Math.max(0, Math.floor(baselineNumber));
+}
+
+function normalizePlanetarySourceType(value) {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase();
+}
+
+function mapPlanetaryWorldToken(planet) {
+  const sourceType = normalizePlanetarySourceType(planet?.sourceType ?? planet?.type);
+  const hasMainworldSecondary =
+    planet?.hasMainworldSecondary === true ||
+    (Array.isArray(planet?.secondaryWorldTypes) && planet.secondaryWorldTypes.includes("mainworld"));
+
+  if (hasMainworldSecondary) {
+    if (sourceType === "gasgiant" || sourceType === "gas giant" || sourceType === "gas_giant") {
+      return "GM";
+    }
+    if (sourceType === "planetoidbelt" || sourceType === "planetoid belt" || sourceType === "planetoid_belt") {
+      return "PM";
+    }
+    return "M";
+  }
+
+  if (sourceType === "mainworld") {
+    return "M";
+  }
+
+  if (sourceType === "gasgiant" || sourceType === "gas giant" || sourceType === "gas_giant") {
+    return "G";
+  }
+
+  if (sourceType === "planetoidbelt" || sourceType === "planetoid belt" || sourceType === "planetoid_belt") {
+    return "P";
+  }
+
+  if (
+    sourceType === "terrestrialplanet" ||
+    sourceType === "terrestrial planet" ||
+    sourceType === "terrestrial_planet"
+  ) {
+    return "T";
+  }
+
+  return null;
+}
+
+function resolvePrimaryProfileDesignation(stars = []) {
+  const primary = stars[0] ?? null;
+  return (
+    String(primary?.systemDesignationCombined ?? primary?.systemDesignation ?? primary?.designation ?? "A").trim() ||
+    "A"
+  );
+}
+
+function resolveSegmentDesignation(planet, primaryDesignation) {
+  const label = String(planet?.parentDesignation ?? "").trim();
+  if (label) {
+    return label;
+  }
+  return primaryDesignation;
+}
+
+function resolveSegmentHzcoOrbit({ stars = [], starKey, fallbackOrbit }) {
+  let star = null;
+
+  if (starKey === "primary") {
+    star = stars[0] ?? null;
+  } else {
+    const match = String(starKey ?? "").match(/^secondary-(\d+)$/);
+    if (match) {
+      const index = Number.parseInt(match[1], 10);
+      if (Number.isFinite(index) && index >= 1) {
+        star = stars[index] ?? null;
+      }
+    }
+  }
+
+  if (star) {
+    const spectralClass = star.spectralClass ?? star.designation ?? "";
+    const luminosityClass = star.luminosityClass ?? extractLuminosityClass(spectralClass);
+    const hzco = lookupHZCO(spectralClass, luminosityClass);
+    if (Number.isFinite(hzco)) {
+      return hzco;
+    }
+  }
+
+  if (Number.isFinite(fallbackOrbit)) {
+    return fallbackOrbit;
+  }
+
+  return null;
+}
+
+function calculateSegmentBaselineFromWorlds(worlds, hzcoOrbit, fallbackBaseline) {
+  if (!Array.isArray(worlds) || worlds.length === 0) {
+    return 0;
+  }
+
+  const finiteWorlds = worlds.filter((world) => Number.isFinite(world?.orbitNumber));
+  if (finiteWorlds.length === 0) {
+    return Math.max(0, Math.floor(Number(fallbackBaseline) || 0));
+  }
+
+  if (!Number.isFinite(hzcoOrbit)) {
+    return Math.max(0, Math.floor(Number(fallbackBaseline) || 0));
+  }
+
+  const allOutside = finiteWorlds.every((world) => world.orbitNumber > hzcoOrbit);
+  if (allOutside) {
+    return 0;
+  }
+
+  const allInside = finiteWorlds.every((world) => world.orbitNumber < hzcoOrbit);
+  if (allInside) {
+    return finiteWorlds.length;
+  }
+
+  let bestIndex = 0;
+  let bestDelta = Number.POSITIVE_INFINITY;
+
+  finiteWorlds.forEach((world, index) => {
+    const delta = Math.abs(world.orbitNumber - hzcoOrbit);
+    if (delta < bestDelta) {
+      bestDelta = delta;
+      bestIndex = index;
+    }
+  });
+
+  return bestIndex + 1;
+}
+
+/**
+ * Generates a short planetary system profile: G-P-T-N-S
+ * G/P/T are encoded as eHex quantities.
+ *
+ * @param {{ worldPlacement?: object }} [options]
+ * @returns {string}
+ */
+export function generatePlanetarySystemShortProfile({ worldPlacement } = {}) {
+  const counts = worldPlacement?.counts ?? {};
+  const postAnomalyCounts = counts.afterAnomalies ?? {};
+
+  const gasGiants = postAnomalyCounts.gasGiantCount ?? counts.gasGiants ?? 0;
+  const planetoidBelts = postAnomalyCounts.planetoidBeltCount ?? counts.planetoidBelts ?? 0;
+  const terrestrialPlanets = postAnomalyCounts.terrestrialPlanetCount ?? counts.terrestrialPlanets ?? 0;
+
+  const baseline = normalizePlanetaryBaseline(worldPlacement);
+  const spread = normalizePlanetarySpread(worldPlacement);
+
+  return `${toEhexCount(gasGiants)}-${toEhexCount(planetoidBelts)}-${toEhexCount(terrestrialPlanets)}-${baseline}-${spread}`;
+}
+
+/**
+ * Generates a long planetary system profile: St-N-W...-S
+ * Multi-parent segments are separated by colons.
+ *
+ * @param {{ planets?: Array<object>, stars?: Array<object>, worldPlacement?: object }} [options]
+ * @returns {string}
+ */
+export function generatePlanetarySystemLongProfile({ planets = [], stars = [], worldPlacement } = {}) {
+  if (!Array.isArray(planets) || planets.length === 0) {
+    return "";
+  }
+
+  const spread = normalizePlanetarySpread(worldPlacement);
+  const fallbackBaseline = normalizePlanetaryBaseline(worldPlacement);
+  const fallbackHzcoOrbit = Number(worldPlacement?.steps?.step3?.baselineOrbit);
+  const primaryDesignation = resolvePrimaryProfileDesignation(stars);
+
+  const segmentMap = new Map();
+
+  planets.forEach((planet) => {
+    const token = mapPlanetaryWorldToken(planet);
+    if (!token) {
+      return;
+    }
+
+    const designation = resolveSegmentDesignation(planet, primaryDesignation);
+    const starKey = String(planet?.starKey ?? "primary");
+    const key = `${designation}|${starKey}`;
+
+    if (!segmentMap.has(key)) {
+      segmentMap.set(key, {
+        designation,
+        starKey,
+        worlds: [],
+      });
+    }
+
+    segmentMap.get(key).worlds.push({
+      orbitNumber: Number(planet?.orbitNumber),
+      token,
+    });
+  });
+
+  const segments = [];
+
+  for (const segment of segmentMap.values()) {
+    const orderedWorlds = segment.worlds
+      .filter((world) => Number.isFinite(world.orbitNumber))
+      .sort((a, b) => a.orbitNumber - b.orbitNumber);
+
+    if (orderedWorlds.length === 0) {
+      continue;
+    }
+
+    const hzcoOrbit = resolveSegmentHzcoOrbit({
+      stars,
+      starKey: segment.starKey,
+      fallbackOrbit: fallbackHzcoOrbit,
+    });
+
+    const baseline = calculateSegmentBaselineFromWorlds(orderedWorlds, hzcoOrbit, fallbackBaseline);
+    const worldTokens = orderedWorlds.map((world) => world.token);
+    segments.push(`${segment.designation}-${baseline}-${worldTokens.join("-")}-${spread}`);
+  }
+
+  return segments.join(":");
+}
+
+/**
+ * Generates both planetary profile forms from system survey data.
+ *
+ * @param {{ planets?: Array<object>, stars?: Array<object>, worldPlacement?: object }} [options]
+ * @returns {{ shortProfile: string, longProfile: string }}
+ */
+export function generatePlanetarySystemProfiles({ planets = [], stars = [], worldPlacement } = {}) {
+  return {
+    shortProfile: generatePlanetarySystemShortProfile({ worldPlacement }),
+    longProfile: generatePlanetarySystemLongProfile({ planets, stars, worldPlacement }),
+  };
 }
 
 /**
@@ -220,6 +550,10 @@ export function parseIISSProfile(profileString) {
 }
 
 export default {
+  formatIISSGasGiantNote,
   generateIISSProfile,
   parseIISSProfile,
+  generatePlanetarySystemShortProfile,
+  generatePlanetarySystemLongProfile,
+  generatePlanetarySystemProfiles,
 };

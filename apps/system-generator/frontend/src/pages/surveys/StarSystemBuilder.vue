@@ -12,6 +12,10 @@
       <!-- Controls -->
       <div class="control-panel">
         <div class="control-group">
+          <label>System Label:</label>
+          <input v-model="systemLabelInput" placeholder="e.g. Zed" class="text-input" />
+        </div>
+        <div class="control-group">
           <label>Hex Coordinate:</label>
           <input v-model="hexCoord" placeholder="e.g. 0803" class="text-input" />
         </div>
@@ -55,8 +59,24 @@
       <!-- System Display -->
       <div v-if="system" class="system-display">
         <div class="system-header">
-          <h2>System {{ system.systemId }}</h2>
+          <h2>System {{ system.systemLabel || system.systemId }}</h2>
           <span class="system-type-badge">{{ system.stars.length > 1 ? "Multiple" : "Single" }} Star</span>
+        </div>
+
+        <div class="profile-section">
+          <h3>📡 System Profiles</h3>
+          <div class="profile-row">
+            <span class="profile-label">IISS Stellar</span>
+            <code class="profile-value">{{ system.iissProfile || "—" }}</code>
+          </div>
+          <div class="profile-row">
+            <span class="profile-label">Planetary Short</span>
+            <code class="profile-value">{{ system.planetarySystemShortProfile || "—" }}</code>
+          </div>
+          <div class="profile-row">
+            <span class="profile-label">Planetary Long</span>
+            <code class="profile-value profile-value-long">{{ system.planetarySystemLongProfile || "—" }}</code>
+          </div>
         </div>
 
         <!-- Stars -->
@@ -166,24 +186,86 @@
             <thead>
               <tr>
                 <th>#</th>
-                <th>Name</th>
+                <th>Designation</th>
                 <th>Type</th>
                 <th>Orbit (AU)</th>
                 <th>Zone</th>
+                <th>Year Length</th>
               </tr>
             </thead>
             <tbody>
               <tr v-for="(planet, i) in system.planets" :key="i" :class="{ habitable: planet.zone === 'habitable' }">
                 <td>{{ i + 1 }}</td>
                 <td>{{ planet.name }}</td>
-                <td>{{ planet.type }}</td>
+                <td>
+                  <div>{{ planet.type }}</div>
+                  <div v-if="planet.iissNote" class="planet-note">{{ planet.iissNote }}</div>
+                  <div v-if="planet.moonNote" class="planet-note">{{ planet.moonNote }}</div>
+                </td>
                 <td>{{ planet.orbitAU }}</td>
                 <td>
                   <span class="zone-badge" :class="planet.zone">{{ planet.zone }}</span>
                 </td>
+                <td>{{ formatPlanetYearLength(planet) }}</td>
               </tr>
             </tbody>
           </table>
+        </div>
+
+        <!-- Step Trace -->
+        <div class="trace-section">
+          <h3>🧭 Generation Step Trace</h3>
+          <div v-if="worldPlacementCounts" class="trace-counts">
+            <div class="trace-count-card">
+              <span>Total Worlds</span>
+              <strong>{{ worldPlacementCounts.totalWorlds ?? 0 }}</strong>
+            </div>
+            <div class="trace-count-card">
+              <span>Gas Giants</span>
+              <strong>{{ worldPlacementCounts.gasGiants ?? 0 }}</strong>
+            </div>
+            <div class="trace-count-card">
+              <span>Planetoid Belts</span>
+              <strong>{{ worldPlacementCounts.planetoidBelts ?? 0 }}</strong>
+            </div>
+            <div class="trace-count-card">
+              <span>Terrestrials</span>
+              <strong>{{ worldPlacementCounts.terrestrialPlanets ?? 0 }}</strong>
+            </div>
+            <div class="trace-count-card">
+              <span>Empty Orbits</span>
+              <strong>{{ worldPlacementCounts.emptyOrbits ?? 0 }}</strong>
+            </div>
+            <div class="trace-count-card">
+              <span>Significant Moons</span>
+              <strong>{{ worldPlacementCounts.significantMoons ?? 0 }}</strong>
+            </div>
+            <div class="trace-count-card">
+              <span>Ring Worlds</span>
+              <strong>{{ worldPlacementCounts.ringWorlds ?? 0 }}</strong>
+            </div>
+            <div class="trace-count-card">
+              <span>Significant Rings</span>
+              <strong>{{ worldPlacementCounts.significantRings ?? 0 }}</strong>
+            </div>
+            <div class="trace-count-card">
+              <span>Insignificant Moons</span>
+              <strong>{{ worldPlacementCounts.insignificantMoons ?? 0 }}</strong>
+            </div>
+          </div>
+          <div v-if="stepTraceEntries.length" class="trace-cards">
+            <article v-for="entry in stepTraceEntries" :key="entry.stepKey" class="trace-card">
+              <div class="trace-card-header">
+                <span class="trace-step-id">{{ entry.stepKey.toUpperCase() }}</span>
+              </div>
+              <p class="trace-summary">{{ entry.summary }}</p>
+              <details class="trace-json">
+                <summary>View raw step payload</summary>
+                <pre>{{ formatTraceData(entry.payload) }}</pre>
+              </details>
+            </article>
+          </div>
+          <div v-else class="trace-empty-state">Step trace data is unavailable for this system.</div>
         </div>
 
         <!-- Actions -->
@@ -208,9 +290,20 @@ import LoadingSpinner from "../../components/common/LoadingSpinner.vue";
 import { useSystemStore } from "../../stores/systemStore.js";
 import * as toastService from "../../utils/toast.js";
 import {
+  applyDefaultPlanetDesignations,
+  buildPlanetDesignationContext,
+  DEFAULT_SYSTEM_LABEL,
+  normalizeSystemDesignationLabel,
+  resolvePlanetParentDesignation,
+} from "../../utils/planetDesignation.js";
+import {
   calculateAbsoluteMagnitude,
   calculateEvolutionaryStatus,
   calculateMainSequenceLifetime,
+  calculatePlanetOrbitPeriodYears,
+  convertOrbitNumberToAu,
+  convertOrbitPeriodYearsToDays,
+  convertOrbitPeriodYearsToHours,
   estimateRotationPeriod,
   estimateStarMassAndTemperature,
   generatePrimaryStar,
@@ -218,7 +311,12 @@ import {
   getStarVisualColor,
   toPersistedSpectralClass,
 } from "../../utils/primaryStarGenerator.js";
-import { generateIISSProfile } from "../../utils/iissProfileGenerator.js";
+import {
+  formatIISSGasGiantNote,
+  generateIISSProfile,
+  generatePlanetarySystemProfiles,
+} from "../../utils/iissProfileGenerator.js";
+import { generateSystemWorldPlacement } from "../../utils/worldGenerator.js";
 
 const props = defineProps({
   galaxyId: { type: String, default: null },
@@ -278,6 +376,11 @@ const PERSISTED_SPECTRAL_TYPES = new Set(["O", "B", "A", "F", "G", "K", "M", "L"
 
 const PLANET_TYPES = ["Rocky", "Super-Earth", "Gas Giant", "Ice Giant", "Dwarf Planet", "Asteroid Belt"];
 const ORBIT_TYPES = ["Close", "Near", "Far", "Distant"];
+const SECONDARY_ZONE_DEFAULT_ORBITS = {
+  close: 3,
+  near: 8,
+  far: 14,
+};
 
 function parsePrimarySpectralSelection(rawValue) {
   const value = String(rawValue || "")
@@ -294,6 +397,7 @@ function parsePrimarySpectralSelection(rawValue) {
 
 // ── State ─────────────────────────────────────────────────────────────────────
 const hexCoord = ref(router.currentRoute.value.query.hex ?? "0101");
+const systemLabelInput = ref(String(router.currentRoute.value.query.name || "").trim() || hexCoord.value);
 const primarySpectral = ref(parsePrimarySpectralSelection(router.currentRoute.value.query.star));
 const multiplicity = ref("random");
 const selectedSystemId = ref("");
@@ -313,6 +417,26 @@ const loadingMessage = computed(() => (loadingMode.value === "load" ? "Loading s
 const canProceedToWorldBuilder = computed(() => Boolean(system.value?.persistedSystemId));
 const hasSavedSystems = computed(() => systemOptions.value.length > 0);
 const hasSectorContext = computed(() => Boolean(props.galaxyId && props.sectorId));
+const worldPlacementCounts = computed(() => system.value?.worldPlacement?.counts ?? null);
+const stepTraceEntries = computed(() => {
+  const steps = system.value?.worldPlacement?.steps;
+  if (!steps || typeof steps !== "object") {
+    return [];
+  }
+
+  return Object.entries(steps)
+    .sort(([aKey], [bKey]) => {
+      const aStep = parseStepNumber(aKey);
+      const bStep = parseStepNumber(bKey);
+      if (aStep !== bStep) return aStep - bStep;
+      return aKey.localeCompare(bKey);
+    })
+    .map(([stepKey, payload]) => ({
+      stepKey,
+      payload,
+      summary: summarizeStepTrace(stepKey, payload),
+    }));
+});
 
 // Update page title dynamically
 watchEffect(() => {
@@ -442,22 +566,398 @@ function planetZone(orbitAU, hz) {
   return "cold";
 }
 
-function buildPlanets(hz) {
-  const count = 2 + Math.floor(Math.random() * 7);
-  const orbits = [];
-  let au = 0.3 + Math.random() * 0.4;
-  for (let i = 0; i < count; i++) {
-    const type = PLANET_TYPES[Math.floor(Math.random() * PLANET_TYPES.length)];
-    const orbitAU = +au.toFixed(2);
-    orbits.push({
-      name: `World-${i + 1}`,
-      type,
-      orbitAU,
-      zone: planetZone(orbitAU, hz),
-    });
-    au = au * (1.5 + Math.random() * 0.8);
+function mapSlotTypeToPlanetType(slotType) {
+  if (slotType === "gasGiant") return "Gas Giant";
+  if (slotType === "planetoidBelt") return "Asteroid Belt";
+  if (slotType === "terrestrialPlanet") return "Rocky";
+  if (slotType === "mainworld") return "Rocky";
+  return "World";
+}
+
+function resolveSystemDesignationLabel(rawLabel, fallbackLabel = DEFAULT_SYSTEM_LABEL) {
+  return normalizeSystemDesignationLabel(rawLabel, fallbackLabel);
+}
+
+function normalizeSecondaryZoneForPeriods(zoneValue) {
+  const normalized = String(zoneValue || "")
+    .trim()
+    .toLowerCase();
+
+  if (normalized === "close") return "close";
+  if (normalized === "near") return "near";
+  if (normalized === "far" || normalized === "distant") return "far";
+  if (normalized === "companion") return "near";
+  return "near";
+}
+
+function deriveSecondaryOrbitNumberForPeriods(star, index) {
+  const explicitOrbit = Number(star?.orbitNumber);
+  if (Number.isFinite(explicitOrbit)) return explicitOrbit;
+
+  const stellarOrbitNumber = Number(star?.stellarOrbitNumber);
+  if (Number.isFinite(stellarOrbitNumber)) return stellarOrbitNumber;
+
+  const separation = Number(star?.separation);
+  const zone = normalizeSecondaryZoneForPeriods(star?.zone ?? star?.orbitType);
+  if (Number.isFinite(separation) && separation > 0) {
+    return Math.max(SECONDARY_ZONE_DEFAULT_ORBITS[zone], separation);
   }
-  return orbits;
+
+  const base = SECONDARY_ZONE_DEFAULT_ORBITS[zone] ?? SECONDARY_ZONE_DEFAULT_ORBITS.near;
+  return base + index * 0.3;
+}
+
+function buildSecondaryOrbitContextForPeriods(stars, worldPlacement) {
+  const step1Allocations = Array.isArray(worldPlacement?.steps?.step1?.starAllocations)
+    ? worldPlacement.steps.step1.starAllocations
+    : [];
+  const orbitByStarKey = new Map(
+    step1Allocations
+      .filter((entry) => entry?.starKey && entry.starKey !== "primary" && Number.isFinite(entry.orbitNumber))
+      .map((entry) => [entry.starKey, Number(entry.orbitNumber)]),
+  );
+
+  return (Array.isArray(stars) ? stars.slice(1) : []).map((star, index) => {
+    const key = `secondary-${index + 1}`;
+    const mass = Number(star?.massInSolarMasses);
+    const orbitNumber = orbitByStarKey.get(key);
+    return {
+      key,
+      massInSolarMasses: Number.isFinite(mass) && mass > 0 ? mass : 0,
+      orbitNumber: Number.isFinite(orbitNumber) ? orbitNumber : deriveSecondaryOrbitNumberForPeriods(star, index),
+    };
+  });
+}
+
+function resolveOrbitedStellarMassForPlanet(slot, stars, secondaryOrbitContext) {
+  const primaryMass = Number(stars?.[0]?.massInSolarMasses);
+  const safePrimaryMass = Number.isFinite(primaryMass) && primaryMass > 0 ? primaryMass : 0;
+  const slotOrbitNumber = Number(slot?.orbit);
+  const starKey = typeof slot?.starKey === "string" ? slot.starKey : "primary";
+
+  if (starKey === "primary") {
+    const interiorSecondaries = secondaryOrbitContext.filter(
+      (secondary) =>
+        secondary.massInSolarMasses > 0 &&
+        Number.isFinite(slotOrbitNumber) &&
+        Number.isFinite(secondary.orbitNumber) &&
+        secondary.orbitNumber < slotOrbitNumber,
+    );
+
+    const totalMass =
+      safePrimaryMass + interiorSecondaries.reduce((sum, secondary) => sum + secondary.massInSolarMasses, 0);
+    return {
+      massInSolarMasses: totalMass > 0 ? totalMass : null,
+      orbitedStarCount: Math.max(1, 1 + interiorSecondaries.length),
+    };
+  }
+
+  const secondary = secondaryOrbitContext.find((entry) => entry.key === starKey);
+  if (secondary?.massInSolarMasses > 0) {
+    return {
+      massInSolarMasses: secondary.massInSolarMasses,
+      orbitedStarCount: 1,
+    };
+  }
+
+  return {
+    massInSolarMasses: safePrimaryMass > 0 ? safePrimaryMass : null,
+    orbitedStarCount: safePrimaryMass > 0 ? 1 : 0,
+  };
+}
+
+function buildPlanetsFromWorldPlacement(worldPlacement, hz, stars = [], systemLabel = DEFAULT_SYSTEM_LABEL) {
+  const slots = Array.isArray(worldPlacement?.slots) ? worldPlacement.slots : [];
+  const secondaryOrbitContext = buildSecondaryOrbitContextForPeriods(stars, worldPlacement);
+  const designationContext = buildPlanetDesignationContext(stars);
+  const planetSlots = slots.filter((slot) => {
+    if (!slot?.primaryWorldType) return false;
+    if (slot.primaryWorldType === "emptyOrbit") return false;
+    return true;
+  });
+
+  const planets = planetSlots.map((slot, index) => {
+    const orbitAU = Number.isFinite(slot.orbit) ? convertOrbitNumberToAu({ orbitNumber: slot.orbit }) : null;
+    const roundedOrbitAU = Number.isFinite(orbitAU) ? Number(orbitAU.toFixed(2)) : null;
+    const orbitalContext = resolveOrbitedStellarMassForPlanet(slot, stars, secondaryOrbitContext);
+    const parentContext = resolvePlanetParentDesignation(slot, secondaryOrbitContext, designationContext);
+    const orbitalPeriodYears = calculatePlanetOrbitPeriodYears({
+      orbitAu: orbitAU,
+      interiorStellarMassInSolarMasses: orbitalContext.massInSolarMasses,
+    });
+    const orbitalPeriodDays = convertOrbitPeriodYearsToDays({ periodYears: orbitalPeriodYears });
+    const orbitalPeriodHours = convertOrbitPeriodYearsToHours({ periodYears: orbitalPeriodYears });
+
+    return {
+      name: `World-${index + 1}`,
+      type: mapSlotTypeToPlanetType(slot.primaryWorldType),
+      orbitAU: roundedOrbitAU,
+      zone: Number.isFinite(roundedOrbitAU) ? planetZone(roundedOrbitAU, hz) : "cold",
+      starKey: slot.starKey,
+      orbitNumber: slot.orbit,
+      eccentricity: slot.eccentricity ?? null,
+      sourceType: slot.primaryWorldType,
+      isAnomalousSlot: Boolean(slot.isAnomalousSlot),
+      hasMainworldSecondary: Array.isArray(slot.secondaryWorldTypes)
+        ? slot.secondaryWorldTypes.includes("mainworld")
+        : false,
+      secondaryWorldTypes: Array.isArray(slot.secondaryWorldTypes) ? [...slot.secondaryWorldTypes] : [],
+      parentDesignationKey: parentContext.parentKey,
+      parentDesignation: parentContext.parentLabel,
+      orbitalPeriodYears,
+      orbitalPeriodDays,
+      orbitalPeriodHours,
+      orbitedMassInSolarMasses: orbitalContext.massInSolarMasses,
+      orbitedStarCount: orbitalContext.orbitedStarCount,
+      sizeCode: slot.sizeCode ?? null,
+      gasGiantCategoryCode: slot.gasGiantCategoryCode ?? null,
+      gasGiantDiameterCode: slot.gasGiantDiameterCode ?? null,
+      gasGiantDiameterTerran: Number.isFinite(slot.gasGiantDiameterTerran) ? Number(slot.gasGiantDiameterTerran) : null,
+      gasGiantMassEarth: Number.isFinite(slot.gasGiantMassEarth) ? Number(slot.gasGiantMassEarth) : null,
+      significantMoonQuantity: Number.isFinite(slot.significantMoonQuantity)
+        ? Number(slot.significantMoonQuantity)
+        : null,
+      hasSignificantRing: Boolean(slot.hasSignificantRing),
+      significantMoonSizes: Array.isArray(slot.significantMoonSizes) ? [...slot.significantMoonSizes] : [],
+      significantRingCount: Number.isFinite(slot.significantRingCount) ? Number(slot.significantRingCount) : 0,
+      significantRingCode: slot.significantRingCode ?? null,
+      insignificantMoonQuantity: Number.isFinite(slot.insignificantMoonQuantity)
+        ? Number(slot.insignificantMoonQuantity)
+        : null,
+      iissNote: formatIISSGasGiantNote({
+        sourceType: slot.primaryWorldType,
+        sizeCode: slot.sizeCode,
+        gasGiantCategoryCode: slot.gasGiantCategoryCode,
+        gasGiantDiameterCode: slot.gasGiantDiameterCode,
+        gasGiantDiameterTerran: slot.gasGiantDiameterTerran,
+        gasGiantMassEarth: slot.gasGiantMassEarth,
+      }),
+      moonNote: formatSignificantMoonNote({
+        significantMoonQuantity: slot.significantMoonQuantity,
+        hasSignificantRing: slot.hasSignificantRing,
+        significantMoonSizes: slot.significantMoonSizes,
+        significantRingCode: slot.significantRingCode,
+        insignificantMoonQuantity: slot.insignificantMoonQuantity,
+      }),
+    };
+  });
+
+  const designatedPlanets = applyDefaultPlanetDesignations(planets, { systemLabel });
+  return applyDefaultMoonDesignations(designatedPlanets);
+}
+
+function enrichPersistedPlanetsWithOrbitalPeriods(
+  planets,
+  stars = [],
+  worldPlacement = null,
+  systemLabel = DEFAULT_SYSTEM_LABEL,
+) {
+  const persistedPlanets = Array.isArray(planets) ? planets : [];
+  const secondaryOrbitContext = buildSecondaryOrbitContextForPeriods(stars, worldPlacement);
+  const designationContext = buildPlanetDesignationContext(stars);
+
+  const enrichedPlanets = persistedPlanets.map((planet) => {
+    const orbitNumber = Number(planet?.orbitNumber);
+    const orbitAU = Number.isFinite(planet?.orbitAU)
+      ? Number(planet.orbitAU)
+      : Number.isFinite(orbitNumber)
+        ? convertOrbitNumberToAu({ orbitNumber })
+        : null;
+
+    const orbitalContext = resolveOrbitedStellarMassForPlanet(
+      {
+        starKey: planet?.starKey,
+        orbit: Number.isFinite(orbitNumber) ? orbitNumber : null,
+      },
+      stars,
+      secondaryOrbitContext,
+    );
+
+    const parentContext = resolvePlanetParentDesignation(
+      {
+        starKey: planet?.starKey,
+        orbit: Number.isFinite(orbitNumber) ? orbitNumber : null,
+      },
+      secondaryOrbitContext,
+      designationContext,
+    );
+
+    const existingPeriodYears = Number(planet?.orbitalPeriodYears);
+    const orbitalPeriodYears = Number.isFinite(existingPeriodYears)
+      ? existingPeriodYears
+      : calculatePlanetOrbitPeriodYears({
+          orbitAu: orbitAU,
+          interiorStellarMassInSolarMasses: orbitalContext.massInSolarMasses,
+        });
+
+    const existingPeriodDays = Number(planet?.orbitalPeriodDays);
+    const orbitalPeriodDays = Number.isFinite(existingPeriodDays)
+      ? existingPeriodDays
+      : convertOrbitPeriodYearsToDays({ periodYears: orbitalPeriodYears });
+
+    const existingPeriodHours = Number(planet?.orbitalPeriodHours);
+    const orbitalPeriodHours = Number.isFinite(existingPeriodHours)
+      ? existingPeriodHours
+      : convertOrbitPeriodYearsToHours({ periodYears: orbitalPeriodYears });
+
+    return {
+      ...planet,
+      orbitalPeriodYears,
+      orbitalPeriodDays,
+      orbitalPeriodHours,
+      parentDesignationKey: parentContext.parentKey,
+      parentDesignation: parentContext.parentLabel,
+      hasMainworldSecondary: Boolean(planet?.hasMainworldSecondary),
+      secondaryWorldTypes: Array.isArray(planet?.secondaryWorldTypes) ? [...planet.secondaryWorldTypes] : [],
+      orbitedMassInSolarMasses: orbitalContext.massInSolarMasses,
+      orbitedStarCount: orbitalContext.orbitedStarCount,
+      significantMoonQuantity: Number.isFinite(planet?.significantMoonQuantity)
+        ? Number(planet.significantMoonQuantity)
+        : null,
+      hasSignificantRing: Boolean(planet?.hasSignificantRing),
+      significantMoonSizes: Array.isArray(planet?.significantMoonSizes) ? [...planet.significantMoonSizes] : [],
+      significantRingCount: Number.isFinite(planet?.significantRingCount) ? Number(planet.significantRingCount) : 0,
+      significantRingCode: planet?.significantRingCode ?? null,
+      insignificantMoonQuantity: Number.isFinite(planet?.insignificantMoonQuantity)
+        ? Number(planet.insignificantMoonQuantity)
+        : null,
+      iissNote: formatIISSGasGiantNote({
+        sourceType: planet?.sourceType,
+        type: planet?.type,
+        sizeCode: planet?.sizeCode,
+        gasGiantCategoryCode: planet?.gasGiantCategoryCode,
+        gasGiantDiameterCode: planet?.gasGiantDiameterCode,
+        gasGiantDiameterTerran: planet?.gasGiantDiameterTerran,
+        gasGiantMassEarth: planet?.gasGiantMassEarth,
+      }),
+      moonNote: formatSignificantMoonNote({
+        significantMoonQuantity: planet?.significantMoonQuantity,
+        hasSignificantRing: planet?.hasSignificantRing,
+        significantMoonSizes: planet?.significantMoonSizes,
+        significantRingCode: planet?.significantRingCode,
+        insignificantMoonQuantity: planet?.insignificantMoonQuantity,
+      }),
+    };
+  });
+
+  const designatedPlanets = applyDefaultPlanetDesignations(enrichedPlanets, { systemLabel });
+  return applyDefaultMoonDesignations(designatedPlanets);
+}
+
+function moonAlphabeticSuffixForIndex(index) {
+  const alphabet = "abcdefghijklmnopqrstuvwxyz";
+  if (!Number.isFinite(index) || index < 0) {
+    return "a";
+  }
+
+  let value = Math.trunc(index);
+  let suffix = "";
+  do {
+    const remainder = value % 26;
+    suffix = `${alphabet.charAt(remainder)}${suffix}`;
+    value = Math.floor(value / 26) - 1;
+  } while (value >= 0);
+
+  return suffix;
+}
+
+function applyDefaultMoonDesignations(planets) {
+  const entries = Array.isArray(planets) ? planets : [];
+
+  return entries.map((planet) => {
+    const parentName = String(planet?.name || "").trim();
+    const moonSizes = Array.isArray(planet?.significantMoonSizes) ? planet.significantMoonSizes : [];
+    const significantMoonCount = moonSizes.filter((sizeCode) => String(sizeCode).toUpperCase() !== "R").length;
+    const insignificantMoonQuantity = Math.max(0, Math.floor(Number(planet?.insignificantMoonQuantity) || 0));
+
+    const significantMoonDesignations = [];
+    for (let i = 0; i < significantMoonCount; i++) {
+      significantMoonDesignations.push(`${parentName} ${moonAlphabeticSuffixForIndex(i)}`.trim());
+    }
+
+    const insignificantMoonStart = significantMoonCount + 1;
+    const insignificantMoonEnd = significantMoonCount + insignificantMoonQuantity;
+    const insignificantMoonDesignations = [];
+    for (let i = 0; i < insignificantMoonQuantity; i++) {
+      insignificantMoonDesignations.push(`${parentName} ${insignificantMoonStart + i}`.trim());
+    }
+    const insignificantMoonDesignationRange =
+      insignificantMoonQuantity > 0 ? `${parentName} ${insignificantMoonStart}-${insignificantMoonEnd}`.trim() : "";
+
+    return {
+      ...planet,
+      significantMoonDesignations,
+      insignificantMoonDesignations,
+      insignificantMoonDesignationStart: insignificantMoonQuantity > 0 ? insignificantMoonStart : null,
+      insignificantMoonDesignationEnd: insignificantMoonQuantity > 0 ? insignificantMoonEnd : null,
+      insignificantMoonDesignationRange,
+    };
+  });
+}
+
+function formatSignificantMoonNote({
+  significantMoonQuantity,
+  hasSignificantRing,
+  significantMoonSizes,
+  significantRingCode,
+  insignificantMoonQuantity,
+} = {}) {
+  const moonSizes = Array.isArray(significantMoonSizes) ? significantMoonSizes.filter(Boolean) : [];
+  if (moonSizes.length > 0) {
+    const ringCode = String(significantRingCode || "").trim();
+    if (ringCode && moonSizes.every((sizeCode) => sizeCode === "R")) {
+      return `Moons: ${ringCode}`;
+    }
+
+    const insignificant = Number(insignificantMoonQuantity);
+    const insignificantNote =
+      Number.isFinite(insignificant) && insignificant > 0 ? ` +i${Math.floor(insignificant)}` : "";
+    return `Moons: ${moonSizes.join(", ")}${ringCode ? ` (${ringCode})` : ""}${insignificantNote}`;
+  }
+
+  if (hasSignificantRing) {
+    return "Moons: R01";
+  }
+
+  const moonCount = Number(significantMoonQuantity);
+  if (Number.isFinite(moonCount) && moonCount > 0) {
+    const insignificant = Number(insignificantMoonQuantity);
+    const insignificantNote =
+      Number.isFinite(insignificant) && insignificant > 0 ? ` +i${Math.floor(insignificant)}` : "";
+    return `Sig Moons: ${Math.floor(moonCount)}${insignificantNote}`;
+  }
+
+  const insignificant = Number(insignificantMoonQuantity);
+  if (Number.isFinite(insignificant) && insignificant > 0) {
+    return `Insig: ${Math.floor(insignificant)}`;
+  }
+
+  return "";
+}
+
+function formatPlanetYearLength(planet) {
+  const periodYears = Number(planet?.orbitalPeriodYears);
+  if (!Number.isFinite(periodYears)) {
+    return "n/a";
+  }
+
+  const periodDays = Number(planet?.orbitalPeriodDays);
+  if (periodYears >= 1) {
+    const wholeYears = Math.trunc(periodYears);
+    const remainderDays = Number.isFinite(periodDays) ? Math.round(periodDays - wholeYears * 365.25) : 0;
+    return `${periodYears.toFixed(2)} y (${wholeYears}y ${Math.max(0, remainderDays)}d)`;
+  }
+
+  if (Number.isFinite(periodDays) && periodDays >= 1) {
+    return `${periodYears.toFixed(4)} y (${periodDays.toFixed(2)} d)`;
+  }
+
+  const periodHours = Number(planet?.orbitalPeriodHours);
+  if (Number.isFinite(periodHours)) {
+    return `${periodYears.toFixed(6)} y (${periodHours.toFixed(1)} h)`;
+  }
+
+  return `${periodYears.toFixed(6)} y`;
 }
 
 function sanitizeId(value) {
@@ -467,6 +967,88 @@ function sanitizeId(value) {
     .replace(/_+/g, "_")
     .replace(/^_+|_+$/g, "")
     .slice(0, 16);
+}
+
+function parseStepNumber(stepKey) {
+  const match = String(stepKey || "").match(/step(\d+)/i);
+  return match ? Number(match[1]) : Number.POSITIVE_INFINITY;
+}
+
+function summarizeStepTrace(stepKey, payload) {
+  if (!payload || typeof payload !== "object") {
+    return "No payload data available.";
+  }
+
+  if (stepKey === "step1") {
+    const stars = Array.isArray(payload.starAllocations) ? payload.starAllocations.length : 0;
+    return `Allocated worlds across ${stars} star group(s); total system orbits: ${payload.totalSystemOrbits ?? 0}.`;
+  }
+
+  if (stepKey === "step2") {
+    return `Baseline mode: ${payload.mode ?? "n/a"}; baseline number: ${payload.baselineNumber ?? "n/a"}.`;
+  }
+
+  if (stepKey === "step3") {
+    return `Baseline orbit resolved to ${payload.baselineOrbit ?? "n/a"} (${payload.mode ?? "n/a"} mode).`;
+  }
+
+  if (stepKey === "step4") {
+    return `Rolled ${payload.emptyOrbitCount ?? 0} empty orbit(s) on ${payload.roll ?? "n/a"}; unallocated: ${payload.unallocatedEmptyOrbits ?? 0}.`;
+  }
+
+  if (stepKey === "step5") {
+    return `System spread: ${payload.roundedSpread ?? payload.spread ?? "n/a"}; capped: ${payload.cappedByMaximumSpread ? "yes" : "no"}.`;
+  }
+
+  if (stepKey === "step5Secondary") {
+    const count = Array.isArray(payload) ? payload.length : 0;
+    return `Computed secondary spread overrides for ${count} star(s).`;
+  }
+
+  if (stepKey === "step6") {
+    const count = Array.isArray(payload.slots) ? payload.slots.length : 0;
+    return `Generated ${count} orbit slot(s) before anomaly injection.`;
+  }
+
+  if (stepKey === "step7") {
+    const anomalies = Array.isArray(payload.anomalies) ? payload.anomalies.length : (payload.anomalousOrbitCount ?? 0);
+    return `Generated ${anomalies} anomalous orbit(s) and updated world totals.`;
+  }
+
+  if (stepKey === "step8") {
+    const slots = Array.isArray(payload.slots) ? payload.slots.length : 0;
+    const terrestrials = payload?.placements?.terrestrials?.length ?? 0;
+    return `Placed bodies into ${slots} slot(s); terrestrial placements: ${terrestrials}.`;
+  }
+
+  if (stepKey === "step9") {
+    const worlds = Array.isArray(payload.worlds) ? payload.worlds.length : 0;
+    return `Assigned eccentricities to ${worlds} world(s).`;
+  }
+
+  if (stepKey === "step10") {
+    const worlds = payload?.totals?.rolledWorlds ?? 0;
+    const moons = payload?.totals?.significantMoons ?? 0;
+    return `Rolled moon quantities for ${worlds} world(s); initial significant moons: ${moons}.`;
+  }
+
+  if (stepKey === "step11") {
+    const worlds = payload?.totals?.sizedWorlds ?? 0;
+    const rings = payload?.totals?.significantRings ?? 0;
+    return `Sized moons for ${worlds} world(s); total significant rings: ${rings}.`;
+  }
+
+  if (stepKey === "step12") {
+    const worlds = payload?.totals?.worlds ?? 0;
+    const moons = payload?.totals?.insignificantMoons ?? 0;
+    return `Estimated insignificant moons for ${worlds} world(s): ${moons}.`;
+  }
+
+  return "Step payload captured.";
+}
+
+function formatTraceData(payload) {
+  return JSON.stringify(payload, null, 2);
 }
 
 function parseHexCoordinate(rawCoord) {
@@ -531,12 +1113,21 @@ function toPersistedClass(star) {
 }
 
 function buildSystemLabel(entry) {
+  const namedLabel = String(entry?.metadata?.systemName || "").trim();
   const x = Number(entry?.hexCoordinates?.x);
   const y = Number(entry?.hexCoordinates?.y);
   if (Number.isFinite(x) && Number.isFinite(y)) {
     const coord = `${String(x).padStart(2, "0")}${String(y).padStart(2, "0")}`;
+    if (namedLabel) {
+      return `${namedLabel} (${coord})`;
+    }
     return `${coord} (${entry.systemId})`;
   }
+
+  if (namedLabel) {
+    return `${namedLabel} (${entry.systemId})`;
+  }
+
   return entry?.systemId || "Unknown system";
 }
 
@@ -573,14 +1164,43 @@ function hydrateSystemFromPersisted(persistedSystem) {
   const x = Number(persistedSystem?.hexCoordinates?.x) || 1;
   const y = Number(persistedSystem?.hexCoordinates?.y) || 1;
   const normalizedCoord = `${String(x).padStart(2, "0")}${String(y).padStart(2, "0")}`;
+  const designationLabel = resolveSystemDesignationLabel(metadata.systemName, normalizedCoord);
 
   if (survey?.stars && survey?.habitableZone && survey?.planets) {
+    const planets = enrichPersistedPlanetsWithOrbitalPeriods(
+      survey.planets,
+      survey.stars,
+      survey.worldPlacement,
+      designationLabel,
+    );
+
+    const iissProfile =
+      survey?.iissProfile ??
+      generateIISSProfile({
+        stars: survey.stars,
+        ageGyr: Number(persistedSystem?.primaryStar?.age),
+        metadata,
+      });
+
+    const planetarySystemProfile =
+      survey?.planetarySystemProfile ??
+      generatePlanetarySystemProfiles({
+        planets,
+        stars: survey.stars,
+        worldPlacement: survey.worldPlacement,
+      });
+
     return {
       systemId: normalizedCoord,
+      systemLabel: designationLabel,
       persistedSystemId: persistedSystem.systemId,
       stars: survey.stars,
       habitableZone: survey.habitableZone,
-      planets: survey.planets,
+      planets,
+      worldPlacement: survey.worldPlacement ?? null,
+      iissProfile,
+      planetarySystemShortProfile: planetarySystemProfile.shortProfile,
+      planetarySystemLongProfile: planetarySystemProfile.longProfile,
     };
   }
 
@@ -588,18 +1208,35 @@ function hydrateSystemFromPersisted(persistedSystem) {
   const companions = Array.isArray(persistedSystem?.companionStars)
     ? persistedSystem.companionStars.map((entry) => starFromPersisted(entry?.spectralClass, "secondary"))
     : [];
+  const stars = [primary, ...companions];
+  const worldPlacement = survey?.worldPlacement ?? null;
   const hzInner = Number(persistedSystem?.habitableZone) || 1;
+  const iissProfile = generateIISSProfile({
+    stars,
+    ageGyr: Number(persistedSystem?.primaryStar?.age),
+    metadata,
+  });
+  const planetarySystemProfile = generatePlanetarySystemProfiles({
+    planets: [],
+    stars,
+    worldPlacement,
+  });
 
   return {
     systemId: normalizedCoord,
+    systemLabel: designationLabel,
     persistedSystemId: persistedSystem.systemId,
-    stars: [primary, ...companions],
+    stars,
     habitableZone: {
       innerAU: +hzInner.toFixed(2),
       outerAU: +(hzInner * 1.6).toFixed(2),
       frostLineAU: +(hzInner * 3.2).toFixed(2),
     },
     planets: [],
+    worldPlacement,
+    iissProfile,
+    planetarySystemShortProfile: planetarySystemProfile.shortProfile,
+    planetarySystemLongProfile: planetarySystemProfile.longProfile,
   };
 }
 
@@ -624,6 +1261,7 @@ async function loadPersistedSystem(systemId, showToast = false) {
   try {
     system.value = hydrateSystemFromPersisted(persisted);
     hexCoord.value = system.value.systemId;
+    systemLabelInput.value = resolveSystemDesignationLabel(system.value.systemLabel, system.value.systemId);
     const primaryCode = toSpectralClass(system.value.stars[0]);
     primarySpectral.value = SPECTRAL_TYPES.some((type) => type.code === primaryCode) ? primaryCode : "random";
     systemStore.setCurrentSystem(systemId);
@@ -692,9 +1330,10 @@ async function buildSystem() {
       stars.push(buildStar(pickSpectral().code, "secondary"));
     }
 
+    const systemAgeGyr = +(Math.random() * 12 + 1).toFixed(2);
+
     // Calculate new star properties for each star
     stars.forEach((star, idx) => {
-      const ageGyr = systemPayload?.primaryStar?.age ?? +(Math.random() * 12 + 1).toFixed(2);
       star.absoluteMagnitude = calculateAbsoluteMagnitude({ luminosity: star.luminosity });
       star.visualColor = getStarVisualColor({ spectralClass: star.spectralClass });
       star.rotationPeriodDays = estimateRotationPeriod({
@@ -704,15 +1343,30 @@ async function buildSystem() {
       star.mainSequenceLifetimeGyr = calculateMainSequenceLifetime({ massInSolarMasses: star.massInSolarMasses });
       if (star.mainSequenceLifetimeGyr) {
         star.evolutionaryStatus = calculateEvolutionaryStatus({
-          ageGyr,
+          ageGyr: systemAgeGyr,
           lifetimeGyr: star.mainSequenceLifetimeGyr,
         });
       }
     });
 
     const hz = calcHabitableZone(stars[0].luminosity);
-    const planets = buildPlanets(hz);
     const hex = parseHexCoordinate(hexCoord.value);
+    const systemDesignationLabel = resolveSystemDesignationLabel(systemLabelInput.value, hex.normalized);
+    systemLabelInput.value = systemDesignationLabel;
+    const worldPlacement = generateSystemWorldPlacement({
+      stars,
+      systemAgeGyr,
+      includeStep9: true,
+      rng: Math.random,
+    });
+    const planets = buildPlanetsFromWorldPlacement(worldPlacement, hz, stars, systemDesignationLabel);
+    const iissProfile = generateIISSProfile({ stars, ageGyr: systemAgeGyr, metadata: {} });
+    const planetarySystemProfile = generatePlanetarySystemProfiles({
+      planets,
+      stars,
+      worldPlacement,
+    });
+
     const now = new Date().toISOString();
     const newSystemId = `sys_${sanitizeId(props.sectorId)}_${hex.normalized}_${Date.now()}`.slice(0, 50);
 
@@ -725,7 +1379,7 @@ async function buildSystem() {
         spectralClass: toPersistedClass(stars[0]),
         luminosity: stars[0].luminosity,
         mass: stars[0].massInSolarMasses,
-        age: +(Math.random() * 12 + 1).toFixed(2),
+        age: systemAgeGyr,
       },
       companionStars: stars.slice(1).map((star, index) => ({
         spectralClass: toPersistedClass(star),
@@ -735,33 +1389,33 @@ async function buildSystem() {
       metadata: {
         createdAt: now,
         lastModified: now,
+        systemName: systemDesignationLabel,
         systemClass: starCount === 1 ? "Single" : starCount === 2 ? "Binary" : "Trinary",
         generatedSurvey: {
           stars,
           habitableZone: hz,
           planets,
+          worldPlacement,
           primaryGeneration: primaryRoll,
+          iissProfile,
+          planetarySystemProfile,
         },
       },
     };
 
     const persistedSystem = await systemStore.createSystem(systemPayload);
 
-    // Generate IISS profile for the system
-    const tempSystem = {
-      stars,
-      ageGyr: systemPayload.primaryStar.age,
-      metadata: systemPayload.metadata,
-    };
-    const iissProfile = generateIISSProfile(tempSystem);
-
     system.value = {
       systemId: hex.normalized,
+      systemLabel: systemDesignationLabel,
       persistedSystemId: persistedSystem.systemId,
       stars,
       habitableZone: hz,
       planets,
+      worldPlacement,
       iissProfile,
+      planetarySystemShortProfile: planetarySystemProfile.shortProfile,
+      planetarySystemLongProfile: planetarySystemProfile.longProfile,
     };
     selectedSystemId.value = persistedSystem.systemId;
     toastService.success(`System ${hex.normalized} generated and saved.`);
@@ -922,17 +1576,157 @@ function proceedToWorldBuilder() {
   font-weight: bold;
 }
 
+.profile-section,
 .stars-section,
 .hz-section,
-.planets-section {
+.planets-section,
+.trace-section {
   margin-bottom: 2rem;
 }
 
+.profile-section h3,
 .stars-section h3,
 .hz-section h3,
-.planets-section h3 {
+.planets-section h3,
+.trace-section h3 {
   color: #00ffff;
   margin-bottom: 1rem;
+}
+
+.profile-section {
+  background: #111229;
+  border: 1px solid #21395a;
+  border-radius: 0.4rem;
+  padding: 0.9rem;
+}
+
+.profile-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  margin-bottom: 0.45rem;
+}
+
+.profile-row:last-child {
+  margin-bottom: 0;
+}
+
+.profile-label {
+  min-width: 130px;
+  color: #85b9c9;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.profile-value {
+  color: #f2fbff;
+  background: #0a0d1e;
+  border: 1px solid #1e3452;
+  border-radius: 0.25rem;
+  padding: 0.18rem 0.4rem;
+  font-size: 0.82rem;
+  font-family: monospace;
+}
+
+.profile-value-long {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
+}
+
+.trace-counts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.trace-count-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.6rem 0.7rem;
+  background: #101033;
+  border: 1px solid #22385a;
+  border-radius: 0.35rem;
+}
+
+.trace-count-card span {
+  font-size: 0.75rem;
+  color: #85b9c9;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.trace-count-card strong {
+  color: #ffffff;
+  font-size: 1rem;
+  font-family: monospace;
+}
+
+.trace-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 0.85rem;
+}
+
+.trace-card {
+  padding: 0.8rem;
+  background: #12122e;
+  border: 1px solid #1f2f47;
+  border-radius: 0.4rem;
+}
+
+.trace-card-header {
+  margin-bottom: 0.45rem;
+}
+
+.trace-step-id {
+  display: inline-block;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  background: rgba(0, 217, 255, 0.12);
+  border: 1px solid rgba(0, 217, 255, 0.35);
+  color: #8be8ff;
+  font-family: monospace;
+  font-size: 0.75rem;
+  font-weight: bold;
+}
+
+.trace-summary {
+  margin: 0 0 0.55rem;
+  color: #d7e8f0;
+  font-size: 0.84rem;
+  line-height: 1.35;
+}
+
+.trace-json summary {
+  cursor: pointer;
+  color: #86deff;
+  font-size: 0.8rem;
+  user-select: none;
+}
+
+.trace-json pre {
+  margin-top: 0.55rem;
+  padding: 0.5rem;
+  max-height: 220px;
+  overflow: auto;
+  border-radius: 0.3rem;
+  background: #0b0b24;
+  border: 1px solid #19284a;
+  color: #cde7ff;
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.trace-empty-state {
+  padding: 0.75rem;
+  border: 1px dashed #2f4e64;
+  border-radius: 0.35rem;
+  color: #9ec6d4;
+  font-size: 0.9rem;
 }
 
 .stars-grid {
@@ -1093,6 +1887,14 @@ function proceedToWorldBuilder() {
 
 .planet-table tr.habitable td {
   background: rgba(107, 207, 127, 0.07);
+}
+
+.planet-note {
+  margin-top: 0.2rem;
+  color: #89d7ff;
+  font-family: monospace;
+  font-size: 0.78rem;
+  letter-spacing: 0.02em;
 }
 
 .zone-badge {

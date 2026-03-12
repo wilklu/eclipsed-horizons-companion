@@ -664,6 +664,82 @@ components:
           nullable: true
         metadata:
           type: object
+          description: System metadata including optional generated survey data
+          properties:
+            createdAt:
+              type: string
+              format: date-time
+            lastModified:
+              type: string
+              format: date-time
+            systemClass:
+              type: string
+              description: "System classification (e.g., 'Single', 'Binary', 'Trinary')"
+            systemName:
+              type: string
+              description: Human-readable system designation label
+            notes:
+              type: string
+            generatedSurvey:
+              type: object
+              description: Full survey data persisted by the system generator
+              properties:
+                iissProfile:
+                  type: string
+                  description: >
+                    IISS stellar profile string in Traveller 5 format.
+                    Single-star example: "G2V-V-1-1-1-5"
+                    Multi-star example: "G2V-V-1-1-1-5:B-6-0.1-M5V-V-0.2-0.2-0.01"
+                planetarySystemProfile:
+                  type: object
+                  description: Computed planetary system profiles for system summary output
+                  properties:
+                    shortProfile:
+                      type: string
+                      description: >
+                        Short planetary profile in G-P-T-N-S format.
+                        G = gas giant count (eHex), P = planetoid belt count (eHex),
+                        T = terrestrial planet count (eHex),
+                        N = baseline number (≥0, placement index nearest habitable zone),
+                        S = system spread (rounded orbit-number increment between worlds).
+                        Example: "2-1-3-4-0.5"
+                    longProfile:
+                      type: string
+                      description: >
+                        Long planetary profile in St-N-W...-S format, segmented by parent star.
+                        St = star designation (e.g., A, B, Cab).
+                        N = segment baseline (1-based index of world nearest HZ, or 0 if all cold).
+                        W = world tokens in ascending orbit order:
+                          G = gas giant, P = planetoid belt, T = terrestrial,
+                          M = mainworld (surface), GM = gas giant hosting mainworld moon,
+                          PM = planetoid belt hosting mainworld moon.
+                        S = system spread. Multi-star segments separated by colons.
+                        Example: "A-4-T-G-M-G-T-0.5:B-2-T-GM-T-0.5"
+                stars:
+                  type: array
+                  description: Generated star objects with spectral, physical, and orbital data
+                  items:
+                    type: object
+                    additionalProperties: true
+                planets:
+                  type: array
+                  description: Generated planet/world placement objects
+                  items:
+                    type: object
+                    additionalProperties: true
+                worldPlacement:
+                  type: object
+                  description: Full world placement pipeline result (steps 1-10)
+                  additionalProperties: true
+                habitableZone:
+                  type: object
+                  description: "Habitable zone extents: innerAU, outerAU, frostLineAU"
+                  additionalProperties: true
+                primaryGeneration:
+                  type: object
+                  description: Primary star generation roll data and pipeline results
+                  additionalProperties: true
+              additionalProperties: true
           additionalProperties: true
 
     System:
