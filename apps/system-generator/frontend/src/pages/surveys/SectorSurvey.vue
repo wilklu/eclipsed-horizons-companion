@@ -140,6 +140,7 @@ import LoadingSpinner from "../../components/common/LoadingSpinner.vue";
 import { useSectorStore } from "../../stores/sectorStore.js";
 import { useSystemStore } from "../../stores/systemStore.js";
 import * as toastService from "../../utils/toast.js";
+import { generatePrimaryStar } from "../../utils/primaryStarGenerator.js";
 
 const props = defineProps({ galaxyId: { type: String, default: null } });
 const router = useRouter();
@@ -220,43 +221,6 @@ const loadingMessage = computed(() =>
 const DENSITY_RATES = { core: 0.7, dense: 0.5, average: 0.3, scattered: 0.15, void: 0.03 };
 const DENSITY_CLASS_MAP = { void: 1, scattered: 2, average: 3, dense: 4, core: 5 };
 
-const SPECTRAL_WEIGHTS = [
-  { type: "O", weight: 0.00003, cls: "spectral-o" },
-  { type: "B", weight: 0.0013, cls: "spectral-b" },
-  { type: "A", weight: 0.006, cls: "spectral-a" },
-  { type: "F", weight: 0.03, cls: "spectral-f" },
-  { type: "G", weight: 0.076, cls: "spectral-g" },
-  { type: "K", weight: 0.121, cls: "spectral-k" },
-  { type: "M", weight: 0.765, cls: "spectral-m" },
-];
-
-function weightedSpectralType() {
-  const total = SPECTRAL_WEIGHTS.reduce((s, w) => s + w.weight, 0);
-  let r = Math.random() * total;
-  for (const entry of SPECTRAL_WEIGHTS) {
-    r -= entry.weight;
-    if (r <= 0) return entry;
-  }
-  return SPECTRAL_WEIGHTS[SPECTRAL_WEIGHTS.length - 1];
-}
-
-function randomLuminosityClass() {
-  const r = Math.random();
-  if (r < 0.001) return "Ia";
-  if (r < 0.005) return "Ib";
-  if (r < 0.02) return "II";
-  if (r < 0.06) return "III";
-  if (r < 0.12) return "IV";
-  return "V";
-}
-
-function buildStarDesignation() {
-  const { type } = weightedSpectralType();
-  const dec = Math.floor(Math.random() * 10);
-  const cls = randomLuminosityClass();
-  return `${type}${dec}${cls}`;
-}
-
 function spectralClassToCssClass(spectralClass) {
   const code = String(spectralClass || "G")
     .charAt(0)
@@ -323,21 +287,32 @@ function buildHexGridFromSystems(systems, cols, rows) {
     const safeX = Math.min(cols, Math.max(1, Math.trunc(x)));
     const safeY = Math.min(rows, Math.max(1, Math.trunc(y)));
     const coord = hexCoord(safeX, safeY);
-    const primaryClass = String(system?.primaryStar?.spectralClass || "G")
-      .charAt(0)
-      .toUpperCase();
-    const secondaryStars = Array.isArray(system?.companionStars)
-      ? system.companionStars
-          .map((star) => String(star?.spectralClass || "").trim())
-          .filter(Boolean)
-          .map((spectral) => `${spectral}V`)
+    const generatedStars = Array.isArray(system?.metadata?.generatedSurvey?.stars)
+      ? system.metadata.generatedSurvey.stars
       : [];
+    const generatedPrimary = generatedStars[0] ?? null;
+    const primaryCode = String(generatedPrimary?.spectralType || system?.primaryStar?.spectralClass || "G")
+      .trim()
+      .toUpperCase();
+
+    const secondaryStars =
+      generatedStars.length > 1
+        ? generatedStars
+            .slice(1)
+            .map((star) => String(star?.designation || "").trim())
+            .filter(Boolean)
+        : Array.isArray(system?.companionStars)
+          ? system.companionStars
+              .map((star) => String(star?.spectralClass || "").trim())
+              .filter(Boolean)
+              .map((spectral) => `${spectral}V`)
+          : [];
 
     occupied.set(coord, {
       coord,
       hasSystem: true,
-      starType: `${primaryClass}V`,
-      starClass: spectralClassToCssClass(primaryClass),
+      starType: String(generatedPrimary?.designation || `${primaryCode}V`),
+      starClass: spectralClassToCssClass(primaryCode),
       secondaryStars,
       systemId: system.systemId,
     });
@@ -507,13 +482,13 @@ async function generateSector() {
         const hasSystem = Math.random() < rate;
         const coord = hexCoord(c, r);
         if (hasSystem) {
-          const primary = weightedSpectralType();
-          const secondaryStars = hasSecondary() ? [buildStarDesignation()] : [];
+          const primary = generatePrimaryStar();
+          const secondaryStars = hasSecondary() ? [generatePrimaryStar().designation] : [];
           hexes.push({
             coord,
             hasSystem: true,
-            starType: buildStarDesignation(),
-            starClass: primary.cls,
+            starType: primary.designation,
+            starClass: spectralClassToCssClass(primary.spectralType || primary.persistedSpectralClass),
             secondaryStars,
           });
           systemCount++;

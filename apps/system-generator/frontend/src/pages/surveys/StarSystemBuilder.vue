@@ -169,6 +169,12 @@ import SurveyNavigation from "../../components/common/SurveyNavigation.vue";
 import LoadingSpinner from "../../components/common/LoadingSpinner.vue";
 import { useSystemStore } from "../../stores/systemStore.js";
 import * as toastService from "../../utils/toast.js";
+import {
+  estimateStarMassAndTemperature,
+  generatePrimaryStar,
+  generateStarSubtype,
+  toPersistedSpectralClass,
+} from "../../utils/primaryStarGenerator.js";
 
 const props = defineProps({
   galaxyId: { type: String, default: null },
@@ -179,21 +185,72 @@ const systemStore = useSystemStore();
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const SPECTRAL_TYPES = [
-  { code: "O", label: "Blue — hot, massive", mass: 40, lum: 100000, temp: 40000 },
-  { code: "B", label: "Blue-white", mass: 10, lum: 10000, temp: 20000 },
-  { code: "A", label: "White", mass: 2.0, lum: 25, temp: 8500 },
-  { code: "F", label: "Yellow-white", mass: 1.4, lum: 4, temp: 6700 },
-  { code: "G", label: "Yellow (Sun-like)", mass: 1.0, lum: 1.0, temp: 5800 },
-  { code: "K", label: "Orange", mass: 0.7, lum: 0.25, temp: 4500 },
-  { code: "M", label: "Red dwarf", mass: 0.3, lum: 0.04, temp: 3200 },
+  { code: "O", label: "Blue — hot, massive" },
+  { code: "B", label: "Blue-white" },
+  { code: "A", label: "White" },
+  { code: "F", label: "Yellow-white" },
+  { code: "G", label: "Yellow (Sun-like)" },
+  { code: "K", label: "Orange" },
+  { code: "M", label: "Red dwarf" },
 ];
+
+const SPECTRAL_PROFILES = {
+  O: { mass: 40, lum: 100000, temp: 40000 },
+  B: { mass: 10, lum: 10000, temp: 20000 },
+  A: { mass: 2.0, lum: 25, temp: 8500 },
+  F: { mass: 1.4, lum: 4, temp: 6700 },
+  G: { mass: 1.0, lum: 1.0, temp: 5800 },
+  K: { mass: 0.7, lum: 0.25, temp: 4500 },
+  M: { mass: 0.3, lum: 0.04, temp: 3200 },
+  L: { mass: 0.08, lum: 0.0008, temp: 2000 },
+  T: { mass: 0.05, lum: 0.0001, temp: 1200 },
+  Y: { mass: 0.02, lum: 0.00001, temp: 600 },
+  WD: { mass: 0.6, lum: 0.01, temp: 9000 },
+};
+
+const LUMINOSITY_FACTORS = {
+  Ia: { lum: 20000, mass: 22, temp: 0.95 },
+  Ib: { lum: 5000, mass: 12, temp: 0.95 },
+  II: { lum: 500, mass: 6, temp: 0.95 },
+  III: { lum: 80, mass: 2.5, temp: 0.96 },
+  IV: { lum: 8, mass: 1.2, temp: 0.98 },
+  V: { lum: 1, mass: 1, temp: 1 },
+  VI: { lum: 0.45, mass: 0.9, temp: 1.02 },
+  D: { lum: 0.01, mass: 0.6, temp: 1.1 },
+  BD: { lum: 0.001, mass: 0.2, temp: 0.6 },
+};
+
+const PECULIAR_PROFILES = {
+  "Black Hole": { mass: 8, lum: 0, temp: 0 },
+  Pulsar: { mass: 1.4, lum: 0.05, temp: 600000 },
+  "Neutron Star": { mass: 1.5, lum: 0.02, temp: 700000 },
+  Nebula: { mass: 0, lum: 0, temp: 50 },
+  Protostar: { mass: 0.4, lum: 0.2, temp: 2500 },
+  "Star Cluster": { mass: 5, lum: 250, temp: 5000 },
+  Anomaly: { mass: 1, lum: 1, temp: 5800 },
+};
+
+const PERSISTED_SPECTRAL_TYPES = new Set(["O", "B", "A", "F", "G", "K", "M", "L", "T", "Y", "WD"]);
 
 const PLANET_TYPES = ["Rocky", "Super-Earth", "Gas Giant", "Ice Giant", "Dwarf Planet", "Asteroid Belt"];
 const ORBIT_TYPES = ["Close", "Near", "Far", "Distant"];
 
+function parsePrimarySpectralSelection(rawValue) {
+  const value = String(rawValue || "")
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, "");
+
+  if (/^[OBAFGKM](?:\d(?:IA|IB|II|III|IV|V|VI)?|IA|IB|II|III|IV|V|VI)?$/.test(value)) {
+    return value.charAt(0);
+  }
+
+  return "random";
+}
+
 // ── State ─────────────────────────────────────────────────────────────────────
 const hexCoord = ref(router.currentRoute.value.query.hex ?? "0101");
-const primarySpectral = ref(router.currentRoute.value.query.star?.charAt(0) ?? "random");
+const primarySpectral = ref(parsePrimarySpectralSelection(router.currentRoute.value.query.star));
 const multiplicity = ref("random");
 const selectedSystemId = ref("");
 const system = ref(null);
@@ -242,17 +299,88 @@ function pickSpectral() {
   return SPECTRAL_TYPES[SPECTRAL_TYPES.length - 1];
 }
 
-function buildStar(spectralEntry, role) {
-  const dec = Math.floor(Math.random() * 10);
-  const lumCls = role === "primary" ? "V" : Math.random() < 0.2 ? "III" : "V";
-  const jitter = 0.85 + Math.random() * 0.3;
+function buildStar(spectralCode, role, overrides = {}) {
+  const profile = SPECTRAL_PROFILES[spectralCode] ?? SPECTRAL_PROFILES.G;
+  const lumCls = overrides.luminosityClass ?? (role === "primary" ? "V" : Math.random() < 0.2 ? "III" : "V");
+  const subtype = Number.isInteger(overrides.spectralDecimal)
+    ? { subtype: overrides.spectralDecimal }
+    : generateStarSubtype({
+        spectralType: spectralCode,
+        luminosityClass: lumCls,
+        isPrimary: role === "primary",
+        rng: Math.random,
+        allowStraightSubtype: false,
+      });
+  const dec = subtype.subtype;
+  const factors = LUMINOSITY_FACTORS[lumCls] ?? LUMINOSITY_FACTORS.V;
+  const jitter = Number.isFinite(overrides.jitter) ? overrides.jitter : 0.85 + Math.random() * 0.3;
+  const massTemp = estimateStarMassAndTemperature({
+    spectralType: spectralCode,
+    subtype: dec,
+    luminosityClass: lumCls,
+    rng: Math.random,
+    applyMassVariance: overrides.applyMassVariance ?? true,
+  });
+
+  const designation = overrides.designation ?? `${spectralCode}${dec}${lumCls}`;
+  const spectralClass = overrides.spectralClass ?? `${spectralCode}${dec} ${lumCls}`;
+
   return {
-    designation: `${spectralEntry.code}${dec}${lumCls}`,
-    spectralClass: `${spectralEntry.code}${dec} ${lumCls}`,
-    massInSolarMasses: +(spectralEntry.mass * jitter).toFixed(2),
-    luminosity: +(spectralEntry.lum * jitter).toFixed(3),
-    temperatureK: Math.round(spectralEntry.temp * jitter),
+    designation,
+    spectralClass,
+    spectralType: spectralCode,
+    luminosityClass: lumCls,
+    objectType: overrides.objectType ?? "stellar",
+    massInSolarMasses: +(massTemp?.massInSolarMasses ?? profile.mass * factors.mass * jitter).toFixed(3),
+    luminosity: +(profile.lum * factors.lum * jitter).toFixed(5),
+    temperatureK: Math.max(0, Math.round(massTemp?.temperatureK ?? profile.temp * factors.temp * jitter)),
     orbitType: role !== "primary" ? ORBIT_TYPES[Math.floor(Math.random() * ORBIT_TYPES.length)] : null,
+  };
+}
+
+function buildPrimaryStar(primaryRoll) {
+  if (primaryRoll.objectType === "peculiar") {
+    const profile = PECULIAR_PROFILES[primaryRoll.designation] ?? PECULIAR_PROFILES.Anomaly;
+    return {
+      designation: primaryRoll.designation,
+      spectralClass: primaryRoll.designation,
+      spectralType: null,
+      luminosityClass: null,
+      objectType: "peculiar",
+      massInSolarMasses: profile.mass,
+      luminosity: profile.lum,
+      temperatureK: profile.temp,
+      orbitType: null,
+      persistedSpectralClass: toPersistedSpectralClass(primaryRoll),
+    };
+  }
+
+  if (primaryRoll.spectralType === "WD") {
+    const profile = SPECTRAL_PROFILES.WD;
+    return {
+      designation: "WD",
+      spectralClass: "WD",
+      spectralType: "WD",
+      luminosityClass: "D",
+      objectType: primaryRoll.objectType,
+      massInSolarMasses: +profile.mass.toFixed(2),
+      luminosity: +profile.lum.toFixed(5),
+      temperatureK: profile.temp,
+      orbitType: null,
+      persistedSpectralClass: "WD",
+    };
+  }
+
+  const spectralCode = PERSISTED_SPECTRAL_TYPES.has(primaryRoll.spectralType) ? primaryRoll.spectralType : "G";
+  return {
+    ...buildStar(spectralCode, "primary", {
+      designation: primaryRoll.designation,
+      spectralClass: `${spectralCode}${primaryRoll.spectralDecimal ?? 0} ${primaryRoll.luminosityClass ?? "V"}`,
+      spectralDecimal: primaryRoll.spectralDecimal,
+      luminosityClass: primaryRoll.luminosityClass ?? "V",
+      objectType: primaryRoll.objectType,
+    }),
+    persistedSpectralClass: toPersistedSpectralClass(primaryRoll),
   };
 }
 
@@ -312,11 +440,50 @@ function parseHexCoordinate(rawCoord) {
 }
 
 function toSpectralClass(star) {
-  const code = String(star?.spectralClass || "")
+  const direct = String(star?.spectralType || "")
     .trim()
-    .charAt(0)
     .toUpperCase();
-  return ["O", "B", "A", "F", "G", "K", "M", "L", "T", "Y"].includes(code) ? code : "G";
+  if (PERSISTED_SPECTRAL_TYPES.has(direct)) {
+    return direct;
+  }
+
+  const normalized = String(star?.spectralClass || "")
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, "");
+
+  if (PERSISTED_SPECTRAL_TYPES.has(normalized)) {
+    return normalized;
+  }
+
+  if (normalized === "WD") {
+    return "WD";
+  }
+
+  const fullPattern = /^[OBAFGKMLTY](?:\d)?(?:IA|IB|II|III|IV|V|VI|BD|D)?$/;
+  if (fullPattern.test(normalized)) {
+    return normalized.charAt(0);
+  }
+
+  return "G";
+}
+
+function toPersistedClass(star) {
+  if (PERSISTED_SPECTRAL_TYPES.has(star?.persistedSpectralClass)) {
+    return star.persistedSpectralClass;
+  }
+
+  const spectralType = toSpectralClass(star);
+  if (PERSISTED_SPECTRAL_TYPES.has(spectralType)) {
+    return spectralType;
+  }
+
+  return toPersistedSpectralClass({
+    spectralType: star?.spectralType,
+    luminosityClass: star?.luminosityClass,
+    designation: star?.designation,
+    persistedSpectralClass: star?.persistedSpectralClass,
+  });
 }
 
 function buildSystemLabel(entry) {
@@ -331,14 +498,29 @@ function buildSystemLabel(entry) {
 
 function starFromPersisted(spectralClass, role) {
   const spectral = toSpectralClass({ spectralClass });
-  return {
+  if (spectral === "WD") {
+    return {
+      designation: "WD",
+      spectralClass: "WD",
+      spectralType: "WD",
+      luminosityClass: "D",
+      objectType: "degenerate",
+      massInSolarMasses: 0.6,
+      luminosity: 0.01,
+      temperatureK: 9000,
+      orbitType: role === "primary" ? null : "Near",
+      persistedSpectralClass: "WD",
+    };
+  }
+
+  return buildStar(spectral, role, {
     designation: `${spectral}V`,
     spectralClass: `${spectral}V`,
-    massInSolarMasses: 1,
-    luminosity: 1,
-    temperatureK: 5800,
-    orbitType: role === "primary" ? null : "Near",
-  };
+    luminosityClass: "V",
+    persistedSpectralClass: spectral,
+    jitter: 1,
+    applyMassVariance: false,
+  });
 }
 
 function hydrateSystemFromPersisted(persistedSystem) {
@@ -399,7 +581,7 @@ async function loadPersistedSystem(systemId, showToast = false) {
     system.value = hydrateSystemFromPersisted(persisted);
     hexCoord.value = system.value.systemId;
     const primaryCode = toSpectralClass(system.value.stars[0]);
-    primarySpectral.value = primaryCode;
+    primarySpectral.value = SPECTRAL_TYPES.some((type) => type.code === primaryCode) ? primaryCode : "random";
     systemStore.setCurrentSystem(systemId);
     if (showToast) {
       toastService.success(`Loaded system ${system.value.systemId}.`);
@@ -446,10 +628,7 @@ async function buildSystem() {
     // Use setTimeout to show loading state for better UX
     await new Promise((resolve) => setTimeout(resolve, 300));
 
-    const primaryEntry =
-      primarySpectral.value === "random"
-        ? pickSpectral()
-        : (SPECTRAL_TYPES.find((t) => t.code === primarySpectral.value) ?? pickSpectral());
+    const primaryRoll = primarySpectral.value === "random" ? generatePrimaryStar() : null;
 
     let starCount = 1;
     if (multiplicity.value === "binary") starCount = 2;
@@ -459,9 +638,14 @@ async function buildSystem() {
       starCount = r < 0.5 ? 1 : r < 0.8 ? 2 : 3;
     }
 
-    const stars = [buildStar(primaryEntry, "primary")];
+    const stars = [
+      primaryRoll
+        ? buildPrimaryStar(primaryRoll)
+        : buildStar((SPECTRAL_TYPES.find((t) => t.code === primarySpectral.value) ?? pickSpectral()).code, "primary"),
+    ];
+
     for (let i = 1; i < starCount; i++) {
-      stars.push(buildStar(pickSpectral(), "secondary"));
+      stars.push(buildStar(pickSpectral().code, "secondary"));
     }
 
     const hz = calcHabitableZone(stars[0].luminosity);
@@ -476,13 +660,13 @@ async function buildSystem() {
       hexCoordinates: { x: hex.x, y: hex.y },
       starCount,
       primaryStar: {
-        spectralClass: toSpectralClass(stars[0]),
+        spectralClass: toPersistedClass(stars[0]),
         luminosity: stars[0].luminosity,
         mass: stars[0].massInSolarMasses,
         age: +(Math.random() * 12 + 1).toFixed(2),
       },
       companionStars: stars.slice(1).map((star, index) => ({
-        spectralClass: toSpectralClass(star),
+        spectralClass: toPersistedClass(star),
         separation: +((index + 1) * (0.5 + Math.random() * 5)).toFixed(2),
       })),
       habitableZone: hz.innerAU,
@@ -494,6 +678,7 @@ async function buildSystem() {
           stars,
           habitableZone: hz,
           planets,
+          primaryGeneration: primaryRoll,
         },
       },
     };
