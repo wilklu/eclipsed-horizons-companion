@@ -49,6 +49,10 @@
       <div v-else-if="!hasSavedWorlds && !world" class="context-hint">
         No saved worlds found for this system yet. Generate your first world to continue.
       </div>
+      <div v-if="activeTemperatureScenarioSettings" class="context-hint">
+        Seasonal context inherited from system analysis: day {{ activeTemperatureScenarioSettings.dateSolarDays }} of
+        {{ activeTemperatureScenarioSettings.solarDaysPerYear }} solar days.
+      </div>
 
       <!-- World Profile -->
       <div v-if="world" class="world-display">
@@ -86,7 +90,44 @@
               </div>
               <div class="prop-row">
                 <span class="prop-label">Temperature:</span>
-                <span class="prop-value">{{ world.tempCategory }} (avg {{ world.avgTempC }}°C)</span>
+                <span class="prop-value">{{ temperatureDisplayText }}</span>
+              </div>
+              <div class="prop-row">
+                <span class="prop-label">Density:</span>
+                <span class="prop-value">{{ world.density?.toFixed(2) }} (relative to water)</span>
+              </div>
+              <div class="prop-row">
+                <span class="prop-label">System Age:</span>
+                <span class="prop-value">{{ world.systemAgeGyr?.toFixed(1) }} Gyr</span>
+              </div>
+              <div class="prop-row">
+                <span class="prop-label">Seismic Activity:</span>
+                <span class="prop-value"
+                  >{{ world.seismicStress }} - {{ seismicStressCategory(world.seismicStress) }}</span
+                >
+              </div>
+              <div class="prop-row">
+                <span class="prop-label">Tidal Stress Factor:</span>
+                <span class="prop-value"
+                  >{{ world.tidalStressFactor }} ({{
+                    Number.isFinite(world.totalTidalEffectsMeters) ? world.totalTidalEffectsMeters.toFixed(2) : "0.00"
+                  }}
+                  m total tides)</span
+                >
+              </div>
+              <div class="prop-row">
+                <span class="prop-label">Tidal Heating Factor:</span>
+                <span class="prop-value">{{ world.tidalHeatingFactor }}</span>
+              </div>
+              <div class="prop-row">
+                <span class="prop-label">Total Seismic Stress:</span>
+                <span class="prop-value"
+                  >{{ world.totalSeismicStress }} — {{ seismicStressCategory(world.totalSeismicStress) }}</span
+                >
+              </div>
+              <div class="prop-row">
+                <span class="prop-label">Major Tectonic Plates:</span>
+                <span class="prop-value">{{ world.majorTectonicPlates > 0 ? world.majorTectonicPlates : "None" }}</span>
               </div>
             </div>
           </section>
@@ -114,6 +155,12 @@
               <div class="prop-row">
                 <span class="prop-label">Magnetosphere:</span>
                 <span class="prop-value">{{ world.magnetosphere }}</span>
+              </div>
+              <div v-if="world.temperatureScenarioSettings" class="prop-row">
+                <span class="prop-label">Seasonal Context:</span>
+                <span class="prop-value">{{
+                  formatTemperatureScenarioSettings(world.temperatureScenarioSettings)
+                }}</span>
               </div>
             </div>
           </section>
@@ -170,7 +217,15 @@ import { useRoute, useRouter } from "vue-router";
 import SurveyNavigation from "../../components/common/SurveyNavigation.vue";
 import LoadingSpinner from "../../components/common/LoadingSpinner.vue";
 import { useWorldStore } from "../../stores/worldStore.js";
+import { getSystem } from "../../api/systemApi.js";
 import * as toastService from "../../utils/toast.js";
+import {
+  calculateResidualSeismicStress,
+  calculateTectonicPlates,
+  calculateTidalStressFactor,
+  calculateTotalSeismicStress,
+} from "../../utils/worldGenerator.js";
+import { buildGeneratedSurveyPayload, deriveSystemGenerationContext } from "../../utils/worldBuilderPayload.js";
 
 const props = defineProps({ systemId: { type: String, default: null } });
 const router = useRouter();
@@ -183,6 +238,8 @@ const backRoute = computed(() => ({
     sectorId: route.query.sectorId || "sector",
   },
 }));
+const DEFAULT_TEMPERATURE_SCENARIO_DATE_SOLAR_DAYS = 91;
+const DEFAULT_TEMPERATURE_SCENARIO_SOLAR_DAYS_PER_YEAR = 365;
 
 // ── Tables ────────────────────────────────────────────────────────────────────
 const ATMOSPHERE_TABLE = {
@@ -303,6 +360,7 @@ const worldName = ref("");
 const starClass = ref("random");
 const selectedWorldId = ref("");
 const world = ref(null);
+const systemGenerationContext = ref(null);
 const isLoading = ref(false);
 const loadingMode = ref("generate");
 
@@ -314,6 +372,35 @@ const worldOptions = computed(() =>
 );
 const hasSavedWorlds = computed(() => worldOptions.value.length > 0);
 const hasSystemContext = computed(() => Boolean(props.systemId));
+const inheritedTemperatureScenarioSettings = computed(() =>
+  resolveTemperatureScenarioSettings({
+    dateSolarDays: route.query.temperatureScenarioDateSolarDays,
+    solarDaysPerYear: route.query.temperatureScenarioSolarDaysPerYear,
+  }),
+);
+const activeTemperatureScenarioSettings = computed(
+  () => world.value?.temperatureScenarioSettings ?? inheritedTemperatureScenarioSettings.value,
+);
+
+const temperatureDisplayText = computed(() => {
+  if (!world.value) return "";
+  const { tempCategory, avgTempC, meanTempC, seasonalTempOffsetC } = world.value;
+  if (seasonalTempOffsetC && seasonalTempOffsetC !== 0 && Number.isFinite(meanTempC)) {
+    const sign = seasonalTempOffsetC > 0 ? "+" : "";
+    return `${tempCategory} (${avgTempC}°C seasonal; mean ${meanTempC}°C, ${sign}${seasonalTempOffsetC}°C)`;
+  }
+  return `${tempCategory} (avg ${avgTempC}°C)`;
+});
+
+function seismicStressCategory(stress) {
+  const n = Number(stress);
+  if (!Number.isFinite(n) || n <= 0) return "Geologically Dead";
+  if (n <= 4) return "Minimal";
+  if (n <= 16) return "Low";
+  if (n <= 36) return "Moderate";
+  if (n <= 64) return "High";
+  return "Extreme";
+}
 
 const loadingMessage = computed(() => (loadingMode.value === "load" ? "Loading world..." : "Building world..."));
 
@@ -412,11 +499,62 @@ function buildWorldLabel(entry) {
   return uwp ? `${name} (${uwp})` : `${name} (${entry.worldId})`;
 }
 
+function resolveTemperatureScenarioSettings(rawSettings = null) {
+  const rawSolarDaysPerYear = Number(rawSettings?.solarDaysPerYear);
+  const rawDateSolarDays = Number(rawSettings?.dateSolarDays);
+  const hasSolarDaysPerYear = Number.isFinite(rawSolarDaysPerYear) && rawSolarDaysPerYear > 0;
+  const hasDateSolarDays = Number.isFinite(rawDateSolarDays) && rawDateSolarDays >= 0;
+
+  if (!hasSolarDaysPerYear && !hasDateSolarDays) {
+    return null;
+  }
+
+  const solarDaysPerYear = hasSolarDaysPerYear
+    ? Math.max(1, Math.round(rawSolarDaysPerYear))
+    : DEFAULT_TEMPERATURE_SCENARIO_SOLAR_DAYS_PER_YEAR;
+  let dateSolarDays = hasDateSolarDays
+    ? Math.max(0, Math.round(rawDateSolarDays))
+    : DEFAULT_TEMPERATURE_SCENARIO_DATE_SOLAR_DAYS;
+
+  if (dateSolarDays >= solarDaysPerYear) {
+    dateSolarDays %= solarDaysPerYear;
+  }
+
+  return { dateSolarDays, solarDaysPerYear };
+}
+
+function formatTemperatureScenarioSettings(settings) {
+  if (!settings) {
+    return "None";
+  }
+
+  return `Day ${settings.dateSolarDays} / ${settings.solarDaysPerYear}`;
+}
+
+function buildForwardQuery(worldId = "") {
+  const query = {
+    worldId,
+    systemId: props.systemId || "",
+    galaxyId: route.query.galaxyId || "",
+    sectorId: route.query.sectorId || "",
+  };
+
+  const settings = activeTemperatureScenarioSettings.value;
+  if (settings) {
+    query.temperatureScenarioDateSolarDays = String(settings.dateSolarDays);
+    query.temperatureScenarioSolarDaysPerYear = String(settings.solarDaysPerYear);
+  }
+
+  return query;
+}
+
 function hydrateWorldFromPersisted(persistedWorld) {
   const physical = persistedWorld?.physical || {};
   const census = persistedWorld?.census || {};
   const metadata = persistedWorld?.metadata || {};
   const survey = metadata.generatedSurvey || {};
+  const temperatureScenarioSettings = resolveTemperatureScenarioSettings(survey.temperatureScenarioSettings);
+  const systemContext = systemGenerationContext.value || {};
 
   const size = hexDigitToNumber(physical.size);
   const atmosphereCode = hexDigitToNumber(physical.atmosphere);
@@ -425,6 +563,28 @@ function hydrateWorldFromPersisted(persistedWorld) {
   const governmentCode = hexDigitToNumber(census.government);
   const lawLevel = hexDigitToNumber(census.lawLevel);
   const techLevel = Number(census.techLevel) || 0;
+  const fallbackSystemAgeGyr = Number.isFinite(systemContext.systemAgeGyr) ? systemContext.systemAgeGyr : 4.5;
+  const fallbackDensity = Number.isFinite(systemContext.density) ? systemContext.density : 1;
+  const fallbackMoonCount = Number.isFinite(systemContext.moonCountDefault)
+    ? clamp(Math.round(systemContext.moonCountDefault), 0, 12)
+    : Number(survey.moons || 0);
+  const fallbackMoonPool = Array.isArray(systemContext.moonSizesPool)
+    ? systemContext.moonSizesPool.map((entry) => Number(entry)).filter((entry) => Number.isFinite(entry) && entry > 0)
+    : [];
+  const fallbackTotalTidalEffectsMeters = Number.isFinite(systemContext.totalTidalEffectsMeters)
+    ? systemContext.totalTidalEffectsMeters
+    : 0;
+  const fallbackTidalStressFactor = Number.isFinite(systemContext.tidalStressFactor)
+    ? systemContext.tidalStressFactor
+    : calculateTidalStressFactor({ totalTidalEffectsMeters: fallbackTotalTidalEffectsMeters }) || 0;
+  const fallbackTidalHeatingFactor = Number.isFinite(systemContext.tidalHeatingFactor)
+    ? systemContext.tidalHeatingFactor
+    : 0;
+  const generatedMoonSizes = Array.isArray(survey.moonSizes)
+    ? survey.moonSizes
+    : fallbackMoonPool.length > 0
+      ? Array.from({ length: fallbackMoonCount }, (_, index) => fallbackMoonPool[index % fallbackMoonPool.length])
+      : Array.from({ length: fallbackMoonCount }, () => 1);
 
   return {
     persistedWorldId: persistedWorld.worldId,
@@ -437,12 +597,55 @@ function hydrateWorldFromPersisted(persistedWorld) {
     atmosphereDesc: ATMOSPHERE_TABLE[atmosphereCode] ?? "Unusual",
     hydrographics,
     avgTempC: Number.isFinite(survey.avgTempC) ? survey.avgTempC : avgTempFromApi(physical.temperature),
+    meanTempC: Number.isFinite(survey.meanTempC)
+      ? survey.meanTempC
+      : Number.isFinite(survey.avgTempC)
+        ? survey.avgTempC
+        : avgTempFromApi(physical.temperature),
+    seasonalTempOffsetC: Number.isFinite(survey.seasonalTempOffsetC) ? survey.seasonalTempOffsetC : 0,
     tempCategory: survey.tempCategory || temperatureCategoryFromApi(physical.temperature),
     orbitalPeriodDays: survey.orbitalPeriodDays || Math.round(200 + Math.random() * 1200),
     dayLengthHours: survey.dayLengthHours || +(15 + Math.random() * 50).toFixed(1),
     axialTilt: survey.axialTilt || Math.round(Math.random() * 40),
     moons: survey.moons || 0,
+    moonSizes: generatedMoonSizes,
     magnetosphere: survey.magnetosphere || "Unknown",
+    density: Number.isFinite(survey.density) ? survey.density : fallbackDensity,
+    systemAgeGyr: Number.isFinite(survey.systemAgeGyr) ? survey.systemAgeGyr : fallbackSystemAgeGyr,
+    seismicStress: Number.isFinite(survey.seismicStress)
+      ? survey.seismicStress
+      : (
+          calculateResidualSeismicStress({
+            size,
+            ageGyr: Number.isFinite(survey.systemAgeGyr) ? survey.systemAgeGyr : fallbackSystemAgeGyr,
+            isMoon: false,
+            moonSizes: generatedMoonSizes,
+            density: Number.isFinite(survey.density) ? survey.density : fallbackDensity,
+          }) || { stress: 0 }
+        ).stress,
+    seismicPreSquare: Number.isFinite(survey.seismicPreSquare) ? survey.seismicPreSquare : 0,
+    seismicStressDm: Number.isFinite(survey.seismicStressDm) ? survey.seismicStressDm : 0,
+    tidalEffectsMeters: Array.isArray(survey.tidalEffectsMeters) ? survey.tidalEffectsMeters : [],
+    totalTidalEffectsMeters: Number.isFinite(survey.totalTidalEffectsMeters)
+      ? survey.totalTidalEffectsMeters
+      : fallbackTotalTidalEffectsMeters,
+    tidalStressFactor: Number.isFinite(survey.tidalStressFactor) ? survey.tidalStressFactor : fallbackTidalStressFactor,
+    tidalHeatingFactor: Number.isFinite(survey.tidalHeatingFactor)
+      ? survey.tidalHeatingFactor
+      : fallbackTidalHeatingFactor,
+    totalSeismicStress: Number.isFinite(survey.totalSeismicStress)
+      ? survey.totalSeismicStress
+      : calculateTotalSeismicStress({
+          seismicStress: Number.isFinite(survey.seismicStress) ? survey.seismicStress : 0,
+          tidalStressFactor: Number.isFinite(survey.tidalStressFactor)
+            ? survey.tidalStressFactor
+            : fallbackTidalStressFactor,
+          tidalHeatingFactor: Number.isFinite(survey.tidalHeatingFactor)
+            ? survey.tidalHeatingFactor
+            : fallbackTidalHeatingFactor,
+        }),
+    majorTectonicPlates: Number.isFinite(survey.majorTectonicPlates) ? survey.majorTectonicPlates : 0,
+    temperatureScenarioSettings,
     populationCode,
     population: Number.isFinite(survey.populationEstimate)
       ? survey.populationEstimate
@@ -492,9 +695,26 @@ async function loadPersistedWorld(worldId, showToast = false) {
   }
 }
 
+async function loadSystemGenerationContext(systemId) {
+  systemGenerationContext.value = null;
+
+  if (!systemId) {
+    return;
+  }
+
+  try {
+    const persistedSystem = await getSystem(systemId);
+    systemGenerationContext.value = deriveSystemGenerationContext(persistedSystem);
+  } catch {
+    systemGenerationContext.value = null;
+  }
+}
+
 async function initializeWorldSelection(systemId) {
   world.value = null;
   selectedWorldId.value = "";
+
+  await loadSystemGenerationContext(systemId);
 
   if (!systemId) {
     return;
@@ -607,28 +827,17 @@ async function generateWorld() {
     const diameterKm = size === 0 ? 800 : size * 1600;
     const gravity = +(size * 0.1 + 0.05).toFixed(2);
 
-    const baseTemp = 15 + tempMod * 15 + (atmoRaw >= 6 ? 20 : 0) - hydrographics * 2;
-    const avgTempC = Math.round(baseTemp);
-    const tempCategory =
-      avgTempC < -50
-        ? "Frozen"
-        : avgTempC < 0
-          ? "Cold"
-          : avgTempC < 30
-            ? "Temperate"
-            : avgTempC < 60
-              ? "Hot"
-              : "Scorching";
-    const apiTemperature =
-      avgTempC < -50
-        ? "Frozen"
-        : avgTempC < 0
-          ? "Cold"
-          : avgTempC < 30
-            ? "Temperate"
-            : avgTempC < 55
-              ? "Tropical"
-              : "Hot";
+    const { apiTemperature, ...surveyPayload } = buildGeneratedSurveyPayload({
+      size,
+      atmosphereCode: atmoRaw,
+      hydrographics,
+      starTempMod: tempMod,
+      temperatureScenarioSettings: activeTemperatureScenarioSettings.value,
+      systemContext: systemGenerationContext.value,
+      rng: Math.random,
+    });
+
+    const { avgTempC, meanTempC, seasonalTempOffsetC, tempCategory } = surveyPayload;
 
     const uwp = `${starportCode}${toHex(size)}${toHex(atmosphereCode)}${toHex(hydrographics)}${toHex(popCode)}${toHex(governmentCode)}${toHex(lawLevel)}-${toHex(techLevel)}`;
     const generatedName = worldName.value || WORLD_NAMES[Math.floor(Math.random() * WORLD_NAMES.length)];
@@ -668,13 +877,7 @@ async function generateWorld() {
         lastModified: now,
         habitability,
         generatedSurvey: {
-          avgTempC,
-          tempCategory,
-          orbitalPeriodDays: Math.round(200 + Math.random() * 1200),
-          dayLengthHours: +(15 + Math.random() * 50).toFixed(1),
-          axialTilt: Math.round(Math.random() * 40),
-          moons: Math.floor(Math.random() * 4),
-          magnetosphere: Math.random() < 0.5 ? "Present" : "Absent",
+          ...surveyPayload,
           populationEstimate: population,
         },
       },
@@ -696,13 +899,28 @@ async function generateWorld() {
       atmosphereDesc,
       hydrographics,
       avgTempC,
+      meanTempC,
+      seasonalTempOffsetC,
       tempCategory,
       // System
       orbitalPeriodDays: generatedSurvey.orbitalPeriodDays,
       dayLengthHours: generatedSurvey.dayLengthHours,
       axialTilt: generatedSurvey.axialTilt,
       moons: generatedSurvey.moons,
+      moonSizes: generatedSurvey.moonSizes,
       magnetosphere: generatedSurvey.magnetosphere,
+      density: generatedSurvey.density,
+      systemAgeGyr: generatedSurvey.systemAgeGyr,
+      seismicStress: generatedSurvey.seismicStress,
+      seismicPreSquare: generatedSurvey.seismicPreSquare,
+      seismicStressDm: generatedSurvey.seismicStressDm,
+      tidalEffectsMeters: generatedSurvey.tidalEffectsMeters,
+      totalTidalEffectsMeters: generatedSurvey.totalTidalEffectsMeters,
+      tidalStressFactor: generatedSurvey.tidalStressFactor,
+      tidalHeatingFactor: generatedSurvey.tidalHeatingFactor,
+      totalSeismicStress: generatedSurvey.totalSeismicStress,
+      majorTectonicPlates: generatedSurvey.majorTectonicPlates,
+      temperatureScenarioSettings: generatedSurvey.temperatureScenarioSettings,
       // Census
       populationCode: popCode,
       population,
@@ -747,12 +965,7 @@ function goToSophontGenerator() {
   const worldId = world.value?.persistedWorldId || worldStore.currentWorldId || "";
   router.push({
     name: "SophontGenerator",
-    query: {
-      worldId,
-      systemId: props.systemId || "",
-      galaxyId: route.query.galaxyId || "",
-      sectorId: route.query.sectorId || "",
-    },
+    query: buildForwardQuery(worldId),
   });
 }
 
@@ -760,12 +973,7 @@ function goToHistoryGenerator() {
   const worldId = world.value?.persistedWorldId || worldStore.currentWorldId || "";
   router.push({
     name: "HistoryGenerator",
-    query: {
-      worldId,
-      systemId: props.systemId || "",
-      galaxyId: route.query.galaxyId || "",
-      sectorId: route.query.sectorId || "",
-    },
+    query: buildForwardQuery(worldId),
   });
 }
 </script>

@@ -124,6 +124,76 @@
         "notes": {
           "type": "string",
           "maxLength": 1000
+        },
+        "generatedSurvey": {
+          "type": "object",
+          "description": "Values produced by the world generator during creation",
+          "properties": {
+            "avgTempC": { "type": "number", "description": "Seasonal snapshot temperature (\u00b0C)" },
+            "meanTempC": { "type": "number", "description": "Mean annual temperature (\u00b0C)" },
+            "seasonalTempOffsetC": {
+              "type": "number",
+              "description": "Seasonal offset applied at generation time (\u00b0C)"
+            },
+            "tempCategory": { "type": "string" },
+            "orbitalPeriodDays": { "type": "number" },
+            "dayLengthHours": { "type": "number" },
+            "axialTilt": { "type": "number" },
+            "moons": { "type": "integer", "minimum": 0 },
+            "moonSizes": {
+              "type": "array",
+              "items": { "type": "integer", "minimum": 1 },
+              "description": "Size codes of significant moons used for seismic stress"
+            },
+            "magnetosphere": { "type": "string" },
+            "density": { "type": "number", "minimum": 0, "description": "Relative density (water = 1.0)" },
+            "systemAgeGyr": { "type": "number", "minimum": 0, "description": "System age in billions of years" },
+            "seismicStress": { "type": "number", "minimum": 0, "description": "Residual seismic stress value" },
+            "seismicPreSquare": {
+              "type": "number",
+              "description": "Floored pre-square term for residual seismic stress"
+            },
+            "seismicStressDm": { "type": "number", "description": "Total DM applied to seismic stress formula" },
+            "tidalEffectsMeters": {
+              "type": "array",
+              "items": { "type": "number", "minimum": 0 },
+              "description": "Individual tidal effects in meters used for tidal stress factor"
+            },
+            "totalTidalEffectsMeters": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Sum of all tidal effects in meters"
+            },
+            "tidalStressFactor": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Floor(total tidal effects in meters / 10)"
+            },
+            "tidalHeatingFactor": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Floored tidal heating factor using primary mass, world size, eccentricity, distance, period, and world mass"
+            },
+            "totalSeismicStress": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Total seismic stress: sum of residual seismic stress, tidal stress factor, and tidal heating factor"
+            },
+            "majorTectonicPlates": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Number of major tectonic plates; 0 means no tectonic plate activity"
+            },
+            "populationEstimate": { "type": "integer", "minimum": 0 },
+            "temperatureScenarioSettings": {
+              "type": "object",
+              "description": "Seasonal date context used during generation",
+              "properties": {
+                "dateSolarDays": { "type": "number", "minimum": 0, "description": "Day of year for seasonal snapshot" },
+                "solarDaysPerYear": { "type": "number", "minimum": 1, "description": "World year length in solar days" }
+              }
+            }
+          }
         }
       }
     }

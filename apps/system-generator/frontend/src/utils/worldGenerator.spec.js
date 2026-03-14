@@ -85,14 +85,134 @@ import {
   assignWorldsEccentricities,
   generateSystemWorldPlacement,
   calculateHabitableZoneBoundsForHzco,
+  calculateHabitableZoneTemperatureRawRoll,
   lookupHabitableZoneRegionDm,
+  lookupHabitableZoneRegionByRawRoll,
   ATMOSPHERE_CODE_TABLE,
   lookupAtmosphereCodeInfo,
+  lookupAtmosphereTemperatureDm,
+  estimateModifiedTemperatureRollFromType,
+  reverseEngineerTemperatureRawRoll,
+  BASIC_MEAN_TEMPERATURE_TABLE_55,
+  lookupBasicMeanTemperature,
+  calculateBasicMeanTemperatureOrbitDm,
+  calculateBasicMeanTemperatureModifiedRoll,
+  ALBEDO_WORLD_TYPES,
+  rollWorldAlbedo,
+  calculateInitialGreenhouseFactor,
+  calculateEffectiveGreenhouseFactor,
+  calculateMeanTemperatureKelvin,
+  calculateMeanTemperature,
+  calculateCombinedTemperatureKelvin,
+  calculateGasGiantResidualHeatTemperatureKelvin,
+  calculateThermalLuminositySolar,
+  calculateGasGiantResidualHeatScenario,
+  normalizeAxialTiltForTemperatureVariation,
+  calculateAxialTiltFactor,
+  calculateRotationFactor,
+  calculateGeographicFactor,
+  calculateVarianceFactors,
+  calculateAtmosphericFactor,
+  calculateLuminosityModifier,
+  calculateHighLowLuminosity,
+  calculateNearFarAu,
+  calculateHighLowTemperatureProfile,
+  calculateWorldHighLowTemperatureProfile,
+  calculateScenarioLuminosityModifier,
+  calculateAltitudeAdjustedGreenhouseFactor,
+  calculateAdditionalTemperatureScenario,
+  calculateLatitudeZoneAdjustment,
+  calculateLatitudeLuminosity,
+  calculateLatitudeTemperatureScenario,
+  calculateSolarDeclinationDegrees,
+  calculateSunriseCosine,
+  calculateSunlightPortionFromSunriseCosine,
+  calculateSunlightPortionAndHours,
+  calculateAdjustedFractionalDayEven,
+  calculateAdjustedFractionalDayUneven,
+  calculateHourlyRotationFactor,
+  calculateTimeOfDayRotationFactor,
+  calculateHorizonDistanceKm,
+  calculateHorizonDistanceDegrees,
+  calculateEccentricityLongitudinalLibrationDegrees,
+  calculateLatitudinalLibrationDegrees,
+  calculateSolarDiskVisibilityBandDegrees,
+  calculateAtmosphericRefractionDegrees,
+  calculateTwilightZoneExtentDegrees,
+  calculateTwilightLockedRotationFactor,
+  calculateAltitudeGreenhouseFactor,
+  calculateTemperatureAtAltitude,
+  calculateMultiStarContributionDistances,
+  calculateMultiStarTemperatureScenario,
+  applyInherentTemperatureEffectKelvin,
+  applyInherentTemperatureEffectProfile,
+  calculateNormalizedTemperatureScenario,
+  formatCandidateTemperatureScenarioSummary,
+  isNitrogenOxygenAtmosphere,
+  calculateOxygenFractionAgeDm,
+  rollOxygenFraction,
+  calculateOxygenPartialPressureBar,
+  evaluateAtmosphereOxygenTaint,
+  calculateAtmosphereScaleHeightKm,
+  calculateAtmosphericPressureAtAltitudeBar,
+  estimateMeanTemperatureKFromRegionType,
+  formatAtmosphereProfile,
+  generateHabitableZoneAtmosphereProfile,
+  lookupRunawayGreenhouseAtmosphereCode,
+  rollRunawayGreenhouseAtmosphere,
+  calculateRunawayGreenhouseCheckDm,
+  evaluateRunawayGreenhouse,
   calculateAtmosphereVariantDm,
   rollAtmospherePressureBar,
   rollWorldAtmosphereCode,
   rollWorldHydrographicsCode,
+  HYDROGRAPHICS_RANGE_TABLE_49,
+  lookupHydrographicsRange,
+  rollHydrographicsPercentage,
+  SURFACE_DISTRIBUTION_TABLE_50,
+  determineHydrographicsFundamentalGeography,
+  rollSurfaceDistribution,
+  POSSIBLE_EXOTIC_LIQUIDS_TABLE_51,
+  getPossibleExoticLiquids,
+  selectHydrographicsLiquids,
+  formatHydrographicsProfile,
   identifyMainworldCandidates,
+  rollTaintSubtype,
+  rollTaintSeverity,
+  rollTaintPersistence,
+  rollWorldTaints,
+  ATMOSPHERIC_GAS_TABLE_35,
+  getGasState,
+  checkGasRetention,
+  getRetainableGases,
+  selectExoticAtmosphereGases,
+  rollExoticCorrosiveIrritant,
+  CORROSIVE_INSIDIOUS_SUBTYPE_TABLE_36,
+  INSIDIOUS_HAZARD_TABLE_37,
+  rollCorrosiveInsidiousSubtype,
+  rollInsidiousHazard,
+  calculateLowAtmosphereBadRatio,
+  calculateLowAtmosphereSafeAltitudeKm,
+  rollLowAtmosphereTaint,
+  UNUSUAL_ATMOSPHERE_SUBTYPE_TABLE_38,
+  rollD26,
+  rollUnusualAtmosphereSubtype,
+  formatUnusualAtmosphereProfile,
+  HOT_ATMOSPHERE_TABLE_39,
+  SPECIAL_HOT_ATMOSPHERE_TABLE_40,
+  COLD_ATMOSPHERE_TABLE_41,
+  calculateEffectiveOrbitDeviationFromHzco,
+  rollNonHabitableZoneAtmosphere,
+  NON_HABITABLE_ATMOSPHERE_GAS_MIX_TABLES,
+  selectNonHabitableAtmosphereGasMixTable,
+  calculateNonHabitableAtmosphereGasMixDm,
+  rollNonHabitableAtmosphereGas,
+  rollNonHabitableAtmosphereGasMixes,
+  rollWorldAtmosphereForOrbit,
+  ATMOSPHERE_GAS_SYMBOLS,
+  formatAtmosphereGasSymbol,
+  allocateAtmosphereGasMixPercentages,
+  formatAtmosphereGasMixProfile,
   rollWorldDiameter,
   TERRESTRIAL_COMPOSITIONS,
   determineTerrestrialComposition,
@@ -108,6 +228,39 @@ import {
   rollBeltComposition,
   rollBeltResourceRating,
   rollBeltSignificantBodyOrbit,
+  rollBaseRotationRateHours,
+  rollWorldRotationPeriodHours,
+  rollRotationPeriodPrecision,
+  calculateRotationPeriodDecimalHours,
+  formatRotationPeriodHMS,
+  calculateSolarDaysInYear,
+  AXIAL_TILT_TABLE_52,
+  EXTREME_AXIAL_TILT_TABLE_53,
+  clampAxialTiltDegrees,
+  rollAxialTilt,
+  rollAxialTiltPrecision,
+  calculateAxialTiltDecimalDegrees,
+  formatAxialTiltDMS,
+  calculateTidalForce,
+  calculateStarTidalEffect,
+  calculateMoonTidalEffect,
+  calculatePlanetTidalEffect,
+  calculateMoonToMoonTidalEffect,
+  calculateTidalStressFactor,
+  calculateTidalHeatingFactor,
+  calculateTotalSeismicStress,
+  applySeismicTemperatureCorrection,
+  calculateTectonicPlates,
+  TIDAL_LOCK_STATUS_TABLE_54,
+  calculateTidalLockCommonDMs,
+  calculateTidalLockStarDMs,
+  calculateTidalLockMoonToPlanetDMs,
+  calculateTidalLockPlanetToMoonDMs,
+  rollTidalLockStatus,
+  adjustAxialTiltForRetrograde,
+  rollTidalLockAxialTiltReroll,
+  selectTidalLockEccentricity,
+  calculateResidualSeismicStress,
 } from "./worldGenerator.js";
 
 // ── Deterministic RNG helpers ──────────────────────────────────────────────────
@@ -143,6 +296,14 @@ function rngFor2dSequence(...totals) {
     values.push((d1 - 1) / 6, (d2 - 1) / 6);
   }
   return seqRng(...values);
+}
+
+/**
+ * Produces a D26 roll of exactly (d2, d6) using a paired rng.
+ * D2 = 1 or 2, D6 = 1–6.
+ */
+function rngForD26(d2, d6) {
+  return seqRng((d2 - 1) / 2, (d6 - 1) / 6);
 }
 
 // ── Gas Giant Existence ────────────────────────────────────────────────────────
@@ -1481,6 +1642,990 @@ describe("lookupHabitableZoneRegionDm", () => {
   it("returns 0 for non-finite input", () => {
     expect(lookupHabitableZoneRegionDm(Number.NaN)).toBe(0);
     expect(lookupHabitableZoneRegionDm(undefined)).toBe(0);
+  });
+});
+
+describe("calculateHabitableZoneTemperatureRawRoll", () => {
+  it("maps strong positive deviations to cold raw rolls", () => {
+    expect(calculateHabitableZoneTemperatureRawRoll(1.2)).toBe(2);
+    expect(calculateHabitableZoneTemperatureRawRoll(0.8)).toBe(3);
+    expect(calculateHabitableZoneTemperatureRawRoll(0.5)).toBe(4);
+  });
+
+  it("maps near-HZ deviations around temperate center", () => {
+    expect(calculateHabitableZoneTemperatureRawRoll(0.2)).toBe(5);
+    expect(calculateHabitableZoneTemperatureRawRoll(0.0)).toBe(7);
+    expect(calculateHabitableZoneTemperatureRawRoll(-0.2)).toBe(9);
+  });
+
+  it("maps strong negative deviations to hot/boiling raw rolls", () => {
+    expect(calculateHabitableZoneTemperatureRawRoll(-0.5)).toBe(10);
+    expect(calculateHabitableZoneTemperatureRawRoll(-1.0)).toBe(11);
+    expect(calculateHabitableZoneTemperatureRawRoll(-1.2)).toBe(12);
+  });
+});
+
+describe("lookupHabitableZoneRegionByRawRoll", () => {
+  it("classifies region bands from raw roll", () => {
+    expect(lookupHabitableZoneRegionByRawRoll(2).type).toBe("Frozen");
+    expect(lookupHabitableZoneRegionByRawRoll(3).type).toBe("Cold");
+    expect(lookupHabitableZoneRegionByRawRoll(7).type).toBe("Temperate");
+    expect(lookupHabitableZoneRegionByRawRoll(10).type).toBe("Hot");
+    expect(lookupHabitableZoneRegionByRawRoll(12).type).toBe("Boiling");
+  });
+
+  it("clamps out-of-range roll inputs", () => {
+    expect(lookupHabitableZoneRegionByRawRoll(0).rawRoll).toBe(2);
+    expect(lookupHabitableZoneRegionByRawRoll(99).rawRoll).toBe(12);
+  });
+});
+
+describe("lookupAtmosphereTemperatureDm", () => {
+  it("returns Table 30 atmosphere DMs by code", () => {
+    expect(lookupAtmosphereTemperatureDm(2).dm).toBe(-2);
+    expect(lookupAtmosphereTemperatureDm("E").dm).toBe(-1);
+    expect(lookupAtmosphereTemperatureDm(6).dm).toBe(0);
+    expect(lookupAtmosphereTemperatureDm(8).dm).toBe(1);
+    expect(lookupAtmosphereTemperatureDm("A").dm).toBe(2);
+    expect(lookupAtmosphereTemperatureDm("C").dm).toBe(6);
+  });
+
+  it("keeps atmosphere 0/1 at DM0 with swing note", () => {
+    const atmo0 = lookupAtmosphereTemperatureDm(0);
+    const atmo1 = lookupAtmosphereTemperatureDm(1);
+    expect(atmo0.dm).toBe(0);
+    expect(atmo1.dm).toBe(0);
+    expect(atmo0.notes[0]).toContain("extreme day/night");
+  });
+});
+
+describe("reverseEngineerTemperatureRawRoll", () => {
+  it("uses known temperature defaults (cold=4, temperate=7, hot=10)", () => {
+    expect(estimateModifiedTemperatureRollFromType("cold")).toBe(4);
+    expect(estimateModifiedTemperatureRollFromType("temperate")).toBe(7);
+    expect(estimateModifiedTemperatureRollFromType("hot")).toBe(10);
+  });
+
+  it("reverse engineers raw roll by removing atmosphere DM", () => {
+    const result = reverseEngineerTemperatureRawRoll({
+      modifiedRoll: 10,
+      atmosphereCode: "B", // DM+6
+    });
+
+    expect(result.atmosphereDm).toBe(6);
+    expect(result.rawRoll).toBe(4);
+  });
+});
+
+describe("BASIC_MEAN_TEMPERATURE_TABLE_55", () => {
+  it("contains entries for modified rolls 0 through 12", () => {
+    expect(Object.keys(BASIC_MEAN_TEMPERATURE_TABLE_55)).toHaveLength(13);
+    expect(BASIC_MEAN_TEMPERATURE_TABLE_55[7]).toEqual({ celsius: 15, kelvin: 288 });
+    expect(BASIC_MEAN_TEMPERATURE_TABLE_55[12]).toEqual({ celsius: 115, kelvin: 388 });
+  });
+});
+
+describe("lookupBasicMeanTemperature", () => {
+  it("returns table values for in-range modified rolls", () => {
+    const result = lookupBasicMeanTemperature(7);
+    expect(result.celsius).toBe(15);
+    expect(result.kelvin).toBe(288);
+    expect(result.source).toBe("table");
+  });
+
+  it("extends below zero by -5C per step from -1 => 0C", () => {
+    const result = lookupBasicMeanTemperature(-2);
+    expect(result.celsius).toBe(-5);
+    expect(result.kelvin).toBe(268);
+    expect(result.source).toBe("below_zero");
+  });
+
+  it("extends above 12 by +50C per step", () => {
+    const result = lookupBasicMeanTemperature(14);
+    expect(result.celsius).toBe(215);
+    expect(result.kelvin).toBe(488);
+    expect(result.source).toBe("above_twelve");
+  });
+
+  it("re-rolls extreme low values as 1D+5 Kelvin", () => {
+    const result = lookupBasicMeanTemperature(-40, { rng: fixedRng(0) });
+    expect(result.rerolledExtremeLow).toBe(true);
+    expect(result.kelvin).toBe(6);
+    expect(result.source).toBe("extreme_low_reroll");
+  });
+
+  it("returns null for invalid input", () => {
+    expect(lookupBasicMeanTemperature(undefined)).toBeNull();
+    expect(lookupBasicMeanTemperature(Number.NaN)).toBeNull();
+  });
+});
+
+describe("calculateBasicMeanTemperatureOrbitDm", () => {
+  it("applies positive DM inside HZCO-1 with 0.5-step scaling", () => {
+    expect(calculateBasicMeanTemperatureOrbitDm({ orbitNumber: 2, hzco: 3.3 })).toBe(5);
+  });
+
+  it("applies negative DM outside HZCO+1 with 0.5-step scaling", () => {
+    expect(calculateBasicMeanTemperatureOrbitDm({ orbitNumber: 5.2, hzco: 3.3 })).toBe(-6);
+  });
+
+  it("returns 0 inside the HZCO +/- 1 window", () => {
+    expect(calculateBasicMeanTemperatureOrbitDm({ orbitNumber: 3.8, hzco: 3.3 })).toBe(0);
+  });
+
+  it("uses divisional translation when low-orbit values are involved", () => {
+    expect(calculateBasicMeanTemperatureOrbitDm({ orbitNumber: 0.2, hzco: 0.8 })).toBe(8);
+  });
+});
+
+describe("calculateBasicMeanTemperatureModifiedRoll", () => {
+  it("combines raw roll, atmosphere DM, orbit DM, and additional DM", () => {
+    const result = calculateBasicMeanTemperatureModifiedRoll({
+      rawRoll: 7,
+      atmosphereCode: "B", // DM+6
+      orbitNumber: 2,
+      hzco: 3.3, // DM+5
+      additionalDm: -1,
+    });
+
+    expect(result.rawRoll).toBe(7);
+    expect(result.atmosphereDm).toBe(6);
+    expect(result.orbitDm).toBe(5);
+    expect(result.modifiedRoll).toBe(17);
+  });
+});
+
+describe("rollWorldAlbedo", () => {
+  it("rolls rocky terrestrial base + atmosphere + hydro modifiers", () => {
+    const rng = seqRng(
+      3 / 6,
+      3 / 6, // base 2D=8  => 0.16
+      3 / 6,
+      2 / 6, // atmo 2D=7  => +0.07 (atmo 6)
+      4 / 6,
+      3 / 6, // hydro 2D=9 => +0.15 (hydro 6+)
+    );
+
+    const result = rollWorldAlbedo({
+      worldType: ALBEDO_WORLD_TYPES.ROCKY_TERRESTRIAL,
+      atmosphereCode: 6,
+      hydrographicsCode: 6,
+      rng,
+    });
+
+    expect(result.baseAlbedo).toBeCloseTo(0.16, 9);
+    expect(result.atmosphereModifier).toBeCloseTo(0.07, 9);
+    expect(result.hydrographicsModifier).toBeCloseTo(0.15, 9);
+    expect(result.albedo).toBeCloseTo(0.38, 9);
+  });
+
+  it("applies icy-far low-result adjustment and clamps to minimum 0.02", () => {
+    const rng = seqRng(
+      0,
+      0, // base 2D=2 => 0.25
+      5 / 6, // special 1D=6 => -0.25
+    );
+
+    const result = rollWorldAlbedo({
+      worldType: ALBEDO_WORLD_TYPES.ICY_TERRESTRIAL_FAR,
+      rng,
+    });
+
+    expect(result.specialAdjustment).toBeCloseTo(-0.25, 9);
+    expect(result.albedo).toBe(0.02);
+  });
+
+  it("returns null for unknown world type", () => {
+    expect(rollWorldAlbedo({ worldType: "UNKNOWN" })).toBeNull();
+  });
+});
+
+describe("calculateInitialGreenhouseFactor", () => {
+  it("uses 0.5 * sqrt(pressureBar)", () => {
+    expect(calculateInitialGreenhouseFactor({ atmosphericPressureBar: 1.04 })).toBeCloseTo(0.5099, 4);
+  });
+
+  it("returns null for invalid pressure", () => {
+    expect(calculateInitialGreenhouseFactor({ atmosphericPressureBar: -1 })).toBeNull();
+    expect(calculateInitialGreenhouseFactor({ atmosphericPressureBar: Number.NaN })).toBeNull();
+  });
+});
+
+describe("calculateEffectiveGreenhouseFactor", () => {
+  it("applies +3D*0.01 for atmospheres 1-9, D, E", () => {
+    const rng = seqRng(
+      2 / 6,
+      2 / 6,
+      1 / 6, // 3D = 8
+    );
+    const result = calculateEffectiveGreenhouseFactor({
+      atmosphericPressureBar: 1.04,
+      atmosphereCode: 6,
+      rng,
+    });
+
+    expect(result.initialGreenhouseFactor).toBeCloseTo(0.5099, 4);
+    expect(result.additiveModifier).toBeCloseTo(0.08, 9);
+    expect(result.effectiveGreenhouseFactor).toBeCloseTo(0.5899, 4);
+  });
+
+  it("applies A/F multiplier with minimum x0.5", () => {
+    const result = calculateEffectiveGreenhouseFactor({
+      atmosphericPressureBar: 1,
+      atmosphereCode: "A",
+      rng: fixedRng(0), // 1D = 1 -> 1D-1 => 0 -> min 0.5
+    });
+
+    expect(result.initialGreenhouseFactor).toBe(0.5);
+    expect(result.multiplierModifier).toBe(0.5);
+    expect(result.effectiveGreenhouseFactor).toBe(0.25);
+  });
+
+  it("applies B/C/G/H branch with 1D=6 -> x(3D)", () => {
+    const rng = seqRng(
+      5 / 6, // 1D = 6 -> use 3D multiplier
+      2 / 6,
+      2 / 6,
+      3 / 6, // 3D = 10
+    );
+
+    const result = calculateEffectiveGreenhouseFactor({
+      atmosphericPressureBar: 1,
+      atmosphereCode: "B",
+      rng,
+    });
+
+    expect(result.multiplierModifier).toBe(10);
+    expect(result.effectiveGreenhouseFactor).toBe(5);
+  });
+
+  it("returns zero greenhouse for vacuum atmosphere code 0", () => {
+    const result = calculateEffectiveGreenhouseFactor({ atmosphericPressureBar: 1, atmosphereCode: 0 });
+    expect(result.modifierType).toBe("vacuum");
+    expect(result.effectiveGreenhouseFactor).toBe(0);
+  });
+});
+
+describe("calculateMeanTemperatureKelvin", () => {
+  it("matches the Zed Prime style worked example (~300K)", () => {
+    const kelvin = calculateMeanTemperatureKelvin({
+      luminosity: 1.419,
+      distanceAu: 1.06,
+      albedo: 0.33,
+      greenhouseFactor: 0.59,
+    });
+
+    expect(kelvin).toBeCloseTo(300, 0);
+  });
+
+  it("returns null for invalid physical inputs", () => {
+    expect(
+      calculateMeanTemperatureKelvin({ luminosity: 1, distanceAu: 1, albedo: 1.2, greenhouseFactor: 0 }),
+    ).toBeNull();
+    expect(
+      calculateMeanTemperatureKelvin({ luminosity: 1, distanceAu: 0, albedo: 0.3, greenhouseFactor: 0 }),
+    ).toBeNull();
+    expect(
+      calculateMeanTemperatureKelvin({ luminosity: 1, distanceAu: 1, albedo: 0.3, greenhouseFactor: -2 }),
+    ).toBeNull();
+  });
+});
+
+describe("calculateMeanTemperature", () => {
+  it("returns K/C/F conversions from the same temperature calculation", () => {
+    const result = calculateMeanTemperature({
+      luminosity: 1.419,
+      distanceAu: 1.06,
+      albedo: 0.33,
+      greenhouseFactor: 0.59,
+      precision: 2,
+    });
+
+    expect(result.kelvin).toBeCloseTo(300, 0);
+    expect(result.celsius).toBeCloseTo(result.kelvin - 273, 2);
+    expect(result.fahrenheit).toBeCloseTo(result.kelvin * 1.8 - 459.67, 2);
+  });
+});
+
+describe("calculateCombinedTemperatureKelvin", () => {
+  it("combines independent contributors using fourth-power addition", () => {
+    const result = calculateCombinedTemperatureKelvin({ temperaturesK: [288, 100] });
+    const expected = Math.pow(288 ** 4 + 100 ** 4, 0.25);
+    expect(result).toBeCloseTo(expected, 9);
+  });
+
+  it("returns null for invalid input arrays", () => {
+    expect(calculateCombinedTemperatureKelvin()).toBeNull();
+    expect(calculateCombinedTemperatureKelvin({ temperaturesK: [] })).toBeNull();
+  });
+});
+
+describe("gas giant residual heat utilities", () => {
+  it("computes residual heat from gas giant mass and age", () => {
+    const residualHeatK = calculateGasGiantResidualHeatTemperatureKelvin({
+      massEarth: 1200,
+      ageGyr: 6.336,
+      precision: 2,
+    });
+
+    expect(residualHeatK).toBeCloseTo(187, 0);
+  });
+
+  it("converts radius and temperature to thermal luminosity in solar units", () => {
+    const luminosity = calculateThermalLuminositySolar({
+      radiusKm: (11.6 * 12800) / 2,
+      temperatureK: 256,
+      precision: 12,
+    });
+
+    expect(luminosity).toBeGreaterThan(0);
+    expect(luminosity).toBeLessThan(1e-6);
+  });
+
+  it("matches the worked-example residual + cloud-top + moon-heating workflow", () => {
+    const result = calculateGasGiantResidualHeatScenario({
+      massEarth: 1200,
+      ageGyr: 6.336,
+      cloudTopTemperatureK: 235,
+      gasGiantDiameterTerran: 11.6,
+      moonDistanceKm: 3_920_000,
+      baselineMoonTemperatureK: 256,
+      precision: 6,
+    });
+
+    expect(result.residualHeatTemperatureK).toBeCloseTo(187, 0);
+    expect(result.gasGiantEffectiveTemperatureK).toBeCloseTo(256, 0);
+    expect(result.moonHeatingTemperatureK).toBeGreaterThan(20);
+    expect(result.moonHeatingTemperatureK).toBeLessThan(30);
+    expect(result.moonHeatingDeltaK).toBeCloseTo(0.0055, 3);
+  });
+});
+
+describe("high/low temperature utilities", () => {
+  it("normalizes axial tilt to 0-90 degrees for variation calculations", () => {
+    expect(normalizeAxialTiltForTemperatureVariation(-100)).toBe(80);
+    expect(normalizeAxialTiltForTemperatureVariation(120)).toBe(60);
+    expect(normalizeAxialTiltForTemperatureVariation(250)).toBe(70);
+  });
+
+  it("matches Zed Prime style factor math from steps 1-8", () => {
+    const axial = calculateAxialTiltFactor({
+      axialTiltDegrees: 73.65,
+      yearLengthStandardYears: 26 / 365.25,
+      precision: 3,
+    });
+    const rotation = calculateRotationFactor({ solarDayHours: 85.77, precision: 3 });
+    const geography = calculateGeographicFactor({
+      hydrographicsCode: 6,
+      surfaceDistributionCode: 5,
+      precision: 3,
+    });
+    const variance = calculateVarianceFactors({
+      axialTiltFactor: axial.factor,
+      rotationFactor: rotation.factor,
+      geographicFactor: geography.factor,
+      precision: 3,
+    });
+    const atmosphericFactor = calculateAtmosphericFactor({ atmosphericPressureBar: 1.04, precision: 3 });
+    const luminosityModifier = calculateLuminosityModifier({
+      varianceFactors: variance.value,
+      atmosphericFactor,
+      precision: 3,
+    });
+    const luminosities = calculateHighLowLuminosity({ luminosity: 1.419, luminosityModifier, precision: 3 });
+    const nearFar = calculateNearFarAu({ distanceAu: 1.06, eccentricity: 0.1, precision: 3 });
+
+    expect(axial.factor).toBeCloseTo(0.48, 2);
+    expect(rotation.factor).toBeCloseTo(0.185, 3);
+    expect(variance.value).toBeCloseTo(0.865, 3);
+    expect(atmosphericFactor).toBeCloseTo(2.04, 2);
+    expect(luminosityModifier).toBeCloseTo(0.424, 3);
+    expect(luminosities.highLuminosity).toBeCloseTo(2.021, 3);
+    expect(luminosities.lowLuminosity).toBeCloseTo(0.817, 3);
+    expect(nearFar.nearAu).toBeCloseTo(0.954, 3);
+    expect(nearFar.farAu).toBeCloseTo(1.166, 3);
+  });
+
+  it("computes expected high/low temperatures from luminosity and AU modifiers", () => {
+    const profile = calculateHighLowTemperatureProfile({
+      luminosity: 1.419,
+      luminosityModifier: 0.424,
+      distanceAu: 1.06,
+      eccentricity: 0.1,
+      albedo: 0.33,
+      greenhouseFactor: 0.59,
+      precision: 0,
+    });
+
+    expect(profile.high.kelvin).toBeCloseTo(346, 0);
+    expect(profile.low.kelvin).toBeCloseTo(250, 0);
+  });
+
+  it("returns a complete world high/low profile for the combined workflow", () => {
+    const profile = calculateWorldHighLowTemperatureProfile({
+      axialTiltDegrees: 73.65,
+      yearLengthStandardYears: 26 / 365.25,
+      solarDayHours: 85.77,
+      isOneToOneSunLock: false,
+      hydrographicsCode: 6,
+      surfaceDistributionCode: 5,
+      atmosphericPressureBar: 1.04,
+      luminosity: 1.419,
+      distanceAu: 1.06,
+      eccentricity: 0.1,
+      albedo: 0.33,
+      greenhouseFactor: 0.59,
+      precision: 3,
+    });
+
+    expect(profile.luminosityModifier).toBeCloseTo(0.424, 3);
+    expect(profile.temperatureProfile.high.kelvin).toBeCloseTo(346, 0);
+    expect(profile.temperatureProfile.low.kelvin).toBeCloseTo(250, 0);
+  });
+});
+
+describe("additional temperature scenario utilities", () => {
+  it("builds a scenario luminosity modifier from adjusted component factors", () => {
+    const result = calculateScenarioLuminosityModifier({
+      axialTiltFactor: 0.48,
+      rotationFactor: 0.185,
+      geographicFactor: 0.2,
+      atmosphericPressureBar: 1.04,
+      precision: 3,
+    });
+
+    expect(result.variance.value).toBeCloseTo(0.865, 3);
+    expect(result.atmosphericFactor).toBeCloseTo(2.04, 2);
+    expect(result.luminosityModifier).toBeCloseTo(0.424, 3);
+  });
+
+  it("scales greenhouse factor by pressure ratio at altitude", () => {
+    const result = calculateAltitudeAdjustedGreenhouseFactor({
+      greenhouseFactor: 0.59,
+      meanPressureBar: 1.04,
+      altitudeKm: 5,
+      scaleHeightKm: 12.88,
+      precision: 4,
+    });
+
+    expect(result.pressureAtAltitudeBar).toBeCloseTo(0.7058, 3);
+    expect(result.pressureRatio).toBeCloseTo(0.6786, 3);
+    expect(result.adjustedGreenhouseFactor).toBeCloseTo(0.486, 2);
+  });
+
+  it("computes mean/high/low scenario temperatures with altitude adjustment", () => {
+    const result = calculateAdditionalTemperatureScenario({
+      luminosity: 1.419,
+      distanceAu: 1.06,
+      eccentricity: 0.1,
+      albedo: 0.33,
+      greenhouseFactor: 0.59,
+      luminosityModifier: 0.424,
+      altitudeKm: 5,
+      meanPressureBar: 1.04,
+      scaleHeightKm: 12.88,
+      precision: 2,
+    });
+
+    expect(result.altitudeAdjustment).toBeTruthy();
+    expect(result.highLowTemperature).toBeTruthy();
+    expect(result.meanTemperature.kelvin).toBeCloseTo(295.64, 2);
+    expect(result.highLowTemperature.high.kelvin).toBeGreaterThan(result.meanTemperature.kelvin);
+    expect(result.highLowTemperature.low.kelvin).toBeLessThan(result.meanTemperature.kelvin);
+    expect(result.highLowTemperature.high.kelvin).toBeGreaterThan(335);
+    expect(result.highLowTemperature.high.kelvin).toBeLessThan(345);
+    expect(result.highLowTemperature.low.kelvin).toBeGreaterThan(240);
+    expect(result.highLowTemperature.low.kelvin).toBeLessThan(250);
+  });
+});
+
+describe("latitude temperature scenario utilities", () => {
+  it("applies tropical vs middle/arctic adjustments for tilt below 45°", () => {
+    const tropical = calculateLatitudeZoneAdjustment({ axialTiltDegrees: 23.5, latitudeDegrees: 10, precision: 4 });
+    const middle = calculateLatitudeZoneAdjustment({ axialTiltDegrees: 23.5, latitudeDegrees: 60, precision: 4 });
+
+    expect(tropical.zone).toBe("tropical");
+    expect(tropical.zoneLatitudeAdjustment).toBeCloseTo(0.3665, 3);
+    expect(middle.zone).toBe("middle");
+    expect(middle.zoneLatitudeAdjustment).toBeCloseTo(-0.2588, 3);
+  });
+
+  it("applies Part B overlap logic for tilt 45° or higher", () => {
+    const arctic = calculateLatitudeZoneAdjustment({ axialTiltDegrees: 60, latitudeDegrees: 20, precision: 4 });
+    const tropicalOverlap = calculateLatitudeZoneAdjustment({
+      axialTiltDegrees: 60,
+      latitudeDegrees: 40,
+      precision: 4,
+    });
+
+    expect(arctic.zone).toBe("arctic");
+    expect(arctic.zoneLatitudeAdjustment).toBeCloseTo(0.4226, 3);
+    expect(tropicalOverlap.zone).toBe("tropical_overlap");
+    expect(tropicalOverlap.zoneLatitudeAdjustment).toBeCloseTo(0.2588, 3);
+  });
+
+  it("computes latitude luminosity and latitude-specific temperature", () => {
+    const lat = calculateLatitudeTemperatureScenario({
+      luminosity: 1.419,
+      distanceAu: 1.06,
+      albedo: 0.33,
+      greenhouseFactor: 0.59,
+      axialTiltDegrees: 23.5,
+      latitudeDegrees: 10,
+      atmosphericPressureBar: 1.04,
+      precision: 2,
+    });
+    const mean = calculateMeanTemperature({
+      luminosity: 1.419,
+      distanceAu: 1.06,
+      albedo: 0.33,
+      greenhouseFactor: 0.59,
+      precision: 2,
+    });
+
+    expect(lat.luminosity.latitudeLuminosityModifier).toBeGreaterThan(0);
+    expect(lat.temperature.kelvin).toBeGreaterThan(mean.kelvin);
+  });
+});
+
+describe("sunlight portion and hours utilities", () => {
+  it("computes solar declination from axial tilt, date, and solar days in year", () => {
+    const declination = calculateSolarDeclinationDegrees({
+      axialTiltDegrees: 23.5,
+      dateSolarDays: 0,
+      solarDaysPerYear: 365,
+      precision: 3,
+    });
+
+    expect(declination).toBeCloseTo(23.5, 6);
+  });
+
+  it("computes sunrise cosine from latitude and declination", () => {
+    const sunriseCosine = calculateSunriseCosine({
+      latitudeDegrees: 45,
+      solarDeclinationDegrees: 23.5,
+      precision: 6,
+    });
+
+    expect(sunriseCosine).toBeCloseTo(0.434812, 6);
+  });
+
+  it("handles no-sunrise and constant-daylight edge states", () => {
+    const noSunrise = calculateSunlightPortionFromSunriseCosine({
+      sunriseCosine: 1.2,
+      solarDayHours: 24,
+      precision: 3,
+    });
+    const constantDaylight = calculateSunlightPortionFromSunriseCosine({
+      sunriseCosine: -1.2,
+      solarDayHours: 24,
+      precision: 3,
+    });
+
+    expect(noSunrise.daylightState).toBe("no_sunrise");
+    expect(noSunrise.sunlightPortion).toBe(0);
+    expect(noSunrise.sunlightHours).toBe(0);
+
+    expect(constantDaylight.daylightState).toBe("constant_daylight");
+    expect(constantDaylight.sunlightPortion).toBe(1);
+    expect(constantDaylight.sunlightHours).toBe(24);
+  });
+
+  it("computes full sunlight model output for normal day/night", () => {
+    const result = calculateSunlightPortionAndHours({
+      axialTiltDegrees: 23.5,
+      latitudeDegrees: 45,
+      dateSolarDays: 0,
+      solarDaysPerYear: 365,
+      solarDayHours: 24,
+      precision: 6,
+    });
+
+    expect(result.daylightState).toBe("normal");
+    expect(result.sunriseAngleDegrees).toBeCloseTo(64.226644, 6);
+    expect(result.sunlightPortion).toBeCloseTo(0.356815, 6);
+    expect(result.sunlightHours).toBeCloseTo(8.563553, 6);
+  });
+});
+
+describe("time-of-day scenario utilities", () => {
+  it("computes even-day adjusted fractional day and hourly rotation factor", () => {
+    const adjusted = calculateAdjustedFractionalDayEven({ hoursSinceDawn: 0, solarDayHours: 24, precision: 3 });
+    const hourly = calculateHourlyRotationFactor({
+      adjustedFractionalDay: adjusted,
+      rotationFactor: 0.2,
+      precision: 4,
+    });
+    const profile = calculateTimeOfDayRotationFactor({
+      rotationFactor: 0.2,
+      hoursSinceDawn: 12,
+      solarDayHours: 24,
+      method: "even",
+      precision: 4,
+    });
+
+    expect(adjusted).toBeCloseTo(0.15, 3);
+    expect(hourly).toBeCloseTo(0.1618, 3);
+    expect(profile.hourlyRotationFactor).toBeCloseTo(-0.1618, 3);
+  });
+
+  it("computes uneven-day adjusted fractional day", () => {
+    const adjusted = calculateAdjustedFractionalDayUneven({
+      hoursSinceDawn: 6,
+      solarDayHours: 24,
+      sunlightPortion: 0.25,
+      isDaytime: true,
+      precision: 3,
+    });
+
+    expect(adjusted).toBeCloseTo(0.65, 3);
+  });
+
+  it("auto-derives sunlight portion in uneven mode when tilt/latitude/date are provided", () => {
+    const profile = calculateTimeOfDayRotationFactor({
+      rotationFactor: 0.2,
+      hoursSinceDawn: 6,
+      solarDayHours: 24,
+      method: "uneven",
+      axialTiltDegrees: 23.5,
+      latitudeDegrees: 0,
+      dateSolarDays: 91.25,
+      solarDaysPerYear: 365,
+      isDaytime: true,
+      precision: 4,
+    });
+
+    expect(profile.sunlightModel).toBeTruthy();
+    expect(profile.sunlightModel.daylightState).toBe("normal");
+    expect(profile.sunlightPortion).toBeCloseTo(0.5, 3);
+    expect(profile.adjustedFractionalDay).toBeCloseTo(0.4, 3);
+  });
+});
+
+describe("twilight scenario utilities", () => {
+  it("computes horizon-distance terrain proxy in km and degrees", () => {
+    const distanceKm = calculateHorizonDistanceKm({ heightKm: 1, worldDiameterKm: 12742, precision: 3 });
+    const distanceDeg = calculateHorizonDistanceDegrees({ distanceKm, worldDiameterKm: 12742, precision: 3 });
+
+    expect(distanceKm).toBeCloseTo(112.88, 2);
+    expect(distanceDeg).toBeCloseTo(1.015, 3);
+  });
+
+  it("computes libration, disk/refraction, and twilight extent factors", () => {
+    expect(calculateEccentricityLongitudinalLibrationDegrees({ eccentricity: 0.1 })).toBeCloseTo(14.5, 6);
+    expect(calculateLatitudinalLibrationDegrees({ axialTiltDegrees: 30, latitudeDegrees: 60 })).toBeCloseTo(25.98, 2);
+    expect(calculateSolarDiskVisibilityBandDegrees({ angularSizeDegrees: 2 }).halfBandDegrees).toBe(1);
+    expect(calculateAtmosphericRefractionDegrees({ atmosphericPressureBar: 1, temperatureK: 300 })).toBe(0.5);
+    expect(calculateTwilightZoneExtentDegrees({ scaleHeightKm: 8.5, worldSize: 8 })).toBe(6);
+  });
+
+  it("maps longitude from terminator to simplified locked-world rotation factor", () => {
+    expect(calculateTwilightLockedRotationFactor({ longitudeFromTerminatorDeg: 9 })).toBeCloseTo(0.6, 6);
+    expect(
+      calculateTwilightLockedRotationFactor({ longitudeFromTerminatorDeg: -3, twilightZoneExtentDeg: 6 }),
+    ).toBeCloseTo(-0.15, 3);
+    expect(calculateTwilightLockedRotationFactor({ longitudeFromTerminatorDeg: -25, twilightZoneExtentDeg: 6 })).toBe(
+      -1,
+    );
+  });
+});
+
+describe("altitude strict scenario utilities", () => {
+  it("recomputes greenhouse from pressure(a) then applies original modifier", () => {
+    const altitude = calculateAltitudeGreenhouseFactor({
+      meanPressureBar: 1.04,
+      altitudeKm: 5,
+      scaleHeightKm: 12.88,
+      originalGreenhouseModifier: 0.08,
+      modifierMode: "add",
+      precision: 3,
+    });
+
+    expect(altitude.pressureAtAltitudeBar).toBeCloseTo(0.705, 3);
+    expect(altitude.initialGreenhouseFactorAtAltitude).toBeCloseTo(0.42, 2);
+    expect(altitude.greenhouseFactorAtAltitude).toBeCloseTo(0.5, 2);
+  });
+
+  it("computes lower temperature at altitude when greenhouse factor drops", () => {
+    const seaLevel = calculateMeanTemperature({
+      luminosity: 1.419,
+      distanceAu: 1.06,
+      albedo: 0.33,
+      greenhouseFactor: 0.59,
+    });
+    const altitude = calculateAltitudeGreenhouseFactor({
+      meanPressureBar: 1.04,
+      altitudeKm: 5,
+      scaleHeightKm: 12.88,
+      originalGreenhouseModifier: 0.08,
+      modifierMode: "add",
+      precision: 3,
+    });
+    const atAltitude = calculateTemperatureAtAltitude({
+      luminosity: 1.419,
+      distanceAu: 1.06,
+      albedo: 0.33,
+      greenhouseFactorAtAltitude: altitude.greenhouseFactorAtAltitude,
+    });
+
+    expect(atAltitude.kelvin).toBeLessThan(seaLevel.kelvin);
+  });
+});
+
+describe("multi-star and inherent effects utilities", () => {
+  it("computes per-star nearest/mean/furthest distances with eccentricity", () => {
+    const d = calculateMultiStarContributionDistances({
+      planetAu: 1.06,
+      planetEccentricity: 0.1,
+      starAu: 0.036,
+      starEccentricity: 0.11,
+      includeEccentricity: true,
+      precision: 3,
+    });
+
+    expect(d.nearestAu).toBeCloseTo(0.914, 3);
+    expect(d.furthestAu).toBeCloseTo(1.206, 3);
+    expect(d.meanAu).toBeCloseTo(1.061, 3);
+  });
+
+  it("combines two-star low/mean/high contributions", () => {
+    const result = calculateMultiStarTemperatureScenario({
+      planetAu: 1.06,
+      planetEccentricity: 0.1,
+      stars: [
+        { name: "Aa", luminosity: 0.738, au: 0, eccentricity: 0 },
+        { name: "Ab", luminosity: 0.681, au: 0.036, eccentricity: 0.11 },
+      ],
+      albedo: 0.33,
+      greenhouseFactor: 0.59,
+      includeEccentricity: true,
+      precision: 2,
+    });
+
+    expect(result.total.meanK).toBeGreaterThan(295);
+    expect(result.total.meanK).toBeLessThan(305);
+    expect(result.total.highK).toBeGreaterThan(result.total.meanK);
+    expect(result.total.lowK).toBeLessThan(result.total.meanK);
+  });
+
+  it("applies inherent temperature effects using fourth-power addition", () => {
+    const single = applyInherentTemperatureEffectKelvin({
+      baseTemperatureK: 300,
+      addedTemperatureK: 100,
+      precision: 3,
+    });
+    const profile = applyInherentTemperatureEffectProfile({
+      lowTemperatureK: 260,
+      meanTemperatureK: 300,
+      highTemperatureK: 340,
+      addedTemperatureK: 50,
+      precision: 3,
+    });
+
+    expect(single).toBeGreaterThan(300);
+    expect(profile.lowK).toBeGreaterThan(260);
+    expect(profile.meanK).toBeGreaterThan(300);
+    expect(profile.highK).toBeGreaterThan(340);
+  });
+});
+
+describe("normalized temperature scenario orchestrator", () => {
+  it("combines latitude, day-cycle, twilight, multi-star, and inherent effects", () => {
+    const result = calculateNormalizedTemperatureScenario({
+      base: {
+        luminosity: 1.419,
+        distanceAu: 1.06,
+        eccentricity: 0.1,
+        albedo: 0.33,
+        greenhouseFactor: 0.59,
+        luminosityModifier: 0.424,
+        atmosphericPressureBar: 1.04,
+      },
+      latitude: {
+        axialTiltDegrees: 23.5,
+        latitudeDegrees: 35,
+      },
+      timeOfDay: {
+        rotationFactor: 0.2,
+        hoursSinceDawn: 9,
+        solarDayHours: 24,
+        method: "even",
+      },
+      twilight: {
+        longitudeFromTerminatorDeg: -4,
+        eccentricity: 0.1,
+        axialTiltDegrees: 23.5,
+        latitudeDegrees: 35,
+        angularSizeDegrees: 1,
+        atmosphericPressureBar: 1.04,
+        worldSize: 8,
+      },
+      multiStar: {
+        planetAu: 1.06,
+        planetEccentricity: 0.1,
+        stars: [
+          { name: "Aa", luminosity: 0.738, au: 0, eccentricity: 0 },
+          { name: "Ab", luminosity: 0.681, au: 0.036, eccentricity: 0.11 },
+        ],
+      },
+      inherent: {
+        addedTemperatureK: 35,
+      },
+      precision: 2,
+    });
+
+    expect(result).toBeTruthy();
+    expect(result.components.base).toBeTruthy();
+    expect(result.components.combined).toBeTruthy();
+    expect(result.components.latitude).toBeTruthy();
+    expect(result.components.timeOfDay).toBeTruthy();
+    expect(result.components.twilight).toBeTruthy();
+    expect(result.components.multiStar).toBeTruthy();
+    expect(result.components.inherent).toBeTruthy();
+    expect(result.profile.mean.kelvin).toBeGreaterThan(result.components.base.meanTemperature.kelvin);
+    expect(result.profile.high.kelvin).toBeGreaterThan(result.profile.mean.kelvin);
+    expect(result.profile.low.kelvin).toBeLessThan(result.profile.mean.kelvin);
+  });
+});
+
+describe("candidate temperature scenario summary formatter", () => {
+  it("produces compact UI summary rows from normalized scenarios", () => {
+    const summary = formatCandidateTemperatureScenarioSummary({
+      candidate: {
+        slotId: "P-1",
+        bodyLabel: "P-1",
+        isMoon: false,
+        meanTemperatureK: 300,
+        normalizedTemperatureScenarios: {
+          seaLevel: {
+            profile: {
+              low: { kelvin: 280 },
+              mean: { kelvin: 300 },
+              high: { kelvin: 320 },
+            },
+          },
+          highAltitude: {
+            profile: {
+              low: { kelvin: 270 },
+              mean: { kelvin: 290 },
+              high: { kelvin: 310 },
+            },
+          },
+          seasonalPeak: {
+            profile: {
+              low: { kelvin: 290 },
+              mean: { kelvin: 310 },
+              high: { kelvin: 330 },
+            },
+          },
+        },
+      },
+      precision: 2,
+    });
+
+    expect(summary).toBeTruthy();
+    expect(summary.presets).toHaveLength(3);
+    expect(summary.warmestPresetKey).toBe("seasonalPeak");
+    expect(summary.coldestPresetKey).toBe("highAltitude");
+    expect(summary.presets[0].deltaMeanK).toBeCloseTo(0, 6);
+  });
+});
+
+describe("lookupRunawayGreenhouseAtmosphereCode", () => {
+  it("maps Table 31 totals to atmosphere A/B/C", () => {
+    expect(lookupRunawayGreenhouseAtmosphereCode(1)).toBe("A");
+    expect(lookupRunawayGreenhouseAtmosphereCode(2)).toBe("B");
+    expect(lookupRunawayGreenhouseAtmosphereCode(4)).toBe("B");
+    expect(lookupRunawayGreenhouseAtmosphereCode(5)).toBe("C");
+  });
+});
+
+describe("rollRunawayGreenhouseAtmosphere", () => {
+  it("applies size and tainted-atmosphere DMs for conversion", () => {
+    const result = rollRunawayGreenhouseAtmosphere({
+      size: 5,
+      originalAtmosphereCode: 9,
+      rng: fixedRng(0), // 1D = 1
+    });
+
+    // DM-2 size + DM+1 tainted => total DM-1, 1D(1) => total 0 => A
+    expect(result.dm).toBe(-1);
+    expect(result.total).toBe(0);
+    expect(result.newAtmosphereCode).toBe("A");
+    expect(result.newAtmosphereCodeValue).toBe(10);
+  });
+});
+
+describe("calculateRunawayGreenhouseCheckDm", () => {
+  it("adds age DM and boiling DM", () => {
+    const result = calculateRunawayGreenhouseCheckDm({
+      systemAgeByr: 1.2,
+      temperatureModifiedRoll: 12,
+    });
+
+    // ceil(1.2)=2 and boiling +4
+    expect(result.dm).toBe(6);
+  });
+
+  it("uses detailed mean-temperature DM instead of boiling DM", () => {
+    const result = calculateRunawayGreenhouseCheckDm({
+      systemAgeByr: 0,
+      temperatureModifiedRoll: 12,
+      meanTemperatureK: 333,
+    });
+
+    // 30K above 303 => +3, replacing boiling DM
+    expect(result.dm).toBe(3);
+    expect(result.detailedTemperatureDmUsed).toBe(true);
+  });
+
+  it("applies optional inner-temperate DM-2", () => {
+    const result = calculateRunawayGreenhouseCheckDm({
+      temperatureModifiedRoll: 7,
+      orbitNumber: 2.5,
+      hzco: 3.3,
+      allowInnerTemperateCheck: true,
+    });
+
+    expect(result.dm).toBe(-2);
+  });
+});
+
+describe("evaluateRunawayGreenhouse", () => {
+  it("can trigger and convert a convertible atmosphere", () => {
+    const result = evaluateRunawayGreenhouse({
+      atmosphereCode: 9,
+      size: 5,
+      temperatureModifiedRoll: 10,
+      systemAgeByr: 0,
+      rng: seqRng(
+        (6 - 1) / 6,
+        (6 - 1) / 6, // 2D greenhouse check = 12 => occurred
+        (1 - 1) / 6, // conversion 1D = 1
+      ),
+    });
+
+    expect(result.eligible).toBe(true);
+    expect(result.occurred).toBe(true);
+    expect(result.finalAtmosphereCode).toBe("A");
+    expect(result.finalAtmosphereCodeValue).toBe(10);
+    expect(result.atmosphereChanged).toBe(true);
+    expect(result.forceBoilingForHydrographics).toBe(true);
+    expect(result.atmosphereSubtypeDm).toBe(4);
+  });
+
+  it("keeps high atmospheres and only enforces boiling hydro effect", () => {
+    const result = evaluateRunawayGreenhouse({
+      atmosphereCode: "B",
+      size: 6,
+      temperatureModifiedRoll: 11,
+      rng: rngFor2d(12),
+    });
+
+    expect(result.occurred).toBe(true);
+    expect(result.atmosphereChanged).toBe(false);
+    expect(result.finalAtmosphereCode).toBe("B");
+    expect(result.hydrographicsTemperatureDm).toBe(-6);
   });
 });
 
@@ -4013,6 +5158,196 @@ describe("rollAtmospherePressureBar", () => {
     expect(pressure.variableRange).toBe(true);
     expect(pressure.pressureBar).toBeNull();
   });
+
+  it("supports two-dice-linear pressure method", () => {
+    const pressure = rollAtmospherePressureBar({
+      atmosphereCode: 6,
+      method: "two-dice-linear",
+      rng: seqRng(
+        (3 - 1) / 6,
+        (4 - 1) / 6, // d1=3,d2=4 -> index 13 -> 13/30
+      ),
+    });
+
+    expect(pressure.method).toBe("two-dice-linear");
+    expect(pressure.diceRolls).toEqual({ d1: 3, d2: 4 });
+    expect(pressure.linearFactor).toBeCloseTo(13 / 30, 10);
+    expect(pressure.pressureBar).toBeCloseTo(1.0423, 3);
+  });
+});
+
+describe("isNitrogenOxygenAtmosphere", () => {
+  it("identifies nitrogen-oxygen atmosphere classes", () => {
+    expect(isNitrogenOxygenAtmosphere(2)).toBe(true);
+    expect(isNitrogenOxygenAtmosphere("E")).toBe(true);
+    expect(isNitrogenOxygenAtmosphere("A")).toBe(false);
+  });
+});
+
+describe("calculateOxygenFractionAgeDm", () => {
+  it("applies DM+1 when system age is above 4 Gyr", () => {
+    const result = calculateOxygenFractionAgeDm({ systemAgeByr: 4.1 });
+    expect(result.dm).toBe(1);
+  });
+
+  it("applies optional young-world DMs", () => {
+    expect(calculateOxygenFractionAgeDm({ systemAgeByr: 3.2, useOptionalYoungWorldDm: true }).dm).toBe(-1);
+    expect(calculateOxygenFractionAgeDm({ systemAgeByr: 2.5, useOptionalYoungWorldDm: true }).dm).toBe(-2);
+    expect(calculateOxygenFractionAgeDm({ systemAgeByr: 1.8, useOptionalYoungWorldDm: true }).dm).toBe(-4);
+  });
+});
+
+describe("rollOxygenFraction", () => {
+  it("rolls classic oxygen fraction with age DM", () => {
+    const result = rollOxygenFraction({
+      atmosphereCode: 6,
+      systemAgeByr: 5,
+      method: "classic",
+      rng: seqRng(
+        (5 - 1) / 6, // 1D=5
+        (2 - 1) / 6,
+        (3 - 1) / 6, // 2D=5
+        (4 - 1) / 6, // tail 1D=4
+      ),
+    });
+
+    // (5+1)/20 + (5-7)/100 + (4-1)/20 = 0.43 (clamped to 0.4)
+    expect(result.eligible).toBe(true);
+    expect(result.oxygenFraction).toBe(0.4);
+  });
+
+  it("supports compact-d10 oxygen method", () => {
+    const result = rollOxygenFraction({
+      atmosphereCode: 6,
+      method: "compact-d10",
+      rng: seqRng((4 - 1) / 6, (8 - 1) / 10),
+    });
+
+    // (4-1)/20 + 0.08 = 0.23
+    expect(result.oxygenFraction).toBeCloseTo(0.23, 10);
+  });
+
+  it("uses fallback when computed oxygen fraction is <= 0", () => {
+    const result = rollOxygenFraction({
+      atmosphereCode: 6,
+      systemAgeByr: 1.0,
+      useOptionalYoungWorldDm: true,
+      method: "compact-d10",
+      rng: seqRng(
+        (1 - 1) / 6,
+        (1 - 1) / 10, // initial <=0
+        (3 - 1) / 6, // fallback 1D=3 -> 0.03
+      ),
+    });
+
+    expect(result.fallbackApplied).toBe(true);
+    expect(result.oxygenFraction).toBeCloseTo(0.03, 10);
+  });
+});
+
+describe("calculateOxygenPartialPressureBar", () => {
+  it("multiplies oxygen fraction by total pressure", () => {
+    expect(calculateOxygenPartialPressureBar({ oxygenFraction: 0.28, totalPressureBar: 1.042 })).toBeCloseTo(
+      0.29176,
+      6,
+    );
+  });
+});
+
+describe("evaluateAtmosphereOxygenTaint", () => {
+  it("flags low-oxygen taint and suggests breathable equivalent conversion", () => {
+    const result = evaluateAtmosphereOxygenTaint({
+      atmosphereCode: 6,
+      totalPressureBar: 1.0,
+      oxygenPartialPressureBar: 0.08,
+    });
+
+    expect(result.oxygenTrait).toBe("low-oxygen");
+    expect(result.oxygenTaintLikely).toBe(true);
+    expect(result.suggestedTaintedEquivalent).toBe("7");
+  });
+
+  it("can auto-convert breathable atmosphere to tainted equivalent", () => {
+    const result = evaluateAtmosphereOxygenTaint({
+      atmosphereCode: 8,
+      totalPressureBar: 1.1,
+      oxygenPartialPressureBar: 0.55,
+      autoConvertBreathableToTainted: true,
+    });
+
+    expect(result.finalAtmosphereCode).toBe("9");
+  });
+});
+
+describe("calculateAtmosphereScaleHeightKm", () => {
+  it("uses baseline approximation 8.5/g", () => {
+    expect(calculateAtmosphereScaleHeightKm({ gravityG: 0.66 })).toBeCloseTo(12.8787, 3);
+  });
+
+  it("supports temperature-adjusted approximation", () => {
+    expect(
+      calculateAtmosphereScaleHeightKm({ gravityG: 0.66, meanTemperatureK: 288, useTemperatureAdjustment: true }),
+    ).toBeCloseTo(12.8787, 3);
+  });
+});
+
+describe("calculateAtmosphericPressureAtAltitudeBar", () => {
+  it("computes exponential pressure drop with altitude", () => {
+    const pressure = calculateAtmosphericPressureAtAltitudeBar({
+      meanPressureBar: 1.042,
+      altitudeKm: 5,
+      scaleHeightKm: 12.88,
+    });
+
+    expect(pressure).toBeCloseTo(0.707, 2);
+  });
+});
+
+describe("estimateMeanTemperatureKFromRegionType", () => {
+  it("maps table region types to representative Kelvin means", () => {
+    expect(estimateMeanTemperatureKFromRegionType("Frozen")).toBe(210);
+    expect(estimateMeanTemperatureKFromRegionType("Temperate")).toBe(288);
+    expect(estimateMeanTemperatureKFromRegionType("Hot")).toBe(328.5);
+  });
+});
+
+describe("formatAtmosphereProfile", () => {
+  it("formats A-bar-ppo shorthand", () => {
+    const profile = formatAtmosphereProfile({
+      atmosphereCode: 6,
+      totalPressureBar: 1.042,
+      oxygenPartialPressureBar: 0.292,
+      precision: 3,
+    });
+
+    expect(profile).toBe("6-1.042-0.292");
+  });
+});
+
+describe("generateHabitableZoneAtmosphereProfile", () => {
+  it("builds pressure, oxygen, ppo, scale-height, and profile bundle", () => {
+    const result = generateHabitableZoneAtmosphereProfile({
+      atmosphereCode: 6,
+      systemAgeByr: 5,
+      oxygenMethod: "classic",
+      gravityG: 0.66,
+      meanTemperatureK: 288,
+      precision: 3,
+      rng: seqRng(
+        0.5, // pressure uniform
+        (5 - 1) / 6,
+        (2 - 1) / 6,
+        (3 - 1) / 6,
+        (4 - 1) / 6, // oxygen rolls
+      ),
+    });
+
+    expect(result.pressure.pressureBar).toBeCloseTo(1.095, 3);
+    expect(result.oxygenFraction.eligible).toBe(true);
+    expect(result.oxygenPartialPressureBar).toBeGreaterThan(0);
+    expect(result.profile).toContain("6-");
+    expect(result.scaleHeightKm).toBeCloseTo(12.879, 3);
+  });
 });
 
 describe("rollWorldHydrographicsCode", () => {
@@ -4040,6 +5375,220 @@ describe("rollWorldHydrographicsCode", () => {
   it("clamps hydrographics to maximum 10", () => {
     const { hydrographicsCode } = rollWorldHydrographicsCode({ atmosphereCode: 9, rng: rngFor2d(12) });
     expect(hydrographicsCode).toBe(10);
+  });
+
+  it("applies optional hot and boiling temperature DMs", () => {
+    const hot = rollWorldHydrographicsCode({
+      atmosphereCode: 6,
+      temperatureModifiedRoll: 10,
+      rng: rngFor2d(7),
+    });
+    const boiling = rollWorldHydrographicsCode({
+      atmosphereCode: 6,
+      temperatureModifiedRoll: 12,
+      rng: rngFor2d(7),
+    });
+
+    // base atmo 6 => hydro 6 at roll 7; hot DM-2 => 4; boiling DM-6 => 0
+    expect(hot.hydrographicsCode).toBe(4);
+    expect(boiling.hydrographicsCode).toBe(0);
+  });
+
+  it("supports forcing boiling DM regardless of temperature roll", () => {
+    const result = rollWorldHydrographicsCode({
+      atmosphereCode: 10,
+      forceBoilingForHydrographics: true,
+      rng: rngFor2d(7),
+    });
+
+    // 7 - 7 + 10 - 4 - 6 = 0
+    expect(result.hydrographicsCode).toBe(0);
+  });
+
+  it("supports subtype-equivalent density code for A-C atmospheres", () => {
+    const result = rollWorldHydrographicsCode({
+      atmosphereCode: "A",
+      equivalentDensityAtmosphereCode: "7",
+      rng: rngFor2d(6),
+    });
+
+    // 6 - 7 + 7 - 4 = 2
+    expect(result.hydrographicsCode).toBe(2);
+  });
+
+  it("ignores hot/boiling temperature DMs for atmosphere D", () => {
+    const result = rollWorldHydrographicsCode({
+      atmosphereCode: "D",
+      temperatureModifiedRoll: 12,
+      rng: rngFor2d(7),
+    });
+
+    // 7 - 7 + 13 - 4 = 9, no boiling DM applied
+    expect(result.hydrographicsCode).toBe(9);
+  });
+
+  it("ignores hot/boiling temperature DMs for unusual panthalassic subtype 7", () => {
+    const result = rollWorldHydrographicsCode({
+      atmosphereCode: "F",
+      unusualSubtypeCode: "7",
+      equivalentDensityAtmosphereCode: "7",
+      temperatureModifiedRoll: 12,
+      rng: rngFor2d(7),
+    });
+
+    // 7 - 7 + 7 - 4 = 3, boiling DM ignored
+    expect(result.hydrographicsCode).toBe(3);
+  });
+});
+
+describe("HYDROGRAPHICS_RANGE_TABLE_49 / lookupHydrographicsRange", () => {
+  it("contains codes 0 through A", () => {
+    expect(HYDROGRAPHICS_RANGE_TABLE_49).toHaveLength(11);
+    expect(HYDROGRAPHICS_RANGE_TABLE_49[0].codeLabel).toBe("0");
+    expect(HYDROGRAPHICS_RANGE_TABLE_49[10].codeLabel).toBe("A");
+  });
+
+  it("looks up standard and extreme ranges", () => {
+    expect(lookupHydrographicsRange(6)).toEqual({ code: 6, codeLabel: "6", minPercent: 56, maxPercent: 65 });
+    expect(lookupHydrographicsRange("A")).toEqual({ code: 10, codeLabel: "A", minPercent: 96, maxPercent: 100 });
+  });
+});
+
+describe("rollHydrographicsPercentage", () => {
+  it("matches the example style: hydrographics 6 and d10=6 => 62%", () => {
+    const result = rollHydrographicsPercentage({ hydrographicsCode: 6, rng: () => 0.5 });
+    expect(result.d10Roll).toBe(6);
+    expect(result.hydrographicsPercent).toBe(62);
+  });
+
+  it("clamps hydrographics 0 to 0-5%", () => {
+    expect(rollHydrographicsPercentage({ hydrographicsCode: 0, rng: () => 0 }).hydrographicsPercent).toBe(0);
+    expect(rollHydrographicsPercentage({ hydrographicsCode: 0, rng: () => 0.999 }).hydrographicsPercent).toBe(5);
+  });
+
+  it("treats size A+ hydrographics A as 100% liquid", () => {
+    const result = rollHydrographicsPercentage({ hydrographicsCode: "A", sizeValue: 10, rng: () => 0 });
+    expect(result.hydrographicsPercent).toBe(100);
+  });
+});
+
+describe("SURFACE_DISTRIBUTION_TABLE_50 / rollSurfaceDistribution", () => {
+  it("contains 0 through A results", () => {
+    expect(SURFACE_DISTRIBUTION_TABLE_50).toHaveLength(11);
+    expect(SURFACE_DISTRIBUTION_TABLE_50[0].code).toBe("0");
+    expect(SURFACE_DISTRIBUTION_TABLE_50[10].code).toBe("A");
+  });
+
+  it("rolls 2D-2 and looks up Mixed on total 5", () => {
+    const result = rollSurfaceDistribution({ rng: rngFor2d(7) });
+    expect(result.roll).toBe(7);
+    expect(result.total).toBe(5);
+    expect(result.code).toBe("5");
+    expect(result.description).toBe("Mixed");
+  });
+});
+
+describe("determineHydrographicsFundamentalGeography", () => {
+  it("defaults to ocean for hydrographics 6+ and land for 4-", () => {
+    expect(determineHydrographicsFundamentalGeography({ hydrographicsCode: 6 }).fundamentalGeography).toBe("ocean");
+    expect(determineHydrographicsFundamentalGeography({ hydrographicsCode: 4 }).fundamentalGeography).toBe("land");
+  });
+
+  it("rolls 1D for hydrographics 5", () => {
+    const result = determineHydrographicsFundamentalGeography({ hydrographicsCode: 5, rng: () => 1 / 6 });
+    expect(result.roll).toBe(2);
+    expect(result.fundamentalGeography).toBe("ocean");
+  });
+
+  it("supports optional unexpected distributions using DM = 5 - hydrographics", () => {
+    const result = determineHydrographicsFundamentalGeography({
+      hydrographicsCode: 4,
+      allowUnexpectedDistribution: true,
+      rng: () => 1 / 6,
+    });
+    expect(result.roll).toBe(2);
+    expect(result.dm).toBe(1);
+    expect(result.adjustedRoll).toBe(3);
+    expect(result.fundamentalGeography).toBe("ocean");
+  });
+
+  it("matches the example pattern for hydrographics 6 with DM-1", () => {
+    const result = determineHydrographicsFundamentalGeography({
+      hydrographicsCode: 6,
+      allowUnexpectedDistribution: true,
+      rng: () => 3 / 6,
+    });
+    expect(result.roll).toBe(4);
+    expect(result.dm).toBe(-1);
+    expect(result.adjustedRoll).toBe(3);
+    expect(result.fundamentalGeography).toBe("ocean");
+  });
+});
+
+describe("POSSIBLE_EXOTIC_LIQUIDS_TABLE_51 / getPossibleExoticLiquids", () => {
+  it("contains the listed fluidic molecules", () => {
+    expect(POSSIBLE_EXOTIC_LIQUIDS_TABLE_51).toHaveLength(15);
+    expect(POSSIBLE_EXOTIC_LIQUIDS_TABLE_51[0].code).toBe("F2");
+    expect(POSSIBLE_EXOTIC_LIQUIDS_TABLE_51[POSSIBLE_EXOTIC_LIQUIDS_TABLE_51.length - 1].code).toBe("H2SO4");
+  });
+
+  it("returns liquids valid at a mean temperature", () => {
+    const result = getPossibleExoticLiquids({ meanTemperatureK: 220 });
+    expect(result.some((entry) => entry.code === "NH3")).toBe(true);
+    expect(result.some((entry) => entry.code === "H2O")).toBe(false);
+  });
+
+  it("can include magma above 1000K", () => {
+    const result = getPossibleExoticLiquids({ meanTemperatureK: 1100 });
+    expect(result[0].code).toBe("Magma");
+  });
+});
+
+describe("selectHydrographicsLiquids", () => {
+  it("returns weighted unique liquid candidates", () => {
+    const result = selectHydrographicsLiquids({
+      meanTemperatureK: 290,
+      atmosphereGasMixes: [{ gas: "Water Vapour" }],
+      count: 2,
+      rng: () => 0,
+    });
+    expect(result).toHaveLength(2);
+    expect(new Set(result.map((entry) => entry.code)).size).toBe(2);
+  });
+});
+
+describe("formatHydrographicsProfile", () => {
+  it("formats a Terra-style water profile", () => {
+    const profile = formatHydrographicsProfile({
+      hydrographicsCode: 7,
+      surfaceDistributionCode: 4,
+      hydrographicsPercent: 71,
+      liquids: [{ code: "H2O", percent: 100 }],
+    });
+    expect(profile).toBe("7:4:71:H2O");
+  });
+
+  it("formats a Titan-style mixed profile without known percentages", () => {
+    const profile = formatHydrographicsProfile({
+      hydrographicsCode: 0,
+      surfaceDistributionCode: 8,
+      hydrographicsPercent: 2,
+      liquids: [{ code: "CH4" }, { code: "C2H6" }],
+    });
+    expect(profile).toBe("0:8:02:CH4:C2H6");
+  });
+
+  it("formats explicit mixture percentages when provided", () => {
+    const profile = formatHydrographicsProfile({
+      hydrographicsCode: 2,
+      surfaceDistributionCode: "5",
+      hydrographicsPercent: 24,
+      liquids: [
+        { code: "O2", percent: 70 },
+        { code: "CH4", percent: 30 },
+      ],
+    });
+    expect(profile).toBe("2:5:24:O2-70:CH4-30");
   });
 });
 
@@ -4164,6 +5713,376 @@ describe("identifyMainworldCandidates", () => {
     expect(c.atmosphereCode).toBe(6);
     expect(c.hydrographicsRoll).toBe(7);
     expect(c.hydrographicsCode).toBe(6);
+    expect(c.surfaceDistributionRoll).toBe(8);
+    expect(c.surfaceDistributionCode).toBe("6");
+    expect(c.temperatureAtmosphereDm).toBe(0);
+    expect(c.temperatureModifiedRoll).toBe(9);
+    expect(c.temperatureRegionType).toBe("Temperate");
+  });
+
+  it("uses rolled surface distribution for geographic modifier when missing on input", () => {
+    const slots = [
+      {
+        slotId: "P-1",
+        orbit: 3.1,
+        primaryWorldType: "terrestrialPlanet",
+        sizeCode: "5",
+        sizeValue: 5,
+        eccentricity: 0.1,
+        axialTiltDegrees: 30,
+        orbitalPeriodYears: 1,
+        solarDayHours: 24,
+        secondaryWorldTypes: [],
+      },
+    ];
+
+    // atmo 2D=8 -> atmo 6, hydro 2D=7 -> hydro 6, surface distribution 2D=11 -> code 9
+    const result = identifyMainworldCandidates({
+      slots,
+      hzco: 3.3,
+      rollPhysical: true,
+      rng: rngFor2dSequence(8, 7, 11),
+    });
+    const c = result.candidates[0];
+
+    expect(c.surfaceDistributionRoll).toBe(11);
+    expect(c.surfaceDistributionCode).toBe("9");
+    expect(c.highLowTemperatureProfile.geography.modifier).toBeCloseTo(0.1, 6);
+  });
+
+  it("prefers provided surface distribution code over rolling", () => {
+    const slots = [
+      {
+        slotId: "P-1",
+        orbit: 3.1,
+        primaryWorldType: "terrestrialPlanet",
+        sizeCode: "5",
+        sizeValue: 5,
+        eccentricity: 0.1,
+        axialTiltDegrees: 30,
+        orbitalPeriodYears: 1,
+        solarDayHours: 24,
+        surfaceDistributionCode: "1",
+        secondaryWorldTypes: [],
+      },
+    ];
+
+    const result = identifyMainworldCandidates({
+      slots,
+      hzco: 3.3,
+      rollPhysical: true,
+      rng: rngFor2dSequence(8, 7, 11),
+    });
+    const c = result.candidates[0];
+
+    expect(c.surfaceDistributionRoll).toBeNull();
+    expect(c.surfaceDistributionCode).toBe("1");
+    expect(c.highLowTemperatureProfile.geography.modifier).toBeCloseTo(-0.1, 6);
+  });
+
+  it("wires mean-temperature model outputs onto each physical candidate", () => {
+    const slots = [
+      {
+        slotId: "P-1",
+        orbit: 3.1,
+        primaryWorldType: "terrestrialPlanet",
+        sizeCode: "5",
+        sizeValue: 5,
+        eccentricity: 0.1,
+        axialTiltDegrees: 30,
+        orbitalPeriodYears: 1,
+        solarDayHours: 24,
+        secondaryWorldTypes: [],
+      },
+    ];
+
+    const result = identifyMainworldCandidates({ slots, hzco: 3.3, rollPhysical: true, rng: rngFor2dSequence(8, 7) });
+    const c = result.candidates[0];
+
+    expect(c.basicMeanTemperatureRoll).toBeTruthy();
+    expect(c.basicMeanTemperature).toBeTruthy();
+    expect(c.albedoModel).toBeTruthy();
+    expect(c.greenhouseModel).toBeTruthy();
+    expect(c.meanTemperature).toBeTruthy();
+    expect(c.meanTemperatureModel).toBeTruthy();
+    expect(Number.isFinite(c.meanTemperatureK)).toBe(true);
+    expect(c.meanTemperatureK).toBeCloseTo(c.meanTemperature.kelvin, 6);
+    expect(c.meanTemperatureModel.distanceAu).toBe(3.1);
+    expect(c.meanTemperatureModel.luminosity).toBeCloseTo(10.89, 6);
+    expect(c.highLowTemperatureProfile).toBeTruthy();
+    expect(c.highLowTemperatureProfile.luminosityModifier).toBeGreaterThan(0);
+    expect(c.highLowTemperatureProfile.temperatureProfile.nearAu).toBeCloseTo(2.79, 2);
+    expect(c.highLowTemperatureProfile.temperatureProfile.farAu).toBeCloseTo(3.41, 2);
+    expect(c.highLowTemperatureProfile.temperatureProfile.high.kelvin).toBeGreaterThan(c.meanTemperatureK);
+    expect(c.highLowTemperatureProfile.temperatureProfile.low.kelvin).toBeLessThan(c.meanTemperatureK);
+    expect(c.temperatureScenarioPresets).toBeTruthy();
+    expect(c.temperatureScenarioPresets.seaLevel).toBeTruthy();
+    expect(c.temperatureScenarioPresets.highAltitude).toBeTruthy();
+    expect(c.temperatureScenarioPresets.seasonalPeak).toBeTruthy();
+    expect(c.normalizedTemperatureScenarios).toBeTruthy();
+    expect(c.normalizedTemperatureScenarios.seaLevel).toBeTruthy();
+    expect(c.normalizedTemperatureScenarios.highAltitude).toBeTruthy();
+    expect(c.normalizedTemperatureScenarios.seasonalPeak).toBeTruthy();
+    expect(c.temperatureScenarioSummary).toBeTruthy();
+    expect(Array.isArray(c.temperatureScenarioSummary.presets)).toBe(true);
+    expect(c.temperatureScenarioSummary.presets.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("applies custom slot multi-star and inherent scenario inputs", () => {
+    const slots = [
+      {
+        slotId: "P-1",
+        orbit: 3.1,
+        primaryWorldType: "terrestrialPlanet",
+        sizeCode: "5",
+        sizeValue: 5,
+        eccentricity: 0.1,
+        axialTiltDegrees: 30,
+        orbitalPeriodYears: 1,
+        solarDayHours: 24,
+        temperatureScenarioStars: [
+          { name: "Aa", luminosity: 0.738, au: 0, eccentricity: 0 },
+          { name: "Ab", luminosity: 0.681, au: 0.036, eccentricity: 0.11 },
+        ],
+        inherentTemperatureAddedK: 35,
+        secondaryWorldTypes: [],
+      },
+    ];
+
+    const result = identifyMainworldCandidates({
+      slots,
+      hzco: 3.3,
+      rollPhysical: true,
+      rng: rngFor2dSequence(8, 7),
+    });
+    const c = result.candidates[0];
+
+    expect(c.normalizedTemperatureScenarios.seaLevel.components.multiStar).toBeTruthy();
+    expect(c.normalizedTemperatureScenarios.seaLevel.components.inherent).toBeTruthy();
+    expect(c.temperatureScenarioSummary.warmestPresetKey).toBeTruthy();
+  });
+
+  it("auto-derives seasonal sunlight in candidate normalized scenarios from date inputs", () => {
+    const slots = [
+      {
+        slotId: "P-1",
+        orbit: 3.1,
+        primaryWorldType: "terrestrialPlanet",
+        sizeCode: "5",
+        sizeValue: 5,
+        eccentricity: 0.1,
+        axialTiltDegrees: 73.65,
+        orbitalPeriodYears: 26 / 365.25,
+        solarDayHours: 85.77,
+        surfaceDistributionCode: "5",
+        secondaryWorldTypes: [],
+      },
+    ];
+
+    const result = identifyMainworldCandidates({
+      slots,
+      hzco: 3.3,
+      rollPhysical: true,
+      temperatureScenarioDateSolarDays: 91,
+      temperatureScenarioSolarDaysPerYear: 365,
+      rng: rngFor2dSequence(8, 7),
+    });
+    const c = result.candidates[0];
+    const timeOfDay = c.normalizedTemperatureScenarios.seaLevel.components.timeOfDay;
+
+    expect(timeOfDay).toBeTruthy();
+    expect(timeOfDay.sunlightModel).toBeTruthy();
+    expect(timeOfDay.sunlightModel.daylightState).toBe("normal");
+    expect(timeOfDay.sunlightPortion).toBeGreaterThan(0);
+    expect(timeOfDay.sunlightPortion).toBeLessThan(1);
+    expect(timeOfDay.sunlightModel.sunlightHours).toBeGreaterThan(0);
+    expect(timeOfDay.sunlightModel.sunlightHours).toBeLessThan(slots[0].solarDayHours);
+  });
+
+  it("automatically applies parent gas giant residual moon heating into scenario inherent effects", () => {
+    const moon = {
+      sizeCode: "5",
+      sizeValue: 5,
+      isRing: false,
+      inherentTemperatureAddedK: 10,
+    };
+    const slots = [
+      {
+        slotId: "P-2",
+        orbit: 3.5,
+        primaryWorldType: "gasGiant",
+        sizeCode: "GML",
+        gasGiantMassEarth: 1200,
+        gasGiantDiameterTerran: 11.6,
+        basicDiameterKm: 11.6 * 12800,
+        significantMoonSizeDetails: [moon],
+        significantMoonOrbitDetails: [
+          {
+            sourceMoon: moon,
+            orbitPd: 26.4,
+            period: {
+              orbitKm: 3_920_000,
+            },
+          },
+        ],
+        secondaryWorldTypes: [],
+      },
+    ];
+
+    const result = identifyMainworldCandidates({
+      slots,
+      hzco: 3.3,
+      rollPhysical: false,
+      temperatureScenarioGasGiantResidualAgeGyr: 6.336,
+    });
+    const c = result.candidates[0];
+
+    expect(c.isMoon).toBe(true);
+    expect(c.gasGiantResidualHeatScenario).toBeTruthy();
+    expect(c.gasGiantResidualHeatScenario.residualHeatTemperatureK).toBeCloseTo(187, 0);
+    expect(c.gasGiantResidualHeatScenario.moonHeatingTemperatureK).toBeGreaterThan(20);
+    expect(c.gasGiantResidualHeatScenario.moonHeatingTemperatureK).toBeLessThan(30);
+    expect(c.temperatureScenarioInherentAddedK).toBeGreaterThan(c.gasGiantResidualHeatScenario.moonHeatingTemperatureK);
+    expect(c.normalizedTemperatureScenarios.seaLevel.components.inherent).toBeTruthy();
+  });
+
+  it("can disable optional scenario presets in candidate payload", () => {
+    const slots = [
+      {
+        slotId: "P-1",
+        orbit: 3.1,
+        primaryWorldType: "terrestrialPlanet",
+        sizeCode: "5",
+        sizeValue: 5,
+        eccentricity: 0.1,
+        axialTiltDegrees: 30,
+        orbitalPeriodYears: 1,
+        solarDayHours: 24,
+        secondaryWorldTypes: [],
+      },
+    ];
+
+    const result = identifyMainworldCandidates({
+      slots,
+      hzco: 3.3,
+      rollPhysical: true,
+      includeTemperatureScenarioPresets: false,
+      rng: rngFor2dSequence(8, 7),
+    });
+    const c = result.candidates[0];
+
+    expect(c.highLowTemperatureProfile).toBeTruthy();
+    expect(c.temperatureScenarioPresets).toBeNull();
+    expect(c.normalizedTemperatureScenarios).toBeNull();
+    expect(c.temperatureScenarioSummary).toBeNull();
+  });
+
+  it("applies atmosphere temperature DM to get modified roll and region", () => {
+    const slots = [
+      {
+        slotId: "P-1",
+        orbit: 3.1,
+        primaryWorldType: "terrestrialPlanet",
+        sizeCode: "5",
+        sizeValue: 5,
+        secondaryWorldTypes: [],
+      },
+    ];
+
+    // raw roll from deviation -0.2 is 9; atmo roll 12 gives atmo 10 (A), DM +2 => modified 11 (Hot)
+    const result = identifyMainworldCandidates({
+      slots,
+      hzco: 3.3,
+      rollPhysical: true,
+      rng: rngFor2dSequence(12, 7),
+    });
+
+    const c = result.candidates[0];
+    expect(c.temperatureRawRoll).toBe(9);
+    expect(c.atmosphereCode).toBe(10);
+    expect(c.temperatureAtmosphereDm).toBe(2);
+    expect(c.temperatureModifiedRoll).toBe(11);
+    expect(c.temperatureRegionType).toBe("Hot");
+  });
+
+  it("applies optional runaway greenhouse and updates atmosphere/hydro", () => {
+    const slots = [
+      {
+        slotId: "P-1",
+        orbit: 3.1,
+        primaryWorldType: "terrestrialPlanet",
+        sizeCode: "5",
+        sizeValue: 5,
+        secondaryWorldTypes: [],
+      },
+    ];
+
+    const rng = seqRng(
+      (6 - 1) / 6,
+      (5 - 1) / 6, // atmo 2D=11 -> atmo 9
+      (6 - 1) / 6,
+      (6 - 1) / 6, // greenhouse 2D=12 -> occurred
+      (1 - 1) / 6, // conversion 1D=1 -> A after DMs
+      (4 - 1) / 6,
+      (3 - 1) / 6, // hydro 2D=7
+    );
+
+    const result = identifyMainworldCandidates({
+      slots,
+      hzco: 3.3,
+      rollPhysical: true,
+      applyRunawayGreenhouse: true,
+      rng,
+    });
+
+    const c = result.candidates[0];
+    expect(c.temperatureModifiedRoll).toBe(10);
+    expect(c.runawayGreenhouse).toBeTruthy();
+    expect(c.runawayGreenhouse.occurred).toBe(true);
+    expect(c.runawayGreenhouse.atmosphereChanged).toBe(true);
+    expect(c.atmosphereCode).toBe(10);
+    expect(c.hydrographicsCode).toBe(0);
+  });
+
+  it("can include detailed habitable-zone atmosphere profile output", () => {
+    const slots = [
+      {
+        slotId: "P-1",
+        orbit: 3.1,
+        primaryWorldType: "terrestrialPlanet",
+        sizeCode: "5",
+        sizeValue: 5,
+        gravity: 0.66,
+        secondaryWorldTypes: [],
+      },
+    ];
+
+    const result = identifyMainworldCandidates({
+      slots,
+      hzco: 3.3,
+      rollPhysical: true,
+      includeHabitableZoneAtmosphereDetails: true,
+      habitableZoneAtmosphereSystemAgeByr: 5,
+      rng: seqRng(
+        (5 - 1) / 6,
+        (3 - 1) / 6, // atmo 2D=8 -> atmo 6
+        (4 - 1) / 6,
+        (3 - 1) / 6, // hydro 2D=7
+        0.5, // pressure
+        (5 - 1) / 6,
+        (2 - 1) / 6,
+        (3 - 1) / 6,
+        (4 - 1) / 6, // oxygen
+      ),
+    });
+
+    const c = result.candidates[0];
+    expect(c.habitableZoneAtmosphere).toBeTruthy();
+    expect(c.habitableZoneAtmosphere.pressure.pressureBar).toBeCloseTo(1.095, 3);
+    expect(c.habitableZoneAtmosphere.oxygenPartialPressureBar).toBeGreaterThan(0);
+    expect(c.habitableZoneAtmosphere.profile).toMatch(/^6-/);
+    const expectedScaleHeight = (8.5 * (Number(c.meanTemperatureK) / 288)) / 0.66;
+    expect(c.habitableZoneAtmosphere.scaleHeightKm).toBeCloseTo(expectedScaleHeight, 3);
   });
 
   it("treats Size S candidate as atmosphere 0 and hydrographics 0", () => {
@@ -4220,6 +6139,1461 @@ describe("identifyMainworldCandidates", () => {
     const result = identifyMainworldCandidates({ slots, hzco: 3.3, rollPhysical: false });
     const orbits = result.candidates.map((c) => c.orbit);
     expect(orbits).toEqual([2.5, 3.3, 4.0]);
+  });
+});
+
+// ── Taint Subtypes, Severity, and Persistence (Tables 32–34) ─────────────────
+
+describe("rollTaintSubtype", () => {
+  it("returns the correct code for a standard roll on atmo 7 (no DM)", () => {
+    // 2D=8 → total 8 → Sulphur Compounds (S)
+    const rng = rngFor2d(8);
+    const result = rollTaintSubtype({ atmosphereCode: 7, rng });
+    expect(result.dm).toBe(0);
+    expect(result.subtypes).toHaveLength(1);
+    expect(result.subtypes[0].code).toBe("S");
+    expect(result.subtypes[0].label).toBe("Sulphur Compounds");
+    expect(result.subtypes[0].position).toBe(1);
+    expect(result.subtypes[0].wasPreexisting).toBe(false);
+    expect(result.subtypes[0].ppoAdjustment).toBeNull();
+    expect(result.subtypes[0].wasOxygenSubstituted).toBe(false);
+  });
+
+  it("applies DM-2 for atmosphere 4 (low roll → Low Oxygen)", () => {
+    // 2D=4, DM-2 → total 2 → Low Oxygen (L); inside 4-9 range so no G substitution
+    const rng = rngFor2d(4);
+    const result = rollTaintSubtype({ atmosphereCode: 4, rng });
+    expect(result.dm).toBe(-2);
+    expect(result.subtypes[0].code).toBe("L");
+    // ppoAdjustment roll included (-1D/100)
+    expect(result.subtypes[0].ppoAdjustment).not.toBeNull();
+    expect(result.subtypes[0].ppoAdjustment.delta).toBeLessThan(0);
+  });
+
+  it("applies DM+2 for atmosphere 9 (high roll → High Oxygen)", () => {
+    // 2D=11, DM+2 → total 13 → High Oxygen (H)
+    const rng = rngFor2d(11);
+    const result = rollTaintSubtype({ atmosphereCode: 9, rng });
+    expect(result.dm).toBe(2);
+    expect(result.subtypes[0].code).toBe("H");
+    expect(result.subtypes[0].ppoAdjustment).not.toBeNull();
+    expect(result.subtypes[0].ppoAdjustment.delta).toBeGreaterThan(0);
+  });
+
+  it("substitutes L/H → G for atmosphere 2 (outside 4-9 range)", () => {
+    // 2D=2 → total 2 → raw L; but code 2 is outside 4-9, so G
+    const rng = rngFor2d(2);
+    const result = rollTaintSubtype({ atmosphereCode: 2, rng });
+    expect(result.subtypes[0].code).toBe("G");
+    expect(result.subtypes[0].wasOxygenSubstituted).toBe(true);
+    expect(result.subtypes[0].ppoAdjustment).toBeNull(); // no ppo adjustment after substitution
+  });
+
+  it("substitutes S → P for cold worlds (meanTemperatureK < 273)", () => {
+    // 2D=8 → total 8 → raw S; cold → P
+    const rng = rngFor2d(8);
+    const result = rollTaintSubtype({ atmosphereCode: 7, meanTemperatureK: 240, rng });
+    expect(result.subtypes[0].code).toBe("P");
+    expect(result.subtypes[0].wasSulphurSubstituted).toBe(true);
+  });
+
+  it("cascades to a second subtype when first roll is 10 (P + another roll)", () => {
+    // Roll 1: 2D=10 → P*; Roll 2: 2D=9 → Biologic (B). Both at atmo 7, no DM.
+    const rng = rngFor2dSequence(10, 9);
+    const result = rollTaintSubtype({ atmosphereCode: 7, rng });
+    expect(result.subtypes).toHaveLength(2);
+    expect(result.subtypes[0].code).toBe("P");
+    expect(result.subtypes[0].position).toBe(1);
+    expect(result.subtypes[1].code).toBe("B");
+    expect(result.subtypes[1].position).toBe(2);
+    expect(result.rolls).toHaveLength(2);
+  });
+
+  it("cascades to three subtypes when first two rolls are both 10 (P, P, final)", () => {
+    // Roll 1: 10 → P; Roll 2: 10 → P; Roll 3: 3 → R
+    const rng = rngFor2dSequence(10, 10, 3);
+    const result = rollTaintSubtype({ atmosphereCode: 7, rng });
+    expect(result.subtypes).toHaveLength(3);
+    expect(result.subtypes[0].code).toBe("P");
+    expect(result.subtypes[1].code).toBe("P");
+    expect(result.subtypes[2].code).toBe("R");
+    expect(result.subtypes[2].position).toBe(3);
+  });
+
+  it("pre-known oxygen taint: sets L as position 1, only checks for 10 cascade", () => {
+    // atmo 7, known low-oxygen taint, check roll = 5 (not 10) → just 1 taint
+    const rng = rngFor2d(5);
+    const result = rollTaintSubtype({ atmosphereCode: 7, knownOxygenTrait: "low-oxygen", rng });
+    expect(result.subtypes).toHaveLength(1);
+    expect(result.subtypes[0].code).toBe("L");
+    expect(result.subtypes[0].wasPreexisting).toBe(true);
+    expect(result.subtypes[0].ppoAdjustment).toBeNull(); // no adjustment for pre-known
+    expect(result.rolls).toHaveLength(1); // the check roll
+    expect(result.rolls[0].purpose).toBe("check-for-particulates");
+  });
+
+  it("pre-known oxygen taint: adds P when check roll is 10, then stops on non-10", () => {
+    // atmo 7, known H; check Roll 1 = 10 → add P; Roll 2 = 6 → stop (2 taints)
+    const rng = rngFor2dSequence(10, 6);
+    const result = rollTaintSubtype({ atmosphereCode: 7, knownOxygenTrait: "high-oxygen", rng });
+    expect(result.subtypes).toHaveLength(2);
+    expect(result.subtypes[0].code).toBe("H");
+    expect(result.subtypes[1].code).toBe("P");
+    expect(result.subtypes[1].position).toBe(2);
+  });
+
+  it("pre-known oxygen taint: rolls a third subtype when both check rolls are 10", () => {
+    // atmo 7, known L; Roll1=10 → P; Roll2=10 → final Roll3=4 → B
+    const rng = rngFor2dSequence(10, 10, 4);
+    const result = rollTaintSubtype({ atmosphereCode: 7, knownOxygenTrait: "low-oxygen", rng });
+    expect(result.subtypes).toHaveLength(3);
+    expect(result.subtypes[0].code).toBe("L");
+    expect(result.subtypes[1].code).toBe("P");
+    expect(result.subtypes[2].code).toBe("B");
+  });
+
+  it("substitutes L/H → G on second and third taint positions even inside 4-9 range", () => {
+    // atmo 7, first roll 10 → P; second roll 2 → raw L at position 2 → must become G
+    const rng = rngFor2dSequence(10, 2);
+    const result = rollTaintSubtype({ atmosphereCode: 7, rng });
+    expect(result.subtypes[1].code).toBe("G");
+    expect(result.subtypes[1].wasOxygenSubstituted).toBe(true);
+  });
+});
+
+describe("rollTaintSeverity", () => {
+  it("returns expected code and severity for a neutral taint (no DM)", () => {
+    // 2D=7 + DM0 → code 4, Major irritant
+    const rng = rngFor2d(7);
+    const result = rollTaintSeverity({ taintSubtypeCode: "G", rng });
+    expect(result.dm).toBe(0);
+    expect(result.roll).toBe(7);
+    expect(result.total).toBe(7);
+    expect(result.code).toBe(4);
+    expect(result.severity).toBe("Major irritant");
+    expect(result.ppoMode).toBe(false);
+  });
+
+  it("applies DM+4 for Low Oxygen taint", () => {
+    // 2D=5, DM+4 → total 9 → code 6, Hazardous irritant
+    const rng = rngFor2d(5);
+    const result = rollTaintSeverity({ taintSubtypeCode: "L", rng });
+    expect(result.dm).toBe(4);
+    expect(result.total).toBe(9);
+    expect(result.code).toBe(6);
+    expect(result.severity).toBe("Hazardous irritant");
+  });
+
+  it("applies DM+4 for High Oxygen taint", () => {
+    const rng = rngFor2d(5);
+    const result = rollTaintSeverity({ taintSubtypeCode: "H", rng });
+    expect(result.dm).toBe(4);
+    expect(result.code).toBe(6);
+  });
+
+  it("applies DM+6 for insidious atmosphere (code C)", () => {
+    // 2D=6, DM+6 → total 12 → code 9, Rapidly lethal
+    const rng = rngFor2d(6);
+    const result = rollTaintSeverity({ taintSubtypeCode: "P", atmosphereCode: "C", rng });
+    expect(result.dm).toBe(6);
+    expect(result.total).toBe(12);
+    expect(result.code).toBe(9);
+    expect(result.severity).toBe("Rapidly lethal");
+  });
+
+  it("uses ppo-mode for Low Oxygen when ppo >= 0.09 → code 2", () => {
+    const result = rollTaintSeverity({
+      taintSubtypeCode: "L",
+      oxygenPartialPressureBar: 0.09,
+      useOptionalPpoSeverity: true,
+    });
+    expect(result.ppoMode).toBe(true);
+    expect(result.roll).toBeNull();
+    expect(result.code).toBe(2);
+    expect(result.severity).toBe("Surmountable irritant");
+  });
+
+  it("uses ppo-mode for Low Oxygen when ppo < 0.06 → code 9", () => {
+    const result = rollTaintSeverity({
+      taintSubtypeCode: "L",
+      oxygenPartialPressureBar: 0.05,
+      useOptionalPpoSeverity: true,
+    });
+    expect(result.code).toBe(9);
+  });
+
+  it("uses ppo-mode for High Oxygen when ppo < 0.6 → code 2", () => {
+    const result = rollTaintSeverity({
+      taintSubtypeCode: "H",
+      oxygenPartialPressureBar: 0.55,
+      useOptionalPpoSeverity: true,
+    });
+    expect(result.ppoMode).toBe(true);
+    expect(result.code).toBe(2);
+  });
+
+  it("uses ppo-mode for High Oxygen when ppo >= 0.8 → code 9", () => {
+    const result = rollTaintSeverity({
+      taintSubtypeCode: "H",
+      oxygenPartialPressureBar: 0.85,
+      useOptionalPpoSeverity: true,
+    });
+    expect(result.code).toBe(9);
+  });
+
+  it("falls back to roll when useOptionalPpoSeverity is false even for L/H", () => {
+    const rng = rngFor2d(6);
+    const result = rollTaintSeverity({
+      taintSubtypeCode: "L",
+      oxygenPartialPressureBar: 0.05,
+      useOptionalPpoSeverity: false,
+      rng,
+    });
+    expect(result.ppoMode).toBe(false);
+    expect(result.roll).toBe(6);
+    // 6 + 4 = 10 → code 7 (Long term lethal)
+    expect(result.code).toBe(7);
+  });
+});
+
+describe("rollTaintPersistence", () => {
+  it("returns expected code and persistence for neutral taint", () => {
+    // 2D=7, DM0 → code 7, Varying
+    const rng = rngFor2d(7);
+    const result = rollTaintPersistence({ taintSubtypeCode: "G", rng });
+    expect(result.dm).toBe(0);
+    expect(result.roll).toBe(7);
+    expect(result.code).toBe(7);
+    expect(result.persistence).toBe("Varying");
+  });
+
+  it("applies DM+4 for Low Oxygen taint (severity 5, < 8)", () => {
+    // 2D=5, DM+4 → total 9 → code 9, Constant
+    const rng = rngFor2d(5);
+    const result = rollTaintPersistence({ taintSubtypeCode: "L", severityCode: 5, rng });
+    expect(result.dm).toBe(4);
+    expect(result.total).toBe(9);
+    expect(result.code).toBe(9);
+    expect(result.persistence).toBe("Constant");
+  });
+
+  it("applies DM+6 for L/H taint when severityCode >= 8", () => {
+    // 2D=3, DM+6 → total 9 → code 9, Constant
+    const rng = rngFor2d(3);
+    const result = rollTaintPersistence({ taintSubtypeCode: "H", severityCode: 8, rng });
+    expect(result.dm).toBe(6);
+    expect(result.total).toBe(9);
+    expect(result.code).toBe(9);
+  });
+
+  it("applies DM+6 for insidious atmosphere (code C)", () => {
+    // 2D=2, DM+6 → total 8 → code 8, Varying
+    const rng = rngFor2d(2);
+    const result = rollTaintPersistence({ taintSubtypeCode: "P", atmosphereCode: "C", rng });
+    expect(result.dm).toBe(6);
+    expect(result.code).toBe(8);
+  });
+
+  it("returns Occasional and brief for low total (2- bracket)", () => {
+    // 2D=2, DM0 → 2 → code 2
+    const rng = rngFor2d(2);
+    const result = rollTaintPersistence({ taintSubtypeCode: "R", rng });
+    expect(result.code).toBe(2);
+    expect(result.persistence).toBe("Occasional and brief");
+  });
+});
+
+describe("rollWorldTaints", () => {
+  it("returns a single taint with no severity/persistence when flags are off", () => {
+    // atmo 7, first roll = 5 → Gas Mix (G)
+    const rng = rngFor2d(5);
+    const result = rollWorldTaints({ atmosphereCode: 7, rng });
+    expect(result.taints).toHaveLength(1);
+    const taint = result.taints[0];
+    expect(taint.code).toBe("G");
+    expect(taint.severity).toBeNull();
+    expect(taint.persistence).toBeNull();
+  });
+
+  it("rolls severity when rollSeverity is true", () => {
+    // Subtype roll: 2D=6 → P (atmo 7 no DM); severity roll: 2D=7 → Major irritant
+    const rng = rngFor2dSequence(6, 7);
+    const result = rollWorldTaints({ atmosphereCode: 7, rollSeverity: true, rng });
+    expect(result.taints[0].code).toBe("P");
+    expect(result.taints[0].severity).not.toBeNull();
+    expect(result.taints[0].severity.code).toBe(4); // 7+0 DM → code 4
+    expect(result.taints[0].persistence).toBeNull(); // not rolled when rollPersistence=false
+  });
+
+  it("rolls severity and persistence when both flags are true", () => {
+    // Subtype roll: 2D=4 → B; severity: 2D=7 → major; persistence: 2D=5 → Fluctuating
+    const rng = rngFor2dSequence(4, 7, 5);
+    const result = rollWorldTaints({ atmosphereCode: 7, rollSeverity: true, rollPersistence: true, rng });
+    expect(result.taints[0].code).toBe("B");
+    expect(result.taints[0].severity.code).toBe(4);
+    expect(result.taints[0].persistence).not.toBeNull();
+    expect(result.taints[0].persistence.code).toBe(5);
+  });
+
+  it("accumulates ppoAdjustment for a fresh High Oxygen subtype", () => {
+    // atmo 9 (DM+2): 2D=10 → total 12+ → H; ppo adjustment roll also needed
+    // rngFor2dSequence needs to handle the 1D for ppo adjustment too
+    // Use seqRng to control exact values: die1+die2 for 2D, then die for 1D
+    // 2D=11+DM2=13→H; 1D ppo roll: use fixedRng to produce 1D=3 → +3/10 = +0.3
+    const seq = seqRng(5 / 6, 5 / 6, 2 / 6); // die1=6, die2=6 →2D=12; then 1D: floor(2/6*6)+1=3
+    const result = rollWorldTaints({ atmosphereCode: 9, oxygenPartialPressureBar: 0.3, rng: seq });
+    expect(result.taints[0].code).toBe("H");
+    expect(result.adjustedOxygenPartialPressureBar).not.toBeNull();
+    expect(result.adjustedOxygenPartialPressureBar).toBeGreaterThan(0.3);
+  });
+
+  it("adjustedOxygenPartialPressureBar is null when no oxygen taint occurs", () => {
+    // 2D=5 → G; no ppo adjustment
+    const rng = rngFor2d(5);
+    const result = rollWorldTaints({ atmosphereCode: 7, oxygenPartialPressureBar: 0.21, rng });
+    expect(result.adjustedOxygenPartialPressureBar).toBeNull();
+  });
+
+  it("integrates with identifyMainworldCandidates when includeTaintDetails is true", () => {
+    const slots = [
+      {
+        slotId: "P-1",
+        orbit: 3.3,
+        primaryWorldType: "terrestrialPlanet",
+        sizeCode: "7",
+        sizeValue: 7,
+        secondaryWorldTypes: [],
+      },
+    ];
+    // Force atmo code 4 (tainted): 2D−7+7 = roll of 4 → 4-7+7=4. Use rngFor2d(4)
+    // Then hydro roll, then taint subtype roll
+    // atmo roll: 2D=4 → 4-7+7=4 (tainted). hydro roll: 2D=7 → hyd=7-7+4=4.
+    // taint roll: any roll, but we just verify worldTaints is not null
+    const atmoRng = rngFor2dSequence(4, 7, 5);
+    const result = identifyMainworldCandidates({
+      slots,
+      hzco: 3.3,
+      rollPhysical: true,
+      includeTaintDetails: true,
+      rng: atmoRng,
+    });
+    const c = result.candidates[0];
+    // worldTaints should be non-null only if atmosphereCode is in {2,4,7,9}
+    if (c.atmosphereCode === 2 || c.atmosphereCode === 4 || c.atmosphereCode === 7 || c.atmosphereCode === 9) {
+      expect(c.worldTaints).not.toBeNull();
+      expect(c.worldTaints.subtypeResult).toBeDefined();
+      expect(c.worldTaints.taints).toBeInstanceOf(Array);
+    } else {
+      expect(c.worldTaints).toBeNull();
+    }
+  });
+});
+
+// ── Subtypes: Exotic (A) — Table 35 & Retention ─────────────────────────────
+
+describe("ATMOSPHERIC_GAS_TABLE_35", () => {
+  it("has 24 entries covering all listed gases", () => {
+    expect(ATMOSPHERIC_GAS_TABLE_35).toHaveLength(24);
+  });
+
+  it("first entry is Hydrogen Ion (H-) with relativeAbundance null", () => {
+    const hIon = ATMOSPHERIC_GAS_TABLE_35[0];
+    expect(hIon.code).toBe("H-");
+    expect(hIon.relativeAbundance).toBeNull();
+    expect(hIon.escapeValue).toBe(24.0);
+  });
+
+  it("all non-H- entries have numeric relativeAbundance > 0", () => {
+    const others = ATMOSPHERIC_GAS_TABLE_35.filter((g) => g.code !== "H-");
+    others.forEach((g) => {
+      expect(typeof g.relativeAbundance).toBe("number");
+      expect(g.relativeAbundance).toBeGreaterThan(0);
+    });
+  });
+
+  it("escape values decrease monotonically (heavier gases have lower escape values)", () => {
+    for (let i = 1; i < ATMOSPHERIC_GAS_TABLE_35.length; i++) {
+      expect(ATMOSPHERIC_GAS_TABLE_35[i].escapeValue).toBeLessThanOrEqual(ATMOSPHERIC_GAS_TABLE_35[i - 1].escapeValue);
+    }
+  });
+
+  it("last entry is Sulphuric Acid (H2SO4) with the lowest escape value (0.24)", () => {
+    const last = ATMOSPHERIC_GAS_TABLE_35[ATMOSPHERIC_GAS_TABLE_35.length - 1];
+    expect(last.code).toBe("H2SO4");
+    expect(last.escapeValue).toBe(0.24);
+  });
+});
+
+describe("getGasState", () => {
+  it("returns 'gas' when temperature exceeds boiling point", () => {
+    const h2o = ATMOSPHERIC_GAS_TABLE_35.find((g) => g.code === "H2O");
+    expect(getGasState(h2o, 400)).toBe("gas"); // 400K > boil 373K
+  });
+
+  it("returns 'liquid' when temperature is between melting and boiling point", () => {
+    const h2o = ATMOSPHERIC_GAS_TABLE_35.find((g) => g.code === "H2O");
+    expect(getGasState(h2o, 300)).toBe("liquid"); // 273K < 300K < 373K
+  });
+
+  it("returns 'solid' when temperature is at or below melting point", () => {
+    const h2o = ATMOSPHERIC_GAS_TABLE_35.find((g) => g.code === "H2O");
+    expect(getGasState(h2o, 200)).toBe("solid"); // 200K < melt 273K
+  });
+
+  it("returns 'gas' for nitrogen at room temperature (boil 77K)", () => {
+    const n2 = ATMOSPHERIC_GAS_TABLE_35.find((g) => g.code === "N2");
+    expect(getGasState(n2, 290)).toBe("gas"); // 290K >> 77K
+  });
+
+  it("returns 'liquid' for ammonia at 220K (boil 240K, melt 195K)", () => {
+    const nh3 = ATMOSPHERIC_GAS_TABLE_35.find((g) => g.code === "NH3");
+    expect(getGasState(nh3, 220)).toBe("liquid"); // 195K < 220K < 240K
+  });
+});
+
+describe("checkGasRetention", () => {
+  it("Earth retains CO2 (escape 0.55, limit ~3.45)", () => {
+    expect(checkGasRetention({ massEarth: 1, diameterEarth: 1, temperatureK: 290, gasEscapeValue: 0.55 })).toBe(true);
+  });
+
+  it("Earth retains O2 (escape 0.75)", () => {
+    expect(checkGasRetention({ massEarth: 1, diameterEarth: 1, temperatureK: 290, gasEscapeValue: 0.75 })).toBe(true);
+  });
+
+  it("Earth retains N2 (escape 0.86)", () => {
+    expect(checkGasRetention({ massEarth: 1, diameterEarth: 1, temperatureK: 290, gasEscapeValue: 0.86 })).toBe(true);
+  });
+
+  it("Earth cannot retain H2 (escape 12.00)", () => {
+    expect(checkGasRetention({ massEarth: 1, diameterEarth: 1, temperatureK: 290, gasEscapeValue: 12.0 })).toBe(false);
+  });
+
+  it("Earth cannot retain He (escape 6.00)", () => {
+    expect(checkGasRetention({ massEarth: 1, diameterEarth: 1, temperatureK: 290, gasEscapeValue: 6.0 })).toBe(false);
+  });
+
+  it("desert moon (M=0.045, D=0.41, T=240) cannot retain O2 — limit ~0.457", () => {
+    // 1000 * 0.045 / (0.41 * 240) ≈ 0.457. O2.escape=0.75 > 0.457 → false
+    expect(checkGasRetention({ massEarth: 0.045, diameterEarth: 0.41, temperatureK: 240, gasEscapeValue: 0.75 })).toBe(
+      false,
+    );
+  });
+
+  it("desert moon cannot retain N2 (escape 0.86 > 0.457)", () => {
+    expect(checkGasRetention({ massEarth: 0.045, diameterEarth: 0.41, temperatureK: 240, gasEscapeValue: 0.86 })).toBe(
+      false,
+    );
+  });
+
+  it("desert moon can retain SO2 (escape 0.38 < 0.457)", () => {
+    expect(checkGasRetention({ massEarth: 0.045, diameterEarth: 0.41, temperatureK: 240, gasEscapeValue: 0.38 })).toBe(
+      true,
+    );
+  });
+
+  it("super-earth (M=1.86, D=1.255, T=290) retains CH4 but not He", () => {
+    // limit = 1000*1.86/(1.255*290) ≈ 5.11
+    expect(checkGasRetention({ massEarth: 1.86, diameterEarth: 1.255, temperatureK: 290, gasEscapeValue: 1.5 })).toBe(
+      true,
+    ); // CH4
+    expect(checkGasRetention({ massEarth: 1.86, diameterEarth: 1.255, temperatureK: 290, gasEscapeValue: 6.0 })).toBe(
+      false,
+    ); // He
+  });
+});
+
+describe("getRetainableGases", () => {
+  it("returns gaseous N2 and CO2 for an Earth-like world at 290K", () => {
+    const gases = getRetainableGases({ massEarth: 1, diameterEarth: 1, temperatureK: 290 });
+    const codes = gases.map((g) => g.code);
+    expect(codes).toContain("N2");
+    expect(codes).toContain("CO2");
+  });
+
+  it("does not return H2 or He for Earth (both escape values too high)", () => {
+    const gases = getRetainableGases({ massEarth: 1, diameterEarth: 1, temperatureK: 290 });
+    const codes = gases.map((g) => g.code);
+    expect(codes).not.toContain("H2");
+    expect(codes).not.toContain("He");
+  });
+
+  it("does not return H2O for Earth at 290K (liquid at that temperature)", () => {
+    const gases = getRetainableGases({ massEarth: 1, diameterEarth: 1, temperatureK: 290 });
+    const codes = gases.map((g) => g.code);
+    expect(codes).not.toContain("H2O");
+  });
+
+  it("does not include the H- sentinel entry in any results", () => {
+    const gases = getRetainableGases({ massEarth: 5, diameterEarth: 2, temperatureK: 500 });
+    expect(gases.map((g) => g.code)).not.toContain("H-");
+  });
+
+  it("desert moon (M=0.045, D=0.41, T=240) retains only Cl2 and Kr", () => {
+    // limit ≈ 0.457; only Cl2 (escape 0.34) and Kr (escape 0.29) pass AND are gaseous at 240K
+    const gases = getRetainableGases({ massEarth: 0.045, diameterEarth: 0.41, temperatureK: 240 });
+    expect(gases.map((g) => g.code).sort()).toEqual(["Cl2", "Kr"]);
+  });
+
+  it("returns empty array when world retains nothing (very low mass)", () => {
+    // M=0.001, D=0.1, T=1000 → limit=0.01; no gas has escapeValue < 0.01
+    const gases = getRetainableGases({ massEarth: 0.001, diameterEarth: 0.1, temperatureK: 1000 });
+    expect(gases).toHaveLength(0);
+  });
+});
+
+describe("selectExoticAtmosphereGases", () => {
+  it("returns 3 unique gases (default count) for a gas-rich world", () => {
+    // Earth-like: 13+ retainable gaseous candidates
+    const gases = selectExoticAtmosphereGases({
+      massEarth: 1,
+      diameterEarth: 1,
+      temperatureK: 290,
+      rng: seqRng(0),
+    });
+    expect(gases).toHaveLength(3);
+    const codes = gases.map((g) => g.code);
+    expect(new Set(codes).size).toBe(3); // no duplicates
+  });
+
+  it("all returned gases are entries from ATMOSPHERIC_GAS_TABLE_35", () => {
+    const gases = selectExoticAtmosphereGases({
+      massEarth: 1,
+      diameterEarth: 1,
+      temperatureK: 290,
+      rng: seqRng(0.5),
+    });
+    gases.forEach((g) => {
+      expect(ATMOSPHERIC_GAS_TABLE_35).toContain(g);
+    });
+  });
+
+  it("respects a custom count parameter", () => {
+    const gases = selectExoticAtmosphereGases({
+      massEarth: 1,
+      diameterEarth: 1,
+      temperatureK: 290,
+      count: 5,
+      rng: seqRng(0),
+    });
+    expect(gases).toHaveLength(5);
+    expect(new Set(gases.map((g) => g.code)).size).toBe(5);
+  });
+
+  it("returns only pool-size gases when count exceeds the available pool", () => {
+    // Desert moon has only 2 retainable gaseous gases (Cl2, Kr)
+    const gases = selectExoticAtmosphereGases({
+      massEarth: 0.045,
+      diameterEarth: 0.41,
+      temperatureK: 240,
+      count: 5,
+      rng: seqRng(0),
+    });
+    expect(gases).toHaveLength(2);
+  });
+
+  it("returns empty array when the world retains no gaseous gases", () => {
+    const gases = selectExoticAtmosphereGases({ massEarth: 0.001, diameterEarth: 0.1, temperatureK: 1000 });
+    expect(gases).toHaveLength(0);
+  });
+
+  it("picks CH4, NH3, Ne in order with rng always 0 (first-gas bias)", () => {
+    // seqRng(0) always returns 0 → always picks the first remaining gas
+    // Retainable gaseous pool at T=290 ordered: CH4(113K boil), NH3(240K), Ne(27K), N2...
+    // But pool preserves ATMOSPHERIC_GAS_TABLE_35 order, so first 3 should be CH4, NH3, Ne
+    const gases = selectExoticAtmosphereGases({
+      massEarth: 1,
+      diameterEarth: 1,
+      temperatureK: 290,
+      count: 3,
+      rng: seqRng(0),
+    });
+    expect(gases[0].code).toBe("CH4");
+    expect(gases[1].code).toBe("NH3");
+    expect(gases[2].code).toBe("Ne");
+  });
+});
+
+describe("rollExoticCorrosiveIrritant", () => {
+  it("always returns subtypeCode G and label Gas Mix", () => {
+    const result = rollExoticCorrosiveIrritant({ rng: seqRng(0) });
+    expect(result.subtypeCode).toBe("G");
+    expect(result.label).toBe("Gas Mix");
+  });
+
+  it("has fixed DMs: severityDm=9, persistenceDm=1", () => {
+    const result = rollExoticCorrosiveIrritant({ rng: seqRng(0) });
+    expect(result.severityDm).toBe(9);
+    expect(result.persistenceDm).toBe(1);
+  });
+
+  it("minimum roll (1D=1): severity total=10 → code 7 Long term lethal", () => {
+    // rng()=0/6=0 → floor(0*6)+1=1. Severity: 1+9=10 → code 7. Persistence: 1+1=2 → code 2.
+    const result = rollExoticCorrosiveIrritant({ rng: seqRng(0) });
+    expect(result.severityRoll).toBe(1);
+    expect(result.severityTotal).toBe(10);
+    expect(result.severity.code).toBe(7);
+    expect(result.severity.severity).toBe("Long term lethal");
+    expect(result.persistenceRoll).toBe(1);
+    expect(result.persistenceTotal).toBe(2);
+    expect(result.persistence.code).toBe(2);
+    expect(result.persistence.persistence).toBe("Occasional and brief");
+  });
+
+  it("maximum roll (1D=6): severity total=15 → code 9 Rapidly lethal", () => {
+    // rng()=5/6 → floor(5/6*6)+1=6. Severity: 6+9=15 → code 9. Persistence: 6+1=7 → code 7.
+    const result = rollExoticCorrosiveIrritant({ rng: seqRng(5 / 6) });
+    expect(result.severityRoll).toBe(6);
+    expect(result.severityTotal).toBe(15);
+    expect(result.severity.code).toBe(9);
+    expect(result.severity.severity).toBe("Rapidly lethal");
+    expect(result.persistenceRoll).toBe(6);
+    expect(result.persistenceTotal).toBe(7);
+    expect(result.persistence.code).toBe(7);
+    expect(result.persistence.persistence).toBe("Varying");
+  });
+
+  it("mid roll (1D=3): severity total=12 → code 9; persistence total=4 → code 4 Irregular", () => {
+    // rng()=2/6 → floor(2/6*6)+1=3. Severity: 3+9=12 → Infinity bracket → code 9.
+    // Persistence: 3+1=4 → code 4 Irregular.
+    const result = rollExoticCorrosiveIrritant({ rng: seqRng(2 / 6) });
+    expect(result.severityRoll).toBe(3);
+    expect(result.severity.code).toBe(9);
+    expect(result.persistenceRoll).toBe(3);
+    expect(result.persistenceTotal).toBe(4);
+    expect(result.persistence.code).toBe(4);
+    expect(result.persistence.persistence).toBe("Irregular");
+  });
+
+  it("severity is always in codes 7-9 (Long term lethal to Rapidly lethal)", () => {
+    for (let d = 1; d <= 6; d++) {
+      const r = rollExoticCorrosiveIrritant({ rng: seqRng((d - 1) / 6) });
+      expect(r.severity.code).toBeGreaterThanOrEqual(7);
+      expect(r.severity.code).toBeLessThanOrEqual(9);
+    }
+  });
+
+  it("persistence is always in codes 2-7", () => {
+    for (let d = 1; d <= 6; d++) {
+      const r = rollExoticCorrosiveIrritant({ rng: seqRng((d - 1) / 6) });
+      expect(r.persistence.code).toBeGreaterThanOrEqual(2);
+      expect(r.persistence.code).toBeLessThanOrEqual(7);
+    }
+  });
+});
+
+// ── Subtypes: Corrosive (B) and Insidious (C) — Tables 36–37 ────────────────
+
+describe("CORROSIVE_INSIDIOUS_SUBTYPE_TABLE_36", () => {
+  it("has 14 entries", () => {
+    expect(CORROSIVE_INSIDIOUS_SUBTYPE_TABLE_36).toHaveLength(14);
+  });
+
+  it("first entry is code 1 (Very Thin, ≤50K) with maxTotal 1", () => {
+    const e = CORROSIVE_INSIDIOUS_SUBTYPE_TABLE_36[0];
+    expect(e.code).toBe("1");
+    expect(e.maxTotal).toBe(1);
+    expect(e.hasIrritant).toBe(false);
+    expect(e.temperatureNote).toBe("≤50K");
+  });
+
+  it("last entry is code E (Extremely Dense, 500K+, Irritant) with maxTotal Infinity", () => {
+    const last = CORROSIVE_INSIDIOUS_SUBTYPE_TABLE_36[CORROSIVE_INSIDIOUS_SUBTYPE_TABLE_36.length - 1];
+    expect(last.code).toBe("E");
+    expect(last.maxTotal).toBe(Infinity);
+    expect(last.hasIrritant).toBe(true);
+  });
+
+  it("irritant entries are codes 2, 4, 7, 9, B, E", () => {
+    const irritantCodes = CORROSIVE_INSIDIOUS_SUBTYPE_TABLE_36.filter((e) => e.hasIrritant).map((e) => e.code);
+    expect(irritantCodes).toEqual(["2", "4", "7", "9", "B", "E"]);
+  });
+
+  it("extremely dense entries (C, D, E) all have pressureRangeBar starting at 10", () => {
+    const dense = CORROSIVE_INSIDIOUS_SUBTYPE_TABLE_36.filter((e) => ["C", "D", "E"].includes(e.code));
+    dense.forEach((e) => expect(e.pressureRangeBar[0]).toBe(10.0));
+  });
+});
+
+describe("INSIDIOUS_HAZARD_TABLE_37", () => {
+  it("has 8 entries", () => {
+    expect(INSIDIOUS_HAZARD_TABLE_37).toHaveLength(8);
+  });
+
+  it("lowest bracket (≤4) is Biologic (B)", () => {
+    expect(INSIDIOUS_HAZARD_TABLE_37[0].code).toBe("B");
+    expect(INSIDIOUS_HAZARD_TABLE_37[0].maxTotal).toBe(4);
+  });
+
+  it("highest bracket (Infinity) is Temperature (T)", () => {
+    const last = INSIDIOUS_HAZARD_TABLE_37[INSIDIOUS_HAZARD_TABLE_37.length - 1];
+    expect(last.code).toBe("T");
+    expect(last.maxTotal).toBe(Infinity);
+  });
+});
+
+describe("rollCorrosiveInsidiousSubtype", () => {
+  it("returns code 6 (Standard) for 2D=6, size=7, no other DMs", () => {
+    const result = rollCorrosiveInsidiousSubtype({ sizeValue: 7, rng: rngFor2d(6) });
+    expect(result.roll).toBe(6);
+    expect(result.dm).toBe(0);
+    expect(result.total).toBe(6);
+    expect(result.code).toBe("6");
+    expect(result.label).toBe("Standard");
+    expect(result.hasIrritant).toBe(false);
+    expect(result.pressureRangeBar).toEqual([0.7, 1.49]);
+  });
+
+  it("applies DM-3 for size 2", () => {
+    // 2D=8, DM-3 → total 5 → Thin
+    const result = rollCorrosiveInsidiousSubtype({ sizeValue: 2, rng: rngFor2d(8) });
+    expect(result.dm).toBe(-3);
+    expect(result.total).toBe(5);
+    expect(result.code).toBe("5");
+  });
+
+  it("applies DM-3 for size 4", () => {
+    const result = rollCorrosiveInsidiousSubtype({ sizeValue: 4, rng: rngFor2d(8) });
+    expect(result.dm).toBe(-3);
+  });
+
+  it("applies DM+2 for size 8", () => {
+    // 2D=6, DM+2 → total 8 → Dense
+    const result = rollCorrosiveInsidiousSubtype({ sizeValue: 8, rng: rngFor2d(6) });
+    expect(result.dm).toBe(2);
+    expect(result.total).toBe(8);
+    expect(result.code).toBe("8");
+  });
+
+  it("applies DM+4 when orbit < HZCO-1", () => {
+    // 2D=6, DM+4 → total 10 → Very Dense (A)
+    const result = rollCorrosiveInsidiousSubtype({ sizeValue: 7, orbit: 1.0, hzco: 3.3, rng: rngFor2d(6) });
+    expect(result.dm).toBe(4);
+    expect(result.total).toBe(10);
+    expect(result.code).toBe("A");
+  });
+
+  it("applies DM-2 when orbit > HZCO+2", () => {
+    // 2D=7, DM-2 → total 5 → Thin
+    const result = rollCorrosiveInsidiousSubtype({ sizeValue: 7, orbit: 8.0, hzco: 3.3, rng: rngFor2d(7) });
+    expect(result.dm).toBe(-2);
+    expect(result.total).toBe(5);
+    expect(result.code).toBe("5");
+  });
+
+  it("no orbit DM when orbit is between HZCO-1 and HZCO+2", () => {
+    // orbit=3.3, hzco=3.3 → no DM
+    const result = rollCorrosiveInsidiousSubtype({ sizeValue: 7, orbit: 3.3, hzco: 3.3, rng: rngFor2d(6) });
+    expect(result.dm).toBe(0);
+  });
+
+  it("applies DM+2 when atmosphereCode is C (insidious)", () => {
+    // 2D=6, DM+2 → total 8 → Dense
+    const result = rollCorrosiveInsidiousSubtype({ sizeValue: 7, atmosphereCode: "C", rng: rngFor2d(6) });
+    expect(result.dm).toBe(2);
+    expect(result.code).toBe("8");
+  });
+
+  it("applies DM+4 for runaway greenhouse", () => {
+    // 2D=6, DM+4 → total 10 → Very Dense (A)
+    const result = rollCorrosiveInsidiousSubtype({ sizeValue: 7, wasRunawayGreenhouse: true, rng: rngFor2d(6) });
+    expect(result.dm).toBe(4);
+    expect(result.code).toBe("A");
+  });
+
+  it("stacks multiple DMs correctly (size 8 + orbit inner + insidious)", () => {
+    // DM+2 (size8) + DM+4 (inner) + DM+2 (insidious) = DM+8. 2D=2, total=10 → A
+    const result = rollCorrosiveInsidiousSubtype({
+      sizeValue: 8,
+      orbit: 0.5,
+      hzco: 3.3,
+      atmosphereCode: "C",
+      rng: rngFor2d(2),
+    });
+    expect(result.dm).toBe(8);
+    expect(result.total).toBe(10);
+    expect(result.code).toBe("A");
+  });
+
+  it("clamps total to minimum of 1 (very negative DMs)", () => {
+    // 2D=2, DM-3 (size 4) + DM-2 (outer orbit) = DM-5 → total=-3 → clamps to 1 → code 1
+    const result = rollCorrosiveInsidiousSubtype({
+      sizeValue: 4,
+      orbit: 10.0,
+      hzco: 3.3,
+      rng: rngFor2d(2),
+    });
+    expect(result.total).toBe(1);
+    expect(result.code).toBe("1");
+  });
+
+  it("hasIrritant is true for code 7 (Standard, Irritant)", () => {
+    // 2D=7 + DM0 → code 7
+    const result = rollCorrosiveInsidiousSubtype({ sizeValue: 7, rng: rngFor2d(7) });
+    expect(result.hasIrritant).toBe(true);
+    expect(result.label).toBe("Standard, Irritant");
+  });
+
+  it("code E (Very Dense Irritant, 500K+) is reachable with large DMs", () => {
+    // 2D=12 + DM+8 (size8+inner+insidious) = total 20 → E
+    const result = rollCorrosiveInsidiousSubtype({
+      sizeValue: 8,
+      orbit: 0.5,
+      hzco: 3.3,
+      atmosphereCode: "C",
+      wasRunawayGreenhouse: true,
+      rng: rngFor2d(12),
+    });
+    expect(result.code).toBe("E");
+    expect(result.hasIrritant).toBe(true);
+  });
+});
+
+describe("rollInsidiousHazard", () => {
+  it("returns Biologic (B) for 2D=4, no DM", () => {
+    const result = rollInsidiousHazard({ subtypeCode: "6", rng: rngFor2d(4) });
+    expect(result.roll).toBe(4);
+    expect(result.dm).toBe(0);
+    expect(result.total).toBe(4);
+    expect(result.code).toBe("B");
+    expect(result.hazard).toBe("Biologic");
+    expect(result.hasAutoTemperature).toBe(false);
+    expect(result.additionalHazard).toBeNull();
+  });
+
+  it("returns Radioactivity (R) for 2D=5", () => {
+    const result = rollInsidiousHazard({ subtypeCode: "8", rng: rngFor2d(5) });
+    expect(result.code).toBe("R");
+    expect(result.hazard).toBe("Radioactivity");
+  });
+
+  it("returns Gas Mix (G) for 2D=6", () => {
+    const result = rollInsidiousHazard({ subtypeCode: "6", rng: rngFor2d(6) });
+    expect(result.code).toBe("G");
+  });
+
+  it("returns Temperature (T) for 2D=12, no DM", () => {
+    const result = rollInsidiousHazard({ subtypeCode: "9", rng: rngFor2d(12) });
+    expect(result.code).toBe("T");
+    expect(result.hazard).toBe("Temperature");
+    expect(result.hasAutoTemperature).toBe(false);
+  });
+
+  it("applies DM+2 for extremely dense subtype C", () => {
+    // 2D=6, DM+2 → total 8 → Temperature
+    const result = rollInsidiousHazard({ subtypeCode: "C", rng: rngFor2d(6) });
+    expect(result.dm).toBe(2);
+    expect(result.total).toBe(8);
+    expect(result.code).toBe("T");
+    expect(result.hasAutoTemperature).toBe(false); // C subtype — auto-temp only for D/E
+  });
+
+  it("applies DM+2 for extremely dense subtype D", () => {
+    const result = rollInsidiousHazard({ subtypeCode: "D", rng: rngFor2d(6) });
+    expect(result.dm).toBe(2);
+  });
+
+  it("subtype D always returns code T with hasAutoTemperature true", () => {
+    // 2D=5, DM+2 → total 7 → G normally, but D forces auto-T; G becomes additionalHazard
+    const result = rollInsidiousHazard({ subtypeCode: "D", rng: rngFor2dSequence(5, 5) });
+    expect(result.code).toBe("T");
+    expect(result.hasAutoTemperature).toBe(true);
+    expect(result.additionalHazard).not.toBeNull();
+    expect(result.additionalHazard.code).toBe("G");
+  });
+
+  it("subtype E always returns code T with hasAutoTemperature true", () => {
+    const result = rollInsidiousHazard({ subtypeCode: "E", rng: rngFor2dSequence(5, 5) });
+    expect(result.code).toBe("T");
+    expect(result.hasAutoTemperature).toBe(true);
+    expect(result.additionalHazard).not.toBeNull();
+  });
+
+  it("re-rolls additional hazard for D/E when first rolled result is also T", () => {
+    // Roll1=12 → T (entry); subtype D forces automatic T so re-roll for additional hazard.
+    // Re-Roll2=5, DM+2 → total 7 → G (Gas Mix).
+    const result = rollInsidiousHazard({ subtypeCode: "D", rng: rngFor2dSequence(12, 5) });
+    expect(result.hasAutoTemperature).toBe(true);
+    expect(result.additionalHazard.code).toBe("G");
+  });
+
+  it("subtype D/E additional hazard is never T (always re-rolled)", () => {
+    // Exhaustive: 6 possible die totals for 2D (actually 2-12). Use deterministic rolls.
+    // We trust the implementation re-rolls; just check many seeded results.
+    for (let roll = 2; roll <= 12; roll++) {
+      const result = rollInsidiousHazard({ subtypeCode: "D", rng: rngFor2dSequence(roll, 5) });
+      expect(result.additionalHazard.code).not.toBe("T");
+    }
+  });
+});
+
+// ── Subtype: Low (E) ────────────────────────────────────────────────────────
+
+describe("calculateLowAtmosphereBadRatio", () => {
+  it("computes ratio = 0.1 / ppo (standard limit)", () => {
+    const r = calculateLowAtmosphereBadRatio({ ppo: 0.05 });
+    expect(r.lowBadRatio).toBeCloseTo(2.0, 5);
+    expect(r.limit).toBe(0.1);
+    expect(r.ppo).toBe(0.05);
+  });
+
+  it("computes ratio = 0.08 / ppo for extreme limit", () => {
+    const r = calculateLowAtmosphereBadRatio({ ppo: 0.05, useExtremeLimit: true });
+    expect(r.lowBadRatio).toBeCloseTo(1.6, 5);
+    expect(r.limit).toBe(0.08);
+  });
+
+  it("ratio is > 1 when ppo < 0.1 (required condition)", () => {
+    const r = calculateLowAtmosphereBadRatio({ ppo: 0.02 });
+    expect(r.lowBadRatio).toBeGreaterThan(1);
+    expect(r.lowBadRatio).toBeCloseTo(5.0, 5);
+  });
+
+  it("returns Infinity for ppo = 0", () => {
+    const r = calculateLowAtmosphereBadRatio({ ppo: 0 });
+    expect(r.lowBadRatio).toBe(Infinity);
+  });
+});
+
+describe("calculateLowAtmosphereSafeAltitudeKm", () => {
+  it("calculates safe depth: ln(2.0) × 8.5 ≈ 5.89 km for ppo=0.05, H=8.5", () => {
+    const r = calculateLowAtmosphereSafeAltitudeKm({ ppo: 0.05, scaleHeightKm: 8.5 });
+    expect(r.safeDepthBelowBaselineKm).toBeCloseTo(Math.log(2.0) * 8.5, 4);
+    expect(r.lowBadRatio).toBeCloseTo(2.0, 5);
+  });
+
+  it("safe depth is positive (going down means more pressure)", () => {
+    const r = calculateLowAtmosphereSafeAltitudeKm({ ppo: 0.04, scaleHeightKm: 6.0 });
+    expect(r.safeDepthBelowBaselineKm).toBeGreaterThan(0);
+  });
+
+  it("detects nitrogen narcosis risk when lowBadRatio × nitrogenPpo > 2.0", () => {
+    // ppo=0.02 → lowBadRatio=5.0; nitrogenPpo=0.6 → 5.0×0.6=3.0 > 2.0
+    const r = calculateLowAtmosphereSafeAltitudeKm({
+      ppo: 0.02,
+      scaleHeightKm: 8.5,
+      nitrogenPpo: 0.6,
+    });
+    expect(r.nitrogenPressureAtSafeDepthBar).toBeCloseTo(3.0, 5);
+    expect(r.hasNitrogenNarcosisRisk).toBe(true);
+    expect(r.hasNoSafeAltitude).toBe(true);
+  });
+
+  it("no narcosis risk when nitrogenPpo is low", () => {
+    // ppo=0.05 → lowBadRatio=2.0; nitrogenPpo=0.3 → 2.0×0.3=0.6 < 2.0
+    const r = calculateLowAtmosphereSafeAltitudeKm({
+      ppo: 0.05,
+      scaleHeightKm: 8.5,
+      nitrogenPpo: 0.3,
+    });
+    expect(r.nitrogenPressureAtSafeDepthBar).toBeCloseTo(0.6, 5);
+    expect(r.hasNitrogenNarcosisRisk).toBe(false);
+    expect(r.hasNoSafeAltitude).toBe(false);
+  });
+
+  it("returns null for safeDepthBelowBaselineKm when scaleHeightKm is not provided", () => {
+    const r = calculateLowAtmosphereSafeAltitudeKm({ ppo: 0.05 });
+    expect(r.safeDepthBelowBaselineKm).toBeNull();
+  });
+
+  it("returns null nitrogenPressureAtSafeDepthBar when nitrogenPpo is omitted", () => {
+    const r = calculateLowAtmosphereSafeAltitudeKm({ ppo: 0.05, scaleHeightKm: 8.5 });
+    expect(r.nitrogenPressureAtSafeDepthBar).toBeNull();
+    expect(r.hasNitrogenNarcosisRisk).toBe(false);
+  });
+
+  it("extreme limit changes safe depth (smaller ratio → shallower depth)", () => {
+    const standard = calculateLowAtmosphereSafeAltitudeKm({ ppo: 0.05, scaleHeightKm: 8.5 });
+    const extreme = calculateLowAtmosphereSafeAltitudeKm({
+      ppo: 0.05,
+      scaleHeightKm: 8.5,
+      useExtremeLimit: true,
+    });
+    expect(extreme.safeDepthBelowBaselineKm).toBeLessThan(standard.safeDepthBelowBaselineKm);
+  });
+});
+
+describe("rollLowAtmosphereTaint", () => {
+  it("roll of 3 → no taint", () => {
+    // 1D=3: rng()=2/6
+    const r = rollLowAtmosphereTaint({ rng: () => 2 / 6 });
+    expect(r.roll).toBe(3);
+    expect(r.hasTaint).toBe(false);
+  });
+
+  it("roll of 4 → taint", () => {
+    const r = rollLowAtmosphereTaint({ rng: () => 3 / 6 });
+    expect(r.roll).toBe(4);
+    expect(r.hasTaint).toBe(true);
+  });
+
+  it("roll of 6 → taint", () => {
+    const r = rollLowAtmosphereTaint({ rng: () => 5 / 6 });
+    expect(r.roll).toBe(6);
+    expect(r.hasTaint).toBe(true);
+  });
+
+  it("roll of 1 → no taint", () => {
+    const r = rollLowAtmosphereTaint({ rng: () => 0 });
+    expect(r.roll).toBe(1);
+    expect(r.hasTaint).toBe(false);
+  });
+});
+
+// ── Subtype: Unusual (F) ─────────────────────────────────────────────────────
+
+describe("UNUSUAL_ATMOSPHERE_SUBTYPE_TABLE_38", () => {
+  it("has 12 entries", () => {
+    expect(UNUSUAL_ATMOSPHERE_SUBTYPE_TABLE_38).toHaveLength(12);
+  });
+
+  it("first entry d26=11, code '1', Dense Extreme, no prerequisites", () => {
+    const e = UNUSUAL_ATMOSPHERE_SUBTYPE_TABLE_38[0];
+    expect(e.d26).toBe(11);
+    expect(e.code).toBe("1");
+    expect(e.subtype).toBe("Dense, Extreme");
+    expect(e.prerequisites).toBeNull();
+  });
+
+  it("last entry d26=26, code 'F', Other, no prerequisites", () => {
+    const last = UNUSUAL_ATMOSPHERE_SUBTYPE_TABLE_38[UNUSUAL_ATMOSPHERE_SUBTYPE_TABLE_38.length - 1];
+    expect(last.d26).toBe(26);
+    expect(last.code).toBe("F");
+  });
+
+  it("d26=25 (Combination) has null code", () => {
+    const combo = UNUSUAL_ATMOSPHERE_SUBTYPE_TABLE_38.find((e) => e.d26 === 25);
+    expect(combo.code).toBeNull();
+    expect(combo.subtype).toBe("Combination");
+  });
+
+  it("entries with prerequisites are codes 6 (Layered), 7 (Panthalassic), 8 (Steam)", () => {
+    const withPrereqs = UNUSUAL_ATMOSPHERE_SUBTYPE_TABLE_38.filter((e) => e.prerequisites !== null).map((e) => e.code);
+    expect(withPrereqs).toEqual(["6", "7", "8"]);
+  });
+
+  it("d26 values cover 11–16 and 21–26 (no 17+ or 20)", () => {
+    const d26s = UNUSUAL_ATMOSPHERE_SUBTYPE_TABLE_38.map((e) => e.d26);
+    expect(d26s).toEqual([11, 12, 13, 14, 15, 16, 21, 22, 23, 24, 25, 26]);
+  });
+});
+
+describe("rollD26", () => {
+  it("d2=1, d6=1 → result=11", () => {
+    const r = rollD26(rngForD26(1, 1));
+    expect(r.d2).toBe(1);
+    expect(r.d6).toBe(1);
+    expect(r.result).toBe(11);
+  });
+
+  it("d2=1, d6=6 → result=16", () => {
+    const r = rollD26(rngForD26(1, 6));
+    expect(r.result).toBe(16);
+  });
+
+  it("d2=2, d6=1 → result=21", () => {
+    const r = rollD26(rngForD26(2, 1));
+    expect(r.d2).toBe(2);
+    expect(r.result).toBe(21);
+  });
+
+  it("d2=2, d6=6 → result=26", () => {
+    const r = rollD26(rngForD26(2, 6));
+    expect(r.result).toBe(26);
+  });
+});
+
+describe("rollUnusualAtmosphereSubtype", () => {
+  it("d26=11 → code '1', Dense Extreme", () => {
+    const r = rollUnusualAtmosphereSubtype({ rng: rngForD26(1, 1) });
+    expect(r.roll).toBe(11);
+    expect(r.entry.code).toBe("1");
+    expect(r.entry.subtype).toBe("Dense, Extreme");
+  });
+
+  it("d26=22 → code '8', Steam", () => {
+    const r = rollUnusualAtmosphereSubtype({ rng: rngForD26(2, 2) });
+    expect(r.roll).toBe(22);
+    expect(r.entry.code).toBe("8");
+    expect(r.entry.subtype).toBe("Steam");
+  });
+
+  it("d26=16 → code '6', Layered", () => {
+    const r = rollUnusualAtmosphereSubtype({ rng: rngForD26(1, 6) });
+    expect(r.roll).toBe(16);
+    expect(r.entry.code).toBe("6");
+    expect(r.entry.prerequisites).not.toBeNull();
+  });
+
+  it("d26=26 → code 'F', Other", () => {
+    const r = rollUnusualAtmosphereSubtype({ rng: rngForD26(2, 6) });
+    expect(r.roll).toBe(26);
+    expect(r.entry.code).toBe("F");
+  });
+
+  it("d26=25 → Combination (null code)", () => {
+    const r = rollUnusualAtmosphereSubtype({ rng: rngForD26(2, 5) });
+    expect(r.roll).toBe(25);
+    expect(r.entry.code).toBeNull();
+  });
+});
+
+describe("formatUnusualAtmosphereProfile", () => {
+  it("single subtype: 'F-St1'", () => {
+    expect(formatUnusualAtmosphereProfile({ pressureShorthand: "St", subtypeCodes: ["1"] })).toBe("F-St1");
+  });
+
+  it("two subtypes: 'F-St1.7'", () => {
+    expect(formatUnusualAtmosphereProfile({ pressureShorthand: "St", subtypeCodes: ["1", "7"] })).toBe("F-St1.7");
+  });
+
+  it("no subtypes → 'F-St'", () => {
+    expect(formatUnusualAtmosphereProfile({ pressureShorthand: "St", subtypeCodes: [] })).toBe("F-St");
+  });
+
+  it("no pressure shorthand → 'F-1.7'", () => {
+    expect(formatUnusualAtmosphereProfile({ pressureShorthand: "", subtypeCodes: ["1", "7"] })).toBe("F-1.7");
+  });
+
+  it("defaults produce 'F-'", () => {
+    expect(formatUnusualAtmosphereProfile()).toBe("F-");
+  });
+});
+
+// ── Non-Habitable Zone Atmospheres ───────────────────────────────────────────
+
+describe("calculateEffectiveOrbitDeviationFromHzco", () => {
+  it("uses normal orbit math when HZCO is 1.0 or greater", () => {
+    expect(calculateEffectiveOrbitDeviationFromHzco({ orbit: 4.5, hzco: 3.0 })).toBe(1.5);
+    expect(calculateEffectiveOrbitDeviationFromHzco({ orbit: 0.8, hzco: 3.0 })).toBe(-2.2);
+  });
+
+  it("uses tenths between HZCO and Orbit 1.0 when HZCO is below 1.0", () => {
+    expect(calculateEffectiveOrbitDeviationFromHzco({ orbit: 0.9, hzco: 0.75 })).toBe(1.5);
+    expect(calculateEffectiveOrbitDeviationFromHzco({ orbit: 0.5, hzco: 0.75 })).toBe(-2.5);
+  });
+
+  it("matches the example crossing Orbit 1.0: HZCO 0.75 to Orbit 2.9 => 4.4", () => {
+    expect(calculateEffectiveOrbitDeviationFromHzco({ orbit: 2.9, hzco: 0.75 })).toBe(4.4);
+  });
+});
+
+describe("Hot/Cold non-habitable atmosphere tables", () => {
+  it("Table 39 has 18 rows including 0- and 17+", () => {
+    expect(HOT_ATMOSPHERE_TABLE_39).toHaveLength(18);
+    expect(HOT_ATMOSPHERE_TABLE_39[0].maxTotal).toBe(0);
+    expect(HOT_ATMOSPHERE_TABLE_39[HOT_ATMOSPHERE_TABLE_39.length - 1].maxTotal).toBe(Infinity);
+  });
+
+  it("Table 40 includes Trace, No change, Corrosive, and Insidious outcomes", () => {
+    expect(SPECIAL_HOT_ATMOSPHERE_TABLE_40.map((entry) => entry.result)).toEqual([
+      "Trace",
+      "No change",
+      "Corrosive",
+      "Insidious",
+    ]);
+  });
+
+  it("Table 41 has 18 rows including 0- and 17+", () => {
+    expect(COLD_ATMOSPHERE_TABLE_41).toHaveLength(18);
+    expect(COLD_ATMOSPHERE_TABLE_41[0].maxTotal).toBe(0);
+    expect(COLD_ATMOSPHERE_TABLE_41[COLD_ATMOSPHERE_TABLE_41.length - 1].maxTotal).toBe(Infinity);
+  });
+});
+
+describe("rollNonHabitableZoneAtmosphere", () => {
+  it("returns habitable sentinel result when deviation is inside +/-1.0", () => {
+    const result = rollNonHabitableZoneAtmosphere({ sizeValue: 7, orbit: 3.2, hzco: 3.0, rng: rngFor2d(7) });
+    expect(result.zone).toBe("habitable");
+    expect(result.roll).toBeNull();
+    expect(result.atmosphereCode).toBeNull();
+  });
+
+  it("matches the hot-world example: size 11, roll 5, deviation <= -2.01 => Corrosive (B)", () => {
+    const result = rollNonHabitableZoneAtmosphere({ sizeValue: 11, orbit: 1.0, hzco: 3.3, rng: rngFor2d(5) });
+    expect(result.zone).toBe("hot");
+    expect(result.tableId).toBe(39);
+    expect(result.total).toBe(9);
+    expect(result.atmosphereCode).toBe("B");
+    expect(result.label).toBe("Corrosive (B)");
+  });
+
+  it("matches the cold-world example: HZCO 0.75, Orbit 2.9, size 4, roll 10 => Exotic Standard Irritant", () => {
+    const result = rollNonHabitableZoneAtmosphere({ sizeValue: 4, orbit: 2.9, hzco: 0.75, rng: rngFor2d(10) });
+    expect(result.zone).toBe("cold");
+    expect(result.tableId).toBe(41);
+    expect(result.effectiveDeviation).toBe(4.4);
+    expect(result.total).toBe(7);
+    expect(result.atmosphereCode).toBe("A");
+    expect(result.subtypeCode).toBe("7");
+    expect(result.hasIrritant).toBe(true);
+  });
+
+  it("applies 4+ irritant roll to starred exotic results", () => {
+    const rng = seqRng(0.5, 2 / 6, 3 / 6);
+    const result = rollNonHabitableZoneAtmosphere({ sizeValue: 10, orbit: 5.5, hzco: 3.0, rng });
+    expect(result.total).toBe(10);
+    expect(result.irritantRoll).toBe(4);
+    expect(result.irritantAdded).toBe(true);
+    expect(result.subtypeCode).toBe("B");
+    expect(result.hasIrritant).toBe(true);
+  });
+
+  it("applies the special hot reroll at HZCO -3.0 or less and can change Dense to Insidious", () => {
+    const rng = seqRng(0.5, 2 / 6, 0, 4 / 6);
+    const result = rollNonHabitableZoneAtmosphere({ sizeValue: 7, orbit: 0.0, hzco: 3.5, rng });
+    expect(result.zone).toBe("hot");
+    expect(result.total).toBe(7);
+    expect(result.baseOutcome.subtypeCode).toBe("8");
+    expect(result.specialRoll.dm).toBe(1);
+    expect(result.specialRoll.result).toBe("Insidious");
+    expect(result.atmosphereCode).toBe("C");
+  });
+
+  it("special hot reroll can return No change", () => {
+    const rng = seqRng(0.5, 2 / 6, 0, 0);
+    const result = rollNonHabitableZoneAtmosphere({ sizeValue: 7, orbit: 0.0, hzco: 3.5, rng });
+    expect(result.specialRoll.result).toBe("No change");
+    expect(result.atmosphereCode).toBe("A");
+    expect(result.subtypeCode).toBe("8");
+  });
+});
+
+describe("NON_HABITABLE_ATMOSPHERE_GAS_MIX_TABLES", () => {
+  it("contains tables 42 through 48", () => {
+    expect(Object.keys(NON_HABITABLE_ATMOSPHERE_GAS_MIX_TABLES)).toEqual(["42", "43", "44", "45", "46", "47", "48"]);
+  });
+
+  it("table 42 includes <= -2 row and 13+ row", () => {
+    expect(NON_HABITABLE_ATMOSPHERE_GAS_MIX_TABLES[42].rows[0].maxTotal).toBe(-2);
+    expect(
+      NON_HABITABLE_ATMOSPHERE_GAS_MIX_TABLES[42].rows[NON_HABITABLE_ATMOSPHERE_GAS_MIX_TABLES[42].rows.length - 1]
+        .maxTotal,
+    ).toBe(Infinity);
+  });
+});
+
+describe("selectNonHabitableAtmosphereGasMixTable", () => {
+  it("selects table 42 for 453K+", () => {
+    expect(selectNonHabitableAtmosphereGasMixTable({ meanTemperatureK: 500 }).id).toBe(42);
+  });
+
+  it("selects table 45 for 273K to 303K", () => {
+    expect(selectNonHabitableAtmosphereGasMixTable({ meanTemperatureK: 290 }).id).toBe(45);
+  });
+
+  it("selects table 48 below 123K", () => {
+    expect(selectNonHabitableAtmosphereGasMixTable({ meanTemperatureK: 100 }).id).toBe(48);
+  });
+});
+
+describe("calculateNonHabitableAtmosphereGasMixDm", () => {
+  it("applies table 42 temperature and size modifiers", () => {
+    expect(calculateNonHabitableAtmosphereGasMixDm({ tableId: 42, meanTemperatureK: 800, sizeValue: 10 })).toBe(-1);
+  });
+
+  it("table 45 has no built-in DM modifiers", () => {
+    expect(calculateNonHabitableAtmosphereGasMixDm({ tableId: 45, meanTemperatureK: 290, sizeValue: 10 })).toBe(0);
+  });
+
+  it("applies table 48 extreme-cold and size modifiers", () => {
+    expect(calculateNonHabitableAtmosphereGasMixDm({ tableId: 48, meanTemperatureK: 60, sizeValue: 4 })).toBe(2);
+  });
+});
+
+describe("rollNonHabitableAtmosphereGas", () => {
+  it("matches the example pattern: table 42, corrosive, size A+, 2D 10 => Ammonia", () => {
+    const result = rollNonHabitableAtmosphereGas({
+      meanTemperatureK: 500,
+      atmosphereCode: "B",
+      sizeValue: 10,
+      hydrographicsCode: 0,
+      hasWater: false,
+      rng: rngFor2d(10),
+    });
+    expect(result.tableId).toBe(42);
+    expect(result.dm).toBe(1);
+    expect(result.total).toBe(11);
+    expect(result.gas).toBe("Ammonia");
+  });
+
+  it("resolves Carbon Monoxide* to Carbon Dioxide on water worlds for temperate tables", () => {
+    const result = rollNonHabitableAtmosphereGas({
+      meanTemperatureK: 290,
+      atmosphereCode: "A",
+      sizeValue: 7,
+      hydrographicsCode: 5,
+      hasWater: true,
+      rng: rngFor2d(5),
+    });
+    expect(result.tableId).toBe(45);
+    expect(result.rawGas).toBe("Carbon Monoxide*");
+    expect(result.gas).toBe("Carbon Dioxide");
+  });
+
+  it("keeps Carbon Monoxide on dry worlds", () => {
+    const result = rollNonHabitableAtmosphereGas({
+      meanTemperatureK: 290,
+      atmosphereCode: "A",
+      sizeValue: 7,
+      hydrographicsCode: 0,
+      hasWater: false,
+      rng: rngFor2d(5),
+    });
+    expect(result.gas).toBe("Carbon Monoxide");
+  });
+
+  it("resolves Carbon Monoxide* to Nitrogen on frozen water worlds", () => {
+    const result = rollNonHabitableAtmosphereGas({
+      meanTemperatureK: 180,
+      atmosphereCode: "A",
+      sizeValue: 7,
+      hydrographicsCode: 8,
+      hasWater: true,
+      rng: rngFor2d(8),
+    });
+    expect(result.tableId).toBe(47);
+    expect(result.rawGas).toBe("Carbon Monoxide*");
+    expect(result.gas).toBe("Nitrogen");
+  });
+
+  it("returns null for unsupported atmosphere codes", () => {
+    expect(rollNonHabitableAtmosphereGas({ meanTemperatureK: 290, atmosphereCode: "G", rng: rngFor2d(7) })).toBeNull();
+  });
+});
+
+describe("rollNonHabitableAtmosphereGasMixes", () => {
+  it("rolls at least twice by default", () => {
+    const results = rollNonHabitableAtmosphereGasMixes({
+      meanTemperatureK: 290,
+      atmosphereCode: "A",
+      sizeValue: 7,
+      hydrographicsCode: 5,
+      hasWater: true,
+      rng: rngFor2dSequence(7, 7),
+    });
+    expect(results).toHaveLength(2);
+  });
+
+  it("supports arbitrary counts", () => {
+    const results = rollNonHabitableAtmosphereGasMixes({
+      count: 3,
+      meanTemperatureK: 290,
+      atmosphereCode: "A",
+      sizeValue: 7,
+      hydrographicsCode: 5,
+      hasWater: true,
+      rng: rngFor2dSequence(7, 7, 3),
+    });
+    expect(results).toHaveLength(3);
+  });
+});
+
+describe("rollWorldAtmosphereForOrbit", () => {
+  it("uses the habitable-zone roller when inside the HZ band", () => {
+    const result = rollWorldAtmosphereForOrbit({ sizeValue: 5, orbit: 3.1, hzco: 3.3, rng: rngFor2d(8) });
+    expect(result.method).toBe("habitable-zone");
+    expect(result.roll).toBe(8);
+    expect(result.atmosphereCode).toBe(6);
+    expect(result.nonHabitableZoneAtmosphere).toBeNull();
+  });
+
+  it("uses the non-habitable hot table outside the inner HZ boundary", () => {
+    const result = rollWorldAtmosphereForOrbit({ sizeValue: 11, orbit: 1.0, hzco: 3.3, rng: rngFor2d(5) });
+    expect(result.method).toBe("non-habitable-zone");
+    expect(result.zone).toBe("hot");
+    expect(result.atmosphereCode).toBe("B");
+    expect(result.nonHabitableZoneAtmosphere.total).toBe(9);
+  });
+
+  it("uses the non-habitable cold table outside the outer HZ boundary", () => {
+    const result = rollWorldAtmosphereForOrbit({ sizeValue: 4, orbit: 2.9, hzco: 0.75, rng: rngFor2d(10) });
+    expect(result.method).toBe("non-habitable-zone");
+    expect(result.zone).toBe("cold");
+    expect(result.atmosphereCode).toBe("A");
+    expect(result.nonHabitableZoneAtmosphere.subtypeCode).toBe("7");
+  });
+});
+
+describe("ATMOSPHERE_GAS_SYMBOLS / formatAtmosphereGasSymbol", () => {
+  it("maps known gas names to compact symbols", () => {
+    expect(ATMOSPHERE_GAS_SYMBOLS["Carbon Dioxide"]).toBe("CO2");
+    expect(formatAtmosphereGasSymbol("Ammonia")).toBe("NH3");
+    expect(formatAtmosphereGasSymbol("Water Vapour")).toBe("H2O");
+  });
+
+  it("falls back to the original name for unknown gases", () => {
+    expect(formatAtmosphereGasSymbol("Xenotime Mist")).toBe("Xenotime Mist");
+  });
+});
+
+describe("allocateAtmosphereGasMixPercentages", () => {
+  it("allocates shares of the remaining atmosphere and merges duplicate gases", () => {
+    const result = allocateAtmosphereGasMixPercentages({
+      gasResults: [{ gas: "Ammonia" }, { gas: "Carbon Dioxide" }, { gas: "Carbon Dioxide" }],
+      precision: 1,
+      rng: seqRng(0, (2 - 1) / 10, (2 - 1) / 6, (10 - 1) / 10, (3 - 1) / 6, (8 - 1) / 10),
+    });
+
+    expect(result.components).toEqual([
+      { gas: "Carbon Dioxide", symbol: "CO2", percent: 48 },
+      { gas: "Ammonia", symbol: "NH3", percent: 47 },
+    ]);
+    expect(result.accountedPercent).toBe(95);
+    expect(result.remainingPercent).toBe(5);
+  });
+
+  it("uses the reduced base share when disallowHundredPercent is enabled", () => {
+    const result = allocateAtmosphereGasMixPercentages({
+      gasResults: [{ gas: "Nitrogen" }],
+      disallowHundredPercent: true,
+      applyVariance: false,
+      precision: 0,
+      rng: () => 0,
+    });
+    expect(result.components[0].percent).toBe(40);
+  });
+
+  it("stops early once the threshold is reached", () => {
+    const result = allocateAtmosphereGasMixPercentages({
+      gasResults: [{ gas: "Nitrogen" }, { gas: "Nitrogen" }, { gas: "Argon" }],
+      precision: 0,
+      rng: seqRng((4 - 1) / 6, (5 - 1) / 10, (4 - 1) / 6, (5 - 1) / 10, 0, 0),
+    });
+    expect(result.accountedPercent).toBeGreaterThanOrEqual(95);
+    expect(result.allocations.length).toBe(2);
+  });
+});
+
+describe("formatAtmosphereGasMixProfile", () => {
+  it("formats a profile like the example gas-mix shorthand", () => {
+    const profile = formatAtmosphereGasMixProfile({
+      atmosphereCode: "B",
+      pressureShorthand: "St",
+      subtypeCode: "D",
+      components: [
+        { gas: "Carbon Dioxide", percent: 48 },
+        { gas: "Ammonia", percent: 47 },
+        { gas: "Water Vapour", percent: 3 },
+      ],
+      precision: 0,
+    });
+
+    expect(profile).toBe("B-StD:CO2-48:NH3-47:H2O-03");
+  });
+
+  it("supports fractional percentages", () => {
+    const profile = formatAtmosphereGasMixProfile({
+      atmosphereCode: "A",
+      pressureShorthand: "St",
+      subtypeCode: "7",
+      components: [
+        { gas: "Nitrogen", percent: 96 },
+        { gas: "Argon", percent: 3.8 },
+      ],
+      precision: 1,
+    });
+
+    expect(profile).toBe("A-St7:N2-96.0:Ar-3.8");
   });
 });
 
@@ -4536,5 +7910,1101 @@ describe("formatWorldSizeProfile", () => {
   it("handles missing sizeCode", () => {
     const profile = formatWorldSizeProfile({ diameterKm: 12742, density: 1.0, gravity: 1.0, mass: 1.0 });
     expect(profile.startsWith("?-")).toBe(true);
+  });
+});
+
+describe("rollBaseRotationRateHours", () => {
+  it("uses multiplier 4 for standard worlds", () => {
+    // 2D=7 (d1=4, d2=3), 1D=4, age=0 → (7-2)*4 + 2 + 4 = 26
+    const rng = seqRng(3 / 6, 2 / 6, 3 / 6);
+    const result = rollBaseRotationRateHours({ rng });
+    expect(result.roll2d).toBe(7);
+    expect(result.roll1d).toBe(4);
+    expect(result.multiplier).toBe(4);
+    expect(result.ageDm).toBe(0);
+    expect(result.hours).toBe(26);
+  });
+
+  it("uses multiplier 2 for small bodies and gas giants", () => {
+    // 2D=7 (d1=4, d2=3), 1D=4, age=0 → (7-2)*2 + 2 + 4 = 16
+    const rng = seqRng(3 / 6, 2 / 6, 3 / 6);
+    const result = rollBaseRotationRateHours({ isSmallOrGasGiant: true, rng });
+    expect(result.multiplier).toBe(2);
+    expect(result.hours).toBe(16);
+  });
+
+  it("applies age DM (+1 per 2 Gyr)", () => {
+    // age=6 Gyr → ageDm=3; 2D=7, 1D=4 → same base + 3 = 29
+    const rng = seqRng(3 / 6, 2 / 6, 3 / 6);
+    const result = rollBaseRotationRateHours({ systemAgeGyr: 6, rng });
+    expect(result.ageDm).toBe(3);
+    expect(result.hours).toBe(29);
+  });
+
+  it("matches the Zed Prime example: 2D=11, 1D=1, DM+3 → 42 hours", () => {
+    // (11-2)*4 + 2 + 1 + 3 = 36 + 2 + 1 + 3 = 42
+    const rng = seqRng(5 / 6, 4 / 6, 0);
+    const result = rollBaseRotationRateHours({ systemAgeGyr: 6, rng });
+    expect(result.roll2d).toBe(11);
+    expect(result.roll1d).toBe(1);
+    expect(result.hours).toBe(42);
+  });
+
+  it("produces minimum 3 hours on lowest possible rolls", () => {
+    // 2D=2 (d1=1, d2=1), 1D=1, age=0 → (2-2)*4 + 2 + 1 = 3
+    const rng = seqRng(0, 0, 0);
+    const result = rollBaseRotationRateHours({ rng });
+    expect(result.hours).toBe(3);
+  });
+});
+
+describe("rollWorldRotationPeriodHours", () => {
+  it("returns the base roll directly when result is < 40 (no extension)", () => {
+    // 2D=7, 1D=4 → 26 < 40: no continuation roll needed
+    const rng = seqRng(3 / 6, 2 / 6, 3 / 6);
+    const result = rollWorldRotationPeriodHours({ rng });
+    expect(result.siderealDayHours).toBe(26);
+    expect(result.extended).toBe(false);
+    expect(result.continuationRolls).toHaveLength(0);
+  });
+
+  it("rolls 1D continuation when base ≥ 40 and stops on result < 5 (Zed Prime DM+3)", () => {
+    // Base: 2D=11, 1D=1, age=6 → 42. Continuation 1D=4 (< 5 → stop)
+    const rng = seqRng(5 / 6, 4 / 6, 0, 3 / 6);
+    const result = rollWorldRotationPeriodHours({ systemAgeGyr: 6, rng });
+    expect(result.siderealDayHours).toBe(42);
+    expect(result.extended).toBe(false);
+    expect(result.continuationRolls).toEqual([4]);
+    expect(result.rolls).toHaveLength(1);
+  });
+
+  it("extends when 1D continuation is 5 or 6", () => {
+    // Base: 2D=12, 1D=6 → 48; continuation 1D=5 → extend
+    // Second base: 2D=7, 1D=4 → 26; continuation 1D=3 → stop
+    // Total = 74
+    const rng = seqRng(5 / 6, 5 / 6, 5 / 6, 4 / 6, 3 / 6, 2 / 6, 3 / 6, 2 / 6);
+    const result = rollWorldRotationPeriodHours({ rng });
+    expect(result.siderealDayHours).toBe(74);
+    expect(result.extended).toBe(true);
+    expect(result.rolls).toHaveLength(2);
+    expect(result.continuationRolls).toEqual([5, 3]);
+  });
+});
+
+describe("rollRotationPeriodPrecision", () => {
+  it("produces 22m 15s from the Zed Prime precision example", () => {
+    // minutesTens: 1D-1=2 (roll=3, rng=2/6); minutesOnes: d10=2 (rng=1/10)
+    // secondsTens: 1D-1=1 (roll=2, rng=1/6); secondsOnes: d10=5 (rng=4/10)
+    const rng = seqRng(2 / 6, 1 / 10, 1 / 6, 4 / 10);
+    const result = rollRotationPeriodPrecision({ rng });
+    expect(result.minutes).toBe(22);
+    expect(result.seconds).toBe(15);
+  });
+
+  it("maps d10 result 10 (rng=9/10) to ones digit 0", () => {
+    // minutesTens: 1D-1=0 (roll=1, rng=0); minutesOnes: d10=10 → 0 (rng=9/10)
+    // secondsTens: 1D-1=0 (roll=1, rng=0); secondsOnes: d10=1→1 (rng=0)
+    const rng = seqRng(0, 9 / 10, 0, 0);
+    const result = rollRotationPeriodPrecision({ rng });
+    expect(result.minutes).toBe(0);
+    expect(result.seconds).toBe(1);
+  });
+});
+
+describe("calculateRotationPeriodDecimalHours", () => {
+  it("converts 42h 22m 15s to ≈42.37 decimal hours", () => {
+    const decimal = calculateRotationPeriodDecimalHours({ hours: 42, minutes: 22, seconds: 15 });
+    expect(decimal).toBeCloseTo(42.37, 2);
+  });
+
+  it("handles whole hours with no minutes or seconds", () => {
+    expect(calculateRotationPeriodDecimalHours({ hours: 24 })).toBe(24);
+  });
+});
+
+describe("formatRotationPeriodHMS", () => {
+  it("formats 42h 22m 15s with zero-padded minutes and seconds", () => {
+    expect(formatRotationPeriodHMS({ hours: 42, minutes: 22, seconds: 15 })).toBe("42h 22m 15s");
+  });
+
+  it("zero-pads single-digit values", () => {
+    expect(formatRotationPeriodHMS({ hours: 3, minutes: 5, seconds: 9 })).toBe("3h 05m 09s");
+  });
+
+  it("defaults minutes and seconds to 0", () => {
+    expect(formatRotationPeriodHMS({ hours: 10 })).toBe("10h 00m 00s");
+  });
+});
+
+describe("calculateSolarDaysInYear", () => {
+  it("matches the Zed Prime moon example", () => {
+    const yearHours = 0.805 * 8766; // ~7056.63
+    const siderealDayHours = 42.37;
+    const result = calculateSolarDaysInYear({ yearHours, siderealDayHours });
+    expect(result.solarDaysInYear).toBeCloseTo(165.548, 2);
+    expect(result.solarDayHours).toBeCloseTo(42.626, 2);
+    expect(result.isTidallyLocked).toBe(false);
+    expect(result.isRetrograde).toBe(false);
+  });
+
+  it("returns Infinity solar day and isTidallyLocked=true when sidereal day equals year", () => {
+    const result = calculateSolarDaysInYear({ yearHours: 1000, siderealDayHours: 1000 });
+    expect(result.solarDaysInYear).toBe(0);
+    expect(result.solarDayHours).toBe(Infinity);
+    expect(result.isTidallyLocked).toBe(true);
+  });
+
+  it("flags retrograde rotation (negative sidereal day) with isRetrograde=true", () => {
+    const result = calculateSolarDaysInYear({ yearHours: 100, siderealDayHours: -50 });
+    expect(result.isRetrograde).toBe(true);
+    // Solar days = 100/-50 - 1 = -3; solar day = 100/-3 ≈ -33.33
+    expect(result.solarDaysInYear).toBeCloseTo(-3, 6);
+    expect(result.solarDayHours).toBeCloseTo(-100 / 3, 4);
+  });
+
+  it("returns null values for invalid inputs", () => {
+    expect(calculateSolarDaysInYear({ yearHours: NaN, siderealDayHours: 24 })).toEqual({
+      solarDaysInYear: null,
+      solarDayHours: null,
+      isTidallyLocked: false,
+      isRetrograde: false,
+    });
+    expect(calculateSolarDaysInYear({ yearHours: 8766, siderealDayHours: 0 })).toEqual({
+      solarDaysInYear: null,
+      solarDayHours: null,
+      isTidallyLocked: false,
+      isRetrograde: false,
+    });
+  });
+});
+
+describe("AXIAL_TILT_TABLE_52 / EXTREME_AXIAL_TILT_TABLE_53", () => {
+  it("Table 52 has 6 entries covering 2–12", () => {
+    expect(AXIAL_TILT_TABLE_52).toHaveLength(6);
+    expect(AXIAL_TILT_TABLE_52[0].minRoll).toBe(2);
+    expect(AXIAL_TILT_TABLE_52[5].maxRoll).toBe(12);
+  });
+
+  it("Table 53 has 5 entries covering 1–6", () => {
+    expect(EXTREME_AXIAL_TILT_TABLE_53).toHaveLength(5);
+    expect(EXTREME_AXIAL_TILT_TABLE_53[0].minRoll).toBe(1);
+    expect(EXTREME_AXIAL_TILT_TABLE_53[4].maxRoll).toBe(6);
+  });
+});
+
+describe("clampAxialTiltDegrees", () => {
+  it("passes values within 0–180 unchanged", () => {
+    expect(clampAxialTiltDegrees(0)).toBe(0);
+    expect(clampAxialTiltDegrees(90)).toBe(90);
+    expect(clampAxialTiltDegrees(180)).toBe(180);
+  });
+
+  it("reflects values above 180 back from 180", () => {
+    expect(clampAxialTiltDegrees(190)).toBe(170);
+    expect(clampAxialTiltDegrees(200)).toBe(160);
+  });
+
+  it("returns null for non-finite input", () => {
+    expect(clampAxialTiltDegrees(NaN)).toBeNull();
+    expect(clampAxialTiltDegrees(Infinity)).toBeNull();
+  });
+});
+
+describe("rollAxialTilt", () => {
+  it("2D≤4: returns (1D-1)/50 — minimum 0° when d1=1", () => {
+    // 2D=4 (d1=2,d2=2), extra d1=1 → (1-1)/50 = 0
+    const rng = seqRng(1 / 6, 1 / 6, 0);
+    const result = rollAxialTilt({ rng });
+    expect(result.roll2d).toBe(4);
+    expect(result.baseDegrees).toBeCloseTo(0, 6);
+    expect(result.isRetrograde).toBe(false);
+  });
+
+  it("2D≤4: maximum 0.10° when d1=6", () => {
+    // 2D=4 (d1=2,d2=2), extra d1=6 → (6-1)/50 = 0.10
+    const rng = seqRng(1 / 6, 1 / 6, 5 / 6);
+    expect(rollAxialTilt({ rng }).baseDegrees).toBeCloseTo(0.1, 6);
+  });
+
+  it("2D=5: returns 1D÷5", () => {
+    // 2D=5 (d1=3,d2=2), extra d1=6 → 6/5 = 1.2
+    const rng = seqRng(2 / 6, 1 / 6, 5 / 6);
+    const result = rollAxialTilt({ rng });
+    expect(result.roll2d).toBe(5);
+    expect(result.baseDegrees).toBeCloseTo(1.2, 6);
+  });
+
+  it("2D=6: returns 1D", () => {
+    // 2D=6 (d1=3,d2=3), extra d1=4 → 4°
+    const rng = seqRng(2 / 6, 2 / 6, 3 / 6);
+    const result = rollAxialTilt({ rng });
+    expect(result.roll2d).toBe(6);
+    expect(result.baseDegrees).toBe(4);
+  });
+
+  it("2D=7: returns 6+1D", () => {
+    // 2D=7 (d1=4,d2=3), extra d1=3 → 6+3=9
+    const rng = seqRng(3 / 6, 2 / 6, 2 / 6);
+    const result = rollAxialTilt({ rng });
+    expect(result.roll2d).toBe(7);
+    expect(result.baseDegrees).toBe(9);
+  });
+
+  it("2D=8: returns 5+1D×5", () => {
+    // 2D=8 (d1=4,d2=4), extra d1=4 → 5+4×5=25
+    const rng = seqRng(3 / 6, 3 / 6, 3 / 6);
+    const result = rollAxialTilt({ rng });
+    expect(result.roll2d).toBe(8);
+    expect(result.baseDegrees).toBe(25);
+    expect(result.isRetrograde).toBe(false);
+  });
+
+  it("2D=10+, extreme table row 1-2: 10+1D×10 (range 20–70)", () => {
+    // 2D=10 (d1=5,d2=5), extremeRoll=1D=2, d1=4 → 10+40=50
+    const rng = seqRng(4 / 6, 4 / 6, 1 / 6, 3 / 6);
+    const result = rollAxialTilt({ rng });
+    expect(result.roll2d).toBe(10);
+    expect(result.extremeTableRoll).toBe(2);
+    expect(result.baseDegrees).toBe(50);
+    expect(result.isRetrograde).toBe(false);
+  });
+
+  it("2D=10+, extreme table row 3: 30+1D×10 — Zed Prime example (70°)", () => {
+    // 2D=10 (d1=5,d2=5), extremeRoll=1D=3, d1=4 → 30+40=70
+    const rng = seqRng(4 / 6, 4 / 6, 2 / 6, 3 / 6);
+    const result = rollAxialTilt({ rng });
+    expect(result.roll2d).toBe(10);
+    expect(result.extremeTableRoll).toBe(3);
+    expect(result.extraRolls).toEqual([4]);
+    expect(result.baseDegrees).toBe(70);
+    expect(result.isRetrograde).toBe(false);
+  });
+
+  it("extreme table row 4: 90+1D×1D marks retrograde", () => {
+    // extremeRoll=4, d1=3, d2=4 → 90+12=102
+    const rng = seqRng(4 / 6, 4 / 6, 3 / 6, 2 / 6, 3 / 6);
+    const result = rollAxialTilt({ rng });
+    expect(result.extremeTableRoll).toBe(4);
+    expect(result.baseDegrees).toBe(102);
+    expect(result.isRetrograde).toBe(true);
+    expect(result.extraRolls).toEqual([3, 4]);
+  });
+
+  it("extreme table row 5: 180-1D×1D (extreme retrograde)", () => {
+    // extremeRoll=5, d1=2, d2=3 → 180-6=174
+    const rng = seqRng(4 / 6, 4 / 6, 4 / 6, 1 / 6, 2 / 6);
+    const result = rollAxialTilt({ rng });
+    expect(result.extremeTableRoll).toBe(5);
+    expect(result.baseDegrees).toBe(174);
+    expect(result.isRetrograde).toBe(true);
+  });
+
+  it("extreme table row 6: 120+1D×10 (range 130–180)", () => {
+    // extremeRoll=6, d1=3 → 120+30=150
+    const rng = seqRng(4 / 6, 4 / 6, 5 / 6, 2 / 6);
+    const result = rollAxialTilt({ rng });
+    expect(result.extremeTableRoll).toBe(6);
+    expect(result.baseDegrees).toBe(150);
+    expect(result.isRetrograde).toBe(true);
+  });
+
+  it("clamps extreme results over 180° back within range", () => {
+    // extremeRoll=6, d1=6 → 120+60=180, clamped to 180
+    const rng = seqRng(4 / 6, 4 / 6, 5 / 6, 5 / 6);
+    const result = rollAxialTilt({ rng });
+    expect(result.baseDegrees).toBe(180);
+  });
+});
+
+describe("rollAxialTiltPrecision", () => {
+  it("produces arc-minutes 0–59 and arc-seconds 0–59", () => {
+    // arcMinTens: 1D-1=3 (roll=4, rng=3/6); arcMinOnes: d10=9 (rng=8/10)
+    // arcSecTens: 1D-1=0 (roll=1, rng=0); arcSecOnes: d10=5 (rng=4/10)
+    const rng = seqRng(3 / 6, 8 / 10, 0, 4 / 10);
+    const result = rollAxialTiltPrecision({ rng });
+    expect(result.arcMinutes).toBe(39);
+    expect(result.arcSeconds).toBe(5);
+  });
+
+  it("maps d10=10 (rng=9/10) to ones digit 0", () => {
+    const rng = seqRng(0, 9 / 10, 0, 0);
+    const result = rollAxialTiltPrecision({ rng });
+    expect(result.arcMinutes).toBe(0);
+  });
+});
+
+describe("calculateAxialTiltDecimalDegrees", () => {
+  it("converts 73° 39' to 73.65°", () => {
+    expect(calculateAxialTiltDecimalDegrees({ degrees: 73, arcMinutes: 39 })).toBeCloseTo(73.65, 2);
+  });
+
+  it("handles no arc-minutes or arc-seconds", () => {
+    expect(calculateAxialTiltDecimalDegrees({ degrees: 45 })).toBe(45);
+  });
+
+  it("converts degrees + arcMinutes + arcSeconds correctly", () => {
+    // 10° 30' 0" = 10.5°; 10° 0' 36" = 10.01°
+    expect(calculateAxialTiltDecimalDegrees({ degrees: 10, arcMinutes: 30 })).toBeCloseTo(10.5, 6);
+    expect(calculateAxialTiltDecimalDegrees({ degrees: 10, arcSeconds: 36 })).toBeCloseTo(10.01, 4);
+  });
+});
+
+describe("formatAxialTiltDMS", () => {
+  it("formats 73° 39' 00\" for the Zed Prime example", () => {
+    expect(formatAxialTiltDMS({ degrees: 73, arcMinutes: 39 })).toBe("73° 39' 00\"");
+  });
+
+  it("zero-pads single-digit arc-minutes and arc-seconds", () => {
+    expect(formatAxialTiltDMS({ degrees: 3, arcMinutes: 5, arcSeconds: 9 })).toBe("3° 05' 09\"");
+  });
+
+  it("defaults to 0 for omitted arc-minutes and arc-seconds", () => {
+    expect(formatAxialTiltDMS({ degrees: 23 })).toBe("23° 00' 00\"");
+  });
+});
+
+describe("calculateTidalForce", () => {
+  it("applies the basic proportionality: mass × diameter / distance³", () => {
+    // (2 × 3) / 2³ = 6/8 = 0.75
+    expect(calculateTidalForce({ otherBodyMass: 2, affectedBodyDiameter: 3, distance: 2 })).toBeCloseTo(0.75, 9);
+  });
+
+  it("obeys the inverse-cube law: doubling distance cuts force by a factor of 8", () => {
+    const tf1 = calculateTidalForce({ otherBodyMass: 1, affectedBodyDiameter: 1, distance: 1 });
+    const tf2 = calculateTidalForce({ otherBodyMass: 1, affectedBodyDiameter: 1, distance: 2 });
+    expect(tf1 / tf2).toBeCloseTo(8, 9);
+  });
+
+  it("is directly proportional to the other body's mass", () => {
+    const tf1 = calculateTidalForce({ otherBodyMass: 1, affectedBodyDiameter: 5, distance: 3 });
+    const tf2 = calculateTidalForce({ otherBodyMass: 4, affectedBodyDiameter: 5, distance: 3 });
+    expect(tf2 / tf1).toBeCloseTo(4, 9);
+  });
+
+  it("is directly proportional to the affected body's diameter", () => {
+    const tf1 = calculateTidalForce({ otherBodyMass: 3, affectedBodyDiameter: 2, distance: 4 });
+    const tf2 = calculateTidalForce({ otherBodyMass: 3, affectedBodyDiameter: 6, distance: 4 });
+    expect(tf2 / tf1).toBeCloseTo(3, 9);
+  });
+
+  it("returns null when distance is zero", () => {
+    expect(calculateTidalForce({ otherBodyMass: 1, affectedBodyDiameter: 1, distance: 0 })).toBeNull();
+  });
+
+  it("returns null for non-finite inputs", () => {
+    expect(calculateTidalForce({ otherBodyMass: NaN, affectedBodyDiameter: 1, distance: 1 })).toBeNull();
+    expect(calculateTidalForce({ otherBodyMass: 1, affectedBodyDiameter: Infinity, distance: 1 })).toBeNull();
+    expect(calculateTidalForce({ otherBodyMass: 1, affectedBodyDiameter: 1, distance: NaN })).toBeNull();
+  });
+
+  it("returns null when called with no arguments", () => {
+    expect(calculateTidalForce()).toBeNull();
+  });
+});
+
+describe("calculateStarTidalEffect", () => {
+  it("matches Sol-on-Terra reference: 0.25 m", () => {
+    const result = calculateStarTidalEffect({ starMass: 1, worldSize: 8, distanceAu: 1 });
+    expect(result).toBeCloseTo(0.25, 9);
+  });
+
+  it("follows inverse-cube scaling with AU", () => {
+    const near = calculateStarTidalEffect({ starMass: 1, worldSize: 8, distanceAu: 1 });
+    const far = calculateStarTidalEffect({ starMass: 1, worldSize: 8, distanceAu: 2 });
+    expect(near / far).toBeCloseTo(8, 9);
+  });
+
+  it("returns null for non-finite or non-positive distance", () => {
+    expect(calculateStarTidalEffect({ starMass: NaN, worldSize: 8, distanceAu: 1 })).toBeNull();
+    expect(calculateStarTidalEffect({ starMass: 1, worldSize: Infinity, distanceAu: 1 })).toBeNull();
+    expect(calculateStarTidalEffect({ starMass: 1, worldSize: 8, distanceAu: 0 })).toBeNull();
+    expect(calculateStarTidalEffect({ starMass: 1, worldSize: 8, distanceAu: -1 })).toBeNull();
+  });
+});
+
+describe("calculateMoonTidalEffect", () => {
+  it("matches Luna-on-Terra reference approximately: 0.54 m", () => {
+    const result = calculateMoonTidalEffect({ moonMass: 0.0123, planetSize: 8, moonDistanceKm: 384400 });
+    expect(result).toBeCloseTo(0.54, 2);
+  });
+
+  it("follows inverse-cube scaling with distance in km", () => {
+    const near = calculateMoonTidalEffect({ moonMass: 0.0123, planetSize: 8, moonDistanceKm: 384400 });
+    const far = calculateMoonTidalEffect({ moonMass: 0.0123, planetSize: 8, moonDistanceKm: 768800 });
+    expect(near / far).toBeCloseTo(8, 9);
+  });
+
+  it("returns null for invalid inputs", () => {
+    expect(calculateMoonTidalEffect({ moonMass: NaN, planetSize: 8, moonDistanceKm: 384400 })).toBeNull();
+    expect(calculateMoonTidalEffect({ moonMass: 0.01, planetSize: 8, moonDistanceKm: 0 })).toBeNull();
+    expect(calculateMoonTidalEffect()).toBeNull();
+  });
+});
+
+describe("calculatePlanetTidalEffect", () => {
+  it("applies the planet-to-moon formula in meters", () => {
+    const result = calculatePlanetTidalEffect({ planetMass: 1200, moonSize: 5, moonDistanceKm: 1_000_000 });
+    expect(result).toBeCloseTo(1875, 9);
+  });
+
+  it("matches moon-formula shape for same mass/size/distance values", () => {
+    const a = calculateMoonTidalEffect({ moonMass: 0.1, planetSize: 6, moonDistanceKm: 500000 });
+    const b = calculatePlanetTidalEffect({ planetMass: 0.1, moonSize: 6, moonDistanceKm: 500000 });
+    expect(a).toBeCloseTo(b, 12);
+  });
+
+  it("returns null for invalid inputs", () => {
+    expect(calculatePlanetTidalEffect({ planetMass: Infinity, moonSize: 6, moonDistanceKm: 500000 })).toBeNull();
+    expect(calculatePlanetTidalEffect({ planetMass: 1, moonSize: 6, moonDistanceKm: -100 })).toBeNull();
+  });
+});
+
+describe("calculateMoonToMoonTidalEffect", () => {
+  it("applies the moon-to-moon formula in meters", () => {
+    const result = calculateMoonToMoonTidalEffect({ otherMass: 0.2, moonSize: 4, moonSeparationKm: 1_000_000 });
+    expect(result).toBeCloseTo(0.25, 9);
+  });
+
+  it("increases strongly as separation decreases", () => {
+    const wide = calculateMoonToMoonTidalEffect({ otherMass: 0.2, moonSize: 4, moonSeparationKm: 2_000_000 });
+    const tight = calculateMoonToMoonTidalEffect({ otherMass: 0.2, moonSize: 4, moonSeparationKm: 1_000_000 });
+    expect(tight / wide).toBeCloseTo(8, 9);
+  });
+
+  it("returns null for invalid inputs", () => {
+    expect(calculateMoonToMoonTidalEffect({ otherMass: NaN, moonSize: 4, moonSeparationKm: 1_000_000 })).toBeNull();
+    expect(calculateMoonToMoonTidalEffect({ otherMass: 0.2, moonSize: 4, moonSeparationKm: 0 })).toBeNull();
+    expect(calculateMoonToMoonTidalEffect()).toBeNull();
+  });
+});
+
+describe("calculateTidalStressFactor", () => {
+  it("sums tidal effects and divides by 10, rounding down", () => {
+    // Zed Prime-style example: 30.6 + 0.24 = 30.84 -> floor(30.84 / 10) = 3
+    const factor = calculateTidalStressFactor({ tidalEffectsMeters: [30.6, 0.24] });
+    expect(factor).toBe(3);
+  });
+
+  it("returns 0 when total tidal effects are less than 10 meters", () => {
+    expect(calculateTidalStressFactor({ tidalEffectsMeters: [0.54, 0.25] })).toBe(0);
+  });
+
+  it("accepts an explicit pre-summed tidal total", () => {
+    expect(calculateTidalStressFactor({ totalTidalEffectsMeters: 30.84 })).toBe(3);
+  });
+
+  it("ignores non-finite array entries when summing", () => {
+    expect(calculateTidalStressFactor({ tidalEffectsMeters: [10, NaN, Infinity, 9.9] })).toBe(1);
+  });
+
+  it("returns null for a negative total", () => {
+    expect(calculateTidalStressFactor({ totalTidalEffectsMeters: -0.1 })).toBeNull();
+  });
+
+  it("returns null for invalid non-array input when no total is provided", () => {
+    expect(calculateTidalStressFactor({ tidalEffectsMeters: "bad" })).toBeNull();
+  });
+});
+
+describe("calculateTidalHeatingFactor", () => {
+  it("matches an Io-scale worked example order of magnitude", () => {
+    const factor = calculateTidalHeatingFactor({
+      primaryMassEarth: 317.8,
+      worldSize: 2.3,
+      eccentricity: 0.0041,
+      distanceMkm: 0.4217,
+      periodDays: 1.769,
+      worldMassEarth: 0.015,
+    });
+
+    expect(factor).toBe(102);
+  });
+
+  it("returns 0 for negligible heating (<1)", () => {
+    const factor = calculateTidalHeatingFactor({
+      primaryMassEarth: 1,
+      worldSize: 1,
+      eccentricity: 0.001,
+      distanceMkm: 1,
+      periodDays: 365,
+      worldMassEarth: 1,
+    });
+
+    expect(factor).toBe(0);
+  });
+
+  it("returns null for invalid inputs", () => {
+    expect(
+      calculateTidalHeatingFactor({
+        primaryMassEarth: 1,
+        worldSize: 8,
+        eccentricity: -0.1,
+        distanceMkm: 0.4,
+        periodDays: 2,
+        worldMassEarth: 1,
+      }),
+    ).toBeNull();
+    expect(calculateTidalHeatingFactor()).toBeNull();
+  });
+});
+
+describe("calculateTotalSeismicStress", () => {
+  it("sums all three components", () => {
+    expect(calculateTotalSeismicStress({ seismicStress: 0, tidalStressFactor: 3, tidalHeatingFactor: 14 })).toBe(17);
+  });
+
+  it("treats absent or invalid components as 0", () => {
+    expect(calculateTotalSeismicStress({})).toBe(0);
+    expect(calculateTotalSeismicStress({ seismicStress: NaN, tidalStressFactor: 5 })).toBe(5);
+  });
+
+  it("treats negative components as 0", () => {
+    expect(calculateTotalSeismicStress({ seismicStress: -5, tidalStressFactor: 3, tidalHeatingFactor: 0 })).toBe(3);
+  });
+
+  it("returns 0 when called with no arguments", () => {
+    expect(calculateTotalSeismicStress()).toBe(0);
+  });
+});
+
+describe("applySeismicTemperatureCorrection", () => {
+  it("matches the worked example: 300\u00b0C base + stress 17 = unchanged at integer precision", () => {
+    // 300K + 17 seismic = 300.00077K, rounds to 300
+    const result = applySeismicTemperatureCorrection(26.85, 17); // 26.85°C = 300K
+    expect(result).toBe(27); // 300.00077K - 273.15 ≈ 26.85°C → rounds to 27°C (same as input rounded)
+  });
+
+  it("produces a noticeable correction for a cold world with high seismic stress", () => {
+    // 10K = -263.15°C; stress=200 dominates → result ≈ 200K ≈ -73°C
+    const result = applySeismicTemperatureCorrection(-263.15, 200);
+    expect(result).toBeGreaterThan(-263); // temperature raised significantly
+    expect(result).toBeLessThan(0); // still sub-zero
+  });
+
+  it("returns temperature unchanged when stress is 0", () => {
+    expect(applySeismicTemperatureCorrection(25, 0)).toBe(25);
+  });
+
+  it("returns temperature unchanged when stress is negative", () => {
+    expect(applySeismicTemperatureCorrection(25, -5)).toBe(25);
+  });
+});
+
+describe("calculateTectonicPlates", () => {
+  it("matches the worked example: Size 5 + Hydro 6 - roll 8 + DM1 (stress 17) = 4 plates", () => {
+    expect(calculateTectonicPlates({ size: 5, hydrographics: 6, totalSeismicStress: 17, roll2D: 8 })).toBe(4);
+  });
+
+  it("applies DM+2 when stress exceeds 100", () => {
+    expect(calculateTectonicPlates({ size: 6, hydrographics: 4, totalSeismicStress: 150, roll2D: 7 })).toBe(5);
+  });
+
+  it("applies no DM when stress is between 1 and 9", () => {
+    expect(calculateTectonicPlates({ size: 8, hydrographics: 3, totalSeismicStress: 5, roll2D: 7 })).toBe(4);
+  });
+
+  it("returns 0 when result is exactly 1", () => {
+    // size 2 + hydro 1 - roll 12 + DM0 = -9 → 0
+    expect(calculateTectonicPlates({ size: 2, hydrographics: 1, totalSeismicStress: 5, roll2D: 12 })).toBe(0);
+  });
+
+  it("returns 0 when hydrographics is 0", () => {
+    expect(calculateTectonicPlates({ size: 8, hydrographics: 0, totalSeismicStress: 17, roll2D: 7 })).toBe(0);
+  });
+
+  it("returns 0 when totalSeismicStress is 0", () => {
+    expect(calculateTectonicPlates({ size: 8, hydrographics: 4, totalSeismicStress: 0, roll2D: 7 })).toBe(0);
+  });
+
+  it("returns 0 for missing or invalid arguments", () => {
+    expect(calculateTectonicPlates()).toBe(0);
+    expect(calculateTectonicPlates({ size: NaN, hydrographics: 4, totalSeismicStress: 10, roll2D: 7 })).toBe(0);
+  });
+});
+
+describe("TIDAL_LOCK_STATUS_TABLE_54", () => {
+  it("has 11 entries spanning −∞ to +∞", () => {
+    expect(TIDAL_LOCK_STATUS_TABLE_54).toHaveLength(11);
+    expect(TIDAL_LOCK_STATUS_TABLE_54[0].minRoll).toBe(-Infinity);
+    expect(TIDAL_LOCK_STATUS_TABLE_54[10].maxRoll).toBe(Infinity);
+  });
+
+  it("row ≤2 is NO_EFFECT", () => {
+    expect(TIDAL_LOCK_STATUS_TABLE_54[0].effectCode).toBe("NO_EFFECT");
+    expect(TIDAL_LOCK_STATUS_TABLE_54[0].maxRoll).toBe(2);
+  });
+
+  it("row 12+ is LOCK_1_1 with lockType LOCK_1_1", () => {
+    const last = TIDAL_LOCK_STATUS_TABLE_54[10];
+    expect(last.effectCode).toBe("LOCK_1_1");
+    expect(last.lockType).toBe("LOCK_1_1");
+  });
+
+  it("rows 7–10 have non-null progradeMultiplier and null dayMultiplier", () => {
+    const codes = ["PROGRADE_SHORT", "PROGRADE_LONG", "RETROGRADE_MEDIUM", "RETROGRADE_LONG"];
+    const rows = TIDAL_LOCK_STATUS_TABLE_54.filter((r) => codes.includes(r.effectCode));
+    expect(rows).toHaveLength(4);
+    rows.forEach((r) => {
+      expect(r.progradeMultiplier).not.toBeNull();
+      expect(r.dayMultiplier).toBeNull();
+    });
+  });
+
+  it("rows 3–6 have non-null dayMultiplier and null progradeMultiplier", () => {
+    const codes = ["MULTIPLY_1_5", "MULTIPLY_2", "MULTIPLY_3", "MULTIPLY_5"];
+    const rows = TIDAL_LOCK_STATUS_TABLE_54.filter((r) => codes.includes(r.effectCode));
+    expect(rows).toHaveLength(4);
+    rows.forEach((r) => {
+      expect(r.dayMultiplier).not.toBeNull();
+      expect(r.progradeMultiplier).toBeNull();
+    });
+  });
+});
+
+describe("calculateTidalLockCommonDMs", () => {
+  it("returns 0 with all defaults", () => {
+    expect(calculateTidalLockCommonDMs()).toBe(0);
+  });
+
+  it("size 3 → DM+1", () => {
+    expect(calculateTidalLockCommonDMs({ size: 3 })).toBe(1);
+  });
+
+  it("size 6 → DM+2", () => {
+    expect(calculateTidalLockCommonDMs({ size: 6 })).toBe(2);
+  });
+
+  it("size 7 → DM+3 (ceil(7÷3)=3)", () => {
+    expect(calculateTidalLockCommonDMs({ size: 7 })).toBe(3);
+  });
+
+  it("size 0: no DM", () => {
+    expect(calculateTidalLockCommonDMs({ size: 0 })).toBe(0);
+  });
+
+  it("eccentricity 0.15 → DM−1 (floor(0.15×10)=1)", () => {
+    expect(calculateTidalLockCommonDMs({ eccentricity: 0.15 })).toBe(-1);
+  });
+
+  it("eccentricity 0.05: no DM (≤ 0.1)", () => {
+    expect(calculateTidalLockCommonDMs({ eccentricity: 0.05 })).toBe(0);
+  });
+
+  it("axialTilt 45° → DM−2 (above 30° only)", () => {
+    expect(calculateTidalLockCommonDMs({ axialTilt: 45 })).toBe(-2);
+  });
+
+  it("axialTilt 75° → DM−6 (above 30° + 60–120°, additive)", () => {
+    expect(calculateTidalLockCommonDMs({ axialTilt: 75 })).toBe(-6);
+  });
+
+  it("axialTilt 90° → DM−10 (all three tilt bands, additive)", () => {
+    expect(calculateTidalLockCommonDMs({ axialTilt: 90 })).toBe(-10);
+  });
+
+  it("atmospheric pressure 3.0 bar → DM−2", () => {
+    expect(calculateTidalLockCommonDMs({ atmosphericPressureBar: 3.0 })).toBe(-2);
+  });
+
+  it("system age 0.5 Gyr → DM−2", () => {
+    expect(calculateTidalLockCommonDMs({ systemAgeGyr: 0.5 })).toBe(-2);
+  });
+
+  it("system age 7 Gyr → DM+2", () => {
+    expect(calculateTidalLockCommonDMs({ systemAgeGyr: 7 })).toBe(2);
+  });
+
+  it("system age 12 Gyr → DM+4", () => {
+    expect(calculateTidalLockCommonDMs({ systemAgeGyr: 12 })).toBe(4);
+  });
+
+  it("system age exactly 10 Gyr → DM+4 (edge: closer to 0 than +2)", () => {
+    expect(calculateTidalLockCommonDMs({ systemAgeGyr: 10 })).toBe(4);
+  });
+
+  it("combines multiple DMs: size 6 + age 12 = +6", () => {
+    expect(calculateTidalLockCommonDMs({ size: 6, systemAgeGyr: 12 })).toBe(6);
+  });
+});
+
+describe("calculateTidalLockStarDMs", () => {
+  it("default (orbit 1, mass 1, 1 star, no moons) → 0", () => {
+    expect(calculateTidalLockStarDMs()).toBe(0);
+  });
+
+  it("orbit 0.5 → base−4 + (4+0) = 0", () => {
+    expect(calculateTidalLockStarDMs({ orbitNumber: 0.5 })).toBe(0);
+  });
+
+  it("orbit 0 (theoretical) → base−4 + 14 = +10", () => {
+    expect(calculateTidalLockStarDMs({ orbitNumber: 0 })).toBe(10);
+  });
+
+  it("orbit 2.0 (edge: +1 closer to 0 than +4) → base−4+1 = −3", () => {
+    expect(calculateTidalLockStarDMs({ orbitNumber: 2 })).toBe(-3);
+  });
+
+  it("orbit 3.0 (edge: +1 closer to 0 than −6) → base−4+1 = −3", () => {
+    expect(calculateTidalLockStarDMs({ orbitNumber: 3 })).toBe(-3);
+  });
+
+  it("orbit 4 → base−4 + (−8) = −12", () => {
+    expect(calculateTidalLockStarDMs({ orbitNumber: 4 })).toBe(-12);
+  });
+
+  it("orbit 1.5, mass 0.3 → −4+4−2 = −2", () => {
+    expect(calculateTidalLockStarDMs({ orbitNumber: 1.5, totalStarMass: 0.3 })).toBe(-2);
+  });
+
+  it("mass 0.5 (edge: −1 closer to 0 than −2)", () => {
+    expect(calculateTidalLockStarDMs({ orbitNumber: 1, totalStarMass: 0.5 })).toBe(-1);
+  });
+
+  it("mass 3 (2–5 range) → −4+4+1 = +1", () => {
+    expect(calculateTidalLockStarDMs({ orbitNumber: 1, totalStarMass: 3 })).toBe(1);
+  });
+
+  it("numStarsOrbited 3 → DM−3 extra: −4+4−3 = −3", () => {
+    expect(calculateTidalLockStarDMs({ orbitNumber: 1, numStarsOrbited: 3 })).toBe(-3);
+  });
+
+  it("totalSignificantMoonSize 5 → DM−5 extra: −4+4−5 = −5", () => {
+    expect(calculateTidalLockStarDMs({ orbitNumber: 1, totalSignificantMoonSize: 5 })).toBe(-5);
+  });
+});
+
+describe("calculateTidalLockMoonToPlanetDMs", () => {
+  it("default (orbit 5 PD, planet mass 1, prograde) → +6", () => {
+    expect(calculateTidalLockMoonToPlanetDMs()).toBe(6);
+  });
+
+  it("orbit 5 PD, planet mass 5 (1<5≤10) → +6+2 = +8", () => {
+    expect(calculateTidalLockMoonToPlanetDMs({ moonOrbitPD: 5, planetMass: 5 })).toBe(8);
+  });
+
+  it("orbit 25 PD, planet mass 50 → +6−1+4 = +9", () => {
+    expect(calculateTidalLockMoonToPlanetDMs({ moonOrbitPD: 25, planetMass: 50 })).toBe(9);
+  });
+
+  it("retrograde orbit → DM−2: +6−2 = +4", () => {
+    expect(calculateTidalLockMoonToPlanetDMs({ moonOrbitPD: 5, isRetrograde: true, planetMass: 1 })).toBe(4);
+  });
+
+  it("planet mass 1000 (edge: +6 closer to 0 than +8) → +6+6 = +12", () => {
+    expect(calculateTidalLockMoonToPlanetDMs({ moonOrbitPD: 5, planetMass: 1000 })).toBe(12);
+  });
+
+  it("planet mass > 1000 → +8: +6+8 = +14", () => {
+    expect(calculateTidalLockMoonToPlanetDMs({ moonOrbitPD: 5, planetMass: 5000 })).toBe(14);
+  });
+});
+
+describe("calculateTidalLockPlanetToMoonDMs", () => {
+  it("default (size 0, orbit 5, 1 moon): −10 + [5,10) bracket +4 = −6", () => {
+    expect(calculateTidalLockPlanetToMoonDMs()).toBe(-6);
+  });
+
+  it("moonSize 2, orbit 3 PD → −10+2+(5+ceil(10)) = +7", () => {
+    expect(calculateTidalLockPlanetToMoonDMs({ moonSize: 2, moonOrbitPD: 3 })).toBe(7);
+  });
+
+  it("moonSize 4, orbit 1 PD → −10+4+(5+ceil(20)) = +19", () => {
+    expect(calculateTidalLockPlanetToMoonDMs({ moonSize: 4, moonOrbitPD: 1 })).toBe(19);
+  });
+
+  it("orbit 30 PD → −10+1 = −9", () => {
+    expect(calculateTidalLockPlanetToMoonDMs({ moonOrbitPD: 30 })).toBe(-9);
+  });
+
+  it("orbit 40 PD (edge: 0 not +1) → −10", () => {
+    expect(calculateTidalLockPlanetToMoonDMs({ moonOrbitPD: 40 })).toBe(-10);
+  });
+
+  it("orbit 65 PD → −10−6 = −16", () => {
+    expect(calculateTidalLockPlanetToMoonDMs({ moonOrbitPD: 65 })).toBe(-16);
+  });
+
+  it("orbit 60 PD (edge: 0 not −6) → −10", () => {
+    expect(calculateTidalLockPlanetToMoonDMs({ moonOrbitPD: 60 })).toBe(-10);
+  });
+
+  it("3 significant moons → −4 extra (−2 per moon beyond first)", () => {
+    // orbit 5: +4; base −10; moons −4 = −10
+    expect(calculateTidalLockPlanetToMoonDMs({ moonOrbitPD: 5, numSignificantMoons: 3 })).toBe(-10);
+  });
+});
+
+describe("rollTidalLockStatus", () => {
+  it("totalDM ≤ −10: returns NO_EFFECT without consuming rng", () => {
+    let called = 0;
+    const rng = () => {
+      called++;
+      return 0.5;
+    };
+    const result = rollTidalLockStatus({ totalDM: -10, rng });
+    expect(result.effectCode).toBe("NO_EFFECT");
+    expect(result.autoResult).toBe("no_roll_needed");
+    expect(called).toBe(0);
+  });
+
+  it("totalDM ≥ +10, check ≠ 12: returns auto LOCK_1_1", () => {
+    // check 2D: 5+5=10 (rng=4/6,4/6) — not 12
+    const rng = seqRng(4 / 6, 4 / 6);
+    const result = rollTidalLockStatus({ totalDM: 10, rng });
+    expect(result.effectCode).toBe("LOCK_1_1");
+    expect(result.autoResult).toBe("auto_lock");
+  });
+
+  it("totalDM ≥ +10, check = 12: re-rolls at DM 0 and returns that result", () => {
+    // check 2D: 6+6=12 (5/6,5/6); reroll 2D: 4+3=7 → PROGRADE_SHORT; extraRoll=2
+    const rng = seqRng(5 / 6, 5 / 6, 3 / 6, 2 / 6, 1 / 6);
+    const result = rollTidalLockStatus({ totalDM: 10, rng });
+    expect(result.effectCode).toBe("PROGRADE_SHORT");
+    expect(result.autoResult).toBeNull();
+    expect(result.newDayHours).toBe(2 * 5 * 24);
+  });
+
+  it("DM 0, roll 7 → PROGRADE_SHORT with 1D extraRoll", () => {
+    // 2D: 4+3=7 (3/6, 2/6); extraRoll d1=3 (2/6); newDayHours=360
+    const rng = seqRng(3 / 6, 2 / 6, 2 / 6);
+    const result = rollTidalLockStatus({ totalDM: 0, rng });
+    expect(result.effectCode).toBe("PROGRADE_SHORT");
+    expect(result.roll2d).toBe(7);
+    expect(result.extraRoll).toBe(3);
+    expect(result.newDayHours).toBe(360);
+    expect(result.isRetrograde).toBe(false);
+  });
+
+  it("DM 0, roll 9 → RETROGRADE_MEDIUM; isRetrograde true", () => {
+    // 2D: 5+4=9 (4/6, 3/6); extraRoll d1=4 (3/6); newDayHours=4×10×24=960
+    const rng = seqRng(4 / 6, 3 / 6, 3 / 6);
+    const result = rollTidalLockStatus({ totalDM: 0, rng });
+    expect(result.effectCode).toBe("RETROGRADE_MEDIUM");
+    expect(result.isRetrograde).toBe(true);
+    expect(result.newDayHours).toBe(960);
+  });
+
+  it("DM 0, roll 11 → RESONANCE_3_2; no extraRoll", () => {
+    // 2D: 5+6=11 (4/6, 5/6)
+    const rng = seqRng(4 / 6, 5 / 6);
+    const result = rollTidalLockStatus({ totalDM: 0, rng });
+    expect(result.effectCode).toBe("RESONANCE_3_2");
+    expect(result.lockType).toBe("RESONANCE_3_2");
+    expect(result.extraRoll).toBeNull();
+  });
+
+  it("DM+5, natural roll 7 → adjusted 12 → LOCK_1_1 (no de-lock, r2d≠12)", () => {
+    // 2D: 4+3=7 (3/6, 2/6); adjusted=12; r2d=7 ≠ 12 → no recheck
+    const rng = seqRng(3 / 6, 2 / 6);
+    const result = rollTidalLockStatus({ totalDM: 5, rng });
+    expect(result.effectCode).toBe("LOCK_1_1");
+    expect(result.roll2d).toBe(7);
+    expect(result.autoResult).toBeNull();
+  });
+
+  it("DM 0, natural 12 → LOCK_1_1 de-lock: re-rolls at DM 0", () => {
+    // 2D=12 (5/6,5/6) → reroll at DM 0: 2D=4 (1/6,1/6) → MULTIPLY_2
+    const rng = seqRng(5 / 6, 5 / 6, 1 / 6, 1 / 6);
+    const result = rollTidalLockStatus({ totalDM: 0, rng });
+    expect(result.effectCode).toBe("MULTIPLY_2");
+    expect(result.dayMultiplier).toBe(2);
+  });
+
+  it("DM −5, roll 6 → adjusted 1 → NO_EFFECT", () => {
+    // 2D: 3+3=6 (2/6, 2/6); adjusted=1 ≤ 2 → NO_EFFECT
+    const rng = seqRng(2 / 6, 2 / 6);
+    const result = rollTidalLockStatus({ totalDM: -5, rng });
+    expect(result.effectCode).toBe("NO_EFFECT");
+    expect(result.roll2d).toBe(6);
+  });
+});
+
+describe("adjustAxialTiltForRetrograde", () => {
+  it("tilt < 90°: returns 180 − tilt", () => {
+    expect(adjustAxialTiltForRetrograde(45)).toBe(135);
+    expect(adjustAxialTiltForRetrograde(0)).toBe(180);
+    expect(adjustAxialTiltForRetrograde(89)).toBe(91);
+  });
+
+  it("tilt ≥ 90°: returns tilt unchanged", () => {
+    expect(adjustAxialTiltForRetrograde(90)).toBe(90);
+    expect(adjustAxialTiltForRetrograde(120)).toBe(120);
+  });
+
+  it("returns null for non-finite input", () => {
+    expect(adjustAxialTiltForRetrograde(NaN)).toBeNull();
+    expect(adjustAxialTiltForRetrograde(Infinity)).toBeNull();
+  });
+});
+
+describe("rollTidalLockAxialTiltReroll", () => {
+  it("uses 1D axial-tilt table rows: roll 4 then 1D=2 -> 8°", () => {
+    // table roll: 4, then row formula 6 + 1D with 1D=2
+    const rng = seqRng(3 / 6, 1 / 6);
+    expect(rollTidalLockAxialTiltReroll({ rng })).toBe(8);
+  });
+
+  it("can return 0° at the low end (table row 1 with 1D=1)", () => {
+    const rng = seqRng(0, 0);
+    expect(rollTidalLockAxialTiltReroll({ rng })).toBe(0);
+  });
+
+  it("handles extreme branch (table 6, extreme 4, 6x6): 126°", () => {
+    // table roll: 6, extreme roll: 4, then 1D=6 and 1D=6
+    const rng = seqRng(5 / 6, 3 / 6, 5 / 6, 5 / 6);
+    expect(rollTidalLockAxialTiltReroll({ rng })).toBe(126);
+  });
+});
+
+describe("selectTidalLockEccentricity", () => {
+  it("returns the lower of original and new eccentricity when original > 0.1", () => {
+    expect(selectTidalLockEccentricity({ originalEccentricity: 0.3, newEccentricity: 0.2 })).toBe(0.2);
+    expect(selectTidalLockEccentricity({ originalEccentricity: 0.3, newEccentricity: 0.35 })).toBe(0.3);
+  });
+
+  it("does not reduce eccentricity when original <= 0.1", () => {
+    expect(selectTidalLockEccentricity({ originalEccentricity: 0.1, newEccentricity: 0.01 })).toBe(0.1);
+    expect(selectTidalLockEccentricity({ originalEccentricity: 0.05, newEccentricity: 0.001 })).toBe(0.05);
+  });
+
+  it("returns null for non-finite inputs", () => {
+    expect(selectTidalLockEccentricity({ originalEccentricity: NaN, newEccentricity: 0.2 })).toBeNull();
+    expect(selectTidalLockEccentricity({ originalEccentricity: 0.1, newEccentricity: Infinity })).toBeNull();
+  });
+
+  it("returns null when called with no arguments", () => {
+    expect(selectTidalLockEccentricity()).toBeNull();
+  });
+});
+
+// ── SEISMOLOGY ────────────────────────────────────────────────────────────────
+
+describe("calculateResidualSeismicStress", () => {
+  // Terra: Size 8, age 4.568 Gyr, Size-2 moon (DM+2 from moonSizes), density exactly 1.0 (no density DM)
+  // 8 − 4.568 + 2 = 5.432 → floor = 5 → 5² = 25
+  it("Terra canonical example: Size 8, 4.568 Gyr, Size-2 moon, density 1.0 → stress 25", () => {
+    const result = calculateResidualSeismicStress({
+      size: 8,
+      ageGyr: 4.568,
+      isMoon: false,
+      moonSizes: [2],
+      density: 1.0,
+    });
+    expect(result).not.toBeNull();
+    expect(result.dms.moonDm).toBe(0);
+    expect(result.dms.moonSizeDm).toBe(2);
+    expect(result.dms.densityDm).toBe(0); // density === 1.0, not strictly > 1.0
+    expect(result.dms.totalDm).toBe(2);
+    expect(result.preSquare).toBe(5);
+    expect(result.stress).toBe(25);
+  });
+
+  // Luna: Size 2, age 4.568 Gyr, is a moon of Terra (DM+1), no moons, density 0.6 (no density DM)
+  // 2 − 4.568 + 1 = −1.568 → floor = −2 → < 1 → stress = 0
+  it("Luna canonical example: Size 2, 4.568 Gyr, is a moon, density 0.6 → stress 0", () => {
+    const result = calculateResidualSeismicStress({
+      size: 2,
+      ageGyr: 4.568,
+      isMoon: true,
+      moonSizes: [],
+      density: 0.6,
+    });
+    expect(result).not.toBeNull();
+    expect(result.dms.moonDm).toBe(1);
+    expect(result.dms.densityDm).toBe(0); // density = 0.6, between 0.5 and 1.0
+    expect(result.preSquare).toBeLessThan(1);
+    expect(result.stress).toBe(0);
+  });
+
+  // Zed Prime: Size 5, age 6.3 Gyr, is a moon (DM+1), density 1.03 (DM+2 per table rule)
+  // NOTE: The source text example shows "+1 (for density)" not "+2", giving 0.7→stress 0.
+  // This implementation follows the explicit DM table (density > 1.0 → DM+2):
+  //   5 − 6.3 + 1 + 2 = 1.7 → floor = 1 → 1² = 1
+  it("Zed Prime with DM+2 density table rule: Size 5, 6.3 Gyr, is a moon, density 1.03 → stress 1", () => {
+    const result = calculateResidualSeismicStress({
+      size: 5,
+      ageGyr: 6.3,
+      isMoon: true,
+      moonSizes: [],
+      density: 1.03,
+    });
+    expect(result).not.toBeNull();
+    expect(result.dms.moonDm).toBe(1);
+    expect(result.dms.densityDm).toBe(2); // density > 1.0 → DM+2 per table
+    expect(result.dms.totalDm).toBe(3);
+    expect(result.preSquare).toBe(1);
+    expect(result.stress).toBe(1);
+  });
+
+  it("moon-size DM is capped at +12 regardless of total moon sizes", () => {
+    const result = calculateResidualSeismicStress({
+      size: 10,
+      ageGyr: 1.0,
+      isMoon: false,
+      moonSizes: [5, 5, 5, 5], // raw total 20, capped to 12
+      density: 1.0,
+    });
+    expect(result.dms.rawMoonSizeDm).toBe(20);
+    expect(result.dms.moonSizeDm).toBe(12);
+    // 10 − 1 + 12 = 21 → floor = 21 → 21² = 441
+    expect(result.stress).toBe(441);
+  });
+
+  it("density < 0.5 applies DM-1", () => {
+    const result = calculateResidualSeismicStress({
+      size: 5,
+      ageGyr: 3.0,
+      isMoon: false,
+      moonSizes: [],
+      density: 0.3,
+    });
+    expect(result.dms.densityDm).toBe(-1);
+    // 5 − 3.0 − 1 = 1.0 → floor = 1 → 1² = 1
+    expect(result.preSquare).toBe(1);
+    expect(result.stress).toBe(1);
+  });
+
+  it("pre-square value < 1 yields stress 0 (floor = 0)", () => {
+    // Size 4, age 3.1, no DMs → 4 − 3.1 = 0.9 → floor = 0 → stress = 0
+    const result = calculateResidualSeismicStress({ size: 4, ageGyr: 3.1 });
+    expect(result.preSquare).toBe(0);
+    expect(result.stress).toBe(0);
+  });
+
+  it("pre-square value exactly 1 yields stress 1", () => {
+    // Size 5, age 4.0, no DMs → 5 − 4.0 = 1.0 → floor = 1 → 1² = 1
+    const result = calculateResidualSeismicStress({ size: 5, ageGyr: 4.0 });
+    expect(result.preSquare).toBe(1);
+    expect(result.stress).toBe(1);
+  });
+
+  it("size 0 world (asteroid) with high age returns stress 0", () => {
+    const result = calculateResidualSeismicStress({ size: 0, ageGyr: 4.5 });
+    expect(result.stress).toBe(0);
+  });
+
+  it("returns null when size is missing or NaN", () => {
+    expect(calculateResidualSeismicStress({ ageGyr: 4.0 })).toBeNull();
+    expect(calculateResidualSeismicStress({ size: NaN, ageGyr: 4.0 })).toBeNull();
+  });
+
+  it("returns null when ageGyr is missing or NaN", () => {
+    expect(calculateResidualSeismicStress({ size: 5 })).toBeNull();
+    expect(calculateResidualSeismicStress({ size: 5, ageGyr: NaN })).toBeNull();
+  });
+
+  it("returns null when called with no arguments", () => {
+    expect(calculateResidualSeismicStress()).toBeNull();
+  });
+
+  it("ignores Size 0 moons (they contribute no DM)", () => {
+    const result = calculateResidualSeismicStress({
+      size: 6,
+      ageGyr: 3.0,
+      moonSizes: [0, 0, 0],
+    });
+    expect(result.dms.moonSizeDm).toBe(0);
+    // 6 − 3 = 3 → floor = 3 → 3² = 9
+    expect(result.stress).toBe(9);
   });
 });

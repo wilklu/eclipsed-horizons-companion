@@ -44,6 +44,20 @@
             <option value="random">🎲 Random</option>
           </select>
         </div>
+        <div class="control-group">
+          <label>Scenario Date (Solar Days):</label>
+          <input v-model.number="temperatureScenarioDateSolarDays" type="number" min="0" step="1" class="text-input" />
+        </div>
+        <div class="control-group">
+          <label>Solar Days Per Year:</label>
+          <input
+            v-model.number="temperatureScenarioSolarDaysPerYear"
+            type="number"
+            min="1"
+            step="1"
+            class="text-input"
+          />
+        </div>
         <div class="control-group control-action">
           <button class="btn btn-primary" @click="buildSystem">⚡ Generate System</button>
         </div>
@@ -212,6 +226,46 @@
           </table>
         </div>
 
+        <div v-if="mainworldCandidateSummary" class="candidates-section">
+          <h3>🎯 Mainworld Candidates</h3>
+          <div class="candidate-metadata">
+            <span><strong>Candidates:</strong> {{ mainworldCandidateSummary.count }}</span>
+            <span>
+              <strong>HZ Orbit#:</strong>
+              {{ mainworldCandidateSummary.habitableZone.innerOrbit }} to
+              {{ mainworldCandidateSummary.habitableZone.outerOrbit }}
+            </span>
+            <span>
+              <strong>Seasonal Date:</strong>
+              {{ mainworldCandidateSummary.settings.dateSolarDays }} /
+              {{ mainworldCandidateSummary.settings.solarDaysPerYear }}
+            </span>
+          </div>
+          <div v-if="mainworldCandidateSummary.rows.length === 0" class="empty-state">
+            No candidates were found inside the habitable zone.
+          </div>
+          <table v-else class="planet-table candidate-table">
+            <thead>
+              <tr>
+                <th>Body</th>
+                <th>Orbit#</th>
+                <th>Region</th>
+                <th>Mean K</th>
+                <th>Daylight h</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="row in mainworldCandidateSummary.rows" :key="row.id">
+                <td>{{ row.bodyLabel }}</td>
+                <td>{{ row.orbit }}</td>
+                <td>{{ row.region }}</td>
+                <td>{{ row.meanTemperatureK }}</td>
+                <td>{{ row.sunlightHours }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
         <!-- Step Trace -->
         <div class="trace-section">
           <h3>🧭 Generation Step Trace</h3>
@@ -316,7 +370,7 @@ import {
   generateIISSProfile,
   generatePlanetarySystemProfiles,
 } from "../../utils/iissProfileGenerator.js";
-import { generateSystemWorldPlacement } from "../../utils/worldGenerator.js";
+import { generateSystemWorldPlacement, identifyMainworldCandidates } from "../../utils/worldGenerator.js";
 
 const props = defineProps({
   galaxyId: { type: String, default: null },
@@ -381,6 +435,8 @@ const SECONDARY_ZONE_DEFAULT_ORBITS = {
   near: 8,
   far: 14,
 };
+const DEFAULT_TEMPERATURE_SCENARIO_DATE_SOLAR_DAYS = 91;
+const DEFAULT_TEMPERATURE_SCENARIO_SOLAR_DAYS_PER_YEAR = 365;
 
 function parsePrimarySpectralSelection(rawValue) {
   const value = String(rawValue || "")
@@ -400,6 +456,8 @@ const hexCoord = ref(router.currentRoute.value.query.hex ?? "0101");
 const systemLabelInput = ref(String(router.currentRoute.value.query.name || "").trim() || hexCoord.value);
 const primarySpectral = ref(parsePrimarySpectralSelection(router.currentRoute.value.query.star));
 const multiplicity = ref("random");
+const temperatureScenarioDateSolarDays = ref(DEFAULT_TEMPERATURE_SCENARIO_DATE_SOLAR_DAYS);
+const temperatureScenarioSolarDaysPerYear = ref(DEFAULT_TEMPERATURE_SCENARIO_SOLAR_DAYS_PER_YEAR);
 const selectedSystemId = ref("");
 const system = ref(null);
 const isLoading = ref(false);
@@ -436,6 +494,36 @@ const stepTraceEntries = computed(() => {
       payload,
       summary: summarizeStepTrace(stepKey, payload),
     }));
+});
+const mainworldCandidateSummary = computed(() => {
+  const candidateResult = system.value?.mainworldCandidates;
+  if (!candidateResult || !Array.isArray(candidateResult.candidates)) {
+    return null;
+  }
+
+  const settings = resolveTemperatureScenarioSettings(system.value?.temperatureScenarioSettings);
+  const habitableZone = candidateResult.habitableZone ?? { innerOrbit: "n/a", outerOrbit: "n/a" };
+  const rows = candidateResult.candidates.slice(0, 16).map((candidate) => {
+    const sunlightHours =
+      candidate?.normalizedTemperatureScenarios?.seaLevel?.components?.timeOfDay?.sunlightModel?.sunlightHours;
+    return {
+      id: `${candidate.bodyLabel}-${candidate.orbit}`,
+      bodyLabel: candidate.bodyLabel,
+      orbit: Number.isFinite(candidate.orbit) ? Number(candidate.orbit).toFixed(2) : "n/a",
+      region: candidate.temperatureRegionType ?? "n/a",
+      meanTemperatureK: Number.isFinite(candidate.meanTemperatureK)
+        ? Number(candidate.meanTemperatureK).toFixed(2)
+        : "n/a",
+      sunlightHours: Number.isFinite(sunlightHours) ? Number(sunlightHours).toFixed(2) : "n/a",
+    };
+  });
+
+  return {
+    count: candidateResult.candidates.length,
+    habitableZone,
+    settings,
+    rows,
+  };
 });
 
 // Update page title dynamically
@@ -1065,6 +1153,24 @@ function parseHexCoordinate(rawCoord) {
   };
 }
 
+function resolveTemperatureScenarioSettings(rawSettings = null) {
+  const rawSolarDaysPerYear = Number(rawSettings?.solarDaysPerYear);
+  const solarDaysPerYear =
+    Number.isFinite(rawSolarDaysPerYear) && rawSolarDaysPerYear > 0
+      ? Math.max(1, Math.round(rawSolarDaysPerYear))
+      : DEFAULT_TEMPERATURE_SCENARIO_SOLAR_DAYS_PER_YEAR;
+
+  const rawDateSolarDays = Number(rawSettings?.dateSolarDays);
+  let dateSolarDays = Number.isFinite(rawDateSolarDays)
+    ? Math.max(0, Math.round(rawDateSolarDays))
+    : DEFAULT_TEMPERATURE_SCENARIO_DATE_SOLAR_DAYS;
+  if (dateSolarDays >= solarDaysPerYear) {
+    dateSolarDays = dateSolarDays % solarDaysPerYear;
+  }
+
+  return { dateSolarDays, solarDaysPerYear };
+}
+
 function toSpectralClass(star) {
   const direct = String(star?.spectralType || "")
     .trim()
@@ -1161,6 +1267,7 @@ function starFromPersisted(spectralClass, role) {
 function hydrateSystemFromPersisted(persistedSystem) {
   const metadata = persistedSystem?.metadata || {};
   const survey = metadata.generatedSurvey || null;
+  const temperatureScenarioSettings = resolveTemperatureScenarioSettings(survey?.temperatureScenarioSettings);
   const x = Number(persistedSystem?.hexCoordinates?.x) || 1;
   const y = Number(persistedSystem?.hexCoordinates?.y) || 1;
   const normalizedCoord = `${String(x).padStart(2, "0")}${String(y).padStart(2, "0")}`;
@@ -1198,6 +1305,8 @@ function hydrateSystemFromPersisted(persistedSystem) {
       habitableZone: survey.habitableZone,
       planets,
       worldPlacement: survey.worldPlacement ?? null,
+      mainworldCandidates: survey.mainworldCandidates ?? null,
+      temperatureScenarioSettings,
       iissProfile,
       planetarySystemShortProfile: planetarySystemProfile.shortProfile,
       planetarySystemLongProfile: planetarySystemProfile.longProfile,
@@ -1234,6 +1343,8 @@ function hydrateSystemFromPersisted(persistedSystem) {
     },
     planets: [],
     worldPlacement,
+    mainworldCandidates: survey?.mainworldCandidates ?? null,
+    temperatureScenarioSettings,
     iissProfile,
     planetarySystemShortProfile: planetarySystemProfile.shortProfile,
     planetarySystemLongProfile: planetarySystemProfile.longProfile,
@@ -1260,6 +1371,9 @@ async function loadPersistedSystem(systemId, showToast = false) {
 
   try {
     system.value = hydrateSystemFromPersisted(persisted);
+    const scenarioSettings = resolveTemperatureScenarioSettings(system.value?.temperatureScenarioSettings);
+    temperatureScenarioDateSolarDays.value = scenarioSettings.dateSolarDays;
+    temperatureScenarioSolarDaysPerYear.value = scenarioSettings.solarDaysPerYear;
     hexCoord.value = system.value.systemId;
     systemLabelInput.value = resolveSystemDesignationLabel(system.value.systemLabel, system.value.systemId);
     const primaryCode = toSpectralClass(system.value.stars[0]);
@@ -1331,6 +1445,12 @@ async function buildSystem() {
     }
 
     const systemAgeGyr = +(Math.random() * 12 + 1).toFixed(2);
+    const temperatureScenarioSettings = resolveTemperatureScenarioSettings({
+      dateSolarDays: temperatureScenarioDateSolarDays.value,
+      solarDaysPerYear: temperatureScenarioSolarDaysPerYear.value,
+    });
+    temperatureScenarioDateSolarDays.value = temperatureScenarioSettings.dateSolarDays;
+    temperatureScenarioSolarDaysPerYear.value = temperatureScenarioSettings.solarDaysPerYear;
 
     // Calculate new star properties for each star
     stars.forEach((star, idx) => {
@@ -1357,6 +1477,16 @@ async function buildSystem() {
       stars,
       systemAgeGyr,
       includeStep9: true,
+      rng: Math.random,
+    });
+    const mainworldCandidates = identifyMainworldCandidates({
+      slots: worldPlacement.slots,
+      hzco: worldPlacement.hzco,
+      rollPhysical: true,
+      includeTemperatureScenarioPresets: true,
+      temperatureScenarioDateSolarDays: temperatureScenarioSettings.dateSolarDays,
+      temperatureScenarioSolarDaysPerYear: temperatureScenarioSettings.solarDaysPerYear,
+      temperatureScenarioGasGiantResidualAgeGyr: systemAgeGyr,
       rng: Math.random,
     });
     const planets = buildPlanetsFromWorldPlacement(worldPlacement, hz, stars, systemDesignationLabel);
@@ -1396,6 +1526,8 @@ async function buildSystem() {
           habitableZone: hz,
           planets,
           worldPlacement,
+          mainworldCandidates,
+          temperatureScenarioSettings,
           primaryGeneration: primaryRoll,
           iissProfile,
           planetarySystemProfile,
@@ -1413,6 +1545,8 @@ async function buildSystem() {
       habitableZone: hz,
       planets,
       worldPlacement,
+      mainworldCandidates,
+      temperatureScenarioSettings,
       iissProfile,
       planetarySystemShortProfile: planetarySystemProfile.shortProfile,
       planetarySystemLongProfile: planetarySystemProfile.longProfile,
@@ -1448,6 +1582,11 @@ function proceedToWorldBuilder() {
     return;
   }
 
+  const scenarioSettings = resolveTemperatureScenarioSettings(system.value?.temperatureScenarioSettings) ?? {
+    dateSolarDays: temperatureScenarioDateSolarDays.value,
+    solarDaysPerYear: temperatureScenarioSolarDaysPerYear.value,
+  };
+
   router.push({
     name: "WorldBuilder",
     params: { systemId: persistedSystemId },
@@ -1455,6 +1594,8 @@ function proceedToWorldBuilder() {
       star: system.value.stars[0].designation,
       galaxyId: props.galaxyId ?? "",
       sectorId: props.sectorId ?? "",
+      temperatureScenarioDateSolarDays: String(scenarioSettings.dateSolarDays),
+      temperatureScenarioSolarDaysPerYear: String(scenarioSettings.solarDaysPerYear),
     },
   });
 }
@@ -1580,6 +1721,7 @@ function proceedToWorldBuilder() {
 .stars-section,
 .hz-section,
 .planets-section,
+.candidates-section,
 .trace-section {
   margin-bottom: 2rem;
 }
@@ -1588,9 +1730,24 @@ function proceedToWorldBuilder() {
 .stars-section h3,
 .hz-section h3,
 .planets-section h3,
+.candidates-section h3,
 .trace-section h3 {
   color: #00ffff;
   margin-bottom: 1rem;
+}
+
+.candidate-metadata {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 0.8rem;
+  color: #cde7ff;
+  font-size: 0.86rem;
+}
+
+.candidate-table td,
+.candidate-table th {
+  font-size: 0.84rem;
 }
 
 .profile-section {

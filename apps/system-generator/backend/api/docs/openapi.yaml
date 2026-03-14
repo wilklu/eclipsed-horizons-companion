@@ -782,6 +782,12 @@ components:
           nullable: true
         metadata:
           type: object
+          description: |
+            Extended world survey data. The `generatedSurvey` sub-object contains
+            values produced by the world generator, including the seasonal temperature
+            snapshot (`avgTempC`), mean annual temperature (`meanTempC`), seasonal
+            offset (`seasonalTempOffsetC`), orbital characteristics, and
+            `temperatureScenarioSettings` (`dateSolarDays`, `solarDaysPerYear`).
           additionalProperties: true
 
     World:
