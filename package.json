@@ -17,7 +17,9 @@
     "db:migrate": "node scripts/migrate.js",
     "db:reset": "rm -f apps/system-generator/backend/data/universe.db && npm run db:migrate",
     "db:backup": "node scripts/backup.js",
-    "db:restore": "node scripts/restore.js"
+    "db:restore": "node scripts/restore.js",
+    "hooks:install": "node scripts/install-git-hooks.js",
+    "hooks:check": "node scripts/check-staged-files.js"
   },
   "keywords": [
     "traveller",
