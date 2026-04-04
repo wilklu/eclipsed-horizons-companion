@@ -16,12 +16,18 @@
         </select>
 
         <div class="zoom-cluster">
-          <button class="tb-btn" @click="zoomOut" title="Zoom out">−</button>
+          <button class="tb-btn" @click="zoomOut" title="Zoom out one hierarchy level">−</button>
           <button class="zoom-badge" @click="resetView" title="Reset to fit galaxy">{{ parsecBadge }}</button>
-          <button class="tb-btn" @click="zoomIn" title="Zoom in">+</button>
+          <button class="tb-btn" @click="zoomIn" title="Zoom in one hierarchy level">+</button>
         </div>
 
-        <span class="lod-pill" :class="`lod-${currentLod}`">{{ lodLabel }}</span>
+        <div class="level-cluster">
+          <button class="tb-btn" @click="zoomToPreviousHierarchyLevel" title="Previous hierarchy level">◀</button>
+          <span class="lod-pill" :class="`lod-${currentLod}`" :title="currentHierarchyLevel.description">
+            {{ currentHierarchyLevel.label }}
+          </span>
+          <button class="tb-btn" @click="zoomToNextHierarchyLevel" title="Next hierarchy level">▶</button>
+        </div>
       </div>
 
       <div class="toolbar-layers">
@@ -238,6 +244,97 @@
               :x2="tile.wx + SECTOR_PX_W"
               :y2="tile.wy + (SECTOR_PX_H / 4) * i"
               class="subsector-border"
+            />
+          </g>
+        </g>
+
+        <!-- 2c ── Hierarchy overlays (Phase 2) -->
+        <g v-if="showQuadrantOverlay" class="layer-hierarchy layer-quadrant">
+          <g v-for="tile in visibleQuadrantTiles" :key="`quad-${tile.key}`" @click.stop="focusHierarchyTile(tile)">
+            <rect
+              :x="tile.wx"
+              :y="tile.wy"
+              :width="tile.ww"
+              :height="tile.wh"
+              class="hierarchy-tile hierarchy-tile-quadrant"
+            />
+            <text
+              v-if="showHierarchyLabels"
+              :x="tile.wx + tile.ww * 0.5"
+              :y="tile.wy + 16"
+              class="hierarchy-label"
+              text-anchor="middle"
+            >
+              {{ tile.label }}
+            </text>
+          </g>
+        </g>
+
+        <g v-if="showQuadrantSubOverlay" class="layer-hierarchy layer-quadrant-sub">
+          <g
+            v-for="tile in visibleQuadrantSubTiles"
+            :key="`quad-sub-${tile.key}`"
+            @click.stop="focusHierarchyTile(tile)"
+          >
+            <rect
+              :x="tile.wx"
+              :y="tile.wy"
+              :width="tile.ww"
+              :height="tile.wh"
+              class="hierarchy-tile hierarchy-tile-sub"
+            />
+          </g>
+        </g>
+
+        <g v-if="showRegionOverlay" class="layer-hierarchy layer-region">
+          <g v-for="tile in visibleRegionTiles" :key="`region-${tile.key}`" @click.stop="focusHierarchyTile(tile)">
+            <rect
+              :x="tile.wx"
+              :y="tile.wy"
+              :width="tile.ww"
+              :height="tile.wh"
+              class="hierarchy-tile hierarchy-tile-region"
+            />
+            <text
+              v-if="showHierarchyLabels"
+              :x="tile.wx + tile.ww * 0.5"
+              :y="tile.wy + 14"
+              class="hierarchy-label"
+              text-anchor="middle"
+            >
+              {{ tile.label }}
+            </text>
+          </g>
+        </g>
+
+        <g v-if="showRegionSubOverlay" class="layer-hierarchy layer-region-sub">
+          <g
+            v-for="tile in visibleRegionSubTiles"
+            :key="`region-sub-${tile.key}`"
+            @click.stop="focusHierarchyTile(tile)"
+          >
+            <rect
+              :x="tile.wx"
+              :y="tile.wy"
+              :width="tile.ww"
+              :height="tile.wh"
+              class="hierarchy-tile hierarchy-tile-sub"
+            />
+          </g>
+        </g>
+
+        <g v-if="showSectorSubOverlay" class="layer-hierarchy layer-sector-sub">
+          <g
+            v-for="tile in visibleSectorSubTiles"
+            :key="`sector-sub-${tile.key}`"
+            @click.stop="focusHierarchyTile(tile)"
+          >
+            <rect
+              :x="tile.wx"
+              :y="tile.wy"
+              :width="tile.ww"
+              :height="tile.wh"
+              class="hierarchy-tile hierarchy-tile-sub"
             />
           </g>
         </g>
@@ -461,6 +558,7 @@
           </div>
 
           <div class="inspector-actions">
+            <button class="btn btn-primary" @click="openOrbitalView">🪐 Orbital View</button>
             <button class="btn btn-primary" @click="openStarSystem">⭐ System Survey</button>
           </div>
         </div>
@@ -512,6 +610,9 @@ const HEX_STEP_X = HEX_R * 1.5; // 33
 const HEX_STEP_Y = HEX_R * Math.sqrt(3); // ≈38.1
 const SECTOR_COLS = 32;
 const SECTOR_ROWS = 40;
+const REGION_SECTORS = 4;
+const QUADRANT_REGIONS = 4;
+const QUADRANT_SECTORS = REGION_SECTORS * QUADRANT_REGIONS;
 // Total world-space size of one sector tile
 const SECTOR_PX_W = SECTOR_COLS * HEX_STEP_X;
 const SECTOR_PX_H = SECTOR_ROWS * HEX_STEP_Y;
@@ -523,20 +624,67 @@ const gridBiasY = computed(() => Number(preferencesStore.atlasGridBiasY) || 0);
 const LOD_GALAXY = 0.055; // below: sector tiles only
 const LOD_SECTOR = 0.38; // below: dots but no hex grid
 const LOD_HEX = 1.2; // above: high-detail markers + labels
-// ── Discrete zoom levels by view type ──────────────────────────────────────
-// Parsecs per hex for each view tier; converted to zoom via zoom = 1 / parsecsPerHex
-const ZOOM_LEVELS_BY_VIEW = {
-  universe: [10000, 9000, 8000, 7000, 6000, 5000, 4000, 3000, 2000, 1000].map((p) => 1 / p),
-  galactic: [1000, 900, 800, 700, 600, 500, 400, 300, 200, 100].map((p) => 1 / p),
-  sector: [100, 90, 80, 70, 60, 50, 40, 30, 20, 10].map((p) => 1 / p),
-  hex: [10, 9, 8, 7, 6, 5, 4, 3, 2, 1].map((p) => 1 / p),
-};
-const ALL_ZOOM_LEVELS = [
-  ...ZOOM_LEVELS_BY_VIEW.universe,
-  ...ZOOM_LEVELS_BY_VIEW.galactic,
-  ...ZOOM_LEVELS_BY_VIEW.sector,
-  ...ZOOM_LEVELS_BY_VIEW.hex,
-].sort((a, b) => a - b);
+// ── Discrete hierarchy zoom levels ──────────────────────────────────────────
+// The Atlas zoom ladder maps directly to the requested hierarchy:
+// Galaxy -> Quadrant -> Region -> Sector -> Subsector -> Orbital context.
+const HIERARCHY_LEVELS = Object.freeze([
+  {
+    id: "galaxy",
+    label: "Galaxy",
+    description: "Galaxy level overview",
+    parsecsPerHex: 1000,
+  },
+  {
+    id: "quadrant-4x4",
+    label: "Quadrant 4x4",
+    description: "Quadrant level (4x4 Regions)",
+    parsecsPerHex: 500,
+  },
+  {
+    id: "quadrant-2x2",
+    label: "Quadrant 2x2",
+    description: "Quadrant sublevel (2x2 Regions)",
+    parsecsPerHex: 250,
+  },
+  {
+    id: "region-4x4",
+    label: "Region 4x4",
+    description: "Region level (4x4 Sectors)",
+    parsecsPerHex: 120,
+  },
+  {
+    id: "region-2x2",
+    label: "Region 2x2",
+    description: "Region sublevel (2x2 Sectors)",
+    parsecsPerHex: 60,
+  },
+  {
+    id: "sector",
+    label: "Sector",
+    description: "Sector level",
+    parsecsPerHex: 20,
+  },
+  {
+    id: "sector-2x2-subsector",
+    label: "Sector 2x2",
+    description: "Sector sublevel (2x2 Subsectors)",
+    parsecsPerHex: 8,
+  },
+  {
+    id: "subsector",
+    label: "Subsector",
+    description: "Subsector level",
+    parsecsPerHex: 2,
+  },
+  {
+    id: "orbital",
+    label: "Orbital",
+    description: "Orbital context (opens System Survey for full orbital simulation)",
+    parsecsPerHex: 1,
+  },
+]);
+
+const ALL_ZOOM_LEVELS = HIERARCHY_LEVELS.map((level) => 1 / level.parsecsPerHex).sort((a, b) => a - b);
 const DEFAULT_PARSECS_PER_HEX = 60;
 const DEFAULT_ZOOM = 1 / DEFAULT_PARSECS_PER_HEX;
 const MIN_ZOOM = ALL_ZOOM_LEVELS[0];
@@ -701,13 +849,24 @@ const currentLod = computed(() => {
   return "detail";
 });
 
-const lodLabel = computed(
-  () =>
-    ({ universe: "Universe", galaxy: "Galaxy", sector: "Sector", hex: "Hex", detail: "Detail" })[currentLod.value] ??
-    "—",
-);
 const zoomPct = computed(() => Math.round(zoom.value * 100));
 const parsecsPerHex = computed(() => Math.max(1 / MAX_ZOOM, 1 / Math.max(zoom.value, MIN_ZOOM)));
+const currentHierarchyLevelIndex = computed(() => {
+  const target = parsecsPerHex.value;
+  let bestIndex = 0;
+  let bestDelta = Number.POSITIVE_INFINITY;
+  for (let i = 0; i < HIERARCHY_LEVELS.length; i++) {
+    const delta = Math.abs(HIERARCHY_LEVELS[i].parsecsPerHex - target);
+    if (delta < bestDelta) {
+      bestDelta = delta;
+      bestIndex = i;
+    }
+  }
+  return bestIndex;
+});
+const currentHierarchyLevel = computed(() => HIERARCHY_LEVELS[currentHierarchyLevelIndex.value]);
+const lodLabel = computed(() => currentHierarchyLevel.value?.label || "—");
+const currentHierarchyId = computed(() => currentHierarchyLevel.value?.id || "galaxy");
 const parsecBadge = computed(() => {
   const p = parsecsPerHex.value;
   if (p >= 1000) return `${(p / 1000).toFixed(1)} kpc`;
@@ -716,6 +875,7 @@ const parsecBadge = computed(() => {
   return `${p.toFixed(2)} pc`;
 });
 const biasReadout = computed(() => `Bias X ${Math.round(gridBiasX.value)} Y ${Math.round(gridBiasY.value)}`);
+const showHierarchyLabels = computed(() => !dragging.value && parsecsPerHex.value <= 300);
 
 const sectorTileOpacity = computed(() => {
   if (parsecsPerHex.value > 100) return 0.88;
@@ -774,6 +934,71 @@ const continuousSectorTiles = computed(() => {
   }
   return tiles;
 });
+
+function buildHierarchyTiles(tileSizeInSectors, prefix, labeler) {
+  const b = viewBounds.value;
+  const tileW = SECTOR_PX_W * tileSizeInSectors;
+  const tileH = SECTOR_PX_H * tileSizeInSectors;
+  const xStart = Math.floor((b.x0 - tileW) / tileW);
+  const xEnd = Math.ceil((b.x1 + tileW) / tileW);
+  const yStart = Math.floor((b.y0 - tileH) / tileH);
+  const yEnd = Math.ceil((b.y1 + tileH) / tileH);
+
+  const tiles = [];
+  for (let gx = xStart; gx <= xEnd; gx++) {
+    for (let gy = yStart; gy <= yEnd; gy++) {
+      const minSectorX = gx * tileSizeInSectors + minSX.value;
+      const minSectorY = gy * tileSizeInSectors + minSY.value;
+      tiles.push({
+        key: `${prefix}:${gx}:${gy}`,
+        wx: gx * tileW,
+        wy: gy * tileH,
+        ww: tileW,
+        wh: tileH,
+        hierarchyKeyX: gx,
+        hierarchyKeyY: gy,
+        minSectorX,
+        minSectorY,
+        tileSizeInSectors,
+        label: labeler(gx, gy),
+      });
+    }
+  }
+
+  return tiles;
+}
+
+const quadrantTiles = computed(() =>
+  buildHierarchyTiles(QUADRANT_SECTORS, "q4", (gx, gy) => `Q ${gx >= 0 ? `+${gx}` : gx},${gy >= 0 ? `+${gy}` : gy}`),
+);
+const quadrantSubTiles = computed(() =>
+  buildHierarchyTiles(
+    QUADRANT_SECTORS / 2,
+    "q2",
+    (gx, gy) => `Q2 ${gx >= 0 ? `+${gx}` : gx},${gy >= 0 ? `+${gy}` : gy}`,
+  ),
+);
+const regionTiles = computed(() =>
+  buildHierarchyTiles(REGION_SECTORS, "r4", (gx, gy) => `R ${gx >= 0 ? `+${gx}` : gx},${gy >= 0 ? `+${gy}` : gy}`),
+);
+const regionSubTiles = computed(() =>
+  buildHierarchyTiles(REGION_SECTORS / 2, "r2", (gx, gy) => `R2 ${gx >= 0 ? `+${gx}` : gx},${gy >= 0 ? `+${gy}` : gy}`),
+);
+const sectorSubTiles = computed(() =>
+  buildHierarchyTiles(0.5, "s2", (gx, gy) => `S2 ${gx >= 0 ? `+${gx}` : gx},${gy >= 0 ? `+${gy}` : gy}`),
+);
+
+const visibleQuadrantTiles = computed(() => quadrantTiles.value);
+const visibleQuadrantSubTiles = computed(() => quadrantSubTiles.value);
+const visibleRegionTiles = computed(() => regionTiles.value);
+const visibleRegionSubTiles = computed(() => regionSubTiles.value);
+const visibleSectorSubTiles = computed(() => sectorSubTiles.value);
+
+const showQuadrantOverlay = computed(() => currentHierarchyId.value === "quadrant-4x4");
+const showQuadrantSubOverlay = computed(() => currentHierarchyId.value === "quadrant-2x2");
+const showRegionOverlay = computed(() => currentHierarchyId.value === "region-4x4");
+const showRegionSubOverlay = computed(() => currentHierarchyId.value === "region-2x2");
+const showSectorSubOverlay = computed(() => currentHierarchyId.value === "sector-2x2-subsector");
 
 const gridClickTiles = computed(() => {
   const b = viewBounds.value;
@@ -1528,31 +1753,57 @@ async function generateInspectorSectorSystems() {
   }
 }
 
-// Find next zoom level in the discrete ladder
-function findNextZoomLevel(currentZoom, direction) {
-  const sorted = [...ALL_ZOOM_LEVELS];
-  if (direction === "in") {
-    // Find smallest zoom level larger than current
-    const next = sorted.find((z) => z > currentZoom);
-    return next || MAX_ZOOM;
-  } else {
-    // Find largest zoom level smaller than current
-    const prev = sorted
-      .slice()
-      .reverse()
-      .find((z) => z < currentZoom);
-    return prev || MIN_ZOOM;
+function zoomToHierarchyLevel(index) {
+  const clampedIndex = Math.max(0, Math.min(HIERARCHY_LEVELS.length - 1, index));
+  const parsecs = HIERARCHY_LEVELS[clampedIndex].parsecsPerHex;
+  applyZoomCentered(1 / parsecs);
+}
+
+function zoomToHierarchyLevelId(levelId) {
+  const idx = HIERARCHY_LEVELS.findIndex((level) => level.id === levelId);
+  if (idx < 0) return;
+  zoomToHierarchyLevel(idx);
+}
+
+function focusHierarchyTile(tile) {
+  const cx = tile.wx + tile.ww / 2;
+  const cy = tile.wy + tile.wh / 2;
+  const id = currentHierarchyId.value;
+  const nextByLevel = {
+    "quadrant-4x4": "quadrant-2x2",
+    "quadrant-2x2": "region-4x4",
+    "region-4x4": "region-2x2",
+    "region-2x2": "sector",
+    sector: "sector-2x2-subsector",
+    "sector-2x2-subsector": "subsector",
+  };
+  const nextLevelId = nextByLevel[id] || id;
+  const nextLevel = HIERARCHY_LEVELS.find((level) => level.id === nextLevelId) || currentHierarchyLevel.value;
+  const targetZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, 1 / nextLevel.parsecsPerHex));
+  panX.value = svgW.value / 2 - cx * targetZoom;
+  panY.value = svgH.value / 2 - cy * targetZoom;
+  zoom.value = targetZoom;
+}
+
+function zoomToNextHierarchyLevel() {
+  if (currentHierarchyId.value === "subsector" && inspectorMode.value === "star") {
+    zoomToHierarchyLevelId("orbital");
+    openOrbitalView();
+    return;
   }
+  zoomToHierarchyLevel(currentHierarchyLevelIndex.value + 1);
+}
+
+function zoomToPreviousHierarchyLevel() {
+  zoomToHierarchyLevel(currentHierarchyLevelIndex.value - 1);
 }
 
 function zoomIn() {
-  const nextZoom = findNextZoomLevel(zoom.value, "in");
-  applyZoomCentered(nextZoom);
+  zoomToNextHierarchyLevel();
 }
 
 function zoomOut() {
-  const prevZoom = findNextZoomLevel(zoom.value, "out");
-  applyZoomCentered(prevZoom);
+  zoomToPreviousHierarchyLevel();
 }
 
 function applyZoomCentered(newZoom) {
@@ -1592,7 +1843,15 @@ function resetView() {
   const worldW = (maxX - minX + 1) * SECTOR_PX_W;
   const worldH = (maxY - minY + 1) * SECTOR_PX_H;
   const fitZoom = Math.min((svgW.value * 0.88) / worldW, (svgH.value * 0.88) / worldH, 0.45);
-  zoom.value = Math.max(MIN_ZOOM, fitZoom);
+  const closestHierarchy = HIERARCHY_LEVELS.reduce(
+    (best, level) => {
+      const levelZoom = 1 / level.parsecsPerHex;
+      const delta = Math.abs(levelZoom - fitZoom);
+      return delta < best.delta ? { zoom: levelZoom, delta } : best;
+    },
+    { zoom: 1 / HIERARCHY_LEVELS[0].parsecsPerHex, delta: Number.POSITIVE_INFINITY },
+  );
+  zoom.value = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, closestHierarchy.zoom));
   panX.value = (svgW.value - worldW * zoom.value) / 2;
   panY.value = (svgH.value - worldH * zoom.value) / 2;
 }
@@ -1606,6 +1865,23 @@ function openStarSystem() {
     name: "StarSystemBuilder",
     params: { galaxyId: targetGalaxyId, sectorId: star.sectorId },
     query: { hex: star.coord, star: star.starType },
+  });
+}
+
+function openOrbitalView() {
+  const star = inspectorStar.value;
+  if (!star || !selectedGalaxyId.value) return;
+  const targetGalaxyId = selectedGalaxyId.value === ALL_GALAXIES_VALUE ? star.galaxyId : selectedGalaxyId.value;
+  if (!targetGalaxyId) return;
+
+  router.push({
+    name: "OrbitalView",
+    params: { galaxyId: targetGalaxyId, sectorId: star.sectorId },
+    query: {
+      hex: star.coord,
+      star: star.starType,
+      from: "atlas",
+    },
   });
 }
 
@@ -1775,6 +2051,12 @@ watch(
   overflow: hidden;
 }
 
+.level-cluster {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
 .tb-btn {
   background: #0f1e38;
   color: #c0d8f0;
@@ -1894,6 +2176,39 @@ watch(
   stroke: rgba(120, 170, 220, 0.4);
   stroke-width: 1;
   stroke-dasharray: 5 3;
+  pointer-events: none;
+}
+
+.hierarchy-tile {
+  fill: transparent;
+  cursor: pointer;
+}
+
+.hierarchy-tile-quadrant {
+  stroke: rgba(94, 170, 255, 0.75);
+  stroke-width: 2.3;
+}
+
+.hierarchy-tile-region {
+  stroke: rgba(96, 220, 186, 0.72);
+  stroke-width: 1.8;
+}
+
+.hierarchy-tile-sub {
+  stroke: rgba(176, 214, 255, 0.45);
+  stroke-width: 1.2;
+  stroke-dasharray: 7 4;
+}
+
+.hierarchy-tile:hover {
+  fill: rgba(120, 185, 255, 0.08);
+}
+
+.hierarchy-label {
+  fill: rgba(190, 230, 255, 0.92);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
   pointer-events: none;
 }
 

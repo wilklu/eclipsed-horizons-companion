@@ -5,6 +5,8 @@
   "main": "scripts/index.js",
   "type": "module",
   "scripts": {
+    "dev": "npm --prefix apps/system-generator/frontend run dev",
+    "api:dev": "node apps/system-generator/backend/api/server.js",
     "validate:rules": "node scripts/validate-rules.js",
     "validate:yaml": "node scripts/lint-yaml.js",
     "validate:data": "node scripts/test-data-validation.js",

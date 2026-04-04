@@ -1,19 +1,12 @@
 <template>
   <div class="survey-navigation">
     <div class="survey-breadcrumb">
-      <span class="breadcrumb-label">Survey Class:</span>
       <span class="breadcrumb-current">{{ currentClass }}</span>
     </div>
     <div class="survey-actions">
-      <button v-if="showRegenerate" class="btn btn-secondary" @click="$emit('regenerate')">
-        🔄 Regenerate
-      </button>
-      <button v-if="showExport" class="btn btn-secondary" @click="$emit('export')">
-        📤 Export
-      </button>
-      <router-link v-if="backRoute" :to="backRoute" class="btn btn-outline">
-        ← Back
-      </router-link>
+      <button v-if="showRegenerate" class="btn btn-secondary" @click="$emit('regenerate')">🔄 Regenerate</button>
+      <button v-if="showExport" class="btn btn-secondary" @click="$emit('export')">📤 Export</button>
+      <router-link v-if="backRoute" :to="backRoute" class="btn btn-outline"> ← Back </router-link>
     </div>
   </div>
 </template>
@@ -56,13 +49,6 @@ defineEmits(["regenerate", "export"]);
   display: flex;
   align-items: center;
   gap: 0.75rem;
-}
-
-.breadcrumb-label {
-  color: #888;
-  font-size: 0.85rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
 }
 
 .breadcrumb-current {

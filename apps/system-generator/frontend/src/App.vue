@@ -6,13 +6,15 @@
         <span class="brand-name">Eclipsed Horizons Companion</span>
       </div>
       <nav class="header-nav">
-        <router-link to="/" class="nav-link">Galaxy Survey</router-link>
-        <router-link :to="galaxyId ? `/sector/${galaxyId}` : '/'" class="nav-link">Sector Survey</router-link>
+        <router-link to="/atlas" class="nav-link">Traveller Atlas</router-link>
+        <router-link to="/galaxy" class="nav-link">Galaxy Survey</router-link>
+        <router-link :to="galaxyId ? `/sector/${galaxyId}` : '/galaxy'" class="nav-link">Sector Survey</router-link>
         <router-link to="/sophont-generator" class="nav-link">Sophont Generator</router-link>
         <router-link to="/creature-generator" class="nav-link">Creature Generator</router-link>
         <router-link to="/history-generator" class="nav-link">History Generator</router-link>
         <router-link to="/character-generator" class="nav-link">Character Generator</router-link>
         <router-link to="/session-planner" class="nav-link">Session Planner</router-link>
+        <router-link to="/preferences" class="nav-link">Preferences</router-link>
       </nav>
     </header>
     <main class="app-main">
@@ -88,7 +90,9 @@ body {
   font-size: 0.9rem;
   padding: 0.25rem 0.5rem;
   border-radius: 0.25rem;
-  transition: color 0.2s, background 0.2s;
+  transition:
+    color 0.2s,
+    background 0.2s;
 }
 
 .nav-link:hover,
