@@ -769,10 +769,26 @@ const galaxyOptions = computed(() =>
 // ── Grid bounds ────────────────────────────────────────────────────────────
 const gridBounds = computed(() => {
   if (!sectors.value.length) return { minX: 0, maxX: 0, minY: 0, maxY: 0 };
-  const xs = sectors.value.map((s) => Number(s?.coordinates?.x)).filter(Number.isFinite);
-  const ys = sectors.value.map((s) => Number(s?.coordinates?.y)).filter(Number.isFinite);
-  if (!xs.length || !ys.length) return { minX: 0, maxX: 0, minY: 0, maxY: 0 };
-  return { minX: Math.min(...xs), maxX: Math.max(...xs), minY: Math.min(...ys), maxY: Math.max(...ys) };
+  let minX = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+
+  for (const sector of sectors.value) {
+    const sx = Number(sector?.coordinates?.x);
+    const sy = Number(sector?.coordinates?.y);
+    if (!Number.isFinite(sx) || !Number.isFinite(sy)) continue;
+    if (sx < minX) minX = sx;
+    if (sx > maxX) maxX = sx;
+    if (sy < minY) minY = sy;
+    if (sy > maxY) maxY = sy;
+  }
+
+  if (!Number.isFinite(minX) || !Number.isFinite(minY)) {
+    return { minX: 0, maxX: 0, minY: 0, maxY: 0 };
+  }
+
+  return { minX, maxX, minY, maxY };
 });
 
 const minSX = computed(() => gridBounds.value.minX);
@@ -876,6 +892,7 @@ const parsecBadge = computed(() => {
 });
 const biasReadout = computed(() => `Bias X ${Math.round(gridBiasX.value)} Y ${Math.round(gridBiasY.value)}`);
 const showHierarchyLabels = computed(() => !dragging.value && parsecsPerHex.value <= 300);
+const sectorTilesEnabled = computed(() => parsecsPerHex.value <= 250);
 
 const sectorTileOpacity = computed(() => {
   if (parsecsPerHex.value > 100) return 0.88;
@@ -885,7 +902,7 @@ const sectorTileOpacity = computed(() => {
 });
 
 // ── Universe LOD: galaxy blobs ───────────────────────────────────────────
-const showUniverseLayer = computed(() => parsecsPerHex.value > 1000);
+const showUniverseLayer = computed(() => !sectorTilesEnabled.value);
 
 const galaxyDots = computed(() =>
   galaxies.value.map((g, i) => {
@@ -1001,6 +1018,7 @@ const showRegionSubOverlay = computed(() => currentHierarchyId.value === "region
 const showSectorSubOverlay = computed(() => currentHierarchyId.value === "sector-2x2-subsector");
 
 const gridClickTiles = computed(() => {
+  if (!sectorTilesEnabled.value) return [];
   const b = viewBounds.value;
   const padX = SECTOR_PX_W;
   const padY = SECTOR_PX_H;
@@ -1061,18 +1079,27 @@ const effectiveStarR = computed(() => {
 });
 
 // ── Sector tiles ───────────────────────────────────────────────────────────
-const sectorTileData = computed(() =>
-  sectors.value
-    .map((sector) => {
-      const sx = Number(sector?.coordinates?.x);
-      const sy = Number(sector?.coordinates?.y);
-      if (!Number.isFinite(sx) || !Number.isFinite(sy)) return null;
+const visibleSectorTiles = computed(() => {
+  if (!sectorTilesEnabled.value || !sectors.value.length) return [];
+  const b = viewBounds.value;
+  const xStart = Math.max(gridBounds.value.minX, Math.floor(b.x0 / SECTOR_PX_W) + minSX.value);
+  const xEnd = Math.min(gridBounds.value.maxX, Math.ceil(b.x1 / SECTOR_PX_W) + minSX.value);
+  const yStart = Math.max(gridBounds.value.minY, Math.floor(b.y0 / SECTOR_PX_H) + minSY.value);
+  const yEnd = Math.min(gridBounds.value.maxY, Math.ceil(b.y1 / SECTOR_PX_H) + minSY.value);
+  const tiles = [];
+
+  for (let sx = xStart; sx <= xEnd; sx++) {
+    for (let sy = yStart; sy <= yEnd; sy++) {
+      const sector = sectorByCoord.value.get(`${sx}:${sy}`);
+      if (!sector) continue;
+
       const { ox, oy } = sectorOrigin(sx, sy);
       const densityClass = Math.min(5, Math.max(0, Number(sector.densityClass) || 0));
       const explorationStatus = String(sector?.metadata?.explorationStatus || "").toLowerCase();
       const isExplored = /explored|mapped|charted|surveyed|known/.test(explorationStatus);
       const isVoid = densityClass === 0;
-      return {
+
+      tiles.push({
         sectorId: sector.sectorId,
         sector,
         sx,
@@ -1083,16 +1110,11 @@ const sectorTileData = computed(() =>
         isVoid,
         showLabel: !isVoid || isExplored,
         name: !isVoid || isExplored ? String(sector?.metadata?.displayName || sector.sectorId) : "",
-      };
-    })
-    .filter(Boolean),
-);
+      });
+    }
+  }
 
-const visibleSectorTiles = computed(() => {
-  const b = viewBounds.value;
-  return sectorTileData.value.filter(
-    (t) => t.wx + SECTOR_PX_W >= b.x0 && t.wx <= b.x1 && t.wy + SECTOR_PX_H >= b.y0 && t.wy <= b.y1,
-  );
+  return tiles;
 });
 
 // ── Star markers (from sector metadata — no system records needed) ─────────

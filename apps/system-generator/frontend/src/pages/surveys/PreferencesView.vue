@@ -72,7 +72,9 @@
 
         <section class="card">
           <h2>Traveller Atlas</h2>
-          <p class="section-copy">Manual bias values let you nudge sector and subsector overlays against the hex grid.</p>
+          <p class="section-copy">
+            Manual bias values let you nudge sector and subsector overlays against the hex grid.
+          </p>
 
           <label class="field">
             <span>Grid bias X</span>
@@ -130,9 +132,18 @@ function restoreDefaults() {
 }
 
 function savePreferences() {
-  const moderate = Math.max(1000, Number(draft.galaxyPlannerModerateSectorThreshold) || PREFERENCE_DEFAULTS.galaxyPlannerModerateSectorThreshold);
-  const heavy = Math.max(moderate + 1, Number(draft.galaxyPlannerHeavySectorThreshold) || PREFERENCE_DEFAULTS.galaxyPlannerHeavySectorThreshold);
-  const extreme = Math.max(heavy + 1, Number(draft.galaxyPlannerExtremeSectorThreshold) || PREFERENCE_DEFAULTS.galaxyPlannerExtremeSectorThreshold);
+  const moderate = Math.max(
+    1000,
+    Number(draft.galaxyPlannerModerateSectorThreshold) || PREFERENCE_DEFAULTS.galaxyPlannerModerateSectorThreshold,
+  );
+  const heavy = Math.max(
+    moderate + 1,
+    Number(draft.galaxyPlannerHeavySectorThreshold) || PREFERENCE_DEFAULTS.galaxyPlannerHeavySectorThreshold,
+  );
+  const extreme = Math.max(
+    heavy + 1,
+    Number(draft.galaxyPlannerExtremeSectorThreshold) || PREFERENCE_DEFAULTS.galaxyPlannerExtremeSectorThreshold,
+  );
 
   preferencesStore.replace({
     ...preferencesStore.$state,
