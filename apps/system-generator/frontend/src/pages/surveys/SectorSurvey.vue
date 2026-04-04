@@ -848,6 +848,8 @@ async function initializeSectorSelection(galaxyId) {
 
   if (!galaxyId) {
     galaxyProfile.value = null;
+    sectorStore.clearSectors();
+    systemStore.clearSystems();
     return;
   }
 
@@ -855,6 +857,12 @@ async function initializeSectorSelection(galaxyId) {
     galaxyProfile.value = await galaxyApi.getGalaxy(galaxyId);
   } catch {
     galaxyProfile.value = null;
+  }
+
+  if (!galaxyProfile.value) {
+    sectorStore.clearSectors();
+    systemStore.clearSystems();
+    return;
   }
 
   await sectorStore.loadSectors(galaxyId);

@@ -104,6 +104,30 @@ export async function getSectors(galaxyId) {
   }
 }
 
+export async function getSectorsWindow(galaxyId, { xMin, xMax, yMin, yMax, limit = 2500 } = {}) {
+  const params = new URLSearchParams({
+    xMin: String(Number(xMin)),
+    xMax: String(Number(xMax)),
+    yMin: String(Number(yMin)),
+    yMax: String(Number(yMax)),
+    limit: String(Math.min(Math.max(1, Number(limit) || 2500), 10000)),
+  });
+
+  try {
+    const sectors = await request(`/galaxies/${encodeURIComponent(galaxyId)}/sectors?${params.toString()}`);
+    mergeCachedSectors(Array.isArray(sectors) ? sectors : []);
+    return sectorsForGalaxy(Array.isArray(sectors) ? sectors : [], galaxyId).map(normalizeSector);
+  } catch {
+    return sectorsForGalaxy(loadSectors(), galaxyId)
+      .map(normalizeSector)
+      .filter((sector) => {
+        const x = Number(sector?.coordinates?.x);
+        const y = Number(sector?.coordinates?.y);
+        return Number.isFinite(x) && Number.isFinite(y) && x >= xMin && x <= xMax && y >= yMin && y <= yMax;
+      });
+  }
+}
+
 export async function getSectorStats(galaxyId) {
   try {
     return await request(`/galaxies/${encodeURIComponent(galaxyId)}/sectors/stats`);

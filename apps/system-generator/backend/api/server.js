@@ -214,6 +214,12 @@ function upsertSector(payload) {
 
   ensureGalaxyExists(sector.galaxyId);
 
+  const existingRow = db.prepare("SELECT * FROM sectors WHERE sectorId = ?").get(sector.sectorId);
+  const mergedMetadata = {
+    ...parseJsonField(existingRow?.metadata, {}),
+    ...(sector.metadata ?? {}),
+  };
+
   db.prepare(
     `INSERT INTO sectors (sectorId, galaxyId, coordinates, densityClass, densityVariation, metadata)
      VALUES (?, ?, ?, ?, ?, ?)
@@ -230,7 +236,7 @@ function upsertSector(payload) {
     JSON.stringify(sector.coordinates),
     sector.densityClass,
     sector.densityVariation,
-    JSON.stringify(sector.metadata ?? {}),
+    JSON.stringify(mergedMetadata),
   );
 
   const row = db.prepare("SELECT * FROM sectors WHERE sectorId = ?").get(sector.sectorId);
@@ -312,6 +318,34 @@ const server = http.createServer(async (req, res) => {
 
     params = matchPath(pathname, "/api/galaxies/:gid/sectors");
     if (req.method === "GET" && params) {
+      const hasWindowQuery = ["xMin", "xMax", "yMin", "yMax"].every((key) => searchParams.has(key));
+      if (hasWindowQuery) {
+        const xMin = Number(searchParams.get("xMin"));
+        const xMax = Number(searchParams.get("xMax"));
+        const yMin = Number(searchParams.get("yMin"));
+        const yMax = Number(searchParams.get("yMax"));
+        const limit = Math.min(Math.max(1, Number(searchParams.get("limit")) || 2500), 10000);
+
+        if (![xMin, xMax, yMin, yMax].every(Number.isFinite)) {
+          sendJson(res, 400, { error: "xMin, xMax, yMin, and yMax must be finite numbers" });
+          return;
+        }
+
+        const rows = db
+          .prepare(
+            `SELECT * FROM sectors
+             WHERE galaxyId = ?
+               AND CAST(json_extract(coordinates, '$.x') AS REAL) BETWEEN ? AND ?
+               AND CAST(json_extract(coordinates, '$.y') AS REAL) BETWEEN ? AND ?
+             ORDER BY CAST(json_extract(coordinates, '$.y') AS REAL) ASC,
+                      CAST(json_extract(coordinates, '$.x') AS REAL) ASC
+             LIMIT ?`,
+          )
+          .all(params.gid, xMin, xMax, yMin, yMax, limit);
+        sendJson(res, 200, rows.map(toSector));
+        return;
+      }
+
       const limit = Math.min(Math.max(1, Number(searchParams.get("limit")) || 5000), 10000);
       const offset = Math.max(0, Number(searchParams.get("offset")) || 0);
       const rows = db
