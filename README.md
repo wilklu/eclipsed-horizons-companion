@@ -2,6 +2,8 @@
 
 A comprehensive, web-based **universe creation and management system** for tabletop RPG campaigns built around _Traveller 5_ mechanics, but independent of official canon. Users create their own universes from scratch — galaxies, star systems, worlds, sophonts, creatures, and procedural histories.
 
+Project direction and cross-app goals are documented in [docs/project-vision.md](docs/project-vision.md).
+
 ## Features
 
 | Tool                                 | Description                                                                  |

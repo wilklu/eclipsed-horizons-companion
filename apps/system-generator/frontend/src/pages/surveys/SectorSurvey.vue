@@ -4,7 +4,7 @@
     <SurveyNavigation
       currentClass="Class 0 – Sector Survey"
       :back-route="backRoute"
-      :regenerate-label="surveyAction.label"
+      :regenerate-label="generationAction.label"
       @regenerate="runSurveyAction"
       @export="exportSector"
     />
@@ -134,8 +134,22 @@
             </div>
           </div>
 
+          <div class="control-group control-group--generation-options">
+            <label>Initial Survey Mode:</label>
+            <select v-model="generationMode" class="select-input">
+              <option v-for="option in generationModeOptions" :key="option.id" :value="option.id">
+                {{ option.label }}
+              </option>
+            </select>
+            <div class="control-help">
+              {{ generationAction.description }}
+            </div>
+          </div>
+
           <div class="control-group control-action">
-            <button class="btn btn-primary" @click="runSurveyAction">{{ surveyAction.label }}</button>
+            <button class="btn btn-primary" :disabled="isLoading" @click="runSurveyAction">
+              {{ generationAction.label }}
+            </button>
           </div>
 
           <div v-if="generatedSector" class="control-group">
@@ -323,6 +337,7 @@ import { ref, computed, watchEffect, watch } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import SurveyNavigation from "../../components/common/SurveyNavigation.vue";
 import LoadingSpinner from "../../components/common/LoadingSpinner.vue";
+import { deserializeReturnRoute, serializeReturnRoute } from "../../utils/returnRoute.js";
 import { useSectorStore } from "../../stores/sectorStore.js";
 import { useSystemStore } from "../../stores/systemStore.js";
 import * as toastService from "../../utils/toast.js";
@@ -357,6 +372,7 @@ const occupancyRealism = ref(1);
 const isMappingSectors = ref(false);
 const gridSizeMode = ref("fit");
 const isSpeakingSectorName = ref(false);
+const generationMode = ref("");
 // Subsector letters in 4x4 grid (A-P)
 const SUBSECTOR_LETTERS = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P"];
 const GRID_SIZE_OPTIONS = [
@@ -491,7 +507,12 @@ const selectedHexData = computed(() => generatedSector.value?.hexes.find((h) => 
 
 const hasSystemsInGrid = computed(() => (generatedSector.value?.systemCount ?? 0) > 0);
 const showSelectHexHint = computed(() => hasSystemsInGrid.value && !selectedHexData.value?.hasSystem);
+const isAtlasEntry = computed(() => String(route.query.from || "").trim() === "atlas");
 const backRoute = computed(() => {
+  const explicitReturnRoute = deserializeReturnRoute(String(route.query.returnTo || ""));
+  if (explicitReturnRoute) {
+    return explicitReturnRoute;
+  }
   if (String(route.query.from || "") === "atlas") {
     const atlasGalaxyId = String(route.query.atlasGalaxyId || props.galaxyId || "").trim();
     return atlasGalaxyId ? { name: "TravellerAtlas", query: { galaxyId: atlasGalaxyId } } : { name: "TravellerAtlas" };
@@ -510,19 +531,77 @@ const sectorTypedHexCount = computed(() => {
   const hexStarTypes = activeSectorMetadata.value?.hexStarTypes;
   return hexStarTypes && typeof hexStarTypes === "object" ? Object.keys(hexStarTypes).length : 0;
 });
-const surveyAction = computed(() => {
-  const scopeLabel = scope.value === "subsector" ? "Subsector" : "Sector";
+const defaultGenerationMode = computed(() => {
   if (!activeSectorRecord.value && !generatedSector.value) {
-    return { id: "generate-full", label: `⚡ Generate ${scopeLabel}` };
+    if (isAtlasEntry.value && getRequestedGridCoordinates()) {
+      return "presence";
+    }
+    return "name-systems";
   }
   if (sectorPresenceCount.value <= 0) {
-    return { id: "generate-presence", label: "🗺 Generate System Presence" };
+    return "name-presence";
   }
   if (sectorTypedHexCount.value < sectorPresenceCount.value) {
-    return { id: "generate-systems", label: "⭐ Generate Systems" };
+    return "name-systems";
   }
-  return { id: "regenerate-full", label: `🔄 Regenerate ${scopeLabel}` };
+  return "name-systems";
 });
+const effectiveGenerationMode = computed(() => generationMode.value || defaultGenerationMode.value);
+const generationModeOptions = computed(() => [
+  { id: "name", label: "Name Only" },
+  { id: "name-presence", label: "Name + Presence" },
+  { id: "presence", label: "Presence Only" },
+  { id: "name-systems", label: "Name + Systems" },
+]);
+const generationAction = computed(() => {
+  const scopeLabel = scope.value === "subsector" ? "Subsector" : "Sector";
+  if (effectiveGenerationMode.value === "name") {
+    return {
+      id: "name",
+      label: "💾 Save Sector Name",
+      description:
+        "Create or update the sector record and name only. No system presence or stellar systems are rolled.",
+    };
+  }
+  if (effectiveGenerationMode.value === "name-presence") {
+    return {
+      id: "name-presence",
+      label: "⚡ Name + Presence",
+      description:
+        "Save the current sector name, then roll occupied hexes without generating full stellar system data.",
+    };
+  }
+  if (effectiveGenerationMode.value === "presence") {
+    return {
+      id: "presence",
+      label: "🗺 Presence Only",
+      description: "Roll occupied hexes only. Full stellar system data is not generated.",
+    };
+  }
+  if (sectorPresenceCount.value > 0 && sectorTypedHexCount.value < sectorPresenceCount.value) {
+    return {
+      id: "name-systems",
+      label: "⭐ Name + Systems",
+      description:
+        "Preserve the current sector name and convert existing occupied hexes into fully typed stellar systems.",
+    };
+  }
+  return {
+    id: "name-systems",
+    label: `⭐ Name + Systems`,
+    description: `Generate a full ${scopeLabel.toLowerCase()} survey in one step, including occupied hexes and stellar system data.`,
+  };
+});
+
+watch(
+  defaultGenerationMode,
+  (nextMode) => {
+    if (!generationMode.value) {
+      generationMode.value = nextMode;
+    }
+  },
+  { immediate: true },
+);
 
 const canLoadSelectedSector = computed(() => Boolean(selectedSectorId.value) && !isLoading.value);
 
@@ -535,17 +614,17 @@ const canSaveSector = computed(() => {
 });
 
 const canPersistSectorName = computed(() => {
-  if (!selectedSectorId.value) {
+  const currentBaseName = String(sectorName.value || "").trim();
+  if (!currentBaseName) {
     return false;
+  }
+
+  if (!selectedSectorId.value) {
+    return Boolean(props.galaxyId && getRequestedGridCoordinates());
   }
 
   const sector = sectorStore.sectors.find((entry) => entry.sectorId === selectedSectorId.value);
   if (!sector) {
-    return false;
-  }
-
-  const currentBaseName = String(sectorName.value || "").trim();
-  if (!currentBaseName) {
     return false;
   }
 
@@ -843,6 +922,13 @@ function createSectorId(name) {
   return `sec_${token}_${Date.now()}`.slice(0, 50);
 }
 
+function generateRandomSectorBaseName() {
+  const mode = preferencesStore.sectorNameMode;
+  return mode === "list"
+    ? SECTOR_NAMES[Math.floor(Math.random() * SECTOR_NAMES.length)]
+    : generatePhonotacticName({ style: mode, syllablesMin: 2, syllablesMax: 3 });
+}
+
 function buildGeneratedSectorName(baseName) {
   const safeBaseName = String(baseName || "").trim();
   if (scope.value !== "subsector") {
@@ -1004,15 +1090,106 @@ function buildSectorPreviewState({ sectorId, name, cols, rows, hexes }) {
   };
 }
 
+async function ensureCurrentSectorRecord({ showToast = false } = {}) {
+  if (activeSectorRecord.value) {
+    return activeSectorRecord.value;
+  }
+
+  if (!props.galaxyId) {
+    return null;
+  }
+
+  const requestedGrid = getRequestedGridCoordinates();
+  if (!requestedGrid) {
+    return null;
+  }
+
+  const { cols, rows, isGalacticCenterSector } = getSelectedSectorContext();
+  const baseName = String(sectorName.value || "").trim() || generateRandomSectorBaseName();
+  sectorName.value = baseName;
+  const displayName = buildGeneratedSectorName(baseName);
+  const nowIso = new Date().toISOString();
+  const payload = {
+    sectorId: createSectorId(displayName),
+    galaxyId: props.galaxyId,
+    coordinates: {
+      x: requestedGrid.x,
+      y: requestedGrid.y,
+    },
+    densityClass: DENSITY_CLASS_MAP[density.value] ?? 3,
+    densityVariation: +((DENSITY_RATES[density.value] ?? 0.3) * 100).toFixed(2),
+    metadata: {
+      createdAt: nowIso,
+      lastModified: nowIso,
+      displayName,
+      explorationStatus: "unexplored",
+      scope: scope.value,
+      gridCols: cols,
+      gridRows: rows,
+      subsector: scope.value === "subsector" ? selectedSubsector.value : null,
+      subsectorName: scope.value === "subsector" ? String(subsectorName.value || "").trim() : null,
+      isGalacticCenterSector,
+      occupancyRealism: occupancyRealism.value,
+      occupiedHexes: [],
+      hexStarTypes: {},
+      hexPresenceGenerated: false,
+      gridX: requestedGrid.x,
+      gridY: requestedGrid.y,
+      notes:
+        scope.value === "subsector"
+          ? `Generated subsector ${selectedSubsector.value}${subsectorName.value ? ` (${String(subsectorName.value).trim()})` : ""}`
+          : "Generated sector",
+    },
+  };
+
+  const persisted = await sectorStore.createSector(payload);
+  selectedSectorId.value = persisted.sectorId;
+  sectorStore.setCurrentSector(persisted.sectorId);
+  await loadPersistedSector(persisted.sectorId, false);
+
+  if (showToast) {
+    toastService.success(`Sector name saved for ${String(persisted?.metadata?.displayName || persisted.sectorId)}.`);
+  }
+
+  return persisted;
+}
+
+async function generateSectorNameOnly() {
+  if (selectedSectorId.value) {
+    await persistSectorName({ showToast: true });
+    return;
+  }
+
+  try {
+    const persisted = await ensureCurrentSectorRecord({ showToast: false });
+    if (!persisted) {
+      toastService.error("No Atlas sector coordinates are available to save this sector name yet.");
+      return;
+    }
+    toastService.success(`Sector name saved for ${String(persisted?.metadata?.displayName || persisted.sectorId)}.`);
+  } catch (err) {
+    toastService.error(`Failed to save sector name: ${err.message}`);
+  }
+}
+
 async function generateSectorPresence() {
   if (!props.galaxyId) {
     toastService.error("No galaxy selected. Please create/select a galaxy first.");
     return;
   }
 
-  const currentSector = activeSectorRecord.value;
+  let currentSector = activeSectorRecord.value;
   if (!currentSector) {
-    await generateSector();
+    try {
+      currentSector = await ensureCurrentSectorRecord();
+    } catch (err) {
+      toastService.error(`Failed to prepare sector for presence generation: ${err.message}`);
+      return;
+    }
+  }
+
+  if (!currentSector) {
+    toastService.error("No Atlas sector coordinates are available to generate system presence.");
     return;
   }
 
@@ -1195,14 +1372,23 @@ async function generateSystemsFromPresence() {
 }
 
 async function runSurveyAction() {
-  if (surveyAction.value.id === "generate-presence") {
+  if (effectiveGenerationMode.value === "name") {
+    await generateSectorNameOnly();
+    return;
+  }
+  if (effectiveGenerationMode.value === "name-presence") {
     await generateSectorPresence();
     return;
   }
-  if (surveyAction.value.id === "generate-systems") {
+  if (effectiveGenerationMode.value === "presence") {
+    await generateSectorPresence();
+    return;
+  }
+  if (sectorPresenceCount.value > 0 && sectorTypedHexCount.value < sectorPresenceCount.value) {
     await generateSystemsFromPresence();
     return;
   }
+
   await generateSector();
 }
 
@@ -1211,6 +1397,7 @@ async function loadSelectedSector() {
   if (!selectedSectorId.value) {
     return;
   }
+  generationMode.value = "";
   await loadPersistedSector(selectedSectorId.value, true);
 }
 
@@ -1385,7 +1572,19 @@ async function loadPersistedSector(sectorId, showToast = false) {
 }
 
 async function persistSectorName({ showToast = false } = {}) {
-  if (!props.galaxyId || !selectedSectorId.value) {
+  if (!props.galaxyId) {
+    return;
+  }
+
+  if (!selectedSectorId.value) {
+    try {
+      const persisted = await ensureCurrentSectorRecord({ showToast });
+      if (!persisted && showToast) {
+        toastService.error("No Atlas sector coordinates are available to save this sector name yet.");
+      }
+    } catch (err) {
+      toastService.error(`Failed to save sector name: ${err.message}`);
+    }
     return;
   }
 
@@ -1452,6 +1651,7 @@ async function initializeSectorSelection(galaxyId) {
   generatedSector.value = null;
   selectedHex.value = null;
   selectedSectorId.value = "";
+  generationMode.value = "";
 
   if (!galaxyId) {
     galaxyProfile.value = null;
@@ -1550,11 +1750,7 @@ async function mapGalaxySectors() {
 }
 
 function randomizeSectorName() {
-  const mode = preferencesStore.sectorNameMode;
-  const randomName =
-    mode === "list"
-      ? SECTOR_NAMES[Math.floor(Math.random() * SECTOR_NAMES.length)]
-      : generatePhonotacticName({ style: mode, syllablesMin: 2, syllablesMax: 3 });
+  const randomName = generateRandomSectorBaseName();
 
   if (scope.value === "subsector") {
     subsectorName.value = randomName;
@@ -1643,10 +1839,7 @@ async function generateSector() {
       }
     }
 
-    const fallbackName =
-      preferencesStore.sectorNameMode === "list"
-        ? SECTOR_NAMES[Math.floor(Math.random() * SECTOR_NAMES.length)]
-        : generatePhonotacticName({ style: preferencesStore.sectorNameMode, syllablesMin: 2, syllablesMax: 3 });
+    const fallbackName = generateRandomSectorBaseName();
     const baseName = sectorName.value || fallbackName;
     const generatedName = buildGeneratedSectorName(baseName);
 
@@ -1835,6 +2028,14 @@ function proceedToStarSystem() {
     anomaly: selectedAnomalyType || undefined,
     anomalyMass: anomalyTypeMatchesGalaxy ? galaxyAnomaly?.massSolarMasses : undefined,
     anomalyActivity: anomalyTypeMatchesGalaxy ? galaxyAnomaly?.activityIndex : undefined,
+    returnTo: serializeReturnRoute({
+      name: "SectorSurvey",
+      params: { galaxyId: props.galaxyId ?? "000" },
+      query: {
+        ...route.query,
+        ...(generatedSector.value?.sectorId ? { sectorId: generatedSector.value.sectorId } : {}),
+      },
+    }),
   };
 
   router.push({
@@ -1918,6 +2119,11 @@ function proceedToStarSystem() {
 
 .control-action {
   justify-content: flex-end;
+}
+
+.control-group--generation-options {
+  border-top: 1px solid rgba(0, 217, 255, 0.12);
+  padding-top: 0.75rem;
 }
 
 /* Galaxy Position Minimap */

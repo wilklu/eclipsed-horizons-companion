@@ -5,7 +5,7 @@ title: Eclipsed Horizons Companion
 
 # Eclipsed Horizons Companion
 
-Welcome to the **Eclipsed Horizons Companion** — a comprehensive, web-based universe creation and management system for tabletop RPG campaigns built around *Traveller 5* mechanics, independent of official canon.
+Welcome to the **Eclipsed Horizons Companion** — a comprehensive, web-based universe creation and management system for tabletop RPG campaigns built around _Traveller 5_ mechanics, independent of official canon.
 
 Rather than using pre-built worlds and history, the system empowers users to create their own universes from scratch — generating galaxies with realistic structure, star systems, worlds, intelligent life forms (sophonts), and procedural histories.
 
@@ -13,12 +13,12 @@ Rather than using pre-built worlds and history, the system empowers users to cre
 
 ### 🗺️ Survey Tools
 
-| Tool | Survey Class | Description |
-|---|---|---|
-| Galaxy Survey | Pre-Class 0 | Multi-galaxy management with density mapping |
-| Sector Survey | Class 0 | Hexagonal sector generation |
-| Star System Builder | Class I | Primary/secondary stars and planetary systems |
-| World Builder | Class II–IV | Planetary characteristics (UWP) |
+| Tool                | Survey Class | Description                                   |
+| ------------------- | ------------ | --------------------------------------------- |
+| Galaxy Survey       | Pre-Class 0  | Multi-galaxy management with density mapping  |
+| Sector Survey       | Class 0      | Hexagonal sector generation                   |
+| Star System Builder | Class I      | Primary/secondary stars and planetary systems |
+| World Builder       | Class II–IV  | Planetary characteristics (UWP)               |
 
 ### 🧬 Generators
 
@@ -35,5 +35,6 @@ Rather than using pre-built worlds and history, the system empowers users to cre
 New to Eclipsed Horizons? Start here:
 
 1. Read the [Quick Start Guide](getting-started/quick-start.md)
-2. Run the System Generator frontend: `cd apps/system-generator/frontend && npm install && npm run dev`
-3. Create your first galaxy in the Galaxy Survey
+2. Review the [Project Vision](project-vision.md)
+3. Run the System Generator frontend: `cd apps/system-generator/frontend && npm install && npm run dev`
+4. Create your first galaxy in the Galaxy Survey

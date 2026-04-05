@@ -65,6 +65,14 @@
         </button>
         <button
           class="tb-toggle"
+          :class="{ active: layerSectorNames }"
+          @click="layerSectorNames = !layerSectorNames"
+          title="Sector names"
+        >
+          Sector Names
+        </button>
+        <button
+          class="tb-toggle"
           :class="{ active: layerCoords }"
           @click="layerCoords = !layerCoords"
           title="Hex coordinates"
@@ -415,33 +423,38 @@
         <!-- Sector card -->
         <div v-if="inspectorMode === 'sector'" class="inspector-content">
           <h2 class="inspector-title">{{ inspectorData.name }}</h2>
+          <div class="inspector-subtitle">Galaxy {{ inspectorData.galaxyName }}</div>
           <div class="inspector-badge">Sector {{ inspectorData.coords }}</div>
           <div class="inspector-actions">
             <button class="btn btn-primary" @click="focusSectorFromInspector">🔍 Zoom to Sector</button>
             <button class="btn btn-primary" @click="openSectorSurvey">🧭 Sector Survey</button>
+          </div>
+          <div class="inspector-generation-panel">
+            <div class="inspector-generation-row">
+              <div class="inspector-field">
+                <label class="inspector-field-label">Area</label>
+                <select v-model="atlasGenerationArea" class="inspector-select">
+                  <option v-for="option in atlasGenerationAreaOptions" :key="option.id" :value="option.id">
+                    {{ option.label }}
+                  </option>
+                </select>
+              </div>
+              <div class="inspector-field">
+                <label class="inspector-field-label">Generate</label>
+                <select v-model="atlasGenerationMode" class="inspector-select">
+                  <option v-for="option in atlasGenerationModeOptions" :key="option.id" :value="option.id">
+                    {{ option.label }}
+                  </option>
+                </select>
+              </div>
+            </div>
+            <div class="inspector-field-help">{{ atlasGenerationAction.description }}</div>
             <button
               class="btn btn-primary"
               :disabled="isGeneratingInspectorSector"
-              @click="generateInspectorSectorName"
+              @click="runInspectorGenerationAction"
             >
-              {{ isGeneratingInspectorSector ? "Generating..." : "✍ Generate Name" }}
-            </button>
-            <button class="btn btn-primary" :disabled="isGeneratingInspectorSector" @click="generateInspectorSector">
-              {{ isGeneratingInspectorSector ? "Generating..." : "⚡ Name + Presence" }}
-            </button>
-            <button
-              class="btn btn-primary"
-              :disabled="isGeneratingInspectorSector"
-              @click="generateInspectorSectorSystems"
-            >
-              {{ isGeneratingInspectorSector ? "Generating..." : "⭐ Name + Systems" }}
-            </button>
-            <button
-              class="btn btn-primary"
-              :disabled="isGeneratingInspectorSector"
-              @click="generateInspectorSectorAndSurroundingSystems"
-            >
-              {{ isGeneratingInspectorSector ? "Generating..." : "🧭 Sector + Surrounding" }}
+              {{ isGeneratingInspectorSector ? "Generating..." : atlasGenerationAction.label }}
             </button>
           </div>
           <div class="detail-grid">
@@ -462,12 +475,23 @@
           <div class="inspector-badge">{{ inspectorData.coords }}</div>
           <div class="inspector-actions">
             <button class="btn btn-primary" @click="focusHierarchyInspector">🔍 Zoom to Area</button>
+          </div>
+          <div class="inspector-generation-panel">
+            <div class="inspector-field">
+              <label class="inspector-field-label">Generate</label>
+              <select v-model="atlasGenerationMode" class="inspector-select">
+                <option v-for="option in atlasGenerationModeOptions" :key="option.id" :value="option.id">
+                  {{ option.label }}
+                </option>
+              </select>
+            </div>
+            <div class="inspector-field-help">{{ hierarchyGenerationAction.description }}</div>
             <button
               class="btn btn-primary"
               :disabled="isGeneratingInspectorSector"
-              @click="generateHierarchyAreaSystems"
+              @click="runHierarchyGenerationAction"
             >
-              {{ isGeneratingInspectorSector ? "Generating..." : inspectorData.generateLabel }}
+              {{ isGeneratingInspectorSector ? "Generating..." : hierarchyGenerationAction.label }}
             </button>
           </div>
           <div class="detail-grid">
@@ -595,6 +619,7 @@
           </div>
 
           <div class="inspector-actions">
+            <button class="btn btn-primary" @click="openSectorSurvey">🧭 Sector Survey</button>
             <button
               class="btn btn-primary"
               :disabled="inspectorData.presenceOnly"
@@ -604,6 +629,34 @@
               🪐 Orbital View
             </button>
             <button class="btn btn-primary" @click="openStarSystem">⭐ System Survey</button>
+          </div>
+          <div class="inspector-generation-panel">
+            <div class="inspector-generation-row">
+              <div class="inspector-field">
+                <label class="inspector-field-label">Area</label>
+                <select v-model="atlasGenerationArea" class="inspector-select">
+                  <option v-for="option in atlasGenerationAreaOptions" :key="option.id" :value="option.id">
+                    {{ option.label }}
+                  </option>
+                </select>
+              </div>
+              <div class="inspector-field">
+                <label class="inspector-field-label">Generate</label>
+                <select v-model="atlasGenerationMode" class="inspector-select">
+                  <option v-for="option in atlasGenerationModeOptions" :key="option.id" :value="option.id">
+                    {{ option.label }}
+                  </option>
+                </select>
+              </div>
+            </div>
+            <div class="inspector-field-help">{{ atlasGenerationAction.description }}</div>
+            <button
+              class="btn btn-primary"
+              :disabled="isGeneratingInspectorSector"
+              @click="runInspectorGenerationAction"
+            >
+              {{ isGeneratingInspectorSector ? "Generating..." : atlasGenerationAction.label }}
+            </button>
           </div>
         </div>
       </aside>
@@ -639,7 +692,9 @@ import { usePreferencesStore } from "../../stores/preferencesStore.js";
 import { useSectorStore } from "../../stores/sectorStore.js";
 import { useSystemStore } from "../../stores/systemStore.js";
 import { generatePrimaryStar } from "../../utils/primaryStarGenerator.js";
+import { serializeReturnRoute } from "../../utils/returnRoute.js";
 import { calculateHexOccupancyProbability } from "../../utils/sectorGeneration.js";
+import { generateGalaxySectorLayoutWindow } from "../../utils/sectorLayoutGenerator.js";
 import * as toastService from "../../utils/toast.js";
 
 const router = useRouter();
@@ -775,6 +830,7 @@ const atlasSectors = ref([]);
 
 const layerHexGrid = ref(true);
 const layerNames = ref(true);
+const layerSectorNames = ref(false);
 const layerCoords = ref(false);
 const layerZones = ref(false);
 
@@ -785,6 +841,8 @@ const inspectorMode = ref(null); // 'sector' | 'hierarchy' | 'star' | null
 const inspectorSector = ref(null);
 const inspectorHierarchy = ref(null);
 const inspectorStar = ref(null);
+const atlasGenerationArea = ref("sector");
+const atlasGenerationMode = ref("name-presence");
 const isGeneratingInspectorSector = ref(false);
 const atlasGenerationProgress = ref({
   active: false,
@@ -803,6 +861,18 @@ const SECTOR_HEX_PRESENCE_RATE = Object.freeze([0.03, 0.03, 0.15, 0.3, 0.5, 0.7]
 const HEX_PRESENCE_COLS = 32;
 const HEX_PRESENCE_ROWS = 40;
 const HEX_PRESENCE_MORPHOLOGY_SCALE = 0.15;
+const ATLAS_GENERATION_AREA_OPTIONS = Object.freeze([
+  { id: "sector", label: "Sector" },
+  { id: "surrounding", label: "Sector + Surrounding" },
+  { id: "region", label: "Region" },
+  { id: "quadrant", label: "Quadrant" },
+]);
+const ATLAS_GENERATION_MODE_OPTIONS = Object.freeze([
+  { id: "name", label: "Name" },
+  { id: "name-presence", label: "Name + Presence" },
+  { id: "presence", label: "Presence Only" },
+  { id: "name-systems", label: "Name + Systems" },
+]);
 const ATLAS_SEEDED_NAME_ONSETS = Object.freeze([
   "Al",
   "Bel",
@@ -875,7 +945,86 @@ const ATLAS_SUBSECTOR_LETTERS = Object.freeze([
 
 // ── Store data ─────────────────────────────────────────────────────────────
 const galaxies = computed(() => galaxyStore.getAllGalaxies || []);
+const currentGalaxy = computed(
+  () => galaxies.value.find((galaxy) => String(galaxy?.galaxyId) === String(selectedGalaxyId.value)) || null,
+);
 const sectors = computed(() => atlasSectors.value);
+
+function toAtlasSectorRecord(sector) {
+  const metadata = sector?.metadata && typeof sector.metadata === "object" ? sector.metadata : {};
+  const x = Number(sector?.coordinates?.x ?? metadata.gridX ?? sector?.x ?? sector?.sectorX ?? 0);
+  const y = Number(sector?.coordinates?.y ?? metadata.gridY ?? sector?.y ?? sector?.sectorY ?? 0);
+  return {
+    ...sector,
+    galaxyId: String(sector?.galaxyId ?? metadata.galaxyId ?? ""),
+    sectorId: String(sector?.sectorId || `${sector?.galaxyId || metadata.galaxyId || "galaxy"}:${x},${y}`),
+    coordinates: { x, y },
+    densityClass: Number(sector?.densityClass ?? 0),
+    densityVariation: Number(sector?.densityVariation ?? 0),
+    metadata: {
+      ...metadata,
+      gridX: x,
+      gridY: y,
+    },
+  };
+}
+
+function mergeAtlasSectorsWithGalaxyLayout(galaxy, persistedSectors = [], bounds = {}) {
+  const normalizedPersisted = (Array.isArray(persistedSectors) ? persistedSectors : []).map(toAtlasSectorRecord);
+  if (!galaxy) {
+    return normalizedPersisted;
+  }
+
+  const layoutSectors = generateGalaxySectorLayoutWindow(galaxy, {
+    scale: "true",
+    xMin: bounds.xMin ?? -SELECTED_GALAXY_WINDOW_RADIUS,
+    xMax: bounds.xMax ?? SELECTED_GALAXY_WINDOW_RADIUS,
+    yMin: bounds.yMin ?? -SELECTED_GALAXY_WINDOW_RADIUS,
+    yMax: bounds.yMax ?? SELECTED_GALAXY_WINDOW_RADIUS,
+  }).map(toAtlasSectorRecord);
+  const merged = new Map(layoutSectors.map((sector) => [sector.sectorId, sector]));
+
+  for (const sector of normalizedPersisted) {
+    const existing = merged.get(sector.sectorId);
+    if (!existing) {
+      merged.set(sector.sectorId, sector);
+      continue;
+    }
+
+    merged.set(sector.sectorId, {
+      ...existing,
+      ...sector,
+      coordinates: sector.coordinates ?? existing.coordinates,
+      densityClass: Number.isFinite(Number(existing.densityClass))
+        ? Number(existing.densityClass)
+        : Number(sector.densityClass ?? 0),
+      densityVariation: Number.isFinite(Number(sector.densityVariation))
+        ? Number(sector.densityVariation)
+        : Number(existing.densityVariation ?? 0),
+      metadata: {
+        ...(existing.metadata ?? {}),
+        ...(sector.metadata ?? {}),
+        gridX: Number(
+          sector?.metadata?.gridX ??
+            sector?.coordinates?.x ??
+            existing?.metadata?.gridX ??
+            existing?.coordinates?.x ??
+            0,
+        ),
+        gridY: Number(
+          sector?.metadata?.gridY ??
+            sector?.coordinates?.y ??
+            existing?.metadata?.gridY ??
+            existing?.coordinates?.y ??
+            0,
+        ),
+        densityScore: existing?.metadata?.densityScore ?? sector?.metadata?.densityScore,
+      },
+    });
+  }
+
+  return Array.from(merged.values());
+}
 
 const sectorByCoord = computed(() => {
   const map = new Map();
@@ -1072,7 +1221,11 @@ const galaxyDots = computed(() =>
 
 const sectorLabelVisible = computed(
   () =>
-    !dragging.value && parsecsPerHex.value <= 10 && parsecsPerHex.value > 1 && visibleSectorTiles.value.length <= 80,
+    layerSectorNames.value &&
+    !dragging.value &&
+    parsecsPerHex.value <= 10 &&
+    parsecsPerHex.value > 1 &&
+    visibleSectorTiles.value.length <= 80,
 );
 const sectorLabelSize = computed(() => Math.min(SECTOR_PX_H * (parsecsPerHex.value > 40 ? 0.12 : 0.07), 180));
 const showSectorBorders = computed(() => parsecsPerHex.value <= 100);
@@ -1651,8 +1804,12 @@ const inspectorData = computed(() => {
     const s = inspectorSector.value;
     const sx = Number(s?.coordinates?.x);
     const sy = Number(s?.coordinates?.y);
+    const sectorGalaxy = galaxies.value.find((galaxy) => String(galaxy?.galaxyId) === String(s?.galaxyId)) || null;
     return {
-      name: String(s?.metadata?.displayName || s.sectorId),
+      name: String(
+        s?.metadata?.displayName || `Sector ${Number.isFinite(sx) ? sx : "?"},${Number.isFinite(sy) ? sy : "?"}`,
+      ),
+      galaxyName: resolveGalaxyLabel(sectorGalaxy),
       coords: `${Number.isFinite(sx) ? sx : "?"},${Number.isFinite(sy) ? sy : "?"}`,
       densityLabel: DENSITY_SCALE[Math.min(5, Math.max(0, Number(s.densityClass) || 0))].label,
       systemCount: s?.metadata?.systemCount ?? "—",
@@ -1661,13 +1818,12 @@ const inspectorData = computed(() => {
   }
   if (inspectorMode.value === "hierarchy" && inspectorHierarchy.value) {
     const tile = inspectorHierarchy.value;
-    const areaType = tile.tileSizeInSectors >= QUADRANT_SECTORS / 2 ? "Quadrant" : "Region";
+    const areaType = inferHierarchyAreaScope(tile) === "quadrant" ? "Quadrant" : "Region";
     return {
       name: tile.label,
       coords: `${tile.minSectorX},${tile.minSectorY}`,
       areaType,
       areaSpan: `${tile.tileSizeInSectors}×${tile.tileSizeInSectors} sectors`,
-      generateLabel: `⚡ Generate ${areaType}`,
     };
   }
   if (inspectorMode.value === "star" && inspectorStar.value) {
@@ -1701,6 +1857,28 @@ const inspectorStarSvgR = computed(() => {
     .charAt(0)
     .toUpperCase();
   return { O: 13, B: 11, A: 10, F: 9, G: 8, K: 7, M: 5, D: 4, L: 4, T: 3, Y: 3 }[t] ?? 7;
+});
+
+const atlasGenerationAreaOptions = computed(() => ATLAS_GENERATION_AREA_OPTIONS);
+const atlasGenerationModeOptions = computed(() => ATLAS_GENERATION_MODE_OPTIONS);
+
+const atlasGenerationAction = computed(() => {
+  const areaLabel = getAtlasGenerationAreaLabel(atlasGenerationArea.value);
+  const modeMeta = getAtlasGenerationModeMeta(atlasGenerationMode.value);
+  return {
+    label: `${modeMeta.icon} ${modeMeta.shortLabel} · ${areaLabel}`,
+    description: `${modeMeta.description} Applies to the selected ${areaLabel.toLowerCase()}.`,
+  };
+});
+
+const hierarchyGenerationAction = computed(() => {
+  const areaScope = inferHierarchyAreaScope(inspectorHierarchy.value);
+  const areaLabel = getAtlasGenerationAreaLabel(areaScope);
+  const modeMeta = getAtlasGenerationModeMeta(atlasGenerationMode.value);
+  return {
+    label: `${modeMeta.icon} ${modeMeta.shortLabel} · ${areaLabel}`,
+    description: `${modeMeta.description} Applies to the selected ${areaLabel.toLowerCase()}.`,
+  };
 });
 
 const inspectorOrbits = computed(() => {
@@ -1856,7 +2034,7 @@ function toSectorTile(sector) {
     densityClass,
     isVoid,
     showLabel: hasGeneratedName || !isVoid || isExplored,
-    name: hasGeneratedName || !isVoid || isExplored ? displayName || sector.sectorId : "",
+    name: hasGeneratedName ? displayName : "",
   };
 }
 
@@ -2013,9 +2191,63 @@ function clearSelection() {
   inspectorStar.value = null;
 }
 
+function setAtlasGenerationDefaultsForScope(areaScope) {
+  atlasGenerationArea.value = String(areaScope || "sector");
+}
+
+function getAtlasGenerationAreaLabel(area) {
+  return (
+    {
+      sector: "Sector",
+      surrounding: "Sector + Surrounding",
+      region: "Region",
+      quadrant: "Quadrant",
+    }[String(area || "sector")] || "Sector"
+  );
+}
+
+function getAtlasGenerationModeMeta(mode) {
+  const normalized = String(mode || "name-presence");
+  switch (normalized) {
+    case "name":
+      return {
+        icon: "✍",
+        shortLabel: "Name",
+        progressLabel: "Generating names",
+        description: "Generate sector names only. No presence or full system data is rolled.",
+      };
+    case "presence":
+      return {
+        icon: "🗺",
+        shortLabel: "Presence Only",
+        progressLabel: "Generating presence",
+        description: "Roll occupied hexes only and preserve any existing sector name.",
+      };
+    case "name-systems":
+      return {
+        icon: "⭐",
+        shortLabel: "Name + Systems",
+        progressLabel: "Generating names and systems",
+        description: "Generate sector names and full stellar system data.",
+      };
+    default:
+      return {
+        icon: "⚡",
+        shortLabel: "Name + Presence",
+        progressLabel: "Generating names and presence",
+        description: "Generate sector names and roll occupied hexes without full system data.",
+      };
+  }
+}
+
+function inferHierarchyAreaScope(tile) {
+  return Number(tile?.tileSizeInSectors) >= QUADRANT_SECTORS / 2 ? "quadrant" : "region";
+}
+
 function onSectorTileClick(tile) {
   if (dragging.value) return;
 
+  setAtlasGenerationDefaultsForScope("sector");
   inspectorSector.value = tile.sector;
   inspectorMode.value = "sector";
   selectedHexKey.value = null;
@@ -2030,6 +2262,7 @@ function onSectorTileClick(tile) {
 
 function onGridCellClick(tile) {
   if (dragging.value) return;
+  setAtlasGenerationDefaultsForScope("sector");
   const sx = Math.round(tile.gx + minSX.value + gridBiasX.value / SECTOR_PX_W);
   const sy = Math.round(tile.gy + minSY.value + gridBiasY.value / SECTOR_PX_H);
   const existing = sectorByCoord.value.get(`${sx}:${sy}`);
@@ -2064,6 +2297,7 @@ function onHexClick(hex) {
 
 function onStarClick(star) {
   if (dragging.value) return;
+  setAtlasGenerationDefaultsForScope("sector");
   selectedHexKey.value = star.key;
   inspectorStar.value = { ...star };
   inspectorMode.value = "star";
@@ -2083,14 +2317,41 @@ function focusSector(sector) {
 }
 
 function focusSectorFromInspector() {
-  if (inspectorSector.value) focusSector(inspectorSector.value);
+  const sector = resolveInspectorSector();
+  if (sector) focusSector(sector);
+}
+
+function resolveInspectorSector() {
+  if (inspectorSector.value) {
+    return inspectorSector.value;
+  }
+
+  const star = inspectorStar.value;
+  if (!star?.sectorId) {
+    return null;
+  }
+
+  return (
+    atlasSectors.value.find((sector) => String(sector?.sectorId) === String(star.sectorId)) ||
+    sectorStore.sectors.find((sector) => String(sector?.sectorId) === String(star.sectorId)) || {
+      sectorId: star.sectorId,
+      galaxyId: star.galaxyId,
+      coordinates: null,
+      metadata: {
+        displayName: star.sectorName || String(star.sectorId),
+      },
+    }
+  );
 }
 
 function openSectorSurvey() {
-  const sector = inspectorSector.value;
+  const sector = resolveInspectorSector();
   if (!sector) return;
 
-  const targetGalaxyId = selectedGalaxyId.value === ALL_GALAXIES_VALUE ? sector.galaxyId : selectedGalaxyId.value;
+  const targetGalaxyId =
+    selectedGalaxyId.value === ALL_GALAXIES_VALUE
+      ? sector.galaxyId || inspectorStar.value?.galaxyId
+      : selectedGalaxyId.value || sector.galaxyId || inspectorStar.value?.galaxyId;
   if (!targetGalaxyId) return;
 
   const gridX = Number(sector?.coordinates?.x ?? sector?.metadata?.gridX);
@@ -2105,6 +2366,10 @@ function openSectorSurvey() {
       ? currentDisplayName
       : buildAtlasSeededSectorName(fallbackSeed);
   const sectorId = String(sector?.sectorId || "").startsWith("grid:") ? "" : String(sector?.sectorId || "");
+  const returnTo = serializeReturnRoute({
+    name: "TravellerAtlas",
+    query: selectedGalaxyId.value ? { galaxyId: String(selectedGalaxyId.value) } : {},
+  });
 
   router.push({
     name: "SectorSurvey",
@@ -2116,6 +2381,7 @@ function openSectorSurvey() {
       ...(sectorName ? { sectorName } : {}),
       from: "atlas",
       atlasGalaxyId: String(selectedGalaxyId.value || ""),
+      ...(returnTo ? { returnTo } : {}),
     },
   });
 }
@@ -2213,10 +2479,13 @@ function resetAtlasGenerationProgress() {
 }
 
 function buildPersistableSector(sector) {
-  if (!sector || !selectedGalaxyId.value || selectedGalaxyId.value === ALL_GALAXIES_VALUE) return null;
+  if (!sector) return null;
   const sx = Number(sector?.coordinates?.x ?? sector?.metadata?.gridX ?? 0);
   const sy = Number(sector?.coordinates?.y ?? sector?.metadata?.gridY ?? 0);
-  const galaxyId = String(sector?.galaxyId || selectedGalaxyId.value);
+  const targetGalaxyId =
+    selectedGalaxyId.value === ALL_GALAXIES_VALUE ? sector?.galaxyId : selectedGalaxyId.value || sector?.galaxyId;
+  if (!targetGalaxyId) return null;
+  const galaxyId = String(targetGalaxyId);
   return {
     ...sector,
     sectorId: String(sector?.sectorId || `${galaxyId}:${sx},${sy}`).replace(/^grid:/, `${galaxyId}:`),
@@ -2258,15 +2527,16 @@ function getNeighborSectors(sector, radius = 1) {
 }
 
 function getHierarchyTileSectors(tile) {
-  if (!tile || !selectedGalaxyId.value || selectedGalaxyId.value === ALL_GALAXIES_VALUE) return [];
+  const tileGalaxyId = String(tile?.galaxyId || selectedGalaxyId.value || "").trim();
+  if (!tile || !tileGalaxyId || tileGalaxyId === ALL_GALAXIES_VALUE) return [];
   const tileSize = Math.max(1, Math.round(Number(tile.tileSizeInSectors) || 1));
   const targets = [];
   for (let sx = tile.minSectorX; sx < tile.minSectorX + tileSize; sx += 1) {
     for (let sy = tile.minSectorY; sy < tile.minSectorY + tileSize; sy += 1) {
       targets.push(
         sectorByCoord.value.get(`${sx}:${sy}`) || {
-          sectorId: `${selectedGalaxyId.value}:${sx},${sy}`,
-          galaxyId: selectedGalaxyId.value,
+          sectorId: `${tileGalaxyId}:${sx},${sy}`,
+          galaxyId: tileGalaxyId,
           coordinates: { x: sx, y: sy },
           densityClass: 0,
           metadata: { gridX: sx, gridY: sy, displayName: `Sector ${sx},${sy}`, explorationStatus: "unexplored" },
@@ -2289,7 +2559,7 @@ async function generateSectorNameOnlyInternal(sector) {
 }
 
 async function generateInspectorSectorName() {
-  const sector = inspectorSector.value;
+  const sector = resolveInspectorSector();
   if (!sector || isGeneratingInspectorSector.value) return;
 
   isGeneratingInspectorSector.value = true;
@@ -2309,6 +2579,10 @@ async function generateInspectorSectorName() {
 }
 
 async function generateInspectorSectorPresenceInternal(sector) {
+  return generateInspectorSectorPresenceInternalWithOptions(sector, { includeNames: true });
+}
+
+async function generateInspectorSectorPresenceInternalWithOptions(sector, { includeNames = true } = {}) {
   const targetSector = buildPersistableSector(sector);
   const { galaxy, densityClass } = getSectorGenerationContext(targetSector);
   const occupiedHexes = rollOccupiedHexesForSector(galaxy, densityClass);
@@ -2323,12 +2597,14 @@ async function generateInspectorSectorPresenceInternal(sector) {
 
   const payload = {
     ...targetSector,
-    metadata: ensureAtlasSectorNamingMetadata(targetSector, {
+    metadata: (includeNames ? ensureAtlasSectorNamingMetadata : (_sector, metadata) => metadata)(targetSector, {
       ...(targetSector.metadata ?? {}),
       systemCount: occupiedHexes.length,
+      explorationStatus: occupiedHexes.length > 0 ? "mapped" : "unexplored",
       hexPresenceGenerated: true,
       hexPresenceGeneratedAt: new Date().toISOString(),
       occupiedHexes,
+      hexStarTypes: {},
       isGalacticCenterSector: galacticCenter,
       centralAnomalyType: anomalyType,
     }),
@@ -2340,7 +2616,7 @@ async function generateInspectorSectorPresenceInternal(sector) {
 }
 
 async function generateInspectorSector() {
-  const sector = inspectorSector.value;
+  const sector = resolveInspectorSector();
   if (!sector || isGeneratingInspectorSector.value) return;
 
   isGeneratingInspectorSector.value = true;
@@ -2360,13 +2636,24 @@ async function generateInspectorSector() {
 }
 
 async function generateInspectorSectorSystemsInternal(sector) {
+  return generateInspectorSectorSystemsInternalWithOptions(sector, { includeNames: true });
+}
+
+async function generateInspectorSectorSystemsInternalWithOptions(sector, { includeNames = true } = {}) {
   const targetSector = buildPersistableSector(sector);
   const { galaxy, densityClass } = getSectorGenerationContext(targetSector);
+  const existingStarTypes =
+    targetSector?.metadata?.hexStarTypes && typeof targetSector.metadata.hexStarTypes === "object"
+      ? targetSector.metadata.hexStarTypes
+      : {};
   const existingOccupiedHexes = Array.isArray(targetSector?.metadata?.occupiedHexes)
     ? targetSector.metadata.occupiedHexes.filter((coord) => typeof coord === "string")
     : [];
+  const hasSurveyedSystems = Object.keys(existingStarTypes).length > 0;
   const occupiedHexes =
-    existingOccupiedHexes.length > 0 ? existingOccupiedHexes : rollOccupiedHexesForSector(galaxy, densityClass);
+    !hasSurveyedSystems && existingOccupiedHexes.length > 0
+      ? [...existingOccupiedHexes]
+      : rollOccupiedHexesForSector(galaxy, densityClass);
   const galacticCenter = isGalacticCenterSector(targetSector);
   const centerCoord = sectorHexCoord(Math.ceil(HEX_PRESENCE_COLS / 2), Math.ceil(HEX_PRESENCE_ROWS / 2));
   const anomalyType = galacticCenter ? centerAnomalyTypeForGalaxy(galaxy) : null;
@@ -2396,9 +2683,10 @@ async function generateInspectorSectorSystemsInternal(sector) {
 
   const payload = {
     ...targetSector,
-    metadata: ensureAtlasSectorNamingMetadata(targetSector, {
+    metadata: (includeNames ? ensureAtlasSectorNamingMetadata : (_sector, metadata) => metadata)(targetSector, {
       ...(targetSector.metadata ?? {}),
       systemCount: occupiedHexes.length,
+      explorationStatus: occupiedHexes.length > 0 ? "surveyed" : "unexplored",
       hexPresenceGenerated: true,
       hexPresenceGeneratedAt: new Date().toISOString(),
       occupiedHexes,
@@ -2414,7 +2702,7 @@ async function generateInspectorSectorSystemsInternal(sector) {
 }
 
 async function generateInspectorSectorSystems() {
-  const sector = inspectorSector.value;
+  const sector = resolveInspectorSector();
   if (!sector || isGeneratingInspectorSector.value) return;
 
   isGeneratingInspectorSector.value = true;
@@ -2434,7 +2722,7 @@ async function generateInspectorSectorSystems() {
 }
 
 async function generateInspectorSectorAndSurroundingSystems() {
-  const sector = inspectorSector.value;
+  const sector = resolveInspectorSector();
   if (!sector || isGeneratingInspectorSector.value) return;
 
   isGeneratingInspectorSector.value = true;
@@ -2456,6 +2744,81 @@ async function generateInspectorSectorAndSurroundingSystems() {
   }
 }
 
+function getGenerationTargetsForSector(sector, areaScope) {
+  const targetSector = buildPersistableSector(sector);
+  if (!targetSector) return [];
+
+  if (areaScope === "sector") {
+    return [targetSector];
+  }
+
+  if (areaScope === "surrounding") {
+    return getNeighborSectors(targetSector, 1)
+      .map((entry) => buildPersistableSector(entry))
+      .filter(Boolean);
+  }
+
+  const size = areaScope === "quadrant" ? QUADRANT_SECTORS : REGION_SECTORS;
+  const sx = Number(targetSector?.coordinates?.x);
+  const sy = Number(targetSector?.coordinates?.y);
+  if (!Number.isFinite(sx) || !Number.isFinite(sy)) return [targetSector];
+
+  const tile = {
+    galaxyId: targetSector.galaxyId,
+    minSectorX: Math.floor(sx / size) * size,
+    minSectorY: Math.floor(sy / size) * size,
+    tileSizeInSectors: size,
+  };
+
+  return getHierarchyTileSectors(tile)
+    .map((entry) => buildPersistableSector(entry))
+    .filter(Boolean);
+}
+
+async function applyAtlasGenerationModeToSector(target, generationMode) {
+  switch (generationMode) {
+    case "name":
+      await generateSectorNameOnlyInternal(target);
+      return;
+    case "presence":
+      await generateInspectorSectorPresenceInternalWithOptions(target, { includeNames: false });
+      return;
+    case "name-systems":
+      await generateInspectorSectorSystemsInternalWithOptions(target, { includeNames: true });
+      return;
+    default:
+      await generateInspectorSectorPresenceInternalWithOptions(target, { includeNames: true });
+  }
+}
+
+async function runInspectorGenerationAction() {
+  const sector = resolveInspectorSector();
+  if (!sector || isGeneratingInspectorSector.value) return;
+
+  const targets = getGenerationTargetsForSector(sector, atlasGenerationArea.value);
+  const modeMeta = getAtlasGenerationModeMeta(atlasGenerationMode.value);
+  const areaLabel = getAtlasGenerationAreaLabel(atlasGenerationArea.value).toLowerCase();
+
+  isGeneratingInspectorSector.value = true;
+  try {
+    startAtlasGenerationProgress(modeMeta.progressLabel, Math.max(1, targets.length));
+    let generatedCount = 0;
+    for (const target of targets) {
+      await applyAtlasGenerationModeToSector(target, atlasGenerationMode.value);
+      generatedCount += 1;
+      updateAtlasGenerationProgress(generatedCount, modeMeta.progressLabel, Math.max(1, targets.length));
+    }
+    toastService.success(
+      `${modeMeta.shortLabel} completed for ${generatedCount.toLocaleString()} sector${generatedCount !== 1 ? "s" : ""} in the selected ${areaLabel}.`,
+    );
+  } catch (err) {
+    toastService.error(`Failed to generate selected ${areaLabel}: ${err.message}`);
+  } finally {
+    isGeneratingInspectorSector.value = false;
+    resetAtlasGenerationProgress();
+  }
+}
+
 function focusHierarchyInspector() {
   if (inspectorHierarchy.value) {
     focusHierarchyTile(inspectorHierarchy.value);
@@ -2463,28 +2826,33 @@ function focusHierarchyInspector() {
 }
 
 async function generateHierarchyAreaSystems() {
+  await runHierarchyGenerationAction();
+}
+
+async function runHierarchyGenerationAction() {
   const tile = inspectorHierarchy.value;
   if (!tile || isGeneratingInspectorSector.value) return;
 
+  const targets = getHierarchyTileSectors(tile)
+    .map((entry) => buildPersistableSector(entry))
+    .filter(Boolean);
+  const modeMeta = getAtlasGenerationModeMeta(atlasGenerationMode.value);
+  const areaType = inferHierarchyAreaScope(tile);
+
   isGeneratingInspectorSector.value = true;
   try {
-    const targets = getHierarchyTileSectors(tile);
-    const pendingTargets = targets.filter(
-      (target) =>
-        !Boolean(target?.metadata?.hexPresenceGenerated) &&
-        Object.keys(target?.metadata?.hexStarTypes || {}).length === 0,
-    );
-    startAtlasGenerationProgress("Generating selected area", Math.max(1, pendingTargets.length));
+    startAtlasGenerationProgress(modeMeta.progressLabel, Math.max(1, targets.length));
     let generatedCount = 0;
-    for (const target of pendingTargets) {
-      await generateInspectorSectorSystemsInternal(target);
+    for (const target of targets) {
+      await applyAtlasGenerationModeToSector(target, atlasGenerationMode.value);
       generatedCount += 1;
-      updateAtlasGenerationProgress(generatedCount, "Generating selected area", Math.max(1, pendingTargets.length));
+      updateAtlasGenerationProgress(generatedCount, modeMeta.progressLabel, Math.max(1, targets.length));
     }
-    const areaType = tile.tileSizeInSectors >= QUADRANT_SECTORS / 2 ? "quadrant" : "region";
     toastService.success(
-      `Generated names and systems for ${generatedCount.toLocaleString()} sectors in the selected ${areaType}.`,
+      `${modeMeta.shortLabel} completed for ${generatedCount.toLocaleString()} sectors in the selected ${areaType}.`,
     );
+  } catch (err) {
+    toastService.error(`Failed to generate selected ${areaType}: ${err.message}`);
   } finally {
     isGeneratingInspectorSector.value = false;
     resetAtlasGenerationProgress();
@@ -2504,6 +2872,7 @@ function zoomToHierarchyLevelId(levelId) {
 }
 
 function focusHierarchyTile(tile) {
+  setAtlasGenerationDefaultsForScope(inferHierarchyAreaScope(tile));
   inspectorHierarchy.value = tile;
   inspectorMode.value = "hierarchy";
   inspectorSector.value = null;
@@ -2604,10 +2973,14 @@ function openStarSystem() {
   if (!star || !selectedGalaxyId.value) return;
   const targetGalaxyId = selectedGalaxyId.value === ALL_GALAXIES_VALUE ? star.galaxyId : selectedGalaxyId.value;
   if (!targetGalaxyId) return;
+  const returnTo = serializeReturnRoute({
+    name: "TravellerAtlas",
+    query: selectedGalaxyId.value ? { galaxyId: String(selectedGalaxyId.value) } : {},
+  });
   router.push({
     name: "StarSystemBuilder",
     params: { galaxyId: targetGalaxyId, sectorId: star.sectorId },
-    query: { hex: star.coord, star: star.starType },
+    query: { hex: star.coord, star: star.starType, ...(returnTo ? { returnTo } : {}) },
   });
 }
 
@@ -2616,6 +2989,10 @@ function openOrbitalView() {
   if (!star || !selectedGalaxyId.value) return;
   const targetGalaxyId = selectedGalaxyId.value === ALL_GALAXIES_VALUE ? star.galaxyId : selectedGalaxyId.value;
   if (!targetGalaxyId) return;
+  const returnTo = serializeReturnRoute({
+    name: "TravellerAtlas",
+    query: selectedGalaxyId.value ? { galaxyId: String(selectedGalaxyId.value) } : {},
+  });
 
   router.push({
     name: "OrbitalView",
@@ -2624,6 +3001,7 @@ function openOrbitalView() {
       hex: star.coord,
       star: star.starType,
       from: "atlas",
+      ...(returnTo ? { returnTo } : {}),
     },
   });
 }
@@ -2645,16 +3023,22 @@ async function handleGalaxyChange() {
       await nextTick();
       resetView();
     } else {
-      const loadedSectors = await sectorApi.getSectorsWindow(selectedGalaxyId.value, {
+      const layoutBounds = {
         xMin: -SELECTED_GALAXY_WINDOW_RADIUS,
         xMax: SELECTED_GALAXY_WINDOW_RADIUS,
         yMin: -SELECTED_GALAXY_WINDOW_RADIUS,
         yMax: SELECTED_GALAXY_WINDOW_RADIUS,
+      };
+      const loadedSectors = await sectorApi.getSectorsWindow(selectedGalaxyId.value, {
+        xMin: layoutBounds.xMin,
+        xMax: layoutBounds.xMax,
+        yMin: layoutBounds.yMin,
+        yMax: layoutBounds.yMax,
         limit: 2500,
       });
       sectorStore.sectors = Array.isArray(loadedSectors) ? [...loadedSectors] : [];
 
-      let nextSectors = Array.isArray(loadedSectors) ? [...loadedSectors] : [];
+      let nextSectors = mergeAtlasSectorsWithGalaxyLayout(currentGalaxy.value, loadedSectors, layoutBounds);
       const centerSectorId = `${selectedGalaxyId.value}:0,0`;
       let focusTarget = nextSectors.find((sector) => sector?.sectorId === centerSectorId) ?? null;
 
@@ -2662,8 +3046,12 @@ async function handleGalaxyChange() {
         try {
           const centerSector = await sectorApi.getSector(centerSectorId);
           if (centerSector?.galaxyId === selectedGalaxyId.value) {
-            nextSectors.unshift(centerSector);
-            focusTarget = centerSector;
+            nextSectors = mergeAtlasSectorsWithGalaxyLayout(
+              currentGalaxy.value,
+              [centerSector, ...nextSectors],
+              layoutBounds,
+            );
+            focusTarget = nextSectors.find((sector) => sector?.sectorId === centerSectorId) ?? centerSector;
           }
         } catch {
           // Ignore missing center-sector fetches and fall back to loaded slice.
@@ -3220,6 +3608,12 @@ watch(
   line-height: 1.3;
 }
 
+.inspector-subtitle {
+  margin-bottom: 0.45rem;
+  color: #b8c0cc;
+  font-size: 0.82rem;
+}
+
 .inspector-badge {
   display: inline-block;
   font-size: 0.67rem;
@@ -3264,6 +3658,50 @@ watch(
   display: flex;
   gap: 0.5rem;
   flex-wrap: wrap;
+}
+
+.inspector-generation-panel {
+  margin-top: 0.75rem;
+  margin-bottom: 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.inspector-generation-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.inspector-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.inspector-field-label {
+  color: #7aa8cc;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.inspector-select {
+  width: 100%;
+  padding: 0.45rem 0.55rem;
+  background: rgba(13, 22, 45, 0.95);
+  border: 1px solid rgba(110, 201, 243, 0.35);
+  border-radius: 0.35rem;
+  color: #d0e8ff;
+  font-size: 0.82rem;
+}
+
+.inspector-field-help {
+  color: #b8c0cc;
+  font-size: 0.76rem;
+  line-height: 1.35;
 }
 
 /* ── Star swatch ──────────────────────────────────────────────────────────── */

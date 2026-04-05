@@ -2,7 +2,7 @@
   <div class="star-system-builder">
     <SurveyNavigation
       currentClass="Class I – Stellar Survey"
-      :back-route="galaxyId ? { name: 'SectorSurvey', params: { galaxyId } } : { name: 'GalaxySurvey' }"
+      :back-route="backRoute"
       @regenerate="regenerateSystem"
       @export="exportSystem"
     />
@@ -175,6 +175,7 @@ import { computed, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import SurveyNavigation from "../../components/common/SurveyNavigation.vue";
 import * as sectorApi from "../../api/sectorApi.js";
+import { deserializeReturnRoute } from "../../utils/returnRoute.js";
 import { useSectorStore } from "../../stores/sectorStore.js";
 import { useSystemStore } from "../../stores/systemStore.js";
 
@@ -186,6 +187,13 @@ const router = useRouter();
 const route = useRoute();
 const sectorStore = useSectorStore();
 const systemStore = useSystemStore();
+const backRoute = computed(() => {
+  const explicitReturnRoute = deserializeReturnRoute(String(route.query.returnTo || ""));
+  if (explicitReturnRoute) {
+    return explicitReturnRoute;
+  }
+  return props.galaxyId ? { name: "SectorSurvey", params: { galaxyId: props.galaxyId } } : { name: "GalaxySurvey" };
+});
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const SPECTRAL_TYPES = [

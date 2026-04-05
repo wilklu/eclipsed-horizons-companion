@@ -112,6 +112,10 @@
             <h3>👥 Class IV – Census Survey</h3>
             <div class="prop-list">
               <div class="prop-row">
+                <span class="prop-label">Native Sophont Life:</span>
+                <span class="prop-value">{{ world.nativeSophontLife ? "Present" : "Absent" }}</span>
+              </div>
+              <div class="prop-row">
                 <span class="prop-label">Population:</span>
                 <span class="prop-value">{{ world.populationCode }} — {{ formatPop(world.population) }}</span>
               </div>
@@ -132,6 +136,13 @@
                 <span class="prop-value">{{ world.starport }} — {{ world.starportDesc }}</span>
               </div>
             </div>
+            <div v-if="world.nativeSophontLife" class="world-note">
+              Native sophont life is present, but census and civilization values remain zero until a sophont is assigned
+              in the Sophont Generator.
+            </div>
+            <div v-else class="world-note">
+              No native sophont life developed on this world, so census and civilization values remain uninhabited.
+            </div>
           </section>
 
           <!-- Trade Codes -->
@@ -145,7 +156,18 @@
         </div>
 
         <div class="action-buttons">
-          <button class="btn btn-primary" @click="goToSophontGenerator">🧬 Sophont Generator →</button>
+          <button
+            class="btn btn-primary"
+            :disabled="!world.nativeSophontLife"
+            :title="
+              world.nativeSophontLife
+                ? 'Assign native sophonts to this world'
+                : 'Sophont assignment is only available when native sophont life develops on the world'
+            "
+            @click="goToSophontGenerator"
+          >
+            🧬 Sophont Generator →
+          </button>
           <button class="btn btn-primary" @click="goToHistoryGenerator">📜 History Generator →</button>
         </div>
       </div>
@@ -309,6 +331,26 @@ function normalizeIncomingStarClass(value) {
   return STAR_TEMP_MOD[firstChar] !== undefined ? firstChar : "random";
 }
 
+function rollNativeSophontLife({ size, atmosphereCode, hydrographics, avgTempC }) {
+  if (size <= 0) return false;
+
+  let habitabilityScore = 0;
+  if (atmosphereCode >= 4 && atmosphereCode <= 9) habitabilityScore += 2;
+  else if (atmosphereCode >= 2 && atmosphereCode <= 3) habitabilityScore += 1;
+
+  if (hydrographics >= 1 && hydrographics <= 9) habitabilityScore += 2;
+  else if (hydrographics === 10) habitabilityScore += 1;
+
+  if (avgTempC >= -10 && avgTempC <= 38) habitabilityScore += 2;
+  else if (avgTempC >= -30 && avgTempC <= 60) habitabilityScore += 1;
+
+  if (size >= 4) habitabilityScore += 1;
+  if (habitabilityScore < 3) return false;
+
+  const threshold = habitabilityScore >= 6 ? 8 : habitabilityScore >= 4 ? 10 : 12;
+  return d6() >= threshold;
+}
+
 function applyRouteWorldContext() {
   worldName.value = String(route.query.worldName || "").trim();
   starClass.value = normalizeIncomingStarClass(route.query.star);
@@ -337,39 +379,37 @@ function generateWorld() {
   const atmosphereDesc = ATMOSPHERE_TABLE[atmoRaw] ?? "Unusual";
   const hydrographics = atmoRaw === 0 || atmoRaw === 1 ? 0 : clamp(d6() - 7 + atmoRaw, 0, 10);
 
-  const popCode = clamp(d6() - 2, 0, 12);
-  const population = popCode === 0 ? 0 : Math.round(Math.pow(10, popCode) * (0.5 + Math.random()));
-  const governmentCode = clamp(d6() - 7 + popCode, 0, 13);
-  const governmentDesc = GOVERNMENT_TABLE[governmentCode] ?? "Unknown";
-  const lawLevel = clamp(d6() - 7 + governmentCode, 0, 9);
-  const lawDesc = LAW_TABLE[lawLevel] ?? "Unknown";
+  const baseTemp = 15 + tempMod * 15 + (atmoRaw >= 6 ? 20 : 0) - hydrographics * 2;
+  const avgTempC = Math.round(baseTemp);
+  const tempCategory =
+    avgTempC < -50
+      ? "Frozen"
+      : avgTempC < 0
+        ? "Cold"
+        : avgTempC < 30
+          ? "Temperate"
+          : avgTempC < 60
+            ? "Hot"
+            : "Scorching";
 
-  const starportRoll = d6();
-  const starportCode =
-    starportRoll <= 2
-      ? "X"
-      : starportRoll <= 4
-        ? "E"
-        : starportRoll <= 6
-          ? "D"
-          : starportRoll <= 8
-            ? "C"
-            : starportRoll <= 10
-              ? "B"
-              : "A";
+  const nativeSophontLife = rollNativeSophontLife({
+    size,
+    atmosphereCode,
+    hydrographics,
+    avgTempC,
+  });
+
+  const popCode = 0;
+  const population = 0;
+  const governmentCode = 0;
+  const governmentDesc = GOVERNMENT_TABLE[governmentCode] ?? "Unknown";
+  const lawLevel = 0;
+  const lawDesc = LAW_TABLE[lawLevel] ?? "Unknown";
+  const starportCode = "X";
 
   let techBase = d6(1);
-  if (starportCode === "A") techBase += 6;
-  else if (starportCode === "B") techBase += 4;
-  else if (starportCode === "C") techBase += 2;
-  if (size <= 1) techBase += 2;
-  else if (size <= 4) techBase += 1;
-  if (atmosphereCode <= 3 || atmosphereCode >= 10) techBase += 1;
-  if (hydrographics === 0 || hydrographics >= 9) techBase += 1;
-  if (popCode >= 9) techBase += 2;
-  else if (popCode >= 1) techBase += 1;
-  if (governmentCode === 0 || governmentCode === 5) techBase += 1;
-  const techLevel = clamp(techBase - 1, 0, 15);
+  techBase = techBase - techBase;
+  const techLevel = 0;
 
   // Trade codes
   const tradeCodes = [];
@@ -397,19 +437,6 @@ function generateWorld() {
   const diameterKm = size === 0 ? 800 : size * 1600;
   const gravity = +(size * 0.1 + 0.05).toFixed(2);
 
-  const baseTemp = 15 + tempMod * 15 + (atmoRaw >= 6 ? 20 : 0) - hydrographics * 2;
-  const avgTempC = Math.round(baseTemp);
-  const tempCategory =
-    avgTempC < -50
-      ? "Frozen"
-      : avgTempC < 0
-        ? "Cold"
-        : avgTempC < 30
-          ? "Temperate"
-          : avgTempC < 60
-            ? "Hot"
-            : "Scorching";
-
   const uwp = `${starportCode}${toHex(size)}${toHex(atmosphereCode)}${toHex(hydrographics)}${toHex(popCode)}${toHex(governmentCode)}${toHex(lawLevel)}-${toHex(techLevel)}`;
 
   world.value = {
@@ -431,6 +458,7 @@ function generateWorld() {
     moons: Math.floor(Math.random() * 4),
     magnetosphere: Math.random() < 0.5 ? "Present" : "Absent",
     // Census
+    nativeSophontLife,
     populationCode: popCode,
     population,
     governmentCode,
@@ -462,7 +490,14 @@ function exportWorld() {
 }
 
 function goToSophontGenerator() {
-  router.push({ name: "SophontGenerator" });
+  if (!world.value?.nativeSophontLife) return;
+  router.push({
+    name: "SophontGenerator",
+    query: {
+      worldName: world.value?.name || "",
+      source: "world-builder",
+    },
+  });
 }
 
 function goToHistoryGenerator() {
@@ -516,6 +551,13 @@ onMounted(() => {
 
 .control-group--source {
   min-width: 280px;
+}
+
+.world-note {
+  margin-top: 0.9rem;
+  color: #b8c0cc;
+  font-size: 0.92rem;
+  line-height: 1.45;
 }
 
 .control-group label {

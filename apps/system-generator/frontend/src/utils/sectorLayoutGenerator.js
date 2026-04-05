@@ -256,6 +256,30 @@ export function* iterateGalaxySectorLayout(galaxy, options = {}) {
   }
 }
 
+export function generateGalaxySectorLayoutWindow(galaxy, options = {}) {
+  const { width, height } = resolveGrid(galaxy, options);
+  const startX = -Math.floor(width / 2);
+  const startY = -Math.floor(height / 2);
+  const endX = startX + width - 1;
+  const endY = startY + height - 1;
+  const xMin = Math.max(startX, Math.trunc(Number(options?.xMin ?? startX)));
+  const xMax = Math.min(endX, Math.trunc(Number(options?.xMax ?? endX)));
+  const yMin = Math.max(startY, Math.trunc(Number(options?.yMin ?? startY)));
+  const yMax = Math.min(endY, Math.trunc(Number(options?.yMax ?? endY)));
+
+  const sectors = [];
+  for (let gridY = yMin; gridY <= yMax; gridY += 1) {
+    for (let gridX = xMin; gridX <= xMax; gridX += 1) {
+      const sector = buildSectorRecord(galaxy, gridX, gridY, width, height);
+      if (sector) {
+        sectors.push(sector);
+      }
+    }
+  }
+
+  return sectors;
+}
+
 export function generateGalaxySectorLayout(galaxy, options = {}) {
   return Array.from(iterateGalaxySectorLayout(galaxy, options));
 }

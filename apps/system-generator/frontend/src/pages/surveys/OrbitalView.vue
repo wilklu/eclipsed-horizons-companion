@@ -55,6 +55,7 @@
 import { computed, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import SurveyNavigation from "../../components/common/SurveyNavigation.vue";
+import { deserializeReturnRoute, serializeReturnRoute } from "../../utils/returnRoute.js";
 
 const route = useRoute();
 const router = useRouter();
@@ -95,6 +96,8 @@ const orbitBodies = computed(() => {
 });
 
 const backRoute = computed(() => {
+  const explicitReturnRoute = deserializeReturnRoute(String(route.query.returnTo || ""));
+  if (explicitReturnRoute) return explicitReturnRoute;
   if (String(route.query.from || "") === "atlas") return { name: "TravellerAtlas" };
   return { name: "StarSystemBuilder", params: { galaxyId: galaxyId.value, sectorId: sectorId.value } };
 });
@@ -108,6 +111,11 @@ function setToday() {
 }
 
 function openSystemSurvey() {
+  const returnTo = serializeReturnRoute({
+    name: "OrbitalView",
+    params: { galaxyId: galaxyId.value, sectorId: sectorId.value },
+    query: { ...route.query },
+  });
   router.push({
     name: "StarSystemBuilder",
     params: { galaxyId: galaxyId.value, sectorId: sectorId.value },
@@ -115,6 +123,7 @@ function openSystemSurvey() {
       hex: hexLabel.value,
       star: primaryLabel.value,
       from: "orbital",
+      ...(returnTo ? { returnTo } : {}),
     },
   });
 }
