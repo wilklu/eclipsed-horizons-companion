@@ -34,7 +34,7 @@ const title = computed(() => String(route.meta?.title || "Survey Unavailable"));
   min-height: 100%;
   display: grid;
   place-items: center;
-  padding: 2rem;
+  padding: 1.25rem;
   background:
     radial-gradient(circle at top, rgba(44, 74, 120, 0.28), transparent 40%),
     linear-gradient(180deg, #08101f, #0d1528 60%, #10182d);

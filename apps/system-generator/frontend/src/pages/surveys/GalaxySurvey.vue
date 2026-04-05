@@ -43,8 +43,6 @@
       @cancel="cancelFullGalaxy"
     />
 
-    <SurveyNavigation :currentClass="'Galaxy Survey'" @regenerate="regenerateGalaxy" @export="exportGalaxy" />
-
     <div class="survey-content">
       <!-- Error Message Display -->
       <div v-if="errorMessage" class="error-banner">
@@ -55,26 +53,38 @@
         </div>
       </div>
 
-      <div class="survey-top-actions">
-        <button type="button" class="btn btn-primary" @click="showNewGalaxyForm = true">➕ Create Galaxy</button>
-        <button type="button" class="btn btn-secondary" @click="showImportForm = true">📥 Import Galaxy</button>
-      </div>
-
-      <!-- Galaxy List -->
-      <div class="galaxies-grid">
-        <div
-          v-for="galaxy in galaxies"
-          :key="galaxy.galaxyId"
-          class="galaxy-card"
-          :class="{ active: galaxy.galaxyId === currentGalaxy?.galaxyId }"
-          @click="selectGalaxy(galaxy.galaxyId)"
-        >
-          <div class="galaxy-icon">🌌</div>
-          <div class="galaxy-info">
-            <h3>{{ galaxy.name }}</h3>
-            <p class="type">{{ galaxy.type }}</p>
-            <p class="id">{{ galaxy.galaxyId }}</p>
-          </div>
+      <div class="galaxy-selector-bar">
+        <div class="galaxy-selector-group">
+          <label class="galaxy-selector-label" for="galaxy-survey-selector">Active Galaxy</label>
+          <select
+            id="galaxy-survey-selector"
+            v-model="selectedGalaxyId"
+            class="galaxy-selector-select"
+            :disabled="!galaxies.length"
+          >
+            <option v-if="!galaxies.length" value="">No galaxies available</option>
+            <option v-for="galaxy in galaxies" :key="galaxy.galaxyId" :value="galaxy.galaxyId">
+              {{ galaxy.name }} · {{ galaxy.type }}
+            </option>
+          </select>
+        </div>
+        <div v-if="currentGalaxy" class="galaxy-selector-meta">
+          <span class="galaxy-selector-chip">{{ currentGalaxy.type }}</span>
+          <span class="galaxy-selector-summary">{{ currentGalaxy.galaxyId }}</span>
+        </div>
+        <div class="survey-top-actions survey-top-actions--compact">
+          <button
+            v-if="currentGalaxy"
+            type="button"
+            class="btn btn-secondary"
+            :disabled="isGeneratingSectors || isGeneratingFullGalaxy"
+            @click="regenerateGalaxy"
+          >
+            🔄 Regenerate
+          </button>
+          <button v-if="currentGalaxy" type="button" class="btn btn-secondary" @click="exportGalaxy">📤 Export</button>
+          <button type="button" class="btn btn-primary" @click="showNewGalaxyForm = true">➕ Create Galaxy</button>
+          <button type="button" class="btn btn-secondary" @click="showImportForm = true">📥 Import Galaxy</button>
         </div>
       </div>
 
@@ -104,35 +114,51 @@
           <div v-else class="galaxy-type-badge">{{ currentGalaxy.type }}</div>
         </div>
 
+        <div class="galaxy-parameter-strip">
+          <div class="galaxy-parameter-pill">
+            <span class="parameter-label">Galaxy ID</span>
+            <span class="parameter-value">{{ currentGalaxy.galaxyId }}</span>
+          </div>
+          <div class="galaxy-parameter-pill">
+            <span class="parameter-label">Bulge Radius</span>
+            <span class="parameter-value"
+              >{{
+                isEditingGalaxy ? galaxyEditForm.bulgeRadius : currentGalaxy.morphology?.bulgeRadius || "N/A"
+              }}
+              pc</span
+            >
+          </div>
+          <div class="galaxy-parameter-pill">
+            <span class="parameter-label">Disk Thickness</span>
+            <span class="parameter-value"
+              >{{
+                isEditingGalaxy ? galaxyEditForm.diskThickness : currentGalaxy.morphology?.diskThickness || "N/A"
+              }}
+              pc</span
+            >
+          </div>
+          <div class="galaxy-parameter-pill">
+            <span class="parameter-label">Core Density</span>
+            <span class="parameter-value"
+              >{{
+                (
+                  ((isEditingGalaxy ? galaxyEditForm.coreDensity : currentGalaxy.morphology?.coreDensity) ?? 0) * 100
+                ).toFixed(1)
+              }}%</span
+            >
+          </div>
+          <div class="galaxy-parameter-pill">
+            <span class="parameter-label">Status</span>
+            <span class="parameter-value">{{ currentGalaxy.metadata?.status || "Active" }}</span>
+          </div>
+        </div>
+
         <div class="details-grid">
-          <!-- Basic Properties -->
           <section class="detail-section">
-            <h3>📊 Basic Properties</h3>
+            <h3>🔬 Galaxy Profile</h3>
             <div class="property-list">
-              <div class="property">
-                <span class="label">Galaxy ID:</span>
-                <span class="value">{{ currentGalaxy.galaxyId }}</span>
-              </div>
-              <div class="property">
-                <span class="label">Type:</span>
-                <template v-if="isEditingGalaxy">
-                  <select v-model="galaxyEditForm.type" class="inline-edit-select" @change="onEditGalaxyTypeChange">
-                    <option value="Spiral">Spiral</option>
-                    <option value="Barred Spiral">Barred Spiral</option>
-                    <option value="Elliptical">Elliptical</option>
-                    <option value="Lenticular">Lenticular</option>
-                    <option value="Irregular">Irregular</option>
-                    <option value="Dwarf">Dwarf</option>
-                  </select>
-                </template>
-                <span v-else class="value">{{ currentGalaxy.type }}</span>
-              </div>
-              <div class="property">
-                <span class="label">Universe Coordinates:</span>
-                <span class="value">{{ currentGalaxyCoordinatesLabel }}</span>
-              </div>
               <div class="property property-link-row">
-                <span class="label">Universe Map:</span>
+                <span class="label">Traveller Atlas:</span>
                 <button
                   type="button"
                   class="property-link-chip"
@@ -143,39 +169,6 @@
                   🧭 {{ mapChipLabel }}
                 </button>
               </div>
-              <div class="property">
-                <span class="label">Bulge Radius:</span>
-                <template v-if="isEditingGalaxy">
-                  <input
-                    v-model.number="galaxyEditForm.bulgeRadius"
-                    class="inline-edit-input"
-                    type="number"
-                    min="5000"
-                    max="50000"
-                  />
-                </template>
-                <span v-else class="value">{{ currentGalaxy.morphology?.bulgeRadius || "N/A" }} pc</span>
-              </div>
-              <div class="property">
-                <span class="label">Disk Thickness:</span>
-                <template v-if="isEditingGalaxy">
-                  <input
-                    v-model.number="galaxyEditForm.diskThickness"
-                    class="inline-edit-input"
-                    type="number"
-                    min="500"
-                    max="10000"
-                  />
-                </template>
-                <span v-else class="value">{{ currentGalaxy.morphology?.diskThickness || "N/A" }} pc</span>
-              </div>
-            </div>
-          </section>
-
-          <!-- Morphology Details -->
-          <section class="detail-section">
-            <h3>🔬 Morphology</h3>
-            <div class="property-list">
               <div
                 v-if="(isEditingGalaxy ? galaxyEditForm.type : currentGalaxy?.type)?.includes('Spiral')"
                 class="property"
@@ -347,10 +340,34 @@
             </template>
           </p>
           <p v-if="galaxyMapPreview.scaleLabel" class="density-map-scale">{{ galaxyMapPreview.scaleLabel }}</p>
+          <div class="density-map-toolbar">
+            <span class="density-map-toolbar-label">Map Zoom</span>
+            <div class="density-map-zoom-toggle" role="group" aria-label="Galaxy density map zoom">
+              <button
+                v-for="option in galaxyMapZoomOptions"
+                :key="option.id"
+                type="button"
+                class="density-map-zoom-btn"
+                :class="{ active: galaxyMapZoomLevel === option.id }"
+                @click="galaxyMapZoomLevel = option.id"
+              >
+                {{ option.label }}
+              </button>
+            </div>
+          </div>
           <div class="density-map-container">
             <svg
               class="density-map-svg"
-              :viewBox="`0 0 ${galaxyMapPreview.svgSize} ${galaxyMapPreview.svgSize}`"
+              :class="{
+                pannable: galaxyMapPreview.canPan,
+                dragging: galaxyMapPanState.isDragging,
+              }"
+              @wheel.prevent="handleGalaxyMapWheel"
+              @pointerdown="beginGalaxyMapPan"
+              @pointermove="updateGalaxyMapPan"
+              @pointerup="endGalaxyMapPan"
+              @pointercancel="endGalaxyMapPan"
+              :viewBox="galaxyMapPreview.viewBox"
               :width="galaxyMapPreview.svgSize"
               :height="galaxyMapPreview.svgSize"
             >
@@ -358,11 +375,12 @@
               <rect
                 v-for="tile in galaxyMapPreview.tiles"
                 :key="tile.id"
-                :x="tile.px - galaxyMapPreview.tileHalf"
-                :y="tile.py - galaxyMapPreview.tileHalf"
-                :width="galaxyMapPreview.tileSize"
-                :height="galaxyMapPreview.tileSize"
+                :x="tile.px - galaxyMapPreview.renderTileHalf"
+                :y="tile.py - galaxyMapPreview.renderTileHalf"
+                :width="galaxyMapPreview.renderTileSize"
+                :height="galaxyMapPreview.renderTileSize"
                 :fill="tile.color"
+                :opacity="tile.opacity"
                 rx="1"
                 ry="1"
               >
@@ -387,6 +405,9 @@
                 opacity="0.8"
               />
             </svg>
+            <p class="density-map-gesture-hint">
+              Scroll to zoom toward or away from the galactic center. Drag while zoomed in to pan across the map.
+            </p>
             <div class="density-legend">
               <span class="legend-label">Void</span>
               <div class="legend-swatches">
@@ -405,7 +426,7 @@
 
         <!-- Action Buttons -->
         <div class="action-buttons">
-          <button @click="proceedToClass0" class="btn btn-primary">🔍 Class 0 Sector Survey →</button>
+          <button @click="proceedToClass0" class="btn btn-primary">🔍 Sector Survey →</button>
           <select
             v-model="galaxySurveyGenerationMode"
             class="generation-mode-select"
@@ -800,7 +821,6 @@ import { useSectorStore } from "../../stores/sectorStore.js";
 import { createSectorsBatch, getSectorStats, pruneDefaultSectors, upsertSector } from "../../api/sectorApi.js";
 import { calculateHexOccupancyProbability } from "../../utils/sectorGeneration.js";
 import { generatePrimaryStar } from "../../utils/primaryStarGenerator.js";
-import SurveyNavigation from "../../components/common/SurveyNavigation.vue";
 import LoadingSpinner from "../../components/common/LoadingSpinner.vue";
 import ConfirmDialog from "../../components/common/ConfirmDialog.vue";
 import * as toastService from "../../utils/toast.js";
@@ -824,6 +844,14 @@ const currentGalaxy = computed(() => galaxyStore.getCurrentGalaxy);
 const importInProgress = computed(() => galaxyStore.importInProgress);
 const importProgress = computed(() => galaxyStore.importProgress);
 const isLoading = computed(() => galaxyStore.isLoading);
+const selectedGalaxyId = computed({
+  get: () => currentGalaxy.value?.galaxyId || galaxies.value[0]?.galaxyId || "",
+  set: (galaxyId) => {
+    if (galaxyId) {
+      selectGalaxy(galaxyId);
+    }
+  },
+});
 
 const showNewGalaxyForm = ref(false);
 const showImportForm = ref(false);
@@ -835,6 +863,16 @@ const isGeneratingFullGalaxy = ref(false);
 const isRefreshingSectorStats = ref(false);
 const isPruningDefaultSectors = ref(false);
 const galaxySurveyGenerationMode = ref("names");
+const galaxyMapZoomLevel = ref("fit");
+const galaxyMapPan = ref({ x: 0, y: 0 });
+const galaxyMapPanState = ref({
+  isDragging: false,
+  pointerId: null,
+  startClientX: 0,
+  startClientY: 0,
+  startPanX: 0,
+  startPanY: 0,
+});
 const generationProgress = ref({
   active: false,
   label: "",
@@ -1299,21 +1337,14 @@ function clampUniverseCoordinate(value, min, max) {
   return Math.min(max, Math.max(min, Math.round(parsed)));
 }
 
-const currentGalaxyCoordinatesLabel = computed(() => {
-  const coord = getGalaxyUniverseCoordinates(currentGalaxy.value);
-  return coord ? `${Math.round(coord.x)}, ${Math.round(coord.y)}` : "Not set";
-});
-
 const hasCurrentGalaxyCoordinates = computed(() => Boolean(getGalaxyUniverseCoordinates(currentGalaxy.value)));
 const mapChipLabel = computed(() =>
-  hasCurrentGalaxyCoordinates.value
-    ? "View Current Galaxy (Coordinates Set)"
-    : "View Current Galaxy (Coordinates Missing)",
+  hasCurrentGalaxyCoordinates.value ? "Open Traveller Atlas" : "Open Traveller Atlas (Coordinates Optional)",
 );
 const mapChipTitle = computed(() =>
   hasCurrentGalaxyCoordinates.value
     ? "Open Universe Map focused on this galaxy"
-    : "Open Universe Map and add coordinates for this galaxy",
+    : "Open Traveller Atlas. Add universe coordinates later if you want atlas placement.",
 );
 
 function normalizeSectorStats(stats) {
@@ -1497,6 +1528,76 @@ const DENSITY_COLORS = [
   "#e8b828", // 5 - galactic center
 ];
 
+const GALAXY_MAP_ZOOM_OPTIONS = Object.freeze([
+  { id: "overview", label: "Overview", multiplier: 0.85 },
+  { id: "fit", label: "Fit", multiplier: 1 },
+  { id: "close", label: "Close", multiplier: 1.6 },
+  { id: "detail", label: "Detail", multiplier: 2.35 },
+]);
+
+const galaxyMapZoomOptions = computed(() => GALAXY_MAP_ZOOM_OPTIONS);
+
+function stepGalaxyMapZoom(direction) {
+  const currentIndex = GALAXY_MAP_ZOOM_OPTIONS.findIndex((option) => option.id === galaxyMapZoomLevel.value);
+  const safeIndex = currentIndex >= 0 ? currentIndex : 1;
+  const nextIndex = Math.max(0, Math.min(GALAXY_MAP_ZOOM_OPTIONS.length - 1, safeIndex + direction));
+  galaxyMapZoomLevel.value = GALAXY_MAP_ZOOM_OPTIONS[nextIndex].id;
+}
+
+function handleGalaxyMapWheel(event) {
+  if (!event || event.deltaY === 0) return;
+  stepGalaxyMapZoom(event.deltaY > 0 ? -1 : 1);
+}
+
+function beginGalaxyMapPan(event) {
+  const preview = galaxyMapPreview.value;
+  if (!preview?.canPan || !event || event.button !== 0) return;
+
+  galaxyMapPanState.value = {
+    isDragging: true,
+    pointerId: event.pointerId,
+    startClientX: event.clientX,
+    startClientY: event.clientY,
+    startPanX: galaxyMapPan.value.x,
+    startPanY: galaxyMapPan.value.y,
+  };
+
+  event.currentTarget?.setPointerCapture?.(event.pointerId);
+}
+
+function updateGalaxyMapPan(event) {
+  const preview = galaxyMapPreview.value;
+  const panState = galaxyMapPanState.value;
+  if (!preview?.canPan || !panState.isDragging || panState.pointerId !== event.pointerId) return;
+
+  const scale = preview.svgSize / preview.zoomedViewSize;
+  const nextPanX = panState.startPanX - (event.clientX - panState.startClientX) / scale;
+  const nextPanY = panState.startPanY - (event.clientY - panState.startClientY) / scale;
+
+  galaxyMapPan.value = {
+    x: Math.max(-preview.maxPanOffset, Math.min(preview.maxPanOffset, nextPanX)),
+    y: Math.max(-preview.maxPanOffset, Math.min(preview.maxPanOffset, nextPanY)),
+  };
+}
+
+function endGalaxyMapPan(event) {
+  const panState = galaxyMapPanState.value;
+  if (!panState.isDragging) return;
+
+  if (event?.currentTarget && panState.pointerId !== null) {
+    event.currentTarget.releasePointerCapture?.(panState.pointerId);
+  }
+
+  galaxyMapPanState.value = {
+    isDragging: false,
+    pointerId: null,
+    startClientX: 0,
+    startClientY: 0,
+    startPanX: galaxyMapPan.value.x,
+    startPanY: galaxyMapPan.value.y,
+  };
+}
+
 // Each sector tile is 32 parsecs wide × 40 parsecs tall (standard Traveller sector dimensions).
 const SECTOR_WIDTH_PC = 32;
 const SECTOR_HEIGHT_PC = 40;
@@ -1521,18 +1622,37 @@ const galaxyMapPreview = computed(() => {
   const step = Math.min((SVG_SIZE - PADDING * 2) / gridWidth, (SVG_SIZE - PADDING * 2) / gridHeight);
   const tileSize = Math.max(2, step * 0.9);
   const tileHalf = tileSize / 2;
+  const renderTileSize = Math.max(2.8, tileSize);
+  const renderTileHalf = renderTileSize / 2;
   const offsetX = PADDING + step * 0.5 - minGridX * step;
   const offsetY = PADDING + step * 0.5 - minGridY * step;
+  const zoomMultiplier =
+    GALAXY_MAP_ZOOM_OPTIONS.find((option) => option.id === galaxyMapZoomLevel.value)?.multiplier ?? 1;
+  const zoomedViewSize = SVG_SIZE / zoomMultiplier;
+  const centeredViewOrigin = (SVG_SIZE - zoomedViewSize) / 2;
+  const maxPanOffset = Math.max(0, centeredViewOrigin);
+  const clampedPanX = Math.max(-maxPanOffset, Math.min(maxPanOffset, galaxyMapPan.value.x));
+  const clampedPanY = Math.max(-maxPanOffset, Math.min(maxPanOffset, galaxyMapPan.value.y));
+  const viewOriginX = centeredViewOrigin + clampedPanX;
+  const viewOriginY = centeredViewOrigin + clampedPanY;
+  const viewBox = `${viewOriginX} ${viewOriginY} ${zoomedViewSize} ${zoomedViewSize}`;
 
   // Actual parsec coverage: each tile is one sector = 32×40 pc.
   const widthPc = gridWidth * SECTOR_WIDTH_PC;
   const heightPc = gridHeight * SECTOR_HEIGHT_PC;
-  const scaleLabel = `${gridWidth}×${gridHeight} sectors — ${widthPc.toLocaleString()} × ${heightPc.toLocaleString()} pc`;
+  const zoomLabel = GALAXY_MAP_ZOOM_OPTIONS.find((option) => option.id === galaxyMapZoomLevel.value)?.label || "Fit";
+  const scaleLabel = `${gridWidth}×${gridHeight} sectors — ${widthPc.toLocaleString()} × ${heightPc.toLocaleString()} pc — ${zoomLabel} zoom`;
 
   return {
     svgSize: SVG_SIZE,
     tileSize,
     tileHalf,
+    renderTileSize,
+    renderTileHalf,
+    viewBox,
+    zoomedViewSize,
+    maxPanOffset,
+    canPan: maxPanOffset > 0,
     centerPx: offsetX,
     centerPy: offsetY,
     densityColors: DENSITY_COLORS,
@@ -1543,6 +1663,7 @@ const galaxyMapPreview = computed(() => {
       py: offsetY + s.metadata.gridY * step,
       color: DENSITY_COLORS[s.densityClass] ?? DENSITY_COLORS[0],
       dc: s.densityClass,
+      opacity: tileSize < 3 ? 0.82 : 1,
     })),
   };
 });
@@ -2973,7 +3094,7 @@ function formatNumber(num) {
 
 <style scoped>
 .galaxy-survey {
-  padding: 2rem;
+  padding: 1.25rem;
 }
 
 .error-banner {
@@ -3028,11 +3149,66 @@ function formatNumber(num) {
   flex-wrap: wrap;
 }
 
-.galaxies-grid {
+.galaxy-selector-bar {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-  gap: 1.5rem;
-  margin-bottom: 3rem;
+  grid-template-columns: minmax(240px, 1.2fr) auto auto;
+  gap: 0.9rem;
+  align-items: end;
+  margin: 0 0 1rem;
+  padding: 0.9rem 1rem;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid #2a2a3a;
+  border-radius: 0.5rem;
+}
+
+.galaxy-selector-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.galaxy-selector-label {
+  color: #8fb3c9;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.galaxy-selector-select {
+  width: 100%;
+  min-height: 2.5rem;
+  border: 1px solid #2d5872;
+  background: #10182a;
+  color: #d9efff;
+  border-radius: 0.4rem;
+  padding: 0.55rem 0.75rem;
+}
+
+.galaxy-selector-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.galaxy-selector-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.25rem;
+  padding: 0.35rem 0.8rem;
+  border-radius: 999px;
+  background: rgba(0, 217, 255, 0.15);
+  color: #8fe9ff;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.galaxy-selector-summary {
+  color: #9fb7c7;
+  font-size: 0.8rem;
+  font-family: monospace;
 }
 
 .survey-top-actions {
@@ -3042,64 +3218,25 @@ function formatNumber(num) {
   margin: 0 0 1.5rem;
 }
 
-.galaxy-card {
-  background: #2a2a3e;
-  border: 2px solid #333;
-  border-radius: 0.5rem;
-  padding: 1.5rem;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  display: flex;
-  flex-direction: column;
+.survey-top-actions--compact {
+  margin: 0;
+  justify-content: flex-end;
   align-items: center;
-  text-align: center;
-}
-
-.galaxy-card:hover {
-  border-color: #00d9ff;
-  background: #3a3a4e;
-}
-
-.galaxy-card.active {
-  background: linear-gradient(135deg, #1a1a2e, #16213e);
-  border-color: #00d9ff;
-  box-shadow: 0 0 15px rgba(0, 217, 255, 0.3);
-}
-
-.galaxy-icon {
-  font-size: 3rem;
-  margin-bottom: 1rem;
-}
-
-.galaxy-info h3 {
-  color: #00d9ff;
-  margin-bottom: 0.5rem;
-}
-
-.type {
-  color: #00ffff;
-  font-size: 0.9rem;
-}
-
-.coords,
-.systems {
-  color: #aaa;
-  font-size: 0.85rem;
 }
 
 .galaxy-details {
   background: #1a1a2e;
   border: 2px solid #00d9ff;
   border-radius: 0.5rem;
-  padding: 2rem;
+  padding: 1.25rem;
 }
 
 .details-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 2rem;
-  padding-bottom: 1rem;
+  margin-bottom: 1.2rem;
+  padding-bottom: 0.75rem;
   border-bottom: 2px solid #333;
 }
 
@@ -3111,6 +3248,37 @@ function formatNumber(num) {
 .details-header h2 {
   color: #00d9ff;
   margin: 0;
+}
+
+.galaxy-parameter-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.75rem;
+  margin: 0 0 1rem;
+}
+
+.galaxy-parameter-pill {
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid rgba(0, 217, 255, 0.18);
+  border-radius: 0.45rem;
+  background: rgba(6, 19, 35, 0.62);
+}
+
+.parameter-label {
+  color: #88afc5;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.parameter-value {
+  color: #e6f7ff;
+  font-family: monospace;
+  font-size: 0.88rem;
 }
 
 .inline-edit-title,
@@ -3152,8 +3320,8 @@ function formatNumber(num) {
 .details-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 2rem;
-  margin-bottom: 2rem;
+  gap: 1.2rem;
+  margin-bottom: 1.2rem;
 }
 
 .detail-section h3 {
@@ -3342,8 +3510,8 @@ function formatNumber(num) {
 }
 
 .galaxy-density-map-wrapper {
-  margin: 1.5rem 0 0;
-  padding: 1.5rem;
+  margin: 1rem 0 0;
+  padding: 1rem;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid #2a2a3a;
   border-radius: 0.5rem;
@@ -3368,6 +3536,54 @@ function formatNumber(num) {
   font-family: monospace;
 }
 
+.density-map-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin: 0 0 0.85rem;
+}
+
+.density-map-toolbar-label {
+  color: #8fb3c9;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.density-map-zoom-toggle {
+  display: inline-flex;
+  gap: 0.25rem;
+  padding: 0.2rem;
+  border: 1px solid rgba(0, 217, 255, 0.2);
+  border-radius: 999px;
+  background: rgba(0, 217, 255, 0.06);
+}
+
+.density-map-zoom-btn {
+  border: none;
+  border-radius: 999px;
+  padding: 0.35rem 0.7rem;
+  background: transparent;
+  color: #8fb3c9;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.density-map-zoom-btn:hover {
+  color: #d9f7ff;
+}
+
+.density-map-zoom-btn.active {
+  background: #00d9ff;
+  color: #04111a;
+  box-shadow: 0 0 10px rgba(0, 217, 255, 0.35);
+}
+
 .density-map-container {
   display: flex;
   flex-direction: column;
@@ -3378,6 +3594,22 @@ function formatNumber(num) {
 .density-map-svg {
   border-radius: 6px;
   display: block;
+}
+
+.density-map-svg.pannable {
+  cursor: grab;
+  touch-action: none;
+}
+
+.density-map-svg.dragging {
+  cursor: grabbing;
+}
+
+.density-map-gesture-hint {
+  margin: 0;
+  color: #7495ab;
+  font-size: 0.74rem;
+  text-align: center;
 }
 
 .density-legend {
@@ -3404,8 +3636,8 @@ function formatNumber(num) {
   display: flex;
   gap: 1rem;
   flex-wrap: wrap;
-  margin-top: 2rem;
-  padding-top: 2rem;
+  margin-top: 1.2rem;
+  padding-top: 1.2rem;
   border-top: 2px solid #333;
 }
 
@@ -3705,6 +3937,16 @@ function formatNumber(num) {
 }
 
 @media (max-width: 980px) {
+  .galaxy-selector-bar {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .galaxy-selector-meta,
+  .survey-top-actions--compact {
+    justify-content: flex-start;
+  }
+
   .modal-content--create {
     max-width: 96vw;
   }

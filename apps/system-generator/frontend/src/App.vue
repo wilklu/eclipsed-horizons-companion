@@ -1,10 +1,7 @@
 <template>
   <div id="app-root">
     <header class="app-header">
-      <div class="header-brand">
-        <span class="brand-icon">🌌</span>
-        <span class="brand-name">Eclipsed Horizons Companion</span>
-      </div>
+      <div class="header-page-title">{{ headerContextTitle || "Eclipsed Horizons Companion" }}</div>
       <nav class="header-nav">
         <router-link to="/atlas" class="nav-link">Traveller Atlas</router-link>
         <router-link to="/galaxy" class="nav-link">Galaxy Survey</router-link>
@@ -16,6 +13,10 @@
         <router-link to="/session-planner" class="nav-link">Session Planner</router-link>
         <router-link to="/preferences" class="nav-link">Preferences</router-link>
       </nav>
+      <div class="header-brand">
+        <span class="brand-name">Eclipsed Horizons Companion</span>
+        <span class="brand-icon">🌌</span>
+      </div>
     </header>
     <main class="app-main">
       <router-view />
@@ -25,10 +26,22 @@
 
 <script setup>
 import { computed } from "vue";
+import { useRoute } from "vue-router";
 import { useGalaxyStore } from "./stores/galaxyStore.js";
 
 const galaxyStore = useGalaxyStore();
+const route = useRoute();
 const galaxyId = computed(() => galaxyStore.getCurrentGalaxy?.galaxyId ?? null);
+const routeTitleFallbacks = Object.freeze({
+  TravellerAtlas: "Traveller Atlas",
+  GalaxySurvey: "Galaxy Survey",
+  SectorSurvey: "Sector Survey",
+  StarSystemBuilder: "Stellar Survey",
+  OrbitalView: "Orbital View",
+  WorldBuilder: "World Survey",
+});
+
+const headerContextTitle = computed(() => route.meta?.title || routeTitleFallbacks[route.name] || "");
 </script>
 
 <style>
@@ -57,29 +70,46 @@ body {
   background: linear-gradient(135deg, #0d0d2b, #1a1a3e);
   border-bottom: 2px solid #00d9ff;
   padding: 1rem 2rem;
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 1.25rem;
   align-items: center;
-  justify-content: space-between;
   position: sticky;
   top: 0;
   z-index: 100;
+}
+
+.header-page-title {
+  color: #d9f7ff;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
 }
 
 .header-brand {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  font-size: 1.2rem;
+  flex-wrap: wrap;
+  justify-self: end;
+  font-size: 1.1rem;
   font-weight: bold;
   color: #00d9ff;
 }
 
 .brand-icon {
   font-size: 1.5rem;
+  order: 2;
+}
+
+.brand-name {
+  order: 1;
 }
 
 .header-nav {
   display: flex;
+  justify-content: center;
   gap: 1.5rem;
   flex-wrap: wrap;
 }
@@ -111,5 +141,21 @@ body {
   flex: 1;
   min-height: 0;
   min-width: 0;
+}
+
+@media (max-width: 1200px) {
+  .app-header {
+    grid-template-columns: 1fr;
+    justify-items: stretch;
+  }
+
+  .header-page-title,
+  .header-brand {
+    justify-self: start;
+  }
+
+  .header-nav {
+    justify-content: flex-start;
+  }
 }
 </style>

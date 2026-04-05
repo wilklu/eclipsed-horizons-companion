@@ -71,9 +71,7 @@
               <div class="event-category">{{ event.category }}</div>
               <div class="event-title">{{ event.title }}</div>
               <div class="event-description">{{ event.description }}</div>
-              <div v-if="event.consequence" class="event-consequence">
-                ➜ {{ event.consequence }}
-              </div>
+              <div v-if="event.consequence" class="event-consequence">➜ {{ event.consequence }}</div>
             </div>
           </div>
         </div>
@@ -88,60 +86,188 @@ import SurveyNavigation from "../../components/common/SurveyNavigation.vue";
 
 // ── Lookup tables ─────────────────────────────────────────────────────────────
 const EVENT_CATEGORIES = [
-  "Political", "Military", "Economic", "Technological", "Cultural",
-  "Natural Disaster", "First Contact", "Exploration", "Religious", "Collapse",
+  "Political",
+  "Military",
+  "Economic",
+  "Technological",
+  "Cultural",
+  "Natural Disaster",
+  "First Contact",
+  "Exploration",
+  "Religious",
+  "Collapse",
 ];
 
 const EVENT_TEMPLATES = {
   Political: [
-    { title: "Formation of the {gov}", description: "A new {gov} was established, uniting the fractured {region} under a central authority.", consequence: "Population increased by 15% over the next century." },
-    { title: "The Great Schism", description: "The ruling council split into two factions following a dispute over {resource} rights.", consequence: "Two rival states emerged, shaping the political landscape for generations." },
-    { title: "Bloodless Revolution", description: "The ruling class was peacefully deposed following widespread civil unrest.", consequence: "A new democratic charter was ratified." },
+    {
+      title: "Formation of the {gov}",
+      description: "A new {gov} was established, uniting the fractured {region} under a central authority.",
+      consequence: "Population increased by 15% over the next century.",
+    },
+    {
+      title: "The Great Schism",
+      description: "The ruling council split into two factions following a dispute over {resource} rights.",
+      consequence: "Two rival states emerged, shaping the political landscape for generations.",
+    },
+    {
+      title: "Bloodless Revolution",
+      description: "The ruling class was peacefully deposed following widespread civil unrest.",
+      consequence: "A new democratic charter was ratified.",
+    },
   ],
   Military: [
-    { title: "The {war} War", description: "A prolonged conflict erupted over territorial disputes in the {region}.", consequence: "Borders were redrawn and a generation was lost." },
-    { title: "Invasion from the {region}", description: "Foreign forces crossed into home territory, triggering a decade-long war.", consequence: "Military doctrine was fundamentally reformed." },
-    { title: "The Battle of {location}", description: "A decisive engagement that turned the tide of the ongoing conflict.", consequence: "The defeated faction sought peace terms." },
+    {
+      title: "The {war} War",
+      description: "A prolonged conflict erupted over territorial disputes in the {region}.",
+      consequence: "Borders were redrawn and a generation was lost.",
+    },
+    {
+      title: "Invasion from the {region}",
+      description: "Foreign forces crossed into home territory, triggering a decade-long war.",
+      consequence: "Military doctrine was fundamentally reformed.",
+    },
+    {
+      title: "The Battle of {location}",
+      description: "A decisive engagement that turned the tide of the ongoing conflict.",
+      consequence: "The defeated faction sought peace terms.",
+    },
   ],
   Economic: [
-    { title: "The {resource} Trade Collapse", description: "A sudden scarcity of {resource} caused economic disruption across the sector.", consequence: "New trade routes were established to compensate." },
-    { title: "First Interstellar Market", description: "Formal trade agreements were established with a neighbouring system.", consequence: "Technological exchange accelerated development." },
-    { title: "The Age of Prosperity", description: "A century of surplus and stable governance brought unprecedented wealth.", consequence: "Population and technology flourished." },
+    {
+      title: "The {resource} Trade Collapse",
+      description: "A sudden scarcity of {resource} caused economic disruption across the sector.",
+      consequence: "New trade routes were established to compensate.",
+    },
+    {
+      title: "First Interstellar Market",
+      description: "Formal trade agreements were established with a neighbouring system.",
+      consequence: "Technological exchange accelerated development.",
+    },
+    {
+      title: "The Age of Prosperity",
+      description: "A century of surplus and stable governance brought unprecedented wealth.",
+      consequence: "Population and technology flourished.",
+    },
   ],
   Technological: [
-    { title: "Jump Drive Breakthrough", description: "Engineers achieved the first stable jump point, opening interstellar travel.", consequence: "Colonisation of nearby systems began within a decade." },
-    { title: "Fusion Power Era", description: "Widespread adoption of fusion reactors ended reliance on fossil fuels.", consequence: "Industrial output tripled within fifty years." },
-    { title: "Synthetic Intelligence Emergence", description: "The first true AI was brought online, accelerating research in all fields.", consequence: "Society debated the legal status of synthetic minds." },
+    {
+      title: "Jump Drive Breakthrough",
+      description: "Engineers achieved the first stable jump point, opening interstellar travel.",
+      consequence: "Colonisation of nearby systems began within a decade.",
+    },
+    {
+      title: "Fusion Power Era",
+      description: "Widespread adoption of fusion reactors ended reliance on fossil fuels.",
+      consequence: "Industrial output tripled within fifty years.",
+    },
+    {
+      title: "Synthetic Intelligence Emergence",
+      description: "The first true AI was brought online, accelerating research in all fields.",
+      consequence: "Society debated the legal status of synthetic minds.",
+    },
   ],
   Cultural: [
-    { title: "The Renaissance of {art}", description: "A flowering of {art} spread across the civilisation, defining a new cultural identity.", consequence: "National pride and unity strengthened." },
-    { title: "The Great Migration", description: "Millions relocated to newly established colonies seeking opportunity.", consequence: "Cultural exchange enriched both origin and destination worlds." },
-    { title: "The Philosophical Age", description: "New schools of thought challenged long-held beliefs about existence and purpose.", consequence: "Educational institutions expanded dramatically." },
+    {
+      title: "The Renaissance of {art}",
+      description: "A flowering of {art} spread across the civilisation, defining a new cultural identity.",
+      consequence: "National pride and unity strengthened.",
+    },
+    {
+      title: "The Great Migration",
+      description: "Millions relocated to newly established colonies seeking opportunity.",
+      consequence: "Cultural exchange enriched both origin and destination worlds.",
+    },
+    {
+      title: "The Philosophical Age",
+      description: "New schools of thought challenged long-held beliefs about existence and purpose.",
+      consequence: "Educational institutions expanded dramatically.",
+    },
   ],
   "Natural Disaster": [
-    { title: "The Long Winter", description: "A catastrophic volcanic event blanketed skies for decades, causing widespread famine.", consequence: "Population dropped by a third before recovery began." },
-    { title: "Plague of the {region}", description: "A lethal disease swept across the population, killing millions.", consequence: "Medical science advanced rapidly in response." },
-    { title: "The Great Quake", description: "Tectonic upheaval destroyed major population centres.", consequence: "Reconstruction efforts reshaped urban planning for centuries." },
+    {
+      title: "The Long Winter",
+      description: "A catastrophic volcanic event blanketed skies for decades, causing widespread famine.",
+      consequence: "Population dropped by a third before recovery began.",
+    },
+    {
+      title: "Plague of the {region}",
+      description: "A lethal disease swept across the population, killing millions.",
+      consequence: "Medical science advanced rapidly in response.",
+    },
+    {
+      title: "The Great Quake",
+      description: "Tectonic upheaval destroyed major population centres.",
+      consequence: "Reconstruction efforts reshaped urban planning for centuries.",
+    },
   ],
   "First Contact": [
-    { title: "Signals from the Dark", description: "Unexplained transmissions were detected from a distant system.", consequence: "An expedition was dispatched to investigate." },
-    { title: "The Arrival", description: "An alien vessel entered the system, initiating first contact protocols.", consequence: "Diplomatic relations were cautiously established." },
-    { title: "The Traders from Beyond", description: "Merchants from a distant civilisation arrived offering technology in exchange for resources.", consequence: "A rapid exchange of knowledge began." },
+    {
+      title: "Signals from the Dark",
+      description: "Unexplained transmissions were detected from a distant system.",
+      consequence: "An expedition was dispatched to investigate.",
+    },
+    {
+      title: "The Arrival",
+      description: "An alien vessel entered the system, initiating first contact protocols.",
+      consequence: "Diplomatic relations were cautiously established.",
+    },
+    {
+      title: "The Traders from Beyond",
+      description: "Merchants from a distant civilisation arrived offering technology in exchange for resources.",
+      consequence: "A rapid exchange of knowledge began.",
+    },
   ],
   Exploration: [
-    { title: "Charting the {region}", description: "Systematic surveys of the surrounding sectors revealed dozens of habitable worlds.", consequence: "Colonisation efforts were prioritised." },
-    { title: "The Lost Expedition Returns", description: "A survey fleet missing for thirty years returned with records of a rich stellar cluster.", consequence: "A new wave of exploration began." },
-    { title: "Discovery of the Ancient Ruins", description: "Explorers uncovered the remains of a pre-spacefaring civilisation on a nearby moon.", consequence: "Archaeological study became a major industry." },
+    {
+      title: "Charting the {region}",
+      description: "Systematic surveys of the surrounding sectors revealed dozens of habitable worlds.",
+      consequence: "Colonisation efforts were prioritised.",
+    },
+    {
+      title: "The Lost Expedition Returns",
+      description: "A survey fleet missing for thirty years returned with records of a rich stellar cluster.",
+      consequence: "A new wave of exploration began.",
+    },
+    {
+      title: "Discovery of the Ancient Ruins",
+      description: "Explorers uncovered the remains of a pre-spacefaring civilisation on a nearby moon.",
+      consequence: "Archaeological study became a major industry.",
+    },
   ],
   Religious: [
-    { title: "The Prophet of {region}", description: "A charismatic leader founded a new faith that spread across the civilisation.", consequence: "Political and religious institutions became intertwined." },
-    { title: "The Holy War", description: "Theological differences sparked armed conflict between major factions.", consequence: "The victorious sect gained political dominance." },
-    { title: "The Reformation", description: "A major religious institution was challenged and reformed.", consequence: "Secularism grew in influence." },
+    {
+      title: "The Prophet of {region}",
+      description: "A charismatic leader founded a new faith that spread across the civilisation.",
+      consequence: "Political and religious institutions became intertwined.",
+    },
+    {
+      title: "The Holy War",
+      description: "Theological differences sparked armed conflict between major factions.",
+      consequence: "The victorious sect gained political dominance.",
+    },
+    {
+      title: "The Reformation",
+      description: "A major religious institution was challenged and reformed.",
+      consequence: "Secularism grew in influence.",
+    },
   ],
   Collapse: [
-    { title: "The Dark Age Begins", description: "Central authority collapsed, fragmenting the civilisation into isolated city-states.", consequence: "Technology regressed over generations." },
-    { title: "The Betrayal of {gov}", description: "The ruling faction was overthrown in a violent coup, destabilising the state.", consequence: "A period of civil war and chaos followed." },
-    { title: "Economic Implosion", description: "The currency failed and trade networks collapsed simultaneously.", consequence: "Barter economies emerged in the aftermath." },
+    {
+      title: "The Dark Age Begins",
+      description: "Central authority collapsed, fragmenting the civilisation into isolated city-states.",
+      consequence: "Technology regressed over generations.",
+    },
+    {
+      title: "The Betrayal of {gov}",
+      description: "The ruling faction was overthrown in a violent coup, destabilising the state.",
+      consequence: "A period of civil war and chaos followed.",
+    },
+    {
+      title: "Economic Implosion",
+      description: "The currency failed and trade networks collapsed simultaneously.",
+      consequence: "Barter economies emerged in the aftermath.",
+    },
   ],
 };
 
@@ -162,7 +288,9 @@ const eraStart = ref(5000);
 const history = ref(null);
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+function pick(arr) {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
 
 function fillTemplate(str) {
   return str
@@ -220,7 +348,7 @@ function generateHistory() {
   history.value = {
     civilizationName: civName.value || pick(CIV_PREFIXES) + pick(CIV_SUFFIXES),
     overview: {
-      "Founded": `${start.toLocaleString()} years ago`,
+      Founded: `${start.toLocaleString()} years ago`,
       "Current Status": pick(["Thriving", "Declining", "Fragmented", "Ascendant", "Collapsed (historical)"]),
       "Dominant Culture": pick(["Militarist", "Mercantile", "Scientific", "Artistic", "Religious", "Expansionist"]),
       "Stellar Reach": pick(["Single System", "2–5 Systems", "Subsector", "Sector-wide", "Multi-sector"]),
@@ -256,26 +384,47 @@ function exportHistory() {
   min-height: calc(100vh - 60px);
 }
 
-.survey-content { padding: 2rem; flex: 1; }
+.survey-content {
+  padding: 1.25rem;
+  flex: 1;
+}
 
 .control-panel {
   display: flex;
   flex-wrap: wrap;
-  gap: 1.5rem;
-  margin-bottom: 2rem;
-  padding: 1.5rem;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+  padding: 1.15rem;
   background: #1a1a1a;
   border-radius: 0.5rem;
 }
 
-.control-group { display: flex; flex-direction: column; gap: 0.5rem; min-width: 200px; }
-.control-group label { color: #00ffff; font-weight: bold; font-size: 0.9rem; }
-.control-action { justify-content: flex-end; }
-.name-row { display: flex; gap: 0.5rem; }
-.name-row .text-input { flex: 1; }
+.control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 200px;
+}
+.control-group label {
+  color: #00ffff;
+  font-weight: bold;
+  font-size: 0.9rem;
+}
+.control-action {
+  justify-content: flex-end;
+}
+.name-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0.5rem;
+}
+.name-row .text-input {
+  flex: 1;
+}
 
 .select-input,
 .text-input {
+  min-height: 2.5rem;
   padding: 0.6rem 0.75rem;
   background: #2a2a3e;
   border: 1px solid #00d9ff;
@@ -284,31 +433,62 @@ function exportHistory() {
   font-size: 0.9rem;
 }
 
-.btn { padding: 0.6rem 1.25rem; border: none; border-radius: 0.25rem; cursor: pointer; font-weight: bold; font-size: 0.9rem; transition: all 0.2s; }
-.btn-primary { background: #00d9ff; color: #000; }
-.btn-primary:hover { background: #00ffff; box-shadow: 0 0 12px rgba(0, 217, 255, 0.4); }
-.btn-secondary { background: #444; color: #e0e0e0; }
-.btn-secondary:hover { background: #555; }
+.btn {
+  min-height: 2.5rem;
+  padding: 0.6rem 1.25rem;
+  border: none;
+  border-radius: 0.25rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 0.9rem;
+  line-height: 1.2;
+  transition: all 0.2s;
+}
+.btn-primary {
+  background: #00d9ff;
+  color: #000;
+}
+.btn-primary:hover {
+  background: #00ffff;
+  box-shadow: 0 0 12px rgba(0, 217, 255, 0.4);
+}
+.btn-secondary {
+  background: #444;
+  color: #e0e0e0;
+}
+.btn-secondary:hover {
+  background: #555;
+}
 
 .history-display {
   background: #1a1a2e;
   border: 2px solid #00d9ff;
   border-radius: 0.5rem;
-  padding: 1.5rem;
+  padding: 1.15rem;
 }
 
 .history-header {
   display: flex;
   align-items: center;
-  gap: 2rem;
-  margin-bottom: 1.5rem;
+  gap: 1.25rem;
+  margin-bottom: 1rem;
   padding-bottom: 1rem;
   border-bottom: 1px solid #333;
   flex-wrap: wrap;
 }
 
-.history-header h2 { color: #00d9ff; margin: 0; }
-.history-meta { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+.history-header h2 {
+  color: #00d9ff;
+  margin: 0;
+}
+.history-meta {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
 .meta-badge {
   background: rgba(0, 217, 255, 0.12);
   color: #00ffff;
@@ -330,8 +510,17 @@ function exportHistory() {
   padding: 0.75rem 1rem;
 }
 
-.kstat-label { font-size: 0.75rem; color: #888; text-transform: uppercase; margin-bottom: 0.3rem; }
-.kstat-value { color: #e0e0e0; font-size: 0.9rem; font-weight: bold; }
+.kstat-label {
+  font-size: 0.75rem;
+  color: #888;
+  text-transform: uppercase;
+  margin-bottom: 0.3rem;
+}
+.kstat-value {
+  color: #e0e0e0;
+  font-size: 0.9rem;
+  font-weight: bold;
+}
 
 /* Timeline */
 .timeline {
@@ -417,14 +606,34 @@ function exportHistory() {
 }
 
 /* Category accent colours on the dot */
-.timeline-event.political .connector-dot { background: #9b59b6; }
-.timeline-event.military .connector-dot { background: #e74c3c; }
-.timeline-event.economic .connector-dot { background: #f1c40f; }
-.timeline-event.technological .connector-dot { background: #00d9ff; }
-.timeline-event.cultural .connector-dot { background: #1abc9c; }
-.timeline-event.natural-disaster .connector-dot { background: #e67e22; }
-.timeline-event.first-contact .connector-dot { background: #8e44ad; }
-.timeline-event.exploration .connector-dot { background: #2ecc71; }
-.timeline-event.religious .connector-dot { background: #d4ac0d; }
-.timeline-event.collapse .connector-dot { background: #7f8c8d; }
+.timeline-event.political .connector-dot {
+  background: #9b59b6;
+}
+.timeline-event.military .connector-dot {
+  background: #e74c3c;
+}
+.timeline-event.economic .connector-dot {
+  background: #f1c40f;
+}
+.timeline-event.technological .connector-dot {
+  background: #00d9ff;
+}
+.timeline-event.cultural .connector-dot {
+  background: #1abc9c;
+}
+.timeline-event.natural-disaster .connector-dot {
+  background: #e67e22;
+}
+.timeline-event.first-contact .connector-dot {
+  background: #8e44ad;
+}
+.timeline-event.exploration .connector-dot {
+  background: #2ecc71;
+}
+.timeline-event.religious .connector-dot {
+  background: #d4ac0d;
+}
+.timeline-event.collapse .connector-dot {
+  background: #7f8c8d;
+}
 </style>

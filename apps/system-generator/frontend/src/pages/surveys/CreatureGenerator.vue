@@ -142,27 +142,92 @@
 import { ref } from "vue";
 import SurveyNavigation from "../../components/common/SurveyNavigation.vue";
 
-const ECO_ROLES = ["Herbivore", "Omnivore", "Carnivore", "Scavenger", "Parasite", "Filter Feeder", "Apex Predator", "Decomposer"];
-const HABITATS = ["Forest", "Desert", "Ocean", "Arctic", "Jungle", "Mountain", "Underground", "Swamp", "Grassland", "Sky"];
-const SIZES = ["Tiny (< 1 kg)", "Small (1–10 kg)", "Medium (10–100 kg)", "Large (100 kg–1 t)", "Huge (1–10 t)", "Massive (> 10 t)"];
+const ECO_ROLES = [
+  "Herbivore",
+  "Omnivore",
+  "Carnivore",
+  "Scavenger",
+  "Parasite",
+  "Filter Feeder",
+  "Apex Predator",
+  "Decomposer",
+];
+const HABITATS = [
+  "Forest",
+  "Desert",
+  "Ocean",
+  "Arctic",
+  "Jungle",
+  "Mountain",
+  "Underground",
+  "Swamp",
+  "Grassland",
+  "Sky",
+];
+const SIZES = [
+  "Tiny (< 1 kg)",
+  "Small (1–10 kg)",
+  "Medium (10–100 kg)",
+  "Large (100 kg–1 t)",
+  "Huge (1–10 t)",
+  "Massive (> 10 t)",
+];
 const ICONS = ["🦎", "🐉", "🕷️", "🦂", "🐙", "🦈", "🦅", "🐻", "🦁", "🐊", "🦕", "🦟"];
 const WEAPONS = ["Claws", "Teeth/Bite", "Sting/Venom", "Horns", "Tentacles", "Acid Spray", "Constriction", "Shell/Ram"];
-const BEHAVIOURS = ["Territorial", "Pack Hunter", "Ambush Predator", "Flee on contact", "Aggressive", "Curious", "Docile"];
-const TRAITS_POOL = [
-  "Natural Armour +2", "Venomous bite (1D+2)", "Camouflage (natural)",
-  "Bioluminescent", "Amphibious", "Echolocation", "Psi-sensitive",
-  "Regeneration (1D/round)", "Armoured shell (+4)", "Flight",
-  "Hive mind (swarm)", "Electromagnetic pulse (1/day)", "Acid blood",
+const BEHAVIOURS = [
+  "Territorial",
+  "Pack Hunter",
+  "Ambush Predator",
+  "Flee on contact",
+  "Aggressive",
+  "Curious",
+  "Docile",
 ];
-const DIETS = ["Grass/Vegetation", "Fruits & Seeds", "Small prey", "Large prey", "Carrion", "Blood/Parasitic", "Minerals", "Microorganisms"];
-const REPRODUCTIONS = ["Oviparous (eggs)", "Live birth (small litter)", "Live birth (single)", "Budding", "Sporulation"];
+const TRAITS_POOL = [
+  "Natural Armour +2",
+  "Venomous bite (1D+2)",
+  "Camouflage (natural)",
+  "Bioluminescent",
+  "Amphibious",
+  "Echolocation",
+  "Psi-sensitive",
+  "Regeneration (1D/round)",
+  "Armoured shell (+4)",
+  "Flight",
+  "Hive mind (swarm)",
+  "Electromagnetic pulse (1/day)",
+  "Acid blood",
+];
+const DIETS = [
+  "Grass/Vegetation",
+  "Fruits & Seeds",
+  "Small prey",
+  "Large prey",
+  "Carrion",
+  "Blood/Parasitic",
+  "Minerals",
+  "Microorganisms",
+];
+const REPRODUCTIONS = [
+  "Oviparous (eggs)",
+  "Live birth (small litter)",
+  "Live birth (single)",
+  "Budding",
+  "Sporulation",
+];
 const SOCIALS = ["Solitary", "Mated pairs", "Small family groups", "Packs (3–12)", "Large herds", "Swarm colonies"];
 const ACTIVITY = ["Diurnal", "Nocturnal", "Crepuscular", "Continuous"];
 const NAME_PARTS1 = ["Vel", "Krax", "Shar", "Dun", "Mrak", "Oth", "Yss", "Cor"];
 const NAME_PARTS2 = ["ath", "rak", "ith", "orn", "alis", "yx", "oth", "eus"];
 
-function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
-function d6(n = 1) { let t = 0; for (let i = 0; i < n; i++) t += 1 + Math.floor(Math.random() * 6); return t; }
+function pick(arr) {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+function d6(n = 1) {
+  let t = 0;
+  for (let i = 0; i < n; i++) t += 1 + Math.floor(Math.random() * 6);
+  return t;
+}
 
 const creatureName = ref("");
 const ecologicalRole = ref("random");
@@ -239,26 +304,47 @@ function exportCreature() {
   min-height: calc(100vh - 60px);
 }
 
-.survey-content { padding: 2rem; flex: 1; }
+.survey-content {
+  padding: 1.25rem;
+  flex: 1;
+}
 
 .control-panel {
   display: flex;
   flex-wrap: wrap;
-  gap: 1.5rem;
-  margin-bottom: 2rem;
-  padding: 1.5rem;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+  padding: 1.15rem;
   background: #1a1a1a;
   border-radius: 0.5rem;
 }
 
-.control-group { display: flex; flex-direction: column; gap: 0.5rem; min-width: 200px; }
-.control-group label { color: #00ffff; font-weight: bold; font-size: 0.9rem; }
-.control-action { justify-content: flex-end; }
-.name-row { display: flex; gap: 0.5rem; }
-.name-row .text-input { flex: 1; }
+.control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 200px;
+}
+.control-group label {
+  color: #00ffff;
+  font-weight: bold;
+  font-size: 0.9rem;
+}
+.control-action {
+  justify-content: flex-end;
+}
+.name-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0.5rem;
+}
+.name-row .text-input {
+  flex: 1;
+}
 
 .select-input,
 .text-input {
+  min-height: 2.5rem;
   padding: 0.6rem 0.75rem;
   background: #2a2a3e;
   border: 1px solid #00d9ff;
@@ -267,32 +353,65 @@ function exportCreature() {
   font-size: 0.9rem;
 }
 
-.btn { padding: 0.6rem 1.25rem; border: none; border-radius: 0.25rem; cursor: pointer; font-weight: bold; font-size: 0.9rem; transition: all 0.2s; }
-.btn-primary { background: #00d9ff; color: #000; }
-.btn-primary:hover { background: #00ffff; box-shadow: 0 0 12px rgba(0, 217, 255, 0.4); }
-.btn-secondary { background: #444; color: #e0e0e0; }
-.btn-secondary:hover { background: #555; }
+.btn {
+  min-height: 2.5rem;
+  padding: 0.6rem 1.25rem;
+  border: none;
+  border-radius: 0.25rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 0.9rem;
+  line-height: 1.2;
+  transition: all 0.2s;
+}
+.btn-primary {
+  background: #00d9ff;
+  color: #000;
+}
+.btn-primary:hover {
+  background: #00ffff;
+  box-shadow: 0 0 12px rgba(0, 217, 255, 0.4);
+}
+.btn-secondary {
+  background: #444;
+  color: #e0e0e0;
+}
+.btn-secondary:hover {
+  background: #555;
+}
 
 .creature-display {
   background: #1a1a2e;
   border: 2px solid #00d9ff;
   border-radius: 0.5rem;
-  padding: 1.5rem;
+  padding: 1.15rem;
 }
 
 .creature-header {
   display: flex;
   align-items: center;
-  gap: 1.5rem;
-  margin-bottom: 1.5rem;
-  padding-bottom: 1rem;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
   border-bottom: 1px solid #333;
 }
 
-.creature-icon { font-size: 3rem; }
-.creature-header h2 { color: #00d9ff; margin: 0 0 0.5rem; }
+.creature-icon {
+  font-size: 3rem;
+}
+.creature-header h2 {
+  color: #00d9ff;
+  margin: 0 0 0.5rem;
+}
 
-.creature-tags { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.creature-tags {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
 .tag {
   background: rgba(0, 217, 255, 0.12);
   color: #00d9ff;
@@ -308,21 +427,79 @@ function exportCreature() {
   gap: 1.5rem;
 }
 
-.creature-section { background: #12122e; border-radius: 0.5rem; padding: 1.25rem; }
-.creature-section h3 { color: #00ffff; margin-bottom: 1rem; }
+.creature-section {
+  background: #12122e;
+  border-radius: 0.5rem;
+  padding: 1.25rem;
+}
+.creature-section h3 {
+  color: #00ffff;
+  margin-bottom: 1rem;
+}
 
-.prop-list { display: flex; flex-direction: column; gap: 0.4rem; }
-.prop-row { display: flex; gap: 0.75rem; font-size: 0.9rem; padding: 0.3rem 0; border-bottom: 1px solid #1a1a3a; }
-.prop-label { color: #00ffff; min-width: 130px; font-weight: bold; }
-.prop-value { color: #e0e0e0; font-family: monospace; }
+.prop-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.prop-row {
+  display: flex;
+  gap: 0.75rem;
+  font-size: 0.9rem;
+  padding: 0.3rem 0;
+  border-bottom: 1px solid #1a1a3a;
+}
+.prop-label {
+  color: #00ffff;
+  min-width: 130px;
+  font-weight: bold;
+}
+.prop-value {
+  color: #e0e0e0;
+  font-family: monospace;
+}
 
-.stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem; }
-.stat-box { background: #0d0d2b; border-radius: 0.4rem; padding: 0.6rem; text-align: center; }
-.stat-label { font-size: 0.7rem; color: #888; text-transform: uppercase; margin-bottom: 0.3rem; }
-.stat-value { font-size: 1.2rem; font-weight: bold; color: #ffd700; font-family: monospace; }
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.75rem;
+}
+.stat-box {
+  background: #0d0d2b;
+  border-radius: 0.4rem;
+  padding: 0.6rem;
+  text-align: center;
+}
+.stat-label {
+  font-size: 0.7rem;
+  color: #888;
+  text-transform: uppercase;
+  margin-bottom: 0.3rem;
+}
+.stat-value {
+  font-size: 1.2rem;
+  font-weight: bold;
+  color: #ffd700;
+  font-family: monospace;
+}
 
-.trait-list { display: flex; flex-direction: column; gap: 0.4rem; }
-.trait-item { padding: 0.4rem 0.75rem; background: rgba(0, 217, 255, 0.08); border-left: 3px solid #00d9ff44; border-radius: 0.2rem; color: #e0e0e0; font-size: 0.9rem; }
+.trait-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.trait-item {
+  padding: 0.4rem 0.75rem;
+  background: rgba(0, 217, 255, 0.08);
+  border-left: 3px solid #00d9ff44;
+  border-radius: 0.2rem;
+  color: #e0e0e0;
+  font-size: 0.9rem;
+}
 
-.empty-state { color: #555; font-style: italic; padding: 0.3rem 0; }
+.empty-state {
+  color: #555;
+  font-style: italic;
+  padding: 0.3rem 0;
+}
 </style>

@@ -143,13 +143,25 @@ import SurveyNavigation from "../../components/common/SurveyNavigation.vue";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const BODY_PLANS = [
-  "Bilateral Symmetry", "Radial Symmetry", "Asymmetric", "Segmented",
-  "Aquatic", "Arboreal", "Insectoid", "Avian",
+  "Bilateral Symmetry",
+  "Radial Symmetry",
+  "Asymmetric",
+  "Segmented",
+  "Aquatic",
+  "Arboreal",
+  "Insectoid",
+  "Avian",
 ];
 
 const HOME_ENVS = [
-  "Dense Atmosphere", "Thin Atmosphere", "Aquatic", "Arctic",
-  "Desert", "Forest", "Mountain", "Underground",
+  "Dense Atmosphere",
+  "Thin Atmosphere",
+  "Aquatic",
+  "Arctic",
+  "Desert",
+  "Forest",
+  "Mountain",
+  "Underground",
 ];
 
 const SENSORY_TRAITS_POOL = [
@@ -166,22 +178,40 @@ const SENSORY_TRAITS_POOL = [
 ];
 
 const SPECIAL_ABILITIES_POOL = [
-  "Natural Armour (armour 2)", "Amphibious", "Flight (limited)",
-  "Regeneration (minor wounds)", "Psionic Potential",
-  "Toxin Resistance", "Camouflage (natural)", "Bioluminescence",
-  "Venom (melee attack, 1D damage)", "Exoskeleton (+1 armour)",
+  "Natural Armour (armour 2)",
+  "Amphibious",
+  "Flight (limited)",
+  "Regeneration (minor wounds)",
+  "Psionic Potential",
+  "Toxin Resistance",
+  "Camouflage (natural)",
+  "Bioluminescence",
+  "Venom (melee attack, 1D damage)",
+  "Exoskeleton (+1 armour)",
 ];
 
 const SOCIAL_STRUCTURES = [
-  "Hive Mind (partial)", "Clan-based Tribes", "Matriarchal Hierarchy",
-  "Patriarchal Hierarchy", "Meritocracy", "Theocracy",
-  "Technocracy", "Democratic Collective", "Nomadic Bands",
+  "Hive Mind (partial)",
+  "Clan-based Tribes",
+  "Matriarchal Hierarchy",
+  "Patriarchal Hierarchy",
+  "Meritocracy",
+  "Theocracy",
+  "Technocracy",
+  "Democratic Collective",
+  "Nomadic Bands",
 ];
 
 const GOVERNMENTS = [
-  "None (anarchy)", "Council of Elders", "Corporate Council",
-  "Hereditary Monarchy", "Elected Senate", "Military Junta",
-  "Religious Authority", "AI Governance", "Federation",
+  "None (anarchy)",
+  "Council of Elders",
+  "Corporate Council",
+  "Hereditary Monarchy",
+  "Elected Senate",
+  "Military Junta",
+  "Religious Authority",
+  "AI Governance",
+  "Federation",
 ];
 
 const TAGLINES = [
@@ -236,9 +266,7 @@ function generateSophont() {
     "Social Standing": d6(1) - 4,
   };
   // Clamp each to [-2, +2]
-  const charModifiers = Object.fromEntries(
-    Object.entries(rawMods).map(([k, v]) => [k, Math.min(2, Math.max(-2, v))]),
-  );
+  const charModifiers = Object.fromEntries(Object.entries(rawMods).map(([k, v]) => [k, Math.min(2, Math.max(-2, v))]));
 
   // Random sensory traits (2–4)
   const shuffled = [...SENSORY_TRAITS_POOL].sort(() => Math.random() - 0.5);
@@ -300,16 +328,16 @@ function exportSophont() {
 }
 
 .survey-content {
-  padding: 2rem;
+  padding: 1.25rem;
   flex: 1;
 }
 
 .control-panel {
   display: flex;
   flex-wrap: wrap;
-  gap: 1.5rem;
-  margin-bottom: 2rem;
-  padding: 1.5rem;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+  padding: 1.15rem;
   background: #1a1a1a;
   border-radius: 0.5rem;
 }
@@ -327,12 +355,21 @@ function exportSophont() {
   font-size: 0.9rem;
 }
 
-.control-action { justify-content: flex-end; }
-.name-row { display: flex; gap: 0.5rem; }
-.name-row .text-input { flex: 1; }
+.control-action {
+  justify-content: flex-end;
+}
+.name-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0.5rem;
+}
+.name-row .text-input {
+  flex: 1;
+}
 
 .select-input,
 .text-input {
+  min-height: 2.5rem;
   padding: 0.6rem 0.75rem;
   background: #2a2a3e;
   border: 1px solid #00d9ff;
@@ -342,39 +379,64 @@ function exportSophont() {
 }
 
 .btn {
+  min-height: 2.5rem;
   padding: 0.6rem 1.25rem;
   border: none;
   border-radius: 0.25rem;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-weight: bold;
   font-size: 0.9rem;
+  line-height: 1.2;
   transition: all 0.2s;
 }
 
-.btn-primary { background: #00d9ff; color: #000; }
-.btn-primary:hover { background: #00ffff; box-shadow: 0 0 12px rgba(0, 217, 255, 0.4); }
-.btn-secondary { background: #444; color: #e0e0e0; }
-.btn-secondary:hover { background: #555; }
+.btn-primary {
+  background: #00d9ff;
+  color: #000;
+}
+.btn-primary:hover {
+  background: #00ffff;
+  box-shadow: 0 0 12px rgba(0, 217, 255, 0.4);
+}
+.btn-secondary {
+  background: #444;
+  color: #e0e0e0;
+}
+.btn-secondary:hover {
+  background: #555;
+}
 
 .sophont-display {
   background: #1a1a2e;
   border: 2px solid #00d9ff;
   border-radius: 0.5rem;
-  padding: 1.5rem;
+  padding: 1.15rem;
 }
 
 .sophont-header {
   display: flex;
   align-items: center;
-  gap: 1.5rem;
-  margin-bottom: 1.5rem;
-  padding-bottom: 1rem;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
   border-bottom: 1px solid #333;
 }
 
-.sophont-icon { font-size: 3rem; }
-.sophont-header h2 { color: #00d9ff; margin: 0 0 0.4rem; }
-.sophont-tagline { color: #aaa; font-style: italic; margin: 0; }
+.sophont-icon {
+  font-size: 3rem;
+}
+.sophont-header h2 {
+  color: #00d9ff;
+  margin: 0 0 0.4rem;
+}
+.sophont-tagline {
+  color: #aaa;
+  font-style: italic;
+  margin: 0;
+}
 
 .sophont-grid {
   display: grid;
@@ -388,9 +450,16 @@ function exportSophont() {
   padding: 1.25rem;
 }
 
-.sophont-section h3 { color: #00ffff; margin-bottom: 1rem; }
+.sophont-section h3 {
+  color: #00ffff;
+  margin-bottom: 1rem;
+}
 
-.prop-list { display: flex; flex-direction: column; gap: 0.4rem; }
+.prop-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
 .prop-row {
   display: flex;
   gap: 0.75rem;
@@ -398,8 +467,15 @@ function exportSophont() {
   padding: 0.3rem 0;
   border-bottom: 1px solid #1a1a3a;
 }
-.prop-label { color: #00ffff; min-width: 140px; font-weight: bold; }
-.prop-value { color: #e0e0e0; font-family: monospace; }
+.prop-label {
+  color: #00ffff;
+  min-width: 140px;
+  font-weight: bold;
+}
+.prop-value {
+  color: #e0e0e0;
+  font-family: monospace;
+}
 
 .chars-grid {
   display: grid;
@@ -414,13 +490,31 @@ function exportSophont() {
   text-align: center;
 }
 
-.char-name { font-size: 0.75rem; color: #888; margin-bottom: 0.3rem; }
-.char-mod { font-size: 1.3rem; font-weight: bold; font-family: monospace; }
-.char-mod.pos { color: #6bcf7f; }
-.char-mod.neg { color: #ff6b6b; }
-.char-mod.zero { color: #888; }
+.char-name {
+  font-size: 0.75rem;
+  color: #888;
+  margin-bottom: 0.3rem;
+}
+.char-mod {
+  font-size: 1.3rem;
+  font-weight: bold;
+  font-family: monospace;
+}
+.char-mod.pos {
+  color: #6bcf7f;
+}
+.char-mod.neg {
+  color: #ff6b6b;
+}
+.char-mod.zero {
+  color: #888;
+}
 
-.trait-list { display: flex; flex-direction: column; gap: 0.6rem; }
+.trait-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
 .trait-item {
   display: flex;
   align-items: baseline;
@@ -430,11 +524,27 @@ function exportSophont() {
   background: #0d0d2b;
   border-radius: 0.3rem;
 }
-.trait-name { color: #fff; font-weight: bold; font-size: 0.9rem; }
-.trait-dm { font-family: monospace; font-size: 0.85rem; font-weight: bold; }
-.trait-dm.pos { color: #6bcf7f; }
-.trait-dm.neg { color: #ff6b6b; }
-.trait-desc { color: #888; font-size: 0.8rem; width: 100%; }
+.trait-name {
+  color: #fff;
+  font-weight: bold;
+  font-size: 0.9rem;
+}
+.trait-dm {
+  font-family: monospace;
+  font-size: 0.85rem;
+  font-weight: bold;
+}
+.trait-dm.pos {
+  color: #6bcf7f;
+}
+.trait-dm.neg {
+  color: #ff6b6b;
+}
+.trait-desc {
+  color: #888;
+  font-size: 0.8rem;
+  width: 100%;
+}
 
 .ability-item {
   padding: 0.4rem 0.75rem;
@@ -446,5 +556,9 @@ function exportSophont() {
   margin-bottom: 0.4rem;
 }
 
-.empty-state { color: #555; font-style: italic; padding: 0.3rem 0; }
+.empty-state {
+  color: #555;
+  font-style: italic;
+  padding: 0.3rem 0;
+}
 </style>

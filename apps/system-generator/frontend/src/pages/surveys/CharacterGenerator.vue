@@ -71,11 +71,7 @@
           <section class="char-section">
             <h3>🎯 Skills</h3>
             <div class="skill-list">
-              <div
-                v-for="(level, skill) in character.skills"
-                :key="skill"
-                class="skill-row"
-              >
+              <div v-for="(level, skill) in character.skills" :key="skill" class="skill-row">
                 <span class="skill-name">{{ skill }}</span>
                 <span class="skill-level">{{ level }}</span>
               </div>
@@ -117,7 +113,10 @@
           </section>
 
           <!-- Connections -->
-          <section v-if="character.allies.length || character.contacts.length || character.enemies.length" class="char-section">
+          <section
+            v-if="character.allies.length || character.contacts.length || character.enemies.length"
+            class="char-section"
+          >
             <h3>🤝 Connections</h3>
             <div class="prop-list">
               <div v-if="character.allies.length" class="prop-row">
@@ -168,7 +167,14 @@ const SPECIES_LIST = [
 
 const CAREERS = {
   Navy: {
-    ranks: ["Recruit", "Able Spacehand", "Petty Officer 3rd", "Petty Officer 2nd", "Chief Petty Officer", "Warrant Officer"],
+    ranks: [
+      "Recruit",
+      "Able Spacehand",
+      "Petty Officer 3rd",
+      "Petty Officer 2nd",
+      "Chief Petty Officer",
+      "Warrant Officer",
+    ],
     skills: ["Pilot", "Gunner", "Engineer", "Vacc Suit", "Tactics", "Electronics", "Astrogation"],
     events: [
       "Participated in a major fleet engagement",
@@ -266,19 +272,61 @@ const CAREERS = {
 };
 
 const BACKGROUND_SKILLS = [
-  "Admin", "Animals", "Art", "Athletics", "Carouse",
-  "Drive", "Science", "Streetwise", "Trade", "Vacc Suit",
+  "Admin",
+  "Animals",
+  "Art",
+  "Athletics",
+  "Carouse",
+  "Drive",
+  "Science",
+  "Streetwise",
+  "Trade",
+  "Vacc Suit",
 ];
 
 const FIRST_NAMES = [
-  "Alex", "Mira", "Tobias", "Seren", "Cael", "Vesper", "Rova", "Jhen",
-  "Marek", "Olix", "Tavin", "Celwyn", "Drex", "Noli", "Quanta", "Essa",
-  "Kiran", "Lev", "Asha", "Bran",
+  "Alex",
+  "Mira",
+  "Tobias",
+  "Seren",
+  "Cael",
+  "Vesper",
+  "Rova",
+  "Jhen",
+  "Marek",
+  "Olix",
+  "Tavin",
+  "Celwyn",
+  "Drex",
+  "Noli",
+  "Quanta",
+  "Essa",
+  "Kiran",
+  "Lev",
+  "Asha",
+  "Bran",
 ];
 const LAST_NAMES = [
-  "Vance", "Orin", "Tesk", "Calloway", "Drevin", "Holt", "Mercer", "Stavros",
-  "Yuen", "Achebe", "Narayan", "Kowalski", "Santos", "Diaz", "Wren", "Okoro",
-  "Petrov", "Nakamura", "Chen", "Reyes",
+  "Vance",
+  "Orin",
+  "Tesk",
+  "Calloway",
+  "Drevin",
+  "Holt",
+  "Mercer",
+  "Stavros",
+  "Yuen",
+  "Achebe",
+  "Narayan",
+  "Kowalski",
+  "Santos",
+  "Diaz",
+  "Wren",
+  "Okoro",
+  "Petrov",
+  "Nakamura",
+  "Chen",
+  "Reyes",
 ];
 
 const HOMEWORLD_DESCRIPTORS = [
@@ -335,23 +383,24 @@ function randomizeName() {
 function generateCharacter() {
   // Roll 2D6 for each characteristic
   const attrs = {
-    Strength:       d6(2),
-    Dexterity:      d6(2),
-    Endurance:      d6(2),
-    Intelligence:   d6(2),
-    Education:      d6(2),
+    Strength: d6(2),
+    Dexterity: d6(2),
+    Endurance: d6(2),
+    Intelligence: d6(2),
+    Education: d6(2),
     "Social Standing": d6(2),
   };
 
   // Background skills (3 at level 0)
   const skills = {};
   const bgSkills = shuffle(BACKGROUND_SKILLS).slice(0, 3);
-  bgSkills.forEach((s) => { skills[s] = 0; });
+  bgSkills.forEach((s) => {
+    skills[s] = 0;
+  });
 
   // Pick career
   const careerNames = Object.keys(CAREERS);
-  const careerName =
-    selectedCareer.value === "random" ? pick(careerNames) : selectedCareer.value;
+  const careerName = selectedCareer.value === "random" ? pick(careerNames) : selectedCareer.value;
   const career = CAREERS[careerName] ?? CAREERS[pick(careerNames)];
 
   // Serve 1–3 terms
@@ -363,7 +412,9 @@ function generateCharacter() {
     const gainCount = Math.random() < 0.6 ? 1 : 2;
     shuffle(career.skills)
       .slice(0, gainCount)
-      .forEach((s) => { skills[s] = (skills[s] ?? -1) + 1; });
+      .forEach((s) => {
+        skills[s] = (skills[s] ?? -1) + 1;
+      });
     events.push(pick(career.events));
   }
 
@@ -383,18 +434,30 @@ function generateCharacter() {
 
   // Equipment
   const equipPool = [
-    "Laser Pistol", "Blade", "Cloth Armour", "Vacc Suit (TL 10)",
-    "Medikit", "Comms", "Binoculars", "Multi-tool", "Handgun", "Combat Armour",
+    "Laser Pistol",
+    "Blade",
+    "Cloth Armour",
+    "Vacc Suit (TL 10)",
+    "Medikit",
+    "Comms",
+    "Binoculars",
+    "Multi-tool",
+    "Handgun",
+    "Combat Armour",
   ];
   const equipCount = Math.max(0, d6() - 3);
   const equipment = shuffle(equipPool).slice(0, equipCount);
 
   // Connections
   const contactPool = [
-    "a retired Navy captain", "a shady merchant broker",
-    "a Scout Service contact", "a local crime boss",
-    "an academic researcher", "a planetary noble",
-    "a fellow veteran", "a black-market armourer",
+    "a retired Navy captain",
+    "a shady merchant broker",
+    "a Scout Service contact",
+    "a local crime boss",
+    "an academic researcher",
+    "a planetary noble",
+    "a fellow veteran",
+    "a black-market armourer",
   ];
   const contacts = shuffle(contactPool).slice(0, Math.max(0, d6() - 3));
   const allies =
@@ -407,8 +470,7 @@ function generateCharacter() {
   const upp = attrVals.map(toHex).join("");
 
   // Species
-  const species =
-    selectedSpecies.value === "random" ? pick(SPECIES_LIST) : selectedSpecies.value;
+  const species = selectedSpecies.value === "random" ? pick(SPECIES_LIST) : selectedSpecies.value;
 
   const name = charName.value || `${pick(FIRST_NAMES)} ${pick(LAST_NAMES)}`;
   const age = 18 + terms * 4;
@@ -424,9 +486,7 @@ function generateCharacter() {
     attributes: attrs,
     upp,
     skills,
-    careerHistory: [
-      { career: careerName, rank: career.ranks[rankIndex], terms, events },
-    ],
+    careerHistory: [{ career: careerName, rank: career.ranks[rankIndex], terms, events }],
     credits,
     equipment,
     contacts,
@@ -456,7 +516,7 @@ function exportCharacter() {
 }
 
 .survey-content {
-  padding: 2rem;
+  padding: 1.25rem;
   flex: 1;
 }
 
@@ -464,9 +524,9 @@ function exportCharacter() {
 .control-panel {
   display: flex;
   flex-wrap: wrap;
-  gap: 1.5rem;
-  margin-bottom: 2rem;
-  padding: 1.5rem;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+  padding: 1.15rem;
   background: #1a1a1a;
   border-radius: 0.5rem;
 }
@@ -484,12 +544,21 @@ function exportCharacter() {
   font-size: 0.9rem;
 }
 
-.control-action { justify-content: flex-end; }
-.name-row { display: flex; gap: 0.5rem; }
-.name-row .text-input { flex: 1; }
+.control-action {
+  justify-content: flex-end;
+}
+.name-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0.5rem;
+}
+.name-row .text-input {
+  flex: 1;
+}
 
 .select-input,
 .text-input {
+  min-height: 2.5rem;
   padding: 0.6rem 0.75rem;
   background: #2a2a3e;
   border: 1px solid #00d9ff;
@@ -499,45 +568,84 @@ function exportCharacter() {
 }
 
 .btn {
+  min-height: 2.5rem;
   padding: 0.6rem 1.25rem;
   border: none;
   border-radius: 0.25rem;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-weight: bold;
   font-size: 0.9rem;
+  line-height: 1.2;
   transition: all 0.2s;
 }
 
-.btn-primary { background: #00d9ff; color: #000; }
-.btn-primary:hover { background: #00ffff; box-shadow: 0 0 12px rgba(0, 217, 255, 0.4); }
-.btn-secondary { background: #444; color: #e0e0e0; }
-.btn-secondary:hover { background: #555; }
+.btn-primary {
+  background: #00d9ff;
+  color: #000;
+}
+.btn-primary:hover {
+  background: #00ffff;
+  box-shadow: 0 0 12px rgba(0, 217, 255, 0.4);
+}
+.btn-secondary {
+  background: #444;
+  color: #e0e0e0;
+}
+.btn-secondary:hover {
+  background: #555;
+}
 
 /* ── Character Sheet ───────────────────────────────────────────── */
 .char-display {
   background: #1a1a2e;
   border: 2px solid #00d9ff;
   border-radius: 0.5rem;
-  padding: 1.5rem;
+  padding: 1.15rem;
 }
 
 .char-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  margin-bottom: 1.5rem;
-  padding-bottom: 1rem;
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
   border-bottom: 1px solid #333;
   flex-wrap: wrap;
   gap: 1rem;
 }
 
-.char-header h2 { color: #00d9ff; margin: 0 0 0.3rem; font-size: 1.6rem; }
-.char-tagline { color: #aaa; font-style: italic; margin: 0; font-size: 0.9rem; }
+.char-header h2 {
+  color: #00d9ff;
+  margin: 0 0 0.3rem;
+  font-size: 1.6rem;
+}
+.char-tagline {
+  color: #aaa;
+  font-style: italic;
+  margin: 0;
+  font-size: 0.9rem;
+}
 
-.upp-block { text-align: right; }
-.upp-label { display: block; color: #888; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; }
-.upp-value { font-family: monospace; font-size: 1.8rem; font-weight: bold; color: #00d9ff; letter-spacing: 0.12em; }
+.upp-block {
+  text-align: right;
+}
+.upp-label {
+  display: block;
+  color: #888;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.upp-value {
+  font-family: monospace;
+  font-size: 1.8rem;
+  font-weight: bold;
+  color: #00d9ff;
+  letter-spacing: 0.12em;
+}
 
 /* ── Section Grid ─────────────────────────────────────────────── */
 .char-grid {
@@ -578,15 +686,38 @@ function exportCharacter() {
   text-align: center;
 }
 
-.char-name { font-size: 0.7rem; color: #888; margin-bottom: 0.2rem; }
-.char-val  { font-size: 1.2rem; font-weight: bold; color: #e0e0e0; }
-.char-dm   { font-size: 0.85rem; font-family: monospace; font-weight: bold; margin-top: 0.15rem; }
-.char-dm.pos  { color: #6bcf7f; }
-.char-dm.neg  { color: #ff6b6b; }
-.char-dm.zero { color: #888; }
+.char-name {
+  font-size: 0.7rem;
+  color: #888;
+  margin-bottom: 0.2rem;
+}
+.char-val {
+  font-size: 1.2rem;
+  font-weight: bold;
+  color: #e0e0e0;
+}
+.char-dm {
+  font-size: 0.85rem;
+  font-family: monospace;
+  font-weight: bold;
+  margin-top: 0.15rem;
+}
+.char-dm.pos {
+  color: #6bcf7f;
+}
+.char-dm.neg {
+  color: #ff6b6b;
+}
+.char-dm.zero {
+  color: #888;
+}
 
 /* ── Skills ───────────────────────────────────────────────────── */
-.skill-list { display: flex; flex-direction: column; gap: 0.25rem; }
+.skill-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
 
 .skill-row {
   display: flex;
@@ -597,7 +728,9 @@ function exportCharacter() {
   font-size: 0.9rem;
 }
 
-.skill-name { color: #e0e0e0; }
+.skill-name {
+  color: #e0e0e0;
+}
 .skill-level {
   font-family: monospace;
   font-weight: bold;
@@ -607,7 +740,9 @@ function exportCharacter() {
 }
 
 /* ── Career ───────────────────────────────────────────────────── */
-.career-entry { margin-bottom: 0.75rem; }
+.career-entry {
+  margin-bottom: 0.75rem;
+}
 
 .career-header {
   display: flex;
@@ -617,9 +752,19 @@ function exportCharacter() {
   flex-wrap: wrap;
 }
 
-.career-name { font-weight: bold; color: #00d9ff; }
-.career-rank { color: #e0e0e0; font-size: 0.9rem; }
-.career-terms { color: #888; font-size: 0.8rem; margin-left: auto; }
+.career-name {
+  font-weight: bold;
+  color: #00d9ff;
+}
+.career-rank {
+  color: #e0e0e0;
+  font-size: 0.9rem;
+}
+.career-terms {
+  color: #888;
+  font-size: 0.8rem;
+  margin-left: auto;
+}
 
 .career-events {
   list-style: disc;
@@ -629,10 +774,17 @@ function exportCharacter() {
   margin: 0;
 }
 
-.career-events li { margin-bottom: 0.2rem; }
+.career-events li {
+  margin-bottom: 0.2rem;
+}
 
 /* ── Equipment ────────────────────────────────────────────────── */
-.equip-list { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.75rem; }
+.equip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.75rem;
+}
 
 .equip-item {
   padding: 0.3rem 0.65rem;
@@ -644,7 +796,11 @@ function exportCharacter() {
 }
 
 /* ── Prop list (connections, credits) ─────────────────────────── */
-.prop-list { display: flex; flex-direction: column; gap: 0.4rem; }
+.prop-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
 
 .prop-row {
   display: flex;
@@ -654,8 +810,14 @@ function exportCharacter() {
   border-bottom: 1px solid #1a1a3a;
 }
 
-.prop-label { color: #00ffff; min-width: 80px; font-weight: bold; }
-.prop-value { color: #e0e0e0; }
+.prop-label {
+  color: #00ffff;
+  min-width: 80px;
+  font-weight: bold;
+}
+.prop-value {
+  color: #e0e0e0;
+}
 
 /* ── Background ───────────────────────────────────────────────── */
 .background-text {
@@ -666,7 +828,12 @@ function exportCharacter() {
 }
 
 /* ── Empty states ─────────────────────────────────────────────── */
-.empty-state { color: #555; font-style: italic; padding: 0.3rem 0; font-size: 0.85rem; }
+.empty-state {
+  color: #555;
+  font-style: italic;
+  padding: 0.3rem 0;
+  font-size: 0.85rem;
+}
 
 .empty-state-hero {
   text-align: center;
@@ -674,5 +841,8 @@ function exportCharacter() {
   color: #555;
 }
 
-.empty-icon { font-size: 4rem; margin-bottom: 1rem; }
+.empty-icon {
+  font-size: 4rem;
+  margin-bottom: 1rem;
+}
 </style>

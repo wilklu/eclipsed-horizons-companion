@@ -1,7 +1,7 @@
 <template>
   <div class="world-builder">
     <SurveyNavigation
-      currentClass="Classes II–IV – World Builder"
+      currentClass="World Survey"
       :back-route="{ name: 'StarSystemBuilder', params: { galaxyId: '000', sectorId: 'sector' } }"
       @regenerate="regenerateWorld"
       @export="exportWorld"
@@ -53,9 +53,8 @@
         </div>
 
         <div class="world-grid">
-          <!-- Class II: Physical Survey -->
           <section class="world-section">
-            <h3>🔬 Class II – Physical Survey</h3>
+            <h3>🔬 Physical Survey</h3>
             <div class="prop-list">
               <div class="prop-row">
                 <span class="prop-label">Size:</span>
@@ -80,9 +79,8 @@
             </div>
           </section>
 
-          <!-- Class III: System Survey -->
           <section class="world-section">
-            <h3>📡 Class III – System Survey</h3>
+            <h3>📡 System Survey</h3>
             <div class="prop-list">
               <div class="prop-row">
                 <span class="prop-label">Orbital Period:</span>
@@ -107,9 +105,8 @@
             </div>
           </section>
 
-          <!-- Class IV: Census Survey -->
           <section class="world-section">
-            <h3>👥 Class IV – Census Survey</h3>
+            <h3>👥 Census Survey</h3>
             <div class="prop-list">
               <div class="prop-row">
                 <span class="prop-label">Native Sophont Life:</span>
@@ -528,16 +525,16 @@ onMounted(() => {
 }
 
 .survey-content {
-  padding: 2rem;
+  padding: 1.25rem;
   flex: 1;
 }
 
 .control-panel {
   display: flex;
   flex-wrap: wrap;
-  gap: 1.5rem;
-  margin-bottom: 2rem;
-  padding: 1.5rem;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+  padding: 1.15rem;
   background: #1a1a1a;
   border-radius: 0.5rem;
 }
@@ -572,6 +569,7 @@ onMounted(() => {
 
 .select-input,
 .text-input {
+  min-height: 2.5rem;
   padding: 0.6rem 0.75rem;
   background: #2a2a3e;
   border: 1px solid #00d9ff;
@@ -582,6 +580,7 @@ onMounted(() => {
 
 .name-row {
   display: flex;
+  align-items: stretch;
   gap: 0.5rem;
 }
 .name-row .text-input {
@@ -589,12 +588,17 @@ onMounted(() => {
 }
 
 .btn {
+  min-height: 2.5rem;
   padding: 0.6rem 1.25rem;
   border: none;
   border-radius: 0.25rem;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-weight: bold;
   font-size: 0.9rem;
+  line-height: 1.2;
   transition: all 0.2s;
 }
 
@@ -610,7 +614,7 @@ onMounted(() => {
 .source-world-pill {
   display: inline-flex;
   align-items: center;
-  min-height: 42px;
+  min-height: 2.5rem;
   padding: 0.6rem 0.85rem;
   border-radius: 0.35rem;
   border: 1px solid rgba(0, 217, 255, 0.24);
@@ -631,15 +635,15 @@ onMounted(() => {
   background: #1a1a2e;
   border: 2px solid #00d9ff;
   border-radius: 0.5rem;
-  padding: 1.5rem;
+  padding: 1.15rem;
 }
 
 .world-header {
   display: flex;
   align-items: center;
-  gap: 1.5rem;
-  margin-bottom: 1.5rem;
-  padding-bottom: 1rem;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
   border-bottom: 1px solid #333;
 }
 

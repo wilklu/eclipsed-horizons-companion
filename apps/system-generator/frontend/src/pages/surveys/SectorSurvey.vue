@@ -2,7 +2,7 @@
   <div class="sector-survey">
     <LoadingSpinner :isVisible="isLoading" :message="loadingMessage" />
     <SurveyNavigation
-      currentClass="Class 0 – Sector Survey"
+      currentClass="Sector Survey"
       :back-route="backRoute"
       :regenerate-label="generationAction.label"
       @regenerate="runSurveyAction"
@@ -153,7 +153,7 @@
           </div>
 
           <div v-if="generatedSector" class="control-group">
-            <label>Class I Stellar Survey</label>
+            <label>Stellar Survey</label>
             <div v-if="selectedHexData?.hasSystem" class="hex-detail hex-detail--sidebar">
               <h3>System at {{ selectedHexData.coord }}</h3>
               <div class="detail-grid">
@@ -167,12 +167,12 @@
                 </div>
               </div>
               <div class="detail-actions">
-                <button class="btn btn-primary" @click="proceedToStarSystem">🔭 Class I Stellar Survey →</button>
+                <button class="btn btn-primary" @click="proceedToStarSystem">🔭 Stellar Survey →</button>
               </div>
             </div>
             <div v-else-if="hasSystemsInGrid" class="hex-detail hex-detail--sidebar hex-detail--placeholder">
               <h3>No Hex Selected</h3>
-              <p>Select a surveyed hex (★) in the sector grid to open Class I Stellar Survey.</p>
+              <p>Select a surveyed hex (★) in the sector grid to open Stellar Survey.</p>
             </div>
           </div>
 
@@ -210,6 +210,24 @@
                   :y2="galaxyMinimap.centerPy + 6"
                   class="galaxy-crosshair"
                 />
+                <circle
+                  :cx="galaxyMinimap.centerPx"
+                  :cy="galaxyMinimap.centerPy"
+                  :r="galaxyMinimap.centerGuideRadius"
+                  class="galaxy-center-guide"
+                />
+                <path
+                  v-if="galaxyMinimap.centerBearingArcPath"
+                  :d="galaxyMinimap.centerBearingArcPath"
+                  class="galaxy-center-bearing"
+                />
+                <circle
+                  v-if="galaxyMinimap.centerBearingPoint"
+                  :cx="galaxyMinimap.centerBearingPoint.x"
+                  :cy="galaxyMinimap.centerBearingPoint.y"
+                  r="2.8"
+                  class="galaxy-center-bearing-dot"
+                />
                 <!-- Sector tiles for all known sectors -->
                 <rect
                   v-for="tile in galaxyMinimap.tiles"
@@ -227,6 +245,9 @@
                 <span class="position-region">📍 {{ galaxyMinimap.regionLabel }}</span>
                 <span v-if="galaxyMinimap.distanceLabel" class="position-dist">{{ galaxyMinimap.distanceLabel }}</span>
                 <span v-if="galaxyMinimap.coordLabel" class="position-coord">Grid {{ galaxyMinimap.coordLabel }}</span>
+                <span v-if="galaxyMinimap.centerBearingLabel" class="position-bearing">
+                  Center bearing {{ galaxyMinimap.centerBearingLabel }}
+                </span>
               </div>
             </div>
           </div>
@@ -323,7 +344,7 @@
               continue.
             </div>
             <div v-else-if="showSelectHexHint" class="grid-hint">
-              Select an occupied hex (★) to continue to Class I Stellar Survey.
+              Select an occupied hex (★) to continue to Stellar Survey.
             </div>
           </div>
         </section>
@@ -698,6 +719,7 @@ const galaxyMinimap = computed(() => {
   const centerPy = SVG_SIZE / 2;
   const ellipseRx = (gridRadius * xStretch * step) / xStretch + step * 0.4;
   const ellipseRy = gridRadius * step + step * 0.4;
+  const centerGuideRadius = Math.max(12, Math.min(ellipseRx, ellipseRy) * 0.32);
 
   function gridToPx(gx, gy) {
     return {
@@ -744,6 +766,9 @@ const galaxyMinimap = computed(() => {
   let regionLabel = "Unknown";
   let distanceLabel = null;
   let coordLabel = null;
+  let centerBearingArcPath = null;
+  let centerBearingPoint = null;
+  let centerBearingLabel = null;
 
   if (currentGX !== null && currentGY !== null) {
     const normDist = Math.sqrt((currentGX / xStretch) ** 2 + currentGY ** 2) / gridRadius;
@@ -757,6 +782,22 @@ const galaxyMinimap = computed(() => {
     distanceLabel =
       sectorDist === 0 ? "at galactic center" : `${sectorDist} sector${sectorDist !== 1 ? "s" : ""} from center`;
     coordLabel = `(${currentGX >= 0 ? "+" : ""}${currentGX}, ${currentGY >= 0 ? "+" : ""}${currentGY})`;
+
+    if (sectorDist > 0) {
+      const directionAngle = Math.atan2(-currentGY, -currentGX);
+      const arcSpan = Math.PI / 4.5;
+      centerBearingArcPath = buildArcPath(
+        centerPx,
+        centerPy,
+        centerGuideRadius,
+        directionAngle - arcSpan / 2,
+        directionAngle + arcSpan / 2,
+      );
+      centerBearingPoint = polarPoint(centerPx, centerPy, centerGuideRadius, directionAngle);
+      centerBearingLabel = describeBearing(-currentGX, -currentGY);
+    } else {
+      centerBearingLabel = "Center";
+    }
   } else if (!hasGridCoords && currentRecord) {
     regionLabel = "Position unknown";
     distanceLabel = "No grid data — re-generate layout to map this sector";
@@ -770,6 +811,10 @@ const galaxyMinimap = computed(() => {
     centerPy,
     ellipseRx,
     ellipseRy,
+    centerGuideRadius,
+    centerBearingArcPath,
+    centerBearingPoint,
+    centerBearingLabel,
     tileSize,
     tileHalf,
     step,
@@ -827,6 +872,31 @@ function buildSectorLabel(sector) {
     return `${displayName} (${sector.sectorId})`;
   }
   return sector?.sectorId || "Unknown sector";
+}
+
+function polarPoint(cx, cy, radius, angleRadians) {
+  return {
+    x: cx + Math.cos(angleRadians) * radius,
+    y: cy + Math.sin(angleRadians) * radius,
+  };
+}
+
+function buildArcPath(cx, cy, radius, startAngle, endAngle) {
+  const start = polarPoint(cx, cy, radius, startAngle);
+  const end = polarPoint(cx, cy, radius, endAngle);
+  const delta = (((endAngle - startAngle) % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+  const largeArcFlag = delta > Math.PI ? 1 : 0;
+  return `M ${start.x.toFixed(2)} ${start.y.toFixed(2)} A ${radius.toFixed(2)} ${radius.toFixed(2)} 0 ${largeArcFlag} 1 ${end.x.toFixed(2)} ${end.y.toFixed(2)}`;
+}
+
+function describeBearing(dx, dyNorth) {
+  if (!Number.isFinite(dx) || !Number.isFinite(dyNorth) || (dx === 0 && dyNorth === 0)) {
+    return null;
+  }
+  const directions = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+  const angle = (Math.atan2(dx, dyNorth) * 180) / Math.PI;
+  const normalized = (angle + 360) % 360;
+  return directions[Math.round(normalized / 45) % directions.length];
 }
 
 function inferGridDimensions(sector) {
@@ -2160,6 +2230,25 @@ function proceedToStarSystem() {
   stroke-width: 1;
 }
 
+.galaxy-center-guide {
+  fill: none;
+  stroke: rgba(255 255 255 / 0.12);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.galaxy-center-bearing {
+  fill: none;
+  stroke: rgba(255 200 80 / 0.9);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.galaxy-center-bearing-dot {
+  fill: rgba(255 200 80 / 0.95);
+  filter: drop-shadow(0 0 3px rgba(255, 200, 80, 0.65));
+}
+
 .minimap-unknown {
   fill: rgba(80 90 120 / 0.4);
 }
@@ -2205,6 +2294,12 @@ function proceedToStarSystem() {
   font-size: 0.75rem;
   color: rgba(0 217 255 / 0.55);
   font-family: monospace;
+}
+
+.position-bearing {
+  font-size: 0.75rem;
+  color: rgba(255 200 80 / 0.86);
+  font-weight: 600;
 }
 
 .sector-summary {

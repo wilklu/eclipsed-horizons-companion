@@ -1,7 +1,7 @@
 <template>
   <div class="star-system-builder">
     <SurveyNavigation
-      currentClass="Class I – Stellar Survey"
+      currentClass="Stellar Survey"
       :back-route="backRoute"
       @regenerate="regenerateSystem"
       @export="exportSystem"
@@ -160,7 +160,7 @@
       </div>
 
       <div v-else class="system-placeholder">
-        <h2>No Class I Survey Yet</h2>
+        <h2>No Stellar Survey Yet</h2>
         <p>
           Hex {{ hexCoord }} has not been generated in Stellar Survey yet. Click Generate System to create and save the
           survey for this location.
@@ -621,16 +621,16 @@ onMounted(async () => {
 }
 
 .survey-content {
-  padding: 2rem;
+  padding: 1.25rem;
   flex: 1;
 }
 
 .control-panel {
   display: flex;
   flex-wrap: wrap;
-  gap: 1.5rem;
-  margin-bottom: 2rem;
-  padding: 1.5rem;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+  padding: 1.15rem;
   background: #1a1a1a;
   border-radius: 0.5rem;
 }
@@ -654,6 +654,7 @@ onMounted(async () => {
 
 .select-input,
 .text-input {
+  min-height: 2.5rem;
   padding: 0.6rem 0.75rem;
   background: #2a2a3e;
   border: 1px solid #00d9ff;
@@ -663,12 +664,17 @@ onMounted(async () => {
 }
 
 .btn {
+  min-height: 2.5rem;
   padding: 0.6rem 1.25rem;
   border: none;
   border-radius: 0.25rem;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-weight: bold;
   font-size: 0.9rem;
+  line-height: 1.2;
   transition: all 0.2s;
 }
 
@@ -687,14 +693,14 @@ onMounted(async () => {
   background: #1a1a2e;
   border: 2px solid #00d9ff;
   border-radius: 0.5rem;
-  padding: 1.5rem;
+  padding: 1.15rem;
 }
 
 .system-placeholder {
   background: #1a1a2e;
   border: 1px dashed rgba(0, 217, 255, 0.35);
   border-radius: 0.5rem;
-  padding: 1.5rem;
+  padding: 1.15rem;
   color: #b8d9ea;
 }
 
