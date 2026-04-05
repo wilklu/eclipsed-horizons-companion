@@ -1,5 +1,11 @@
 <template>
   <div id="app-root">
+    <LoadingSpinner
+      :isVisible="isBooting"
+      mode="boot"
+      :context="bootLoadingContext"
+      :message="`Initializing ${headerContextTitle || 'Traveller systems'}...`"
+    />
     <header class="app-header">
       <div class="header-page-title">{{ headerContextTitle || "Eclipsed Horizons Companion" }}</div>
       <nav class="header-nav">
@@ -25,12 +31,14 @@
 </template>
 
 <script setup>
-import { computed } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
+import LoadingSpinner from "./components/common/LoadingSpinner.vue";
 import { useGalaxyStore } from "./stores/galaxyStore.js";
 
 const galaxyStore = useGalaxyStore();
 const route = useRoute();
+const isBooting = ref(true);
 const galaxyId = computed(() => galaxyStore.getCurrentGalaxy?.galaxyId ?? null);
 const routeTitleFallbacks = Object.freeze({
   TravellerAtlas: "Traveller Atlas",
@@ -41,7 +49,23 @@ const routeTitleFallbacks = Object.freeze({
   WorldBuilder: "World Survey",
 });
 
+const routeLoadingContexts = Object.freeze({
+  TravellerAtlas: "atlas",
+  GalaxySurvey: "galaxy",
+  SectorSurvey: "sector",
+  StarSystemBuilder: "stellar",
+  OrbitalView: "world",
+  WorldBuilder: "world",
+});
+
 const headerContextTitle = computed(() => route.meta?.title || routeTitleFallbacks[route.name] || "");
+const bootLoadingContext = computed(() => routeLoadingContexts[route.name] || "generic");
+
+onMounted(() => {
+  window.setTimeout(() => {
+    isBooting.value = false;
+  }, 1100);
+});
 </script>
 
 <style>

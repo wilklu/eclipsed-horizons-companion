@@ -1,22 +1,17 @@
 <template>
   <div ref="atlasRootRef" class="atlas-root">
-    <LoadingSpinner :isVisible="isLoading" message="Loading atlas data..." />
-    <div v-if="atlasGenerationProgress.active" class="atlas-generation-overlay">
-      <div class="atlas-generation-window">
-        <div class="atlas-generation-title">Generating</div>
-        <div class="atlas-generation-label">{{ atlasGenerationProgress.label }}</div>
-        <div class="atlas-generation-meta">
-          <span
-            >{{ atlasGenerationProgress.current.toLocaleString() }} /
-            {{ atlasGenerationProgress.total.toLocaleString() }}</span
-          >
-          <span>{{ atlasGenerationProgressPercent }}%</span>
-        </div>
-        <div class="atlas-generation-bar">
-          <div class="atlas-generation-bar-fill" :style="{ width: atlasGenerationProgressPercent + '%' }"></div>
-        </div>
-      </div>
-    </div>
+    <LoadingSpinner :isVisible="isLoading" context="atlas" message="Loading atlas data..." />
+    <LoadingSpinner
+      :isVisible="atlasGenerationProgress.active"
+      context="atlas"
+      title="Atlas Generation In Progress"
+      :message="atlasGenerationProgress.label"
+      barLabel="Projecting atlas sectors and overlays"
+      :progressCurrent="atlasGenerationProgress.current"
+      :progressTotal="atlasGenerationProgress.total"
+      :progressPercent="atlasGenerationProgressPercent"
+      :progressMeta="`${atlasGenerationProgressPercent}% complete`"
+    />
 
     <!-- ── Floating toolbar ──────────────────────────────────────────────── -->
     <header class="atlas-toolbar">
@@ -3162,67 +3157,6 @@ watch(
   min-height: 0;
   overflow: hidden;
   background: #070b1c;
-}
-
-.atlas-generation-overlay {
-  position: absolute;
-  inset: 0;
-  z-index: 90;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  pointer-events: none;
-  background: rgba(4, 8, 22, 0.35);
-  backdrop-filter: blur(2px);
-}
-
-.atlas-generation-window {
-  width: min(30rem, calc(100vw - 2rem));
-  padding: 1rem 1.1rem;
-  border-radius: 0.8rem;
-  border: 1px solid rgba(77, 194, 255, 0.35);
-  background: linear-gradient(180deg, rgba(6, 10, 28, 0.95), rgba(10, 20, 48, 0.94));
-  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
-}
-
-.atlas-generation-title {
-  color: #7ed6ff;
-  font-size: 0.8rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.atlas-generation-label {
-  margin-top: 0.45rem;
-  color: #eef8ff;
-  font-size: 0.98rem;
-  font-weight: 600;
-}
-
-.atlas-generation-meta {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-top: 0.6rem;
-  color: #bfd8ef;
-  font-size: 0.84rem;
-}
-
-.atlas-generation-bar {
-  height: 0.9rem;
-  margin-top: 0.75rem;
-  overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.atlas-generation-bar-fill {
-  height: 100%;
-  min-width: 0;
-  background: linear-gradient(90deg, #289dff, #4dc2ff);
-  transition: width 0.2s ease;
 }
 
 /* ── Toolbar ──────────────────────────────────────────────────────────────── */

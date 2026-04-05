@@ -1,5 +1,12 @@
 <template>
   <div class="world-builder">
+    <LoadingSpinner
+      :isVisible="worldLoadingState.active"
+      context="world"
+      :title="worldLoadingState.title"
+      :message="worldLoadingState.message"
+      :barLabel="worldLoadingState.barLabel"
+    />
     <SurveyNavigation
       currentClass="World Survey"
       :back-route="{ name: 'StarSystemBuilder', params: { galaxyId: '000', sectorId: 'sector' } }"
@@ -175,6 +182,7 @@
 <script setup>
 import { computed, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
+import LoadingSpinner from "../../components/common/LoadingSpinner.vue";
 import SurveyNavigation from "../../components/common/SurveyNavigation.vue";
 
 defineProps({ systemId: { type: String, default: null } });
@@ -283,6 +291,45 @@ const sourceWorldType = ref("");
 const sourceOrbitAU = ref("");
 const sourceZone = ref("");
 const sourceWorldIndex = ref("");
+const worldLoadingState = ref({
+  active: false,
+  title: "World Survey Initialization",
+  message: "Preparing planetary registers...",
+  barLabel: "Synchronizing planetary registers",
+});
+
+function resetWorldLoadingState() {
+  worldLoadingState.value = {
+    active: false,
+    title: "World Survey Initialization",
+    message: "Preparing planetary registers...",
+    barLabel: "Synchronizing planetary registers",
+  };
+}
+
+function delay(ms) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
+async function runWithWorldLoading(title, message, operation, barLabel = "Synchronizing planetary registers") {
+  worldLoadingState.value = {
+    active: true,
+    title,
+    message,
+    barLabel,
+  };
+
+  await delay(220);
+
+  try {
+    return await operation();
+  } finally {
+    await delay(120);
+    resetWorldLoadingState();
+  }
+}
 
 const selectedSourceWorldLabel = computed(() => {
   const name = String(worldName.value || "").trim();
@@ -362,7 +409,7 @@ function randomizeName() {
   worldName.value = WORLD_NAMES[Math.floor(Math.random() * WORLD_NAMES.length)];
 }
 
-function generateWorld() {
+function buildGeneratedWorld() {
   const star =
     starClass.value === "random"
       ? ["O", "B", "A", "F", "G", "G", "G", "K", "K", "M", "M", "M"][Math.floor(Math.random() * 12)]
@@ -471,8 +518,20 @@ function generateWorld() {
   };
 }
 
+async function generateWorld() {
+  const worldLabel = String(worldName.value || "prospective world").trim() || "prospective world";
+  await runWithWorldLoading(
+    "World Survey Synthesis",
+    `Projecting planetary profile for ${worldLabel}...`,
+    async () => {
+      buildGeneratedWorld();
+    },
+    "Running climate, census, and trade heuristics",
+  );
+}
+
 function regenerateWorld() {
-  if (world.value) generateWorld();
+  if (world.value) return generateWorld();
 }
 
 function exportWorld() {
@@ -512,7 +571,7 @@ watch(
 onMounted(() => {
   applyRouteWorldContext();
   if (worldName.value || starClass.value !== "random") {
-    generateWorld();
+    void generateWorld();
   }
 });
 </script>

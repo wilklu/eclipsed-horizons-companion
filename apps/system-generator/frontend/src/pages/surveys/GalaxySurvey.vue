@@ -1,23 +1,17 @@
 <template>
   <div class="galaxy-survey">
-    <LoadingSpinner :isVisible="isLoading" message="Loading galaxies..." />
-    <div v-if="generationProgress.active" class="generation-overlay">
-      <div class="generation-overlay-window">
-        <div class="generation-overlay-title">Generation In Progress</div>
-        <div class="generation-overlay-label">{{ generationProgress.label }}</div>
-        <div class="generation-overlay-meta">
-          <span
-            >{{ generationProgress.current.toLocaleString() }} / {{ generationProgress.total.toLocaleString() }}</span
-          >
-          <span>{{ generationProgressEtaLabel }}</span>
-        </div>
-        <div class="progress-bar generation-progress-bar generation-overlay-bar">
-          <div class="progress-fill" :style="{ width: generationProgressPercent + '%' }">
-            {{ generationProgressPercent }}%
-          </div>
-        </div>
-      </div>
-    </div>
+    <LoadingSpinner :isVisible="isLoading" context="galaxy" message="Loading galaxies..." />
+    <LoadingSpinner
+      :isVisible="generationProgress.active"
+      context="galaxy"
+      title="Galaxy Generation In Progress"
+      :message="generationProgress.label"
+      barLabel="Projecting sectors and generation queues"
+      :progressCurrent="generationProgress.current"
+      :progressTotal="generationProgress.total"
+      :progressPercent="generationProgressPercent"
+      :progressMeta="generationProgressEtaLabel"
+    />
     <ConfirmDialog
       :isOpen="confirmDialog.isOpen"
       :title="confirmDialog.title"
@@ -3657,54 +3651,6 @@ function formatNumber(num) {
 .generation-progress-bar {
   margin: 0;
   height: 18px;
-}
-
-.generation-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 9001;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(2, 6, 23, 0.6);
-  backdrop-filter: blur(3px);
-}
-
-.generation-overlay-window {
-  width: min(32rem, calc(100vw - 2rem));
-  padding: 1rem 1.1rem;
-  border-radius: 0.75rem;
-  border: 1px solid rgba(0, 217, 255, 0.35);
-  background: linear-gradient(180deg, rgba(8, 16, 34, 0.96), rgba(5, 10, 24, 0.96));
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
-}
-
-.generation-overlay-title {
-  color: #9be7ff;
-  font-size: 0.82rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.generation-overlay-label {
-  color: #f3fbff;
-  font-size: 1rem;
-  font-weight: 600;
-  margin-top: 0.45rem;
-}
-
-.generation-overlay-meta {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-top: 0.6rem;
-  color: #c7dbe6;
-  font-size: 0.85rem;
-}
-
-.generation-overlay-bar {
-  margin-top: 0.75rem;
 }
 
 .btn {

@@ -1,5 +1,12 @@
 <template>
   <div class="star-system-builder">
+    <LoadingSpinner
+      :isVisible="stellarLoadingState.active"
+      context="stellar"
+      :title="stellarLoadingState.title"
+      :message="stellarLoadingState.message"
+      :barLabel="stellarLoadingState.barLabel"
+    />
     <SurveyNavigation
       currentClass="Stellar Survey"
       :back-route="backRoute"
@@ -173,6 +180,7 @@
 <script setup>
 import { computed, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
+import LoadingSpinner from "../../components/common/LoadingSpinner.vue";
 import SurveyNavigation from "../../components/common/SurveyNavigation.vue";
 import * as sectorApi from "../../api/sectorApi.js";
 import { deserializeReturnRoute } from "../../utils/returnRoute.js";
@@ -255,6 +263,48 @@ const primarySpectral = ref(normalizePrimarySelection(route.query.star));
 const multiplicity = ref("random");
 const system = ref(null);
 const selectedWorldIndex = ref(null);
+const stellarLoadingState = ref({
+  active: false,
+  title: "Stellar Survey Sync",
+  message: "Loading stellar records...",
+  barLabel: "Synchronizing stellar records and survey state",
+});
+
+function setStellarLoadingState(nextState) {
+  stellarLoadingState.value = {
+    ...stellarLoadingState.value,
+    ...nextState,
+  };
+}
+
+function resetStellarLoadingState() {
+  stellarLoadingState.value = {
+    active: false,
+    title: "Stellar Survey Sync",
+    message: "Loading stellar records...",
+    barLabel: "Synchronizing stellar records and survey state",
+  };
+}
+
+async function runWithStellarLoading(
+  title,
+  message,
+  operation,
+  barLabel = "Synchronizing stellar records and survey state",
+) {
+  stellarLoadingState.value = {
+    active: true,
+    title,
+    message,
+    barLabel,
+  };
+
+  try {
+    return await operation();
+  } finally {
+    resetStellarLoadingState();
+  }
+}
 
 function normalizeHex(value) {
   return String(value || "0101")
@@ -305,6 +355,12 @@ async function syncSectorSurveyState(systemRecord) {
   if (!props.galaxyId || !props.sectorId || !systemRecord) {
     return;
   }
+
+  setStellarLoadingState({
+    title: "Sector Ledger Sync",
+    message: `Synchronizing sector metadata for hex ${normalizeHex(systemRecord?.systemId || hexCoord.value)}...`,
+    barLabel: "Updating sector occupancy and stellar signatures",
+  });
 
   const normalizedHex = normalizeHex(systemRecord?.systemId || hexCoord.value);
   const primary = Array.isArray(systemRecord?.stars) ? systemRecord.stars[0] : null;
@@ -398,22 +454,39 @@ async function hydrateSystem() {
     return;
   }
 
-  await systemStore.loadSystems(props.galaxyId, props.sectorId);
-  const existing = systemStore.findSystemByHex(props.galaxyId, props.sectorId, hexCoord.value);
-  if (existing?.stars?.length) {
-    system.value = {
-      ...existing,
-      systemId: normalizeHex(hexCoord.value),
-    };
-    selectedWorldIndex.value = findDefaultWorldIndex(existing.planets);
-    systemStore.setCurrentSystem(existing.systemId);
-    await syncSectorSurveyState(existing);
-    return;
-  }
+  await runWithStellarLoading(
+    "Stellar Survey Sync",
+    `Hydrating stellar records for hex ${normalizeHex(hexCoord.value)}...`,
+    async () => {
+      setStellarLoadingState({
+        title: "Stellar Survey Sync",
+        message: `Loading stellar records for sector ${props.sectorId}...`,
+        barLabel: "Reading cached stellar survey records",
+      });
+      await systemStore.loadSystems(props.galaxyId, props.sectorId);
 
-  system.value = null;
-  selectedWorldIndex.value = null;
-  systemStore.setCurrentSystem(null);
+      setStellarLoadingState({
+        title: "Record Analysis",
+        message: `Checking for an existing stellar survey at hex ${normalizeHex(hexCoord.value)}...`,
+        barLabel: "Matching cached systems to requested hex",
+      });
+      const existing = systemStore.findSystemByHex(props.galaxyId, props.sectorId, hexCoord.value);
+      if (existing?.stars?.length) {
+        system.value = {
+          ...existing,
+          systemId: normalizeHex(hexCoord.value),
+        };
+        selectedWorldIndex.value = findDefaultWorldIndex(existing.planets);
+        systemStore.setCurrentSystem(existing.systemId);
+        await syncSectorSurveyState(existing);
+        return;
+      }
+
+      system.value = null;
+      selectedWorldIndex.value = null;
+      systemStore.setCurrentSystem(null);
+    },
+  );
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -552,10 +625,22 @@ async function buildSystem() {
   selectedWorldIndex.value = findDefaultWorldIndex(planets);
 
   if (props.galaxyId && props.sectorId) {
-    const persisted = toPersistedSystem(nextSystem);
-    await systemStore.createSystem(persisted);
-    systemStore.setCurrentSystem(persisted.systemId);
-    await syncSectorSurveyState(persisted);
+    await runWithStellarLoading(
+      "Stellar Survey Update",
+      `Saving stellar survey for hex ${normalizeHex(nextSystem.systemId)}...`,
+      async () => {
+        const persisted = toPersistedSystem(nextSystem);
+        setStellarLoadingState({
+          title: "Stellar Survey Update",
+          message: `Persisting stellar profile for hex ${normalizeHex(nextSystem.systemId)}...`,
+          barLabel: "Writing stellar system record to archive",
+        });
+        await systemStore.createSystem(persisted);
+        systemStore.setCurrentSystem(persisted.systemId);
+        await syncSectorSurveyState(persisted);
+      },
+      "Committing stellar survey updates",
+    );
   }
 }
 

@@ -1,6 +1,6 @@
 <template>
   <div class="sector-survey">
-    <LoadingSpinner :isVisible="isLoading" :message="loadingMessage" />
+    <LoadingSpinner :isVisible="isLoading" context="sector" :message="loadingMessage" />
     <SurveyNavigation
       currentClass="Sector Survey"
       :back-route="backRoute"
