@@ -305,7 +305,11 @@
             v-for="star in visibleStars"
             :key="star.key"
             class="star-group"
-            :class="{ selected: star.key === selectedHexKey, hovered: star.key === hoveredHexKey }"
+            :class="{
+              'star-group--presence': star.presenceOnly,
+              selected: star.key === selectedHexKey,
+              hovered: star.key === hoveredHexKey,
+            }"
             @click.stop="onStarClick(star)"
             @mouseenter="hoveredHexKey = star.key"
             @mouseleave="hoveredHexKey = null"
@@ -323,6 +327,7 @@
             />
             <!-- Primary star -->
             <circle
+              v-if="!star.presenceOnly"
               :cx="star.wx"
               :cy="star.wy"
               :r="effectiveStarR"
@@ -330,9 +335,20 @@
               class="star-dot"
               filter="url(#softglow)"
             />
+            <circle
+              v-else
+              :cx="star.wx"
+              :cy="star.wy"
+              :r="Math.max(3, effectiveStarR - 1.5)"
+              fill="none"
+              stroke="#b8c0cc"
+              stroke-width="1.4"
+              class="star-dot star-dot--presence"
+            />
+            <circle v-if="star.presenceOnly" :cx="star.wx" :cy="star.wy" :r="1.5" fill="#8f98a6" opacity="0.9" />
             <!-- Secondary companion -->
             <circle
-              v-if="star.hasSecondary && currentLod === 'detail'"
+              v-if="!star.presenceOnly && star.hasSecondary && currentLod === 'detail'"
               :cx="star.wx + effectiveStarR * 1.9"
               :cy="star.wy - effectiveStarR"
               :r="effectiveStarR * 0.55"
@@ -471,9 +487,26 @@
 
           <div class="star-inline">
             <svg width="44" height="44" class="star-swatch" overflow="visible">
-              <circle cx="22" cy="22" :r="inspectorStarSvgR" :fill="inspectorData.color" filter="url(#softglow)" />
               <circle
-                v-if="inspectorData.hasSecondary"
+                v-if="!inspectorData.presenceOnly"
+                cx="22"
+                cy="22"
+                :r="inspectorStarSvgR"
+                :fill="inspectorData.color"
+                filter="url(#softglow)"
+              />
+              <circle
+                v-else
+                cx="22"
+                cy="22"
+                :r="Math.max(3, inspectorStarSvgR - 1.5)"
+                fill="none"
+                stroke="#b8c0cc"
+                stroke-width="1.4"
+              />
+              <circle v-if="inspectorData.presenceOnly" cx="22" cy="22" r="1.5" fill="#8f98a6" opacity="0.9" />
+              <circle
+                v-if="!inspectorData.presenceOnly && inspectorData.hasSecondary"
                 :cx="22 + inspectorStarSvgR * 1.9"
                 :cy="22 - inspectorStarSvgR"
                 :r="inspectorStarSvgR * 0.55"
@@ -522,6 +555,10 @@
             Generate or save a system survey to populate UWP, starport, bases, importance, gas giants, and trade codes
             here.
           </p>
+          <p v-if="inspectorData.presenceOnly" class="inspector-note">
+            This marker is a detected stellar presence only. Atlas can show it as a known object, but it is not yet a
+            generated system survey.
+          </p>
 
           <!-- Orbital diagram -->
           <div class="orbital-section">
@@ -558,7 +595,14 @@
           </div>
 
           <div class="inspector-actions">
-            <button class="btn btn-primary" @click="openOrbitalView">🪐 Orbital View</button>
+            <button
+              class="btn btn-primary"
+              :disabled="inspectorData.presenceOnly"
+              :title="inspectorData.presenceOnly ? 'Orbital View is only available after system survey generation' : ''"
+              @click="openOrbitalView"
+            >
+              🪐 Orbital View
+            </button>
             <button class="btn btn-primary" @click="openStarSystem">⭐ System Survey</button>
           </div>
         </div>
@@ -580,7 +624,7 @@
           {{ band.label }} ({{ band.range }})
         </span>
       </div>
-      <span class="status-right">{{ visibleStars.length }} stars in view · {{ biasReadout }}</span>
+      <span class="status-right">{{ visibleStars.length }} stellar detections in view · {{ biasReadout }}</span>
     </footer>
   </div>
 </template>
@@ -1178,6 +1222,7 @@ const allStarMarkers = computed(() => {
         color: starTypeToColor(starType, info.starClass || ""),
         compColor: starTypeToColor(info.secondaryStars?.[0] || "M", ""),
         hasSecondary: (info.secondaryStars?.length ?? 0) > 0,
+        presenceOnly: false,
         name: "",
       });
     }
@@ -1202,6 +1247,7 @@ const allStarMarkers = computed(() => {
         color: "#909090",
         compColor: "#707070",
         hasSecondary: false,
+        presenceOnly: true,
         name: "",
       });
     }
@@ -1644,6 +1690,7 @@ const inspectorData = computed(() => {
       tradeCodes: systemSummary.tradeCodes,
       surveyStatus: systemSummary.surveyStatus,
       hasSavedSystem: systemSummary.hasSavedSystem,
+      presenceOnly: Boolean(star.presenceOnly),
     };
   }
   return {};

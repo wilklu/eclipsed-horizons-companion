@@ -31,7 +31,7 @@ const title = computed(() => String(route.meta?.title || "Survey Unavailable"));
 
 <style scoped>
 .survey-unavailable {
-  min-height: calc(100vh - 88px);
+  min-height: 100%;
   display: grid;
   place-items: center;
   padding: 2rem;

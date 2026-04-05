@@ -297,7 +297,7 @@ function savePreferences() {
 
 <style scoped>
 .preferences-view {
-  min-height: calc(100vh - 60px);
+  min-height: 100%;
   background: linear-gradient(180deg, #08101e 0%, #111a31 100%);
 }
 

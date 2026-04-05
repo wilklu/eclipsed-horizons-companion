@@ -122,7 +122,7 @@ function openSystemSurvey() {
 
 <style scoped>
 .orbital-view-page {
-  min-height: calc(100vh - 68px);
+  min-height: 100%;
   background: radial-gradient(circle at 20% 10%, #10203c, #070b1c 60%);
 }
 

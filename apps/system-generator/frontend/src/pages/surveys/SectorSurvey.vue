@@ -22,12 +22,24 @@
 
           <div class="control-group">
             <label>Load Existing Sector:</label>
-            <select v-model="selectedSectorId" class="select-input" @change="loadSelectedSector">
+            <select v-model="selectedSectorId" class="select-input">
               <option value="">Select a saved sector...</option>
               <option v-for="sector in sectorOptions" :key="sector.sectorId" :value="sector.sectorId">
                 {{ sector.label }}
               </option>
             </select>
+            <div class="sector-load-actions">
+              <button class="btn btn-secondary" :disabled="!canLoadSelectedSector" @click="loadSelectedSector">
+                Load Sector
+              </button>
+              <button
+                class="btn btn-secondary"
+                :disabled="!canSaveSector"
+                @click="saveCurrentSector({ showToast: true })"
+              >
+                Save Sector
+              </button>
+            </div>
           </div>
 
           <!-- Subsector Selection Grid -->
@@ -124,6 +136,30 @@
 
           <div class="control-group control-action">
             <button class="btn btn-primary" @click="runSurveyAction">{{ surveyAction.label }}</button>
+          </div>
+
+          <div v-if="generatedSector" class="control-group">
+            <label>Class I Stellar Survey</label>
+            <div v-if="selectedHexData?.hasSystem" class="hex-detail hex-detail--sidebar">
+              <h3>System at {{ selectedHexData.coord }}</h3>
+              <div class="detail-grid">
+                <div class="detail-row">
+                  <span class="label">Primary Star:</span>
+                  <span class="value">{{ selectedHexData.starType }}</span>
+                </div>
+                <div class="detail-row" v-if="selectedHexData.secondaryStars?.length">
+                  <span class="label">Secondary Stars:</span>
+                  <span class="value">{{ selectedHexData.secondaryStars.join(", ") }}</span>
+                </div>
+              </div>
+              <div class="detail-actions">
+                <button class="btn btn-primary" @click="proceedToStarSystem">🔭 Class I Stellar Survey →</button>
+              </div>
+            </div>
+            <div v-else-if="hasSystemsInGrid" class="hex-detail hex-detail--sidebar hex-detail--placeholder">
+              <h3>No Hex Selected</h3>
+              <p>Select a surveyed hex (★) in the sector grid to open Class I Stellar Survey.</p>
+            </div>
           </div>
 
           <!-- Galaxy Position Minimap -->
@@ -274,24 +310,6 @@
             </div>
             <div v-else-if="showSelectHexHint" class="grid-hint">
               Select an occupied hex (★) to continue to Class I Stellar Survey.
-            </div>
-
-            <!-- Selected Hex Detail -->
-            <div v-if="selectedHexData?.hasSystem" class="hex-detail">
-              <h3>System at {{ selectedHexData.coord }}</h3>
-              <div class="detail-grid">
-                <div class="detail-row">
-                  <span class="label">Primary Star:</span>
-                  <span class="value">{{ selectedHexData.starType }}</span>
-                </div>
-                <div class="detail-row" v-if="selectedHexData.secondaryStars?.length">
-                  <span class="label">Secondary Stars:</span>
-                  <span class="value">{{ selectedHexData.secondaryStars.join(", ") }}</span>
-                </div>
-              </div>
-              <div class="detail-actions">
-                <button class="btn btn-primary" @click="proceedToStarSystem">🔭 Class I Stellar Survey →</button>
-              </div>
             </div>
           </div>
         </section>
@@ -504,6 +522,16 @@ const surveyAction = computed(() => {
     return { id: "generate-systems", label: "⭐ Generate Systems" };
   }
   return { id: "regenerate-full", label: `🔄 Regenerate ${scopeLabel}` };
+});
+
+const canLoadSelectedSector = computed(() => Boolean(selectedSectorId.value) && !isLoading.value);
+
+const canSaveSector = computed(() => {
+  if (isLoading.value || !generatedSector.value?.hexes?.length) {
+    return false;
+  }
+
+  return Boolean(selectedSectorId.value || generatedSector.value?.sectorId || props.galaxyId);
 });
 
 const canPersistSectorName = computed(() => {
@@ -922,10 +950,12 @@ function getSelectedSectorContext() {
 
 function buildSharedSectorMetadata({ hexes, systemCount, isGalacticCenterSector, preserveLastGeneratedAt = false }) {
   const existingMetadata = activeSectorRecord.value?.metadata ?? {};
+  const typedHexCount = hexes.filter((h) => h.hasSystem && h.starType).length;
   const nextMetadata = {
     ...existingMetadata,
     lastModified: new Date().toISOString(),
     systemCount,
+    explorationStatus: systemCount <= 0 ? "unexplored" : typedHexCount >= systemCount ? "surveyed" : "mapped",
     displayName: buildGeneratedSectorName(sectorName.value || String(existingMetadata?.displayName || "").trim()),
     scope: scope.value,
     gridCols: hexes.length ? (scope.value === "sector" ? 32 : 8) : existingMetadata.gridCols,
@@ -1182,6 +1212,68 @@ async function loadSelectedSector() {
     return;
   }
   await loadPersistedSector(selectedSectorId.value, true);
+}
+
+async function saveCurrentSector({ showToast = false } = {}) {
+  if (!props.galaxyId || !generatedSector.value?.hexes?.length) {
+    return;
+  }
+
+  const existingSectorId = selectedSectorId.value || generatedSector.value?.sectorId || "";
+  const existingSector = existingSectorId
+    ? (sectorStore.sectors.find((entry) => entry.sectorId === existingSectorId) ?? null)
+    : null;
+  const requestedGrid = getRequestedGridCoordinates();
+  const systemCount = generatedSector.value.hexes.filter((hex) => hex.hasSystem).length;
+  const { isGalacticCenterSector } = getSelectedSectorContext();
+  const nextMetadata = buildSharedSectorMetadata({
+    hexes: generatedSector.value.hexes,
+    systemCount,
+    isGalacticCenterSector,
+    preserveLastGeneratedAt: true,
+  });
+
+  const payload = {
+    ...(existingSector ?? {}),
+    sectorId: existingSectorId || createSectorId(buildGeneratedSectorName(sectorName.value || "sector")),
+    galaxyId: props.galaxyId,
+    coordinates: {
+      x: Number(existingSector?.coordinates?.x ?? existingSector?.metadata?.gridX ?? requestedGrid?.x ?? 0),
+      y: Number(existingSector?.coordinates?.y ?? existingSector?.metadata?.gridY ?? requestedGrid?.y ?? 0),
+    },
+    densityClass: DENSITY_CLASS_MAP[density.value] ?? 3,
+    densityVariation: Number(existingSector?.densityVariation ?? 0),
+    metadata: {
+      ...(existingSector?.metadata ?? {}),
+      ...(requestedGrid ? { gridX: requestedGrid.x, gridY: requestedGrid.y } : {}),
+      ...nextMetadata,
+      createdAt: existingSector?.metadata?.createdAt ?? new Date().toISOString(),
+    },
+  };
+
+  try {
+    const persisted = existingSector
+      ? await sectorStore.updateSector(existingSector.sectorId, payload)
+      : await sectorStore.createSector(payload);
+
+    selectedSectorId.value = persisted.sectorId;
+    sectorStore.setCurrentSector(persisted.sectorId);
+    generatedSector.value = {
+      ...generatedSector.value,
+      sectorId: persisted.sectorId,
+      name: String(persisted?.metadata?.displayName || generatedSector.value.name),
+      density: density.value,
+      occupancyRealism: occupancyRealism.value,
+      systemCount,
+      emptyCount: generatedSector.value.gridCols * generatedSector.value.gridRows - systemCount,
+    };
+
+    if (showToast) {
+      toastService.success(`Saved sector ${String(persisted?.metadata?.displayName || persisted.sectorId)}.`);
+    }
+  } catch (err) {
+    toastService.error(`Failed to save sector: ${err.message}`);
+  }
 }
 
 async function loadPersistedSector(sectorId, showToast = false) {
@@ -1757,7 +1849,7 @@ function proceedToStarSystem() {
 .sector-survey {
   display: flex;
   flex-direction: column;
-  min-height: calc(100vh - 60px);
+  min-height: 100%;
 }
 
 .survey-content {
@@ -1793,6 +1885,12 @@ function proceedToStarSystem() {
   flex-direction: column;
   gap: 0.5rem;
   min-width: 0;
+}
+
+.sector-load-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
 }
 
 .control-group label {
@@ -2225,9 +2323,24 @@ function proceedToStarSystem() {
   padding: 1.25rem;
 }
 
+.hex-detail--sidebar {
+  margin-top: 0;
+}
+
+.hex-detail--placeholder {
+  border-style: dashed;
+  border-color: rgba(0, 217, 255, 0.35);
+}
+
 .hex-detail h3 {
   color: #00d9ff;
   margin-bottom: 1rem;
+}
+
+.hex-detail p {
+  margin: 0;
+  color: #b7d8ea;
+  line-height: 1.45;
 }
 
 .detail-grid {

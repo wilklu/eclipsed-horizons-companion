@@ -158,6 +158,14 @@
           </button>
         </div>
       </div>
+
+      <div v-else class="system-placeholder">
+        <h2>No Class I Survey Yet</h2>
+        <p>
+          Hex {{ hexCoord }} has not been generated in Stellar Survey yet. Click Generate System to create and save the
+          survey for this location.
+        </p>
+      </div>
     </div>
   </div>
 </template>
@@ -166,6 +174,8 @@
 import { computed, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import SurveyNavigation from "../../components/common/SurveyNavigation.vue";
+import * as sectorApi from "../../api/sectorApi.js";
+import { useSectorStore } from "../../stores/sectorStore.js";
 import { useSystemStore } from "../../stores/systemStore.js";
 
 const props = defineProps({
@@ -174,6 +184,7 @@ const props = defineProps({
 });
 const router = useRouter();
 const route = useRoute();
+const sectorStore = useSectorStore();
 const systemStore = useSystemStore();
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -258,6 +269,95 @@ function normalizePrimarySelection(value) {
   return spectralMatch?.code || "random";
 }
 
+function sectorStarClassForSystem(systemRecord) {
+  const primary = Array.isArray(systemRecord?.stars) ? systemRecord.stars[0] : null;
+  if (primary?.isAnomaly) {
+    return "anomaly-core";
+  }
+
+  const code = String(primary?.designation || primary?.spectralClass || systemRecord?.primaryStar?.spectralClass || "G")
+    .trim()
+    .charAt(0)
+    .toUpperCase();
+
+  return (
+    {
+      O: "spectral-o",
+      B: "spectral-b",
+      A: "spectral-a",
+      F: "spectral-f",
+      G: "spectral-g",
+      K: "spectral-k",
+      M: "spectral-m",
+    }[code] || "spectral-g"
+  );
+}
+
+async function syncSectorSurveyState(systemRecord) {
+  if (!props.galaxyId || !props.sectorId || !systemRecord) {
+    return;
+  }
+
+  const normalizedHex = normalizeHex(systemRecord?.systemId || hexCoord.value);
+  const primary = Array.isArray(systemRecord?.stars) ? systemRecord.stars[0] : null;
+  const starType = String(
+    primary?.designation || primary?.spectralClass || systemRecord?.primaryStar?.spectralClass || "",
+  ).trim();
+  if (!starType) {
+    return;
+  }
+
+  let sector = sectorStore.sectors.find((entry) => entry.sectorId === props.sectorId) ?? null;
+  if (!sector) {
+    try {
+      sector = await sectorApi.getSector(props.sectorId);
+    } catch {
+      sector = null;
+    }
+  }
+  if (!sector) {
+    return;
+  }
+
+  const metadata = sector?.metadata ?? {};
+  const occupiedHexes = Array.isArray(metadata.occupiedHexes)
+    ? metadata.occupiedHexes.filter((coord) => typeof coord === "string")
+    : [];
+  if (!occupiedHexes.includes(normalizedHex)) {
+    occupiedHexes.push(normalizedHex);
+  }
+
+  const secondaryStars = Array.isArray(systemRecord?.stars)
+    ? systemRecord.stars
+        .slice(1)
+        .map((star) => String(star?.designation || star?.spectralClass || "").trim())
+        .filter(Boolean)
+    : Array.isArray(systemRecord?.companionStars)
+      ? systemRecord.companionStars.map((star) => String(star?.spectralClass || "").trim()).filter(Boolean)
+      : [];
+
+  await sectorStore.updateSector(sector.sectorId, {
+    ...sector,
+    metadata: {
+      ...metadata,
+      systemCount: Math.max(Number(metadata.systemCount) || 0, occupiedHexes.length),
+      explorationStatus: "surveyed",
+      occupiedHexes,
+      hexPresenceGenerated: true,
+      hexStarTypes: {
+        ...(metadata.hexStarTypes && typeof metadata.hexStarTypes === "object" ? metadata.hexStarTypes : {}),
+        [normalizedHex]: {
+          starType,
+          starClass: sectorStarClassForSystem(systemRecord),
+          secondaryStars,
+          anomalyType: primary?.isAnomaly ? primary?.spectralClass || primary?.designation || null : null,
+        },
+      },
+      lastModified: new Date().toISOString(),
+    },
+  });
+}
+
 function toPersistedSystem(nextSystem) {
   const normalizedHex = normalizeHex(nextSystem.systemId);
   const stars = Array.isArray(nextSystem.stars) ? nextSystem.stars : [];
@@ -285,7 +385,8 @@ function toPersistedSystem(nextSystem) {
 
 async function hydrateSystem() {
   if (!props.galaxyId || !props.sectorId) {
-    buildSystem();
+    system.value = null;
+    selectedWorldIndex.value = null;
     return;
   }
 
@@ -298,10 +399,13 @@ async function hydrateSystem() {
     };
     selectedWorldIndex.value = findDefaultWorldIndex(existing.planets);
     systemStore.setCurrentSystem(existing.systemId);
+    await syncSectorSurveyState(existing);
     return;
   }
 
-  buildSystem();
+  system.value = null;
+  selectedWorldIndex.value = null;
+  systemStore.setCurrentSystem(null);
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -443,6 +547,7 @@ async function buildSystem() {
     const persisted = toPersistedSystem(nextSystem);
     await systemStore.createSystem(persisted);
     systemStore.setCurrentSystem(persisted.systemId);
+    await syncSectorSurveyState(persisted);
   }
 }
 
@@ -504,7 +609,7 @@ onMounted(async () => {
 .star-system-builder {
   display: flex;
   flex-direction: column;
-  min-height: calc(100vh - 60px);
+  min-height: 100%;
 }
 
 .survey-content {
@@ -575,6 +680,24 @@ onMounted(async () => {
   border: 2px solid #00d9ff;
   border-radius: 0.5rem;
   padding: 1.5rem;
+}
+
+.system-placeholder {
+  background: #1a1a2e;
+  border: 1px dashed rgba(0, 217, 255, 0.35);
+  border-radius: 0.5rem;
+  padding: 1.5rem;
+  color: #b8d9ea;
+}
+
+.system-placeholder h2 {
+  color: #00d9ff;
+  margin: 0 0 0.5rem;
+}
+
+.system-placeholder p {
+  margin: 0;
+  line-height: 1.5;
 }
 
 .system-header {

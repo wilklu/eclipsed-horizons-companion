@@ -489,7 +489,7 @@ onMounted(() => {
 .world-builder {
   display: flex;
   flex-direction: column;
-  min-height: calc(100vh - 60px);
+  min-height: 100%;
 }
 
 .survey-content {
