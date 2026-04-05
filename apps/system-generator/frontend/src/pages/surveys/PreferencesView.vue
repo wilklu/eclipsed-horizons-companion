@@ -71,6 +71,52 @@
         </section>
 
         <section class="card">
+          <h2>Text To Speech</h2>
+          <p class="section-copy">Control how generated names are spoken in supported browsers.</p>
+
+          <label class="field">
+            <span>Actor / voice</span>
+            <select v-model="draft.ttsVoiceURI" :disabled="!supportsSpeechSynthesis || !ttsVoiceOptions.length">
+              <option value="">Default browser voice</option>
+              <option v-for="voice in ttsVoiceOptions" :key="voice.voiceURI" :value="voice.voiceURI">
+                {{ voice.label }}
+              </option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span>Rate: {{ draft.ttsRate.toFixed(2) }}</span>
+            <input v-model.number="draft.ttsRate" type="range" min="0.5" max="1.5" step="0.05" />
+          </label>
+
+          <label class="field">
+            <span>Pitch: {{ draft.ttsPitch.toFixed(2) }}</span>
+            <input v-model.number="draft.ttsPitch" type="range" min="0.5" max="1.5" step="0.05" />
+          </label>
+
+          <div class="field-actions">
+            <button
+              class="btn btn-secondary"
+              type="button"
+              :disabled="!supportsSpeechSynthesis"
+              @click="toggleVoicePreview"
+            >
+              {{ isTestingVoice ? "Stop Voice Test" : "Test Voice" }}
+            </button>
+          </div>
+
+          <p class="section-copy section-copy--compact">
+            {{
+              supportsSpeechSynthesis
+                ? ttsVoiceOptions.length
+                  ? "These settings apply to name playback in the survey pages."
+                  : "Your browser supports speech, but voice choices have not loaded yet."
+                : "This browser does not expose speech synthesis, so these settings will have no effect here."
+            }}
+          </p>
+        </section>
+
+        <section class="card">
           <h2>Traveller Atlas</h2>
           <p class="section-copy">
             Manual bias values let you nudge sector and subsector overlays against the hex grid.
@@ -94,12 +140,93 @@
 </template>
 
 <script setup>
-import { reactive, ref } from "vue";
+import { onBeforeUnmount, onMounted, reactive, ref } from "vue";
 import SurveyNavigation from "../../components/common/SurveyNavigation.vue";
 import { PREFERENCE_DEFAULTS, usePreferencesStore } from "../../stores/preferencesStore.js";
 
 const preferencesStore = usePreferencesStore();
 const statusMessage = ref("");
+const ttsVoiceOptions = ref([]);
+const supportsSpeechSynthesis = typeof window !== "undefined" && "speechSynthesis" in window;
+const isTestingVoice = ref(false);
+
+function stopVoicePreview() {
+  if (!supportsSpeechSynthesis) {
+    return;
+  }
+
+  window.speechSynthesis.cancel();
+  isTestingVoice.value = false;
+}
+
+function readSpeechVoices() {
+  if (!supportsSpeechSynthesis) {
+    ttsVoiceOptions.value = [];
+    return;
+  }
+
+  const voices = window.speechSynthesis.getVoices();
+  ttsVoiceOptions.value = voices.map((voice) => ({
+    voiceURI: voice.voiceURI,
+    label: `${voice.name}${voice.lang ? ` (${voice.lang})` : ""}${voice.default ? " • default" : ""}`,
+  }));
+}
+
+onMounted(() => {
+  if (!supportsSpeechSynthesis) {
+    return;
+  }
+
+  readSpeechVoices();
+  window.speechSynthesis.addEventListener("voiceschanged", readSpeechVoices);
+});
+
+onBeforeUnmount(() => {
+  if (!supportsSpeechSynthesis) {
+    return;
+  }
+
+  stopVoicePreview();
+  window.speechSynthesis.removeEventListener("voiceschanged", readSpeechVoices);
+});
+
+function toggleVoicePreview() {
+  if (!supportsSpeechSynthesis) {
+    statusMessage.value = "Text to speech is not supported in this browser.";
+    return;
+  }
+
+  if (isTestingVoice.value) {
+    stopVoicePreview();
+    statusMessage.value = "Stopped voice preview.";
+    return;
+  }
+
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance("Eclipsed Horizons sector name preview.");
+  utterance.rate = Math.min(1.5, Math.max(0.5, Number(draft.ttsRate) || PREFERENCE_DEFAULTS.ttsRate));
+  utterance.pitch = Math.min(1.5, Math.max(0.5, Number(draft.ttsPitch) || PREFERENCE_DEFAULTS.ttsPitch));
+
+  const selectedVoiceURI = String(draft.ttsVoiceURI || "").trim();
+  if (selectedVoiceURI) {
+    const selectedVoice = window.speechSynthesis.getVoices().find((voice) => voice.voiceURI === selectedVoiceURI);
+    if (selectedVoice) {
+      utterance.voice = selectedVoice;
+    }
+  }
+
+  utterance.onend = () => {
+    isTestingVoice.value = false;
+  };
+  utterance.onerror = () => {
+    isTestingVoice.value = false;
+    statusMessage.value = "Unable to play voice preview.";
+  };
+
+  isTestingVoice.value = true;
+  statusMessage.value = "Playing voice preview.";
+  window.speechSynthesis.speak(utterance);
+}
 
 function createDraft(source) {
   return {
@@ -109,6 +236,9 @@ function createDraft(source) {
     galaxyNameMode: String(source.galaxyNameMode || PREFERENCE_DEFAULTS.galaxyNameMode),
     galaxyMythicTheme: String(source.galaxyMythicTheme || PREFERENCE_DEFAULTS.galaxyMythicTheme),
     sectorNameMode: String(source.sectorNameMode || PREFERENCE_DEFAULTS.sectorNameMode),
+    ttsRate: Number(source.ttsRate ?? PREFERENCE_DEFAULTS.ttsRate),
+    ttsPitch: Number(source.ttsPitch ?? PREFERENCE_DEFAULTS.ttsPitch),
+    ttsVoiceURI: String(source.ttsVoiceURI || PREFERENCE_DEFAULTS.ttsVoiceURI),
     atlasGridBiasX: Number(source.atlasGridBiasX),
     atlasGridBiasY: Number(source.atlasGridBiasY),
   };
@@ -153,6 +283,9 @@ function savePreferences() {
     galaxyNameMode: draft.galaxyNameMode,
     galaxyMythicTheme: draft.galaxyMythicTheme,
     sectorNameMode: draft.sectorNameMode,
+    ttsRate: Math.min(1.5, Math.max(0.5, Number(draft.ttsRate) || PREFERENCE_DEFAULTS.ttsRate)),
+    ttsPitch: Math.min(1.5, Math.max(0.5, Number(draft.ttsPitch) || PREFERENCE_DEFAULTS.ttsPitch)),
+    ttsVoiceURI: String(draft.ttsVoiceURI || ""),
     atlasGridBiasX: Number(draft.atlasGridBiasX) || 0,
     atlasGridBiasY: Number(draft.atlasGridBiasY) || 0,
   });
@@ -225,10 +358,20 @@ function savePreferences() {
   margin-bottom: 1rem;
 }
 
+.section-copy--compact {
+  margin-bottom: 0;
+}
+
 .field {
   display: flex;
   flex-direction: column;
   gap: 0.45rem;
+  margin-bottom: 1rem;
+}
+
+.field-actions {
+  display: flex;
+  justify-content: flex-start;
   margin-bottom: 1rem;
 }
 

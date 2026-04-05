@@ -264,97 +264,6 @@
           </g>
         </g>
 
-        <!-- 2c ── Hierarchy overlays (Phase 2) -->
-        <g v-if="showQuadrantOverlay" class="layer-hierarchy layer-quadrant">
-          <g v-for="tile in visibleQuadrantTiles" :key="`quad-${tile.key}`" @click.stop="focusHierarchyTile(tile)">
-            <rect
-              :x="tile.wx"
-              :y="tile.wy"
-              :width="tile.ww"
-              :height="tile.wh"
-              class="hierarchy-tile hierarchy-tile-quadrant"
-            />
-            <text
-              v-if="showHierarchyLabels"
-              :x="tile.wx + tile.ww * 0.5"
-              :y="tile.wy + 16"
-              class="hierarchy-label"
-              text-anchor="middle"
-            >
-              {{ tile.label }}
-            </text>
-          </g>
-        </g>
-
-        <g v-if="showQuadrantSubOverlay" class="layer-hierarchy layer-quadrant-sub">
-          <g
-            v-for="tile in visibleQuadrantSubTiles"
-            :key="`quad-sub-${tile.key}`"
-            @click.stop="focusHierarchyTile(tile)"
-          >
-            <rect
-              :x="tile.wx"
-              :y="tile.wy"
-              :width="tile.ww"
-              :height="tile.wh"
-              class="hierarchy-tile hierarchy-tile-sub"
-            />
-          </g>
-        </g>
-
-        <g v-if="showRegionOverlay" class="layer-hierarchy layer-region">
-          <g v-for="tile in visibleRegionTiles" :key="`region-${tile.key}`" @click.stop="focusHierarchyTile(tile)">
-            <rect
-              :x="tile.wx"
-              :y="tile.wy"
-              :width="tile.ww"
-              :height="tile.wh"
-              class="hierarchy-tile hierarchy-tile-region"
-            />
-            <text
-              v-if="showHierarchyLabels"
-              :x="tile.wx + tile.ww * 0.5"
-              :y="tile.wy + 14"
-              class="hierarchy-label"
-              text-anchor="middle"
-            >
-              {{ tile.label }}
-            </text>
-          </g>
-        </g>
-
-        <g v-if="showRegionSubOverlay" class="layer-hierarchy layer-region-sub">
-          <g
-            v-for="tile in visibleRegionSubTiles"
-            :key="`region-sub-${tile.key}`"
-            @click.stop="focusHierarchyTile(tile)"
-          >
-            <rect
-              :x="tile.wx"
-              :y="tile.wy"
-              :width="tile.ww"
-              :height="tile.wh"
-              class="hierarchy-tile hierarchy-tile-sub"
-            />
-          </g>
-        </g>
-
-        <g v-if="showSectorSubOverlay" class="layer-hierarchy layer-sector-sub">
-          <g
-            v-for="tile in visibleSectorSubTiles"
-            :key="`sector-sub-${tile.key}`"
-            @click.stop="focusHierarchyTile(tile)"
-          >
-            <rect
-              :x="tile.wx"
-              :y="tile.wy"
-              :width="tile.ww"
-              :height="tile.wh"
-              class="hierarchy-tile hierarchy-tile-sub"
-            />
-          </g>
-        </g>
-
         <!-- 3 ── Hex grid (zoom-gated) -->
         <g v-if="hexGridVisible" class="layer-hex-grid">
           <polygon
@@ -493,6 +402,7 @@
           <div class="inspector-badge">Sector {{ inspectorData.coords }}</div>
           <div class="inspector-actions">
             <button class="btn btn-primary" @click="focusSectorFromInspector">🔍 Zoom to Sector</button>
+            <button class="btn btn-primary" @click="openSectorSurvey">🧭 Sector Survey</button>
             <button
               class="btn btn-primary"
               :disabled="isGeneratingInspectorSector"
@@ -835,6 +745,7 @@ const ATLAS_SEEDED_NAME_CODAS = Object.freeze([
   "vek",
   "mere",
 ]);
+const ATLAS_SEEDED_NAME_MEDIALS = Object.freeze(["", "", "n", "r", "l", "s", "th", "v", "dr"]);
 const ATLAS_SEEDED_NAME_SUFFIXES = Object.freeze([
   "Reach",
   "March",
@@ -1026,13 +937,19 @@ const parsecBadge = computed(() => {
   return `${p.toFixed(2)} pc`;
 });
 const biasReadout = computed(() => `Bias X ${Math.round(gridBiasX.value)} Y ${Math.round(gridBiasY.value)}`);
-const showHierarchyLabels = computed(() => !dragging.value && parsecsPerHex.value <= 300);
 const sectorTilesEnabled = computed(() => parsecsPerHex.value <= 250);
+const showStars = computed(() => parsecsPerHex.value <= 40);
+const renderStars = computed(() => showStars.value && (!dragging.value || parsecsPerHex.value <= 10));
+const showStarNames = computed(() => layerNames.value && !dragging.value && parsecsPerHex.value <= 5);
+const showStarCoords = computed(() => layerCoords.value && !dragging.value && parsecsPerHex.value <= 10);
+const showEmptyCoords = computed(() => layerCoords.value && hexGridVisible.value && parsecsPerHex.value <= 10);
+const showTradeRoutes = computed(() => !dragging.value && parsecsPerHex.value <= 5 && visibleStars.value.length <= 320);
 
 const sectorTileOpacity = computed(() => {
   if (parsecsPerHex.value > 100) return 0.88;
   if (parsecsPerHex.value > 40) return 0.5;
   if (parsecsPerHex.value > 20) return 0.26;
+  if (parsecsPerHex.value <= 5) return 0;
   return 0.1;
 });
 
@@ -1087,71 +1004,6 @@ const continuousSectorTiles = computed(() => {
   return tiles;
 });
 
-function buildHierarchyTiles(tileSizeInSectors, prefix, labeler) {
-  const b = viewBounds.value;
-  const tileW = SECTOR_PX_W * tileSizeInSectors;
-  const tileH = SECTOR_PX_H * tileSizeInSectors;
-  const xStart = Math.floor((b.x0 - tileW) / tileW);
-  const xEnd = Math.ceil((b.x1 + tileW) / tileW);
-  const yStart = Math.floor((b.y0 - tileH) / tileH);
-  const yEnd = Math.ceil((b.y1 + tileH) / tileH);
-
-  const tiles = [];
-  for (let gx = xStart; gx <= xEnd; gx++) {
-    for (let gy = yStart; gy <= yEnd; gy++) {
-      const minSectorX = gx * tileSizeInSectors + minSX.value;
-      const minSectorY = gy * tileSizeInSectors + minSY.value;
-      tiles.push({
-        key: `${prefix}:${gx}:${gy}`,
-        wx: gx * tileW,
-        wy: gy * tileH,
-        ww: tileW,
-        wh: tileH,
-        hierarchyKeyX: gx,
-        hierarchyKeyY: gy,
-        minSectorX,
-        minSectorY,
-        tileSizeInSectors,
-        label: labeler(gx, gy),
-      });
-    }
-  }
-
-  return tiles;
-}
-
-const quadrantTiles = computed(() =>
-  buildHierarchyTiles(QUADRANT_SECTORS, "q4", (gx, gy) => `Q ${gx >= 0 ? `+${gx}` : gx},${gy >= 0 ? `+${gy}` : gy}`),
-);
-const quadrantSubTiles = computed(() =>
-  buildHierarchyTiles(
-    QUADRANT_SECTORS / 2,
-    "q2",
-    (gx, gy) => `Q2 ${gx >= 0 ? `+${gx}` : gx},${gy >= 0 ? `+${gy}` : gy}`,
-  ),
-);
-const regionTiles = computed(() =>
-  buildHierarchyTiles(REGION_SECTORS, "r4", (gx, gy) => `R ${gx >= 0 ? `+${gx}` : gx},${gy >= 0 ? `+${gy}` : gy}`),
-);
-const regionSubTiles = computed(() =>
-  buildHierarchyTiles(REGION_SECTORS / 2, "r2", (gx, gy) => `R2 ${gx >= 0 ? `+${gx}` : gx},${gy >= 0 ? `+${gy}` : gy}`),
-);
-const sectorSubTiles = computed(() =>
-  buildHierarchyTiles(0.5, "s2", (gx, gy) => `S2 ${gx >= 0 ? `+${gx}` : gx},${gy >= 0 ? `+${gy}` : gy}`),
-);
-
-const visibleQuadrantTiles = computed(() => quadrantTiles.value);
-const visibleQuadrantSubTiles = computed(() => quadrantSubTiles.value);
-const visibleRegionTiles = computed(() => regionTiles.value);
-const visibleRegionSubTiles = computed(() => regionSubTiles.value);
-const visibleSectorSubTiles = computed(() => sectorSubTiles.value);
-
-const showQuadrantOverlay = computed(() => currentHierarchyId.value === "quadrant-4x4");
-const showQuadrantSubOverlay = computed(() => currentHierarchyId.value === "quadrant-2x2");
-const showRegionOverlay = computed(() => currentHierarchyId.value === "region-4x4");
-const showRegionSubOverlay = computed(() => currentHierarchyId.value === "region-2x2");
-const showSectorSubOverlay = computed(() => currentHierarchyId.value === "sector-2x2-subsector");
-
 const gridClickTiles = computed(() => {
   if (!sectorTilesEnabled.value) return [];
   const b = viewBounds.value;
@@ -1173,6 +1025,7 @@ const gridClickTiles = computed(() => {
       });
     }
   }
+
   return tiles;
 });
 
@@ -1196,15 +1049,10 @@ const continuousHexSectorTiles = computed(() => {
       });
     }
   }
+
   return tiles;
 });
 
-const showStars = computed(() => parsecsPerHex.value <= 40);
-const renderStars = computed(() => showStars.value && (!dragging.value || parsecsPerHex.value <= 10));
-const showStarNames = computed(() => layerNames.value && !dragging.value && parsecsPerHex.value <= 5);
-const showStarCoords = computed(() => layerCoords.value && !dragging.value && parsecsPerHex.value <= 10);
-const showEmptyCoords = computed(() => layerCoords.value && hexGridVisible.value && parsecsPerHex.value <= 10);
-const showTradeRoutes = computed(() => !dragging.value && parsecsPerHex.value <= 5 && visibleStars.value.length <= 320);
 const starDataEnabled = computed(() => renderStars.value || hexGridVisible.value || inspectorMode.value === "star");
 
 const effectiveStarR = computed(() => {
@@ -1554,16 +1402,22 @@ function buildAtlasSeededSectorName(seed) {
     return `${base} ${suffix}`;
   }
 
-  const syllableCount = 2 + (hash % 2);
-  let name = "";
-  for (let index = 0; index < syllableCount; index += 1) {
-    const partHash = hashString(`${seed}:${index}`);
-    name +=
-      ATLAS_SEEDED_NAME_ONSETS[partHash % ATLAS_SEEDED_NAME_ONSETS.length] +
-      ATLAS_SEEDED_NAME_VOWELS[Math.floor(partHash / 7) % ATLAS_SEEDED_NAME_VOWELS.length] +
-      ATLAS_SEEDED_NAME_CODAS[Math.floor(partHash / 17) % ATLAS_SEEDED_NAME_CODAS.length];
+  const onset = ATLAS_SEEDED_NAME_ONSETS[hash % ATLAS_SEEDED_NAME_ONSETS.length].toLowerCase();
+  const vowelA = ATLAS_SEEDED_NAME_VOWELS[Math.floor(hash / 7) % ATLAS_SEEDED_NAME_VOWELS.length];
+  const medial = ATLAS_SEEDED_NAME_MEDIALS[Math.floor(hash / 17) % ATLAS_SEEDED_NAME_MEDIALS.length];
+  const vowelB = ATLAS_SEEDED_NAME_VOWELS[Math.floor(hash / 37) % ATLAS_SEEDED_NAME_VOWELS.length];
+  const coda = ATLAS_SEEDED_NAME_CODAS[Math.floor(hash / 71) % ATLAS_SEEDED_NAME_CODAS.length];
+  const includeSecondVowel = (hash & 1) === 1 || coda.length <= 2;
+
+  let name = `${onset}${vowelA}`;
+  if (includeSecondVowel) {
+    name += `${medial}${vowelB}`;
+  } else if (medial) {
+    name += medial;
   }
-  return name.charAt(0).toUpperCase() + name.slice(1);
+  name += coda;
+
+  return name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
 }
 
 function isAtlasPlaceholderSectorName(value) {
@@ -1572,12 +1426,19 @@ function isAtlasPlaceholderSectorName(value) {
   return /^sector\s+-?\d+\s*,\s*-?\d+$/i.test(name);
 }
 
+function isAtlasLegacySeededSectorName(value) {
+  const name = String(value || "").trim();
+  if (!name || /\s/.test(name)) return false;
+  return /^[A-Z][a-z]+(?:[A-Z][a-z]+)+$/.test(name);
+}
+
 function ensureAtlasSectorNamingMetadata(sector, metadata = {}) {
   const baseMetadata = metadata && typeof metadata === "object" ? { ...metadata } : {};
   const currentDisplayName = String(baseMetadata.displayName || "").trim();
-  const displayName = isAtlasPlaceholderSectorName(currentDisplayName)
-    ? buildAtlasSeededSectorName(`${sector.sectorId}:sector`)
-    : currentDisplayName;
+  const displayName =
+    isAtlasPlaceholderSectorName(currentDisplayName) || isAtlasLegacySeededSectorName(currentDisplayName)
+      ? buildAtlasSeededSectorName(`${sector.sectorId}:sector`)
+      : currentDisplayName;
   const existingSubsectorNames =
     baseMetadata.subsectorNames && typeof baseMetadata.subsectorNames === "object"
       ? { ...baseMetadata.subsectorNames }
@@ -1585,8 +1446,13 @@ function ensureAtlasSectorNamingMetadata(sector, metadata = {}) {
   const subsectorNames = Object.fromEntries(
     ATLAS_SUBSECTOR_LETTERS.map((letter) => [
       letter,
-      String(existingSubsectorNames[letter] || "").trim() ||
-        buildAtlasSeededSectorName(`${sector.sectorId}:subsector:${letter}`),
+      (() => {
+        const existingName = String(existingSubsectorNames[letter] || "").trim();
+        if (!existingName || isAtlasLegacySeededSectorName(existingName)) {
+          return buildAtlasSeededSectorName(`${sector.sectorId}:subsector:${letter}`);
+        }
+        return existingName;
+      })(),
     ]),
   );
 
@@ -1848,6 +1714,40 @@ function focusSector(sector) {
 
 function focusSectorFromInspector() {
   if (inspectorSector.value) focusSector(inspectorSector.value);
+}
+
+function openSectorSurvey() {
+  const sector = inspectorSector.value;
+  if (!sector) return;
+
+  const targetGalaxyId = selectedGalaxyId.value === ALL_GALAXIES_VALUE ? sector.galaxyId : selectedGalaxyId.value;
+  if (!targetGalaxyId) return;
+
+  const gridX = Number(sector?.coordinates?.x ?? sector?.metadata?.gridX);
+  const gridY = Number(sector?.coordinates?.y ?? sector?.metadata?.gridY);
+  const currentDisplayName = String(sector?.metadata?.displayName || "").trim();
+  const fallbackSeed =
+    Number.isFinite(gridX) && Number.isFinite(gridY)
+      ? `atlas:${targetGalaxyId}:${gridX}:${gridY}:sector`
+      : `${String(sector?.sectorId || "sector")}:sector`;
+  const sectorName =
+    currentDisplayName && !isAtlasPlaceholderSectorName(currentDisplayName)
+      ? currentDisplayName
+      : buildAtlasSeededSectorName(fallbackSeed);
+  const sectorId = String(sector?.sectorId || "").startsWith("grid:") ? "" : String(sector?.sectorId || "");
+
+  router.push({
+    name: "SectorSurvey",
+    params: { galaxyId: targetGalaxyId },
+    query: {
+      ...(sectorId ? { sectorId } : {}),
+      ...(Number.isFinite(gridX) ? { gridX: String(gridX) } : {}),
+      ...(Number.isFinite(gridY) ? { gridY: String(gridY) } : {}),
+      ...(sectorName ? { sectorName } : {}),
+      from: "atlas",
+      atlasGalaxyId: String(selectedGalaxyId.value || ""),
+    },
+  });
 }
 
 function sectorHexCoord(col, row) {
@@ -2717,6 +2617,8 @@ watch(
   z-index: 1;
   touch-action: none;
   cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .atlas-svg.dragging {
@@ -2783,6 +2685,8 @@ watch(
   text-anchor: middle;
   pointer-events: none;
   font-weight: 600;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 /* ── Hex grid ─────────────────────────────────────────────────────────────── */
@@ -2863,6 +2767,8 @@ watch(
   font-weight: 600;
   letter-spacing: 0.04em;
   pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .star-name-label {
@@ -2873,6 +2779,8 @@ watch(
   stroke: rgba(4, 7, 16, 0.92);
   stroke-width: 2.5;
   pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .hex-coord-label {
@@ -2901,6 +2809,18 @@ watch(
   border-radius: 0.6rem;
   z-index: 60;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.65);
+  font-family: "Circular Std", Circular, "Lineto Circular", "Segoe UI", sans-serif;
+}
+
+.atlas-inspector button,
+.atlas-inspector .inspector-title,
+.atlas-inspector .inspector-badge,
+.atlas-inspector .detail-grid,
+.atlas-inspector .star-type-big,
+.atlas-inspector .star-companion-hint,
+.atlas-inspector .orbital-title,
+.atlas-inspector .orbit-label {
+  font-family: inherit;
 }
 
 .inspector-close {
@@ -2987,7 +2907,6 @@ watch(
   font-size: 1rem;
   font-weight: 700;
   color: #e0d0a8;
-  font-family: monospace;
 }
 
 .star-companion-hint {

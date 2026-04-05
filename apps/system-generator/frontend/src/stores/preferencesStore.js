@@ -9,6 +9,9 @@ export const PREFERENCE_DEFAULTS = Object.freeze({
   galaxyNameMode: "normalized",
   galaxyMythicTheme: "all",
   sectorNameMode: "normalized",
+  ttsRate: 1,
+  ttsPitch: 1,
+  ttsVoiceURI: "",
   atlasGridBiasX: 0,
   atlasGridBiasY: 0,
 });

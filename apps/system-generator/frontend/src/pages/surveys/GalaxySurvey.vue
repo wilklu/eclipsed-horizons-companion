@@ -651,7 +651,7 @@
                 </div>
 
                 <div class="side-card planning-card">
-                  <div class="anomaly-preview-title">Creation Planning</div>
+                  <div class="anomaly-preview-title">Creation Outputs</div>
                   <div class="planning-row">
                     <span>Estimated Diameter</span><strong>{{ draftSizing.diameterKpc }} kpc</strong>
                   </div>
@@ -668,18 +668,18 @@
                     <span>Sector Span</span><strong>{{ draftSizing.footprintLabel }}</strong>
                   </div>
                   <div class="planning-row">
-                    <span>Spacing Guidance</span><strong>{{ draftSizing.separationRange }}</strong>
+                    <span>Placement Spacing Guidance</span><strong>{{ draftSizing.separationRange }}</strong>
                   </div>
                   <div class="planning-row">
-                    <span>Sectors Named At Creation</span>
+                    <span>Named Sector Records</span>
                     <strong>{{ draftForecast.populatedSectorsLabel }}</strong>
                   </div>
                   <div class="planning-row">
-                    <span>Initial Generated Content</span>
+                    <span>Seeded At Creation</span>
                     <strong>{{ draftForecast.estimatedSystemsLabel }}</strong>
                   </div>
                   <div class="planning-row">
-                    <span>Generation Time (rough)</span>
+                    <span>Creation Mapping Time (rough)</span>
                     <strong
                       class="planning-runtime"
                       :class="`planning-runtime--${draftForecast.runtimeSeverity}`"
@@ -688,12 +688,12 @@
                     >
                   </div>
                   <div v-if="draftForecast.showRuntimeWarning" class="planning-warning" role="status">
-                    ⚠ Heavy generation expected. Consider lower core density, smaller bulge radius, or delayed sector
-                    mapping.
+                    ⚠ Heavy sector mapping expected during creation. Consider a smaller galaxy footprint if initial
+                    setup feels slow.
                   </div>
                   <div class="field-hint">
-                    Creation maps and names the sector layout, then seeds the center anomaly. Further generation is
-                    available from Galaxy Survey.
+                    Creation only maps and names the sector layout, then seeds the center anomaly. Presence and full
+                    system generation are available afterward in Galaxy Survey.
                   </div>
                 </div>
               </aside>
@@ -1213,12 +1213,12 @@ const draftForecast = computed(() => {
   }
 
   return {
-    populatedSectorsLabel: totalSectors.toLocaleString(),
+    populatedSectorsLabel: "1 center sector",
     estimatedSystemsLabel: "Center anomaly only",
     estimatedRuntime,
     runtimeSeverity,
     showRuntimeWarning: runtimeSeverity !== "fast",
-    formulaSummary: `Estimated from total sector-layout size only. Creation names mapped sector records galaxy-wide and seeds the center anomaly. Thresholds: moderate > ${moderateThreshold.toLocaleString()}, heavy > ${heavyThreshold.toLocaleString()}, extreme > ${extremeThreshold.toLocaleString()} sectors.`,
+    formulaSummary: `Estimated from total sector-layout size only. Creation now seeds just the center sector and its anomaly; full sector layout naming and further generation happen later in Galaxy Survey. Thresholds still reflect overall galaxy footprint size for later mapping: moderate > ${moderateThreshold.toLocaleString()}, heavy > ${heavyThreshold.toLocaleString()}, extreme > ${extremeThreshold.toLocaleString()} sectors.`,
   };
 });
 
@@ -1508,33 +1508,39 @@ const galaxyMapPreview = computed(() => {
   const layout = generateGalaxySectorLayout(galaxy);
   if (!layout.length) return null;
 
-  const gridRadius = layout[0]?.metadata?.gridRadius ?? 3;
-  const gridDiameter = gridRadius * 2 + 1;
+  const xValues = layout.map((sector) => Number(sector?.metadata?.gridX ?? sector?.x ?? 0));
+  const yValues = layout.map((sector) => Number(sector?.metadata?.gridY ?? sector?.y ?? 0));
+  const minGridX = Math.min(...xValues);
+  const maxGridX = Math.max(...xValues);
+  const minGridY = Math.min(...yValues);
+  const maxGridY = Math.max(...yValues);
+  const gridWidth = maxGridX - minGridX + 1;
+  const gridHeight = maxGridY - minGridY + 1;
   const SVG_SIZE = 280;
   const PADDING = 12;
-  const step = (SVG_SIZE - PADDING * 2) / gridDiameter;
+  const step = Math.min((SVG_SIZE - PADDING * 2) / gridWidth, (SVG_SIZE - PADDING * 2) / gridHeight);
   const tileSize = Math.max(2, step * 0.9);
   const tileHalf = tileSize / 2;
-  const centerPx = SVG_SIZE / 2;
-  const centerPy = SVG_SIZE / 2;
+  const offsetX = PADDING + step * 0.5 - minGridX * step;
+  const offsetY = PADDING + step * 0.5 - minGridY * step;
 
   // Actual parsec coverage: each tile is one sector = 32×40 pc.
-  const widthPc = gridDiameter * SECTOR_WIDTH_PC;
-  const heightPc = gridDiameter * SECTOR_HEIGHT_PC;
-  const scaleLabel = `${gridDiameter}×${gridDiameter} sectors — ${widthPc.toLocaleString()} × ${heightPc.toLocaleString()} pc`;
+  const widthPc = gridWidth * SECTOR_WIDTH_PC;
+  const heightPc = gridHeight * SECTOR_HEIGHT_PC;
+  const scaleLabel = `${gridWidth}×${gridHeight} sectors — ${widthPc.toLocaleString()} × ${heightPc.toLocaleString()} pc`;
 
   return {
     svgSize: SVG_SIZE,
     tileSize,
     tileHalf,
-    centerPx,
-    centerPy,
+    centerPx: offsetX,
+    centerPy: offsetY,
     densityColors: DENSITY_COLORS,
     scaleLabel,
     tiles: layout.map((s) => ({
       id: `${s.metadata.gridX}_${s.metadata.gridY}`,
-      px: centerPx + s.metadata.gridX * step,
-      py: centerPy + s.metadata.gridY * step,
+      px: offsetX + s.metadata.gridX * step,
+      py: offsetY + s.metadata.gridY * step,
       color: DENSITY_COLORS[s.densityClass] ?? DENSITY_COLORS[0],
       dc: s.densityClass,
     })),
@@ -1800,17 +1806,8 @@ async function createNewGalaxy() {
 
     const createdGalaxy = await galaxyStore.createGalaxy(newGalaxy);
 
-    let sectorCount = 0;
     const targetGalaxy = createdGalaxy ?? newGalaxy;
-    const estimatedLayoutCount = estimateGalaxySectorLayoutCount(targetGalaxy, { scale: "true" });
-    if (estimatedLayoutCount > 0) {
-      try {
-        const batchResult = await createTrueScaleSectorsInChunks(targetGalaxy);
-        sectorCount = Number(batchResult?.created) || Number(batchResult?.total) || 0;
-      } catch (batchErr) {
-        toastService.warning(`Galaxy created but sector mapping failed: ${batchErr.message}`);
-      }
-    }
+    let sectorCount = 0;
 
     try {
       const seededCenter = await seedGalacticCenterSector(targetGalaxy);
@@ -1823,13 +1820,14 @@ async function createNewGalaxy() {
 
     let successMessage = `Galaxy "${newGalaxyForm.value.name}" created successfully!`;
     if (sectorCount > 0) {
-      successMessage = `Galaxy "${newGalaxyForm.value.name}" created with ${sectorCount.toLocaleString()} sectors mapped.`;
+      successMessage = `Galaxy "${newGalaxyForm.value.name}" created with the named center sector seeded.`;
     }
-    successMessage += " The center anomaly has been seeded. Use Galaxy Survey for further generation.";
+    successMessage +=
+      " The center anomaly has been seeded. Use Galaxy Survey to name the rest of the galaxy or generate presence and systems.";
     toastService.success(successMessage);
     const createdGalaxyId = createdGalaxy?.galaxyId || newGalaxy.galaxyId;
     await router.push({
-      name: "UniverseMap",
+      name: "GalaxySurvey",
       query: { galaxyId: createdGalaxyId },
     });
     newGalaxyForm.value = {
@@ -1947,9 +1945,11 @@ function proceedToClass0() {
 
 function openUniverseMap() {
   const galaxyId = currentGalaxy.value?.galaxyId;
+  if (galaxyId) {
+    galaxyStore.setCurrentGalaxy(galaxyId);
+  }
   router.push({
-    name: "UniverseMap",
-    query: galaxyId ? { galaxyId } : {},
+    name: "TravellerAtlas",
   });
 }
 
@@ -2130,6 +2130,7 @@ const SEEDED_NAME_CODAS = Object.freeze([
   "vek",
   "mere",
 ]);
+const SEEDED_NAME_MEDIALS = Object.freeze(["", "", "n", "r", "l", "s", "th", "v", "dr"]);
 const SEEDED_NAME_SUFFIXES = Object.freeze(["Reach", "March", "Span", "Expanse", "Drift", "Crown", "Basin", "Gate"]);
 
 function buildSeededSectorName(seed) {
@@ -2142,17 +2143,22 @@ function buildSeededSectorName(seed) {
     return `${base} ${suffix}`;
   }
 
-  const syllableCount = 2 + (hash % 2);
-  let name = "";
-  for (let index = 0; index < syllableCount; index += 1) {
-    const partHash = hashString(`${seed}:${index}`);
-    name +=
-      SEEDED_NAME_ONSETS[partHash % SEEDED_NAME_ONSETS.length] +
-      SEEDED_NAME_VOWELS[Math.floor(partHash / 7) % SEEDED_NAME_VOWELS.length] +
-      SEEDED_NAME_CODAS[Math.floor(partHash / 17) % SEEDED_NAME_CODAS.length];
-  }
+  const onset = SEEDED_NAME_ONSETS[hash % SEEDED_NAME_ONSETS.length].toLowerCase();
+  const vowelA = SEEDED_NAME_VOWELS[Math.floor(hash / 7) % SEEDED_NAME_VOWELS.length];
+  const medial = SEEDED_NAME_MEDIALS[Math.floor(hash / 17) % SEEDED_NAME_MEDIALS.length];
+  const vowelB = SEEDED_NAME_VOWELS[Math.floor(hash / 37) % SEEDED_NAME_VOWELS.length];
+  const coda = SEEDED_NAME_CODAS[Math.floor(hash / 71) % SEEDED_NAME_CODAS.length];
+  const includeSecondVowel = (hash & 1) === 1 || coda.length <= 2;
 
-  return name.charAt(0).toUpperCase() + name.slice(1);
+  let name = `${onset}${vowelA}`;
+  if (includeSecondVowel) {
+    name += `${medial}${vowelB}`;
+  } else if (medial) {
+    name += medial;
+  }
+  name += coda;
+
+  return name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
 }
 
 function isPlaceholderSectorName(value) {
@@ -2161,12 +2167,19 @@ function isPlaceholderSectorName(value) {
   return /^sector\s+-?\d+\s*,\s*-?\d+$/i.test(name);
 }
 
+function isLegacySeededSectorName(value) {
+  const name = String(value || "").trim();
+  if (!name || /\s/.test(name)) return false;
+  return /^[A-Z][a-z]+(?:[A-Z][a-z]+)+$/.test(name);
+}
+
 function ensureSectorNamingMetadata(sector, metadata = {}) {
   const baseMetadata = metadata && typeof metadata === "object" ? { ...metadata } : {};
   const currentDisplayName = String(baseMetadata.displayName || "").trim();
-  const displayName = isPlaceholderSectorName(currentDisplayName)
-    ? buildSeededSectorName(`${sector.sectorId}:sector`)
-    : currentDisplayName;
+  const displayName =
+    isPlaceholderSectorName(currentDisplayName) || isLegacySeededSectorName(currentDisplayName)
+      ? buildSeededSectorName(`${sector.sectorId}:sector`)
+      : currentDisplayName;
   const existingSubsectorNames =
     baseMetadata.subsectorNames && typeof baseMetadata.subsectorNames === "object"
       ? { ...baseMetadata.subsectorNames }
@@ -2174,8 +2187,13 @@ function ensureSectorNamingMetadata(sector, metadata = {}) {
   const subsectorNames = Object.fromEntries(
     SUBSECTOR_LETTERS.map((letter) => [
       letter,
-      String(existingSubsectorNames[letter] || "").trim() ||
-        buildSeededSectorName(`${sector.sectorId}:subsector:${letter}`),
+      (() => {
+        const existingName = String(existingSubsectorNames[letter] || "").trim();
+        if (!existingName || isLegacySeededSectorName(existingName)) {
+          return buildSeededSectorName(`${sector.sectorId}:subsector:${letter}`);
+        }
+        return existingName;
+      })(),
     ]),
   );
 

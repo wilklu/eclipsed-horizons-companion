@@ -4,7 +4,9 @@
       <span class="breadcrumb-current">{{ currentClass }}</span>
     </div>
     <div class="survey-actions">
-      <button v-if="showRegenerate" class="btn btn-secondary" @click="$emit('regenerate')">🔄 Regenerate</button>
+      <button v-if="showRegenerate" class="btn btn-secondary" @click="$emit('regenerate')">
+        {{ regenerateLabel }}
+      </button>
       <button v-if="showExport" class="btn btn-secondary" @click="$emit('export')">📤 Export</button>
       <router-link v-if="backRoute" :to="backRoute" class="btn btn-outline"> ← Back </router-link>
     </div>
@@ -24,6 +26,10 @@ defineProps({
   showRegenerate: {
     type: Boolean,
     default: true,
+  },
+  regenerateLabel: {
+    type: String,
+    default: "🔄 Regenerate",
   },
   showExport: {
     type: Boolean,
