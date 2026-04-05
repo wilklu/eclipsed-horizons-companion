@@ -97,8 +97,8 @@ function normalizeSectorPayload(sector) {
 export async function getSectors(galaxyId) {
   try {
     const sectors = await request(`/galaxies/${encodeURIComponent(galaxyId)}/sectors?limit=10000`);
-    mergeCachedSectors(Array.isArray(sectors) ? sectors : []);
-    return sectorsForGalaxy(Array.isArray(sectors) ? sectors : [], galaxyId).map(normalizeSector);
+    const merged = mergeCachedSectors(Array.isArray(sectors) ? sectors : []);
+    return sectorsForGalaxy(merged, galaxyId).map(normalizeSector);
   } catch {
     return sectorsForGalaxy(loadSectors(), galaxyId).map(normalizeSector);
   }
@@ -115,8 +115,14 @@ export async function getSectorsWindow(galaxyId, { xMin, xMax, yMin, yMax, limit
 
   try {
     const sectors = await request(`/galaxies/${encodeURIComponent(galaxyId)}/sectors?${params.toString()}`);
-    mergeCachedSectors(Array.isArray(sectors) ? sectors : []);
-    return sectorsForGalaxy(Array.isArray(sectors) ? sectors : [], galaxyId).map(normalizeSector);
+    const merged = mergeCachedSectors(Array.isArray(sectors) ? sectors : []);
+    return sectorsForGalaxy(merged, galaxyId)
+      .map(normalizeSector)
+      .filter((sector) => {
+        const x = Number(sector?.coordinates?.x);
+        const y = Number(sector?.coordinates?.y);
+        return Number.isFinite(x) && Number.isFinite(y) && x >= xMin && x <= xMax && y >= yMin && y <= yMax;
+      });
   } catch {
     return sectorsForGalaxy(loadSectors(), galaxyId)
       .map(normalizeSector)

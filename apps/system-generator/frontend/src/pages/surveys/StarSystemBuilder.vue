@@ -18,7 +18,14 @@
           <label>Primary Star Type:</label>
           <select v-model="primarySpectral" class="select-input">
             <option value="random">🎲 Random</option>
-            <option v-for="t in SPECTRAL_TYPES" :key="t.code" :value="t.code">{{ t.code }} — {{ t.label }}</option>
+            <optgroup label="Stars">
+              <option v-for="t in SPECTRAL_TYPES" :key="t.code" :value="t.code">{{ t.code }} — {{ t.label }}</option>
+            </optgroup>
+            <optgroup label="Anomalies">
+              <option v-for="anomaly in ANOMALY_TYPES" :key="anomaly.code" :value="anomaly.code">
+                {{ anomaly.label }}
+              </option>
+            </optgroup>
           </select>
         </div>
         <div class="control-group">
@@ -118,7 +125,16 @@
               </tr>
             </thead>
             <tbody>
-              <tr v-for="(planet, i) in system.planets" :key="i" :class="{ habitable: planet.zone === 'habitable' }">
+              <tr
+                v-for="(planet, i) in system.planets"
+                :key="i"
+                :class="{
+                  habitable: planet.zone === 'habitable',
+                  selectable: isWorldBuilderCandidate(planet),
+                  selected: selectedWorldIndex === i,
+                }"
+                @click="selectWorldCandidate(i)"
+              >
                 <td>{{ i + 1 }}</td>
                 <td>{{ planet.name }}</td>
                 <td>{{ planet.type }}</td>
@@ -133,12 +149,12 @@
 
         <!-- Actions -->
         <div class="action-buttons">
-          <button
-            v-if="system.planets.some((p) => p.zone === 'habitable')"
-            class="btn btn-primary"
-            @click="proceedToWorldBuilder"
-          >
-            🌍 Class II–IV World Builder →
+          <div v-if="selectedWorldCandidate" class="selected-world-chip">
+            Selected world: {{ selectedWorldCandidate.name }} · {{ selectedWorldCandidate.type }} ·
+            {{ selectedWorldCandidate.zone }}
+          </div>
+          <button v-if="selectedWorldCandidate" class="btn btn-primary" @click="proceedToWorldBuilder">
+            🌍 Build Selected World →
           </button>
         </div>
       </div>
@@ -147,7 +163,7 @@
 </template>
 
 <script setup>
-import { onMounted, ref, watch } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import SurveyNavigation from "../../components/common/SurveyNavigation.vue";
 import { useSystemStore } from "../../stores/systemStore.js";
@@ -170,21 +186,76 @@ const SPECTRAL_TYPES = [
   { code: "K", label: "Orange", mass: 0.7, lum: 0.25, temp: 4500 },
   { code: "M", label: "Red dwarf", mass: 0.3, lum: 0.04, temp: 3200 },
 ];
+const ANOMALY_TYPES = [
+  { code: "Black Hole", label: "Black Hole", mass: 12, lum: 0, temp: 0, designation: "BH", orbitRole: "Singularity" },
+  {
+    code: "Pulsar",
+    label: "Pulsar",
+    mass: 1.4,
+    lum: 0.001,
+    temp: 600000,
+    designation: "PSR",
+    orbitRole: "Compact remnant",
+  },
+  {
+    code: "Neutron Star",
+    label: "Neutron Star",
+    mass: 1.8,
+    lum: 0.002,
+    temp: 1000000,
+    designation: "NS",
+    orbitRole: "Compact remnant",
+  },
+  {
+    code: "Quasar Remnant",
+    label: "Quasar Remnant",
+    mass: 5000000,
+    lum: 0.05,
+    temp: 0,
+    designation: "QR",
+    orbitRole: "Remnant core",
+  },
+  {
+    code: "Dense Cluster",
+    label: "Dense Cluster",
+    mass: 250,
+    lum: 15000,
+    temp: 12000,
+    designation: "CL",
+    orbitRole: "Cluster core",
+  },
+];
+const PRIMARY_TYPE_OPTIONS = [...SPECTRAL_TYPES, ...ANOMALY_TYPES];
 
 const PLANET_TYPES = ["Rocky", "Super-Earth", "Gas Giant", "Ice Giant", "Dwarf Planet", "Asteroid Belt"];
 const ORBIT_TYPES = ["Close", "Near", "Far", "Distant"];
 
 // ── State ─────────────────────────────────────────────────────────────────────
 const hexCoord = ref(route.query.hex ?? "0101");
-const primarySpectral = ref(route.query.star?.charAt(0) ?? "random");
+const primarySpectral = ref(normalizePrimarySelection(route.query.star));
 const multiplicity = ref("random");
 const system = ref(null);
+const selectedWorldIndex = ref(null);
 
 function normalizeHex(value) {
   return String(value || "0101")
     .replace(/\D/g, "")
     .padStart(4, "0")
     .slice(0, 4);
+}
+
+function normalizePrimarySelection(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "random";
+
+  const exactMatch = PRIMARY_TYPE_OPTIONS.find((entry) => entry.code.toLowerCase() === raw.toLowerCase());
+  if (exactMatch) {
+    return exactMatch.code;
+  }
+
+  const firstChar = raw.charAt(0).toUpperCase();
+  const spectralMatch = SPECTRAL_TYPES.find((entry) => entry.code === firstChar);
+  return spectralMatch?.code || "random";
 }
 
 function toPersistedSystem(nextSystem) {
@@ -225,6 +296,7 @@ async function hydrateSystem() {
       ...existing,
       systemId: normalizeHex(hexCoord.value),
     };
+    selectedWorldIndex.value = findDefaultWorldIndex(existing.planets);
     systemStore.setCurrentSystem(existing.systemId);
     return;
   }
@@ -255,6 +327,18 @@ function buildStar(spectralEntry, role) {
     luminosity: +(spectralEntry.lum * jitter).toFixed(3),
     temperatureK: Math.round(spectralEntry.temp * jitter),
     orbitType: role !== "primary" ? ORBIT_TYPES[Math.floor(Math.random() * ORBIT_TYPES.length)] : null,
+  };
+}
+
+function buildAnomalyPrimary(anomalyEntry) {
+  return {
+    designation: anomalyEntry.designation,
+    spectralClass: anomalyEntry.code,
+    massInSolarMasses: anomalyEntry.mass,
+    luminosity: anomalyEntry.lum,
+    temperatureK: anomalyEntry.temp,
+    orbitType: anomalyEntry.orbitRole || null,
+    isAnomaly: true,
   };
 }
 
@@ -290,12 +374,44 @@ function buildPlanets(hz) {
   return orbits;
 }
 
+function isWorldBuilderCandidate(planet) {
+  return Boolean(planet);
+}
+
+function findDefaultWorldIndex(planets) {
+  if (!Array.isArray(planets) || !planets.length) return null;
+
+  const habitableIndex = planets.findIndex((planet) => planet.zone === "habitable" && isWorldBuilderCandidate(planet));
+  if (habitableIndex >= 0) return habitableIndex;
+
+  return 0;
+}
+
+function selectWorldCandidate(index) {
+  if (!system.value?.planets?.[index]) {
+    return;
+  }
+  selectedWorldIndex.value = index;
+}
+
+const selectedWorldCandidate = computed(() => {
+  const index = Number(selectedWorldIndex.value);
+  if (!Number.isInteger(index) || index < 0 || !Array.isArray(system.value?.planets)) {
+    return null;
+  }
+  return system.value.planets[index] ?? null;
+});
+
 // ── Actions ───────────────────────────────────────────────────────────────────
 async function buildSystem() {
+  const requestedPrimary = normalizePrimarySelection(primarySpectral.value);
+  primarySpectral.value = requestedPrimary;
+
   const primaryEntry =
-    primarySpectral.value === "random"
+    requestedPrimary === "random"
       ? pickSpectral()
-      : (SPECTRAL_TYPES.find((t) => t.code === primarySpectral.value) ?? pickSpectral());
+      : (PRIMARY_TYPE_OPTIONS.find((entry) => entry.code === requestedPrimary) ?? pickSpectral());
+  const primaryIsAnomaly = ANOMALY_TYPES.some((entry) => entry.code === primaryEntry.code);
 
   let starCount = 1;
   if (multiplicity.value === "binary") starCount = 2;
@@ -305,7 +421,7 @@ async function buildSystem() {
     starCount = r < 0.5 ? 1 : r < 0.8 ? 2 : 3;
   }
 
-  const stars = [buildStar(primaryEntry, "primary")];
+  const stars = [primaryIsAnomaly ? buildAnomalyPrimary(primaryEntry) : buildStar(primaryEntry, "primary")];
   for (let i = 1; i < starCount; i++) {
     stars.push(buildStar(pickSpectral(), "secondary"));
   }
@@ -321,6 +437,7 @@ async function buildSystem() {
   };
 
   system.value = nextSystem;
+  selectedWorldIndex.value = findDefaultWorldIndex(planets);
 
   if (props.galaxyId && props.sectorId) {
     const persisted = toPersistedSystem(nextSystem);
@@ -345,10 +462,19 @@ function exportSystem() {
 }
 
 function proceedToWorldBuilder() {
+  if (!selectedWorldCandidate.value) return;
+
   router.push({
     name: "WorldBuilder",
     params: { systemId: system.value.systemId },
-    query: { star: system.value.stars[0].designation },
+    query: {
+      star: system.value.stars[0].designation,
+      worldName: selectedWorldCandidate.value.name,
+      worldType: selectedWorldCandidate.value.type,
+      orbitAU: String(selectedWorldCandidate.value.orbitAU ?? ""),
+      zone: selectedWorldCandidate.value.zone,
+      worldIndex: String(selectedWorldIndex.value ?? ""),
+    },
   });
 }
 
@@ -358,6 +484,13 @@ watch(
     if (!value) return;
     hexCoord.value = normalizeHex(value);
     await hydrateSystem();
+  },
+);
+
+watch(
+  () => route.query.star,
+  (value) => {
+    primarySpectral.value = normalizePrimarySelection(value);
   },
 );
 
@@ -610,6 +743,19 @@ onMounted(async () => {
   background: rgba(107, 207, 127, 0.07);
 }
 
+.planet-table tr.selectable {
+  cursor: pointer;
+}
+
+.planet-table tr.selectable:hover td {
+  background: rgba(0, 217, 255, 0.08);
+}
+
+.planet-table tr.selected td {
+  background: rgba(0, 217, 255, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(0, 217, 255, 0.35);
+}
+
 .zone-badge {
   padding: 0.2rem 0.5rem;
   border-radius: 0.2rem;
@@ -644,9 +790,21 @@ onMounted(async () => {
 .action-buttons {
   display: flex;
   gap: 1rem;
+  align-items: center;
   flex-wrap: wrap;
   margin-top: 1.5rem;
   padding-top: 1.5rem;
   border-top: 1px solid #333;
+}
+
+.selected-world-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.45rem 0.8rem;
+  border-radius: 999px;
+  background: rgba(0, 217, 255, 0.12);
+  border: 1px solid rgba(0, 217, 255, 0.25);
+  color: #aeefff;
+  font-size: 0.85rem;
 }
 </style>

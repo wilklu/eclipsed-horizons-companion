@@ -17,6 +17,10 @@
             <button class="btn btn-secondary" @click="randomizeName">🎲</button>
           </div>
         </div>
+        <div v-if="selectedSourceWorldLabel" class="control-group control-group--source">
+          <label>Selected System World:</label>
+          <div class="source-world-pill">{{ selectedSourceWorldLabel }}</div>
+        </div>
         <div class="control-group">
           <label>Primary Star Class:</label>
           <select v-model="starClass" class="select-input">
@@ -141,12 +145,8 @@
         </div>
 
         <div class="action-buttons">
-          <button class="btn btn-primary" @click="goToSophontGenerator">
-            🧬 Sophont Generator →
-          </button>
-          <button class="btn btn-primary" @click="goToHistoryGenerator">
-            📜 History Generator →
-          </button>
+          <button class="btn btn-primary" @click="goToSophontGenerator">🧬 Sophont Generator →</button>
+          <button class="btn btn-primary" @click="goToHistoryGenerator">📜 History Generator →</button>
         </div>
       </div>
     </div>
@@ -154,12 +154,13 @@
 </template>
 
 <script setup>
-import { ref } from "vue";
-import { useRouter } from "vue-router";
+import { computed, onMounted, ref, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import SurveyNavigation from "../../components/common/SurveyNavigation.vue";
 
 defineProps({ systemId: { type: String, default: null } });
 const router = useRouter();
+const route = useRoute();
 
 // ── Tables ────────────────────────────────────────────────────────────────────
 const ATMOSPHERE_TABLE = {
@@ -238,14 +239,40 @@ const STARPORT_TABLE = {
 };
 
 const WORLD_NAMES = [
-  "Arrakis", "Hestia", "Lycan", "Varna", "Oxtus", "Theron", "Velan", "Korreth",
-  "Solvaris", "Durath", "Mirela", "Ashford", "Phaedra", "Calyx", "Numeria",
+  "Arrakis",
+  "Hestia",
+  "Lycan",
+  "Varna",
+  "Oxtus",
+  "Theron",
+  "Velan",
+  "Korreth",
+  "Solvaris",
+  "Durath",
+  "Mirela",
+  "Ashford",
+  "Phaedra",
+  "Calyx",
+  "Numeria",
 ];
 
 // ── State ─────────────────────────────────────────────────────────────────────
 const worldName = ref("");
 const starClass = ref("random");
 const world = ref(null);
+const sourceWorldType = ref("");
+const sourceOrbitAU = ref("");
+const sourceZone = ref("");
+const sourceWorldIndex = ref("");
+
+const selectedSourceWorldLabel = computed(() => {
+  const name = String(worldName.value || "").trim();
+  const type = String(sourceWorldType.value || "").trim();
+  const orbit = String(sourceOrbitAU.value || "").trim();
+  const zone = String(sourceZone.value || "").trim();
+  const parts = [name, type, orbit ? `${orbit} AU` : "", zone].filter(Boolean);
+  return parts.join(" · ");
+});
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function d6(n = 2) {
@@ -274,6 +301,23 @@ function formatPop(pop) {
 
 const STAR_TEMP_MOD = { O: +4, B: +3, A: +2, F: +1, G: 0, K: -1, M: -2 };
 
+function normalizeIncomingStarClass(value) {
+  const firstChar = String(value || "")
+    .trim()
+    .charAt(0)
+    .toUpperCase();
+  return STAR_TEMP_MOD[firstChar] !== undefined ? firstChar : "random";
+}
+
+function applyRouteWorldContext() {
+  worldName.value = String(route.query.worldName || "").trim();
+  starClass.value = normalizeIncomingStarClass(route.query.star);
+  sourceWorldType.value = String(route.query.worldType || "").trim();
+  sourceOrbitAU.value = String(route.query.orbitAU || "").trim();
+  sourceZone.value = String(route.query.zone || "").trim();
+  sourceWorldIndex.value = String(route.query.worldIndex || "").trim();
+}
+
 // ── Actions ───────────────────────────────────────────────────────────────────
 function randomizeName() {
   worldName.value = WORLD_NAMES[Math.floor(Math.random() * WORLD_NAMES.length)];
@@ -291,8 +335,7 @@ function generateWorld() {
   const atmoRaw = clamp(d6() - 7 + size, 0, 15);
   const atmosphereCode = atmoRaw;
   const atmosphereDesc = ATMOSPHERE_TABLE[atmoRaw] ?? "Unusual";
-  const hydrographics =
-    atmoRaw === 0 || atmoRaw === 1 ? 0 : clamp(d6() - 7 + atmoRaw, 0, 10);
+  const hydrographics = atmoRaw === 0 || atmoRaw === 1 ? 0 : clamp(d6() - 7 + atmoRaw, 0, 10);
 
   const popCode = clamp(d6() - 2, 0, 12);
   const population = popCode === 0 ? 0 : Math.round(Math.pow(10, popCode) * (0.5 + Math.random()));
@@ -303,8 +346,17 @@ function generateWorld() {
 
   const starportRoll = d6();
   const starportCode =
-    starportRoll <= 2 ? "X" : starportRoll <= 4 ? "E" : starportRoll <= 6 ? "D" :
-    starportRoll <= 8 ? "C" : starportRoll <= 10 ? "B" : "A";
+    starportRoll <= 2
+      ? "X"
+      : starportRoll <= 4
+        ? "E"
+        : starportRoll <= 6
+          ? "D"
+          : starportRoll <= 8
+            ? "C"
+            : starportRoll <= 10
+              ? "B"
+              : "A";
 
   let techBase = d6(1);
   if (starportCode === "A") techBase += 6;
@@ -321,7 +373,8 @@ function generateWorld() {
 
   // Trade codes
   const tradeCodes = [];
-  if (atmoRaw >= 4 && atmoRaw <= 9 && hydrographics >= 4 && hydrographics <= 8 && popCode >= 5 && popCode <= 7) tradeCodes.push("Ag");
+  if (atmoRaw >= 4 && atmoRaw <= 9 && hydrographics >= 4 && hydrographics <= 8 && popCode >= 5 && popCode <= 7)
+    tradeCodes.push("Ag");
   if (size === 0 && atmoRaw === 0 && hydrographics === 0) tradeCodes.push("As");
   if (popCode === 0 && governmentCode === 0 && lawLevel === 0) tradeCodes.push("Ba");
   if (atmoRaw >= 2 && hydrographics === 0) tradeCodes.push("De");
@@ -336,18 +389,26 @@ function generateWorld() {
   if (atmoRaw <= 3 && hydrographics <= 3 && popCode >= 6) tradeCodes.push("Na");
   if (popCode >= 4 && popCode <= 6) tradeCodes.push("Ni");
   if (atmoRaw >= 2 && atmoRaw <= 5 && hydrographics <= 3) tradeCodes.push("Po");
-  if ((atmoRaw === 6 || atmoRaw === 8) && popCode >= 6 && governmentCode >= 4 && governmentCode <= 9) tradeCodes.push("Ri");
+  if ((atmoRaw === 6 || atmoRaw === 8) && popCode >= 6 && governmentCode >= 4 && governmentCode <= 9)
+    tradeCodes.push("Ri");
   if (hydrographics >= 10) tradeCodes.push("Wa");
   if (atmoRaw === 0) tradeCodes.push("Va");
 
   const diameterKm = size === 0 ? 800 : size * 1600;
   const gravity = +(size * 0.1 + 0.05).toFixed(2);
 
-  const baseTemp = 15 + tempMod * 15 + (atmoRaw >= 6 ? 20 : 0) - (hydrographics * 2);
+  const baseTemp = 15 + tempMod * 15 + (atmoRaw >= 6 ? 20 : 0) - hydrographics * 2;
   const avgTempC = Math.round(baseTemp);
   const tempCategory =
-    avgTempC < -50 ? "Frozen" : avgTempC < 0 ? "Cold" : avgTempC < 30 ? "Temperate" :
-    avgTempC < 60 ? "Hot" : "Scorching";
+    avgTempC < -50
+      ? "Frozen"
+      : avgTempC < 0
+        ? "Cold"
+        : avgTempC < 30
+          ? "Temperate"
+          : avgTempC < 60
+            ? "Hot"
+            : "Scorching";
 
   const uwp = `${starportCode}${toHex(size)}${toHex(atmosphereCode)}${toHex(hydrographics)}${toHex(popCode)}${toHex(governmentCode)}${toHex(lawLevel)}-${toHex(techLevel)}`;
 
@@ -407,6 +468,21 @@ function goToSophontGenerator() {
 function goToHistoryGenerator() {
   router.push({ name: "HistoryGenerator" });
 }
+
+watch(
+  () => route.query,
+  () => {
+    applyRouteWorldContext();
+  },
+  { deep: true },
+);
+
+onMounted(() => {
+  applyRouteWorldContext();
+  if (worldName.value || starClass.value !== "random") {
+    generateWorld();
+  }
+});
 </script>
 
 <style scoped>
@@ -438,13 +514,19 @@ function goToHistoryGenerator() {
   min-width: 200px;
 }
 
+.control-group--source {
+  min-width: 280px;
+}
+
 .control-group label {
   color: #00ffff;
   font-weight: bold;
   font-size: 0.9rem;
 }
 
-.control-action { justify-content: flex-end; }
+.control-action {
+  justify-content: flex-end;
+}
 
 .select-input,
 .text-input {
@@ -456,8 +538,13 @@ function goToHistoryGenerator() {
   font-size: 0.9rem;
 }
 
-.name-row { display: flex; gap: 0.5rem; }
-.name-row .text-input { flex: 1; }
+.name-row {
+  display: flex;
+  gap: 0.5rem;
+}
+.name-row .text-input {
+  flex: 1;
+}
 
 .btn {
   padding: 0.6rem 1.25rem;
@@ -469,10 +556,33 @@ function goToHistoryGenerator() {
   transition: all 0.2s;
 }
 
-.btn-primary { background: #00d9ff; color: #000; }
-.btn-primary:hover { background: #00ffff; box-shadow: 0 0 12px rgba(0, 217, 255, 0.4); }
-.btn-secondary { background: #444; color: #e0e0e0; }
-.btn-secondary:hover { background: #555; }
+.btn-primary {
+  background: #00d9ff;
+  color: #000;
+}
+.btn-primary:hover {
+  background: #00ffff;
+  box-shadow: 0 0 12px rgba(0, 217, 255, 0.4);
+}
+
+.source-world-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 42px;
+  padding: 0.6rem 0.85rem;
+  border-radius: 0.35rem;
+  border: 1px solid rgba(0, 217, 255, 0.24);
+  background: rgba(0, 217, 255, 0.1);
+  color: #baf3ff;
+  font-size: 0.9rem;
+}
+.btn-secondary {
+  background: #444;
+  color: #e0e0e0;
+}
+.btn-secondary:hover {
+  background: #555;
+}
 
 /* World display */
 .world-display {
@@ -491,12 +601,24 @@ function goToHistoryGenerator() {
   border-bottom: 1px solid #333;
 }
 
-.world-icon { font-size: 3rem; }
+.world-icon {
+  font-size: 3rem;
+}
 
-.world-header h2 { color: #00d9ff; margin: 0 0 0.5rem; }
+.world-header h2 {
+  color: #00d9ff;
+  margin: 0 0 0.5rem;
+}
 
-.uwp-display { display: flex; align-items: center; gap: 1rem; }
-.uwp-label { color: #888; font-size: 0.85rem; }
+.uwp-display {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+.uwp-label {
+  color: #888;
+  font-size: 0.85rem;
+}
 .uwp-code {
   font-family: monospace;
   font-size: 1.2rem;
@@ -519,14 +641,38 @@ function goToHistoryGenerator() {
   padding: 1.25rem;
 }
 
-.world-section h3 { color: #00ffff; margin-bottom: 1rem; }
+.world-section h3 {
+  color: #00ffff;
+  margin-bottom: 1rem;
+}
 
-.prop-list { display: flex; flex-direction: column; gap: 0.5rem; }
-.prop-row { display: flex; gap: 0.75rem; font-size: 0.9rem; padding: 0.3rem 0; border-bottom: 1px solid #1a1a3a; }
-.prop-label { color: #00ffff; min-width: 150px; font-weight: bold; }
-.prop-value { color: #e0e0e0; font-family: monospace; }
+.prop-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.prop-row {
+  display: flex;
+  gap: 0.75rem;
+  font-size: 0.9rem;
+  padding: 0.3rem 0;
+  border-bottom: 1px solid #1a1a3a;
+}
+.prop-label {
+  color: #00ffff;
+  min-width: 150px;
+  font-weight: bold;
+}
+.prop-value {
+  color: #e0e0e0;
+  font-family: monospace;
+}
 
-.trade-codes { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.trade-codes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
 .trade-badge {
   background: rgba(0, 217, 255, 0.15);
   color: #00d9ff;
@@ -538,7 +684,11 @@ function goToHistoryGenerator() {
   font-family: monospace;
 }
 
-.empty-state { color: #555; font-style: italic; padding: 0.5rem 0; }
+.empty-state {
+  color: #555;
+  font-style: italic;
+  padding: 0.5rem 0;
+}
 
 .action-buttons {
   display: flex;

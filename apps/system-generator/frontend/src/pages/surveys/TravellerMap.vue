@@ -486,6 +486,43 @@
             </div>
           </div>
 
+          <div class="detail-grid detail-grid--system">
+            <div class="dr">
+              <span class="dl">Survey</span><span class="dv">{{ inspectorData.surveyStatus }}</span>
+            </div>
+            <div class="dr">
+              <span class="dl">UWP</span><span class="dv dv--mono">{{ inspectorData.uwp }}</span>
+            </div>
+            <div class="dr">
+              <span class="dl">Starport</span><span class="dv">{{ inspectorData.starport }}</span>
+            </div>
+            <div class="dr">
+              <span class="dl">Gas Giants</span><span class="dv">{{ inspectorData.gasGiants }}</span>
+            </div>
+            <div class="dr">
+              <span class="dl">Bases</span
+              ><span class="dv">{{ inspectorData.bases?.length ? inspectorData.bases.join(", ") : "—" }}</span>
+            </div>
+            <div class="dr">
+              <span class="dl">Importance</span><span class="dv">{{ inspectorData.importance }}</span>
+            </div>
+            <div class="dr">
+              <span class="dl">Travel Zone</span><span class="dv">{{ inspectorData.travelZone }}</span>
+            </div>
+          </div>
+
+          <div v-if="inspectorData.bases?.length" class="base-code-strip">
+            <span v-for="base in inspectorData.bases" :key="base" class="base-code-chip">{{ base }}</span>
+          </div>
+
+          <div v-if="inspectorData.tradeCodes?.length" class="trade-code-strip">
+            <span v-for="code in inspectorData.tradeCodes" :key="code" class="trade-code-chip">{{ code }}</span>
+          </div>
+          <p v-else-if="!inspectorData.hasSavedSystem" class="inspector-note">
+            Generate or save a system survey to populate UWP, starport, bases, importance, gas giants, and trade codes
+            here.
+          </p>
+
           <!-- Orbital diagram -->
           <div class="orbital-section">
             <div class="orbital-header">
@@ -556,6 +593,7 @@ import * as sectorApi from "../../api/sectorApi.js";
 import { useGalaxyStore } from "../../stores/galaxyStore.js";
 import { usePreferencesStore } from "../../stores/preferencesStore.js";
 import { useSectorStore } from "../../stores/sectorStore.js";
+import { useSystemStore } from "../../stores/systemStore.js";
 import { generatePrimaryStar } from "../../utils/primaryStarGenerator.js";
 import { calculateHexOccupancyProbability } from "../../utils/sectorGeneration.js";
 import * as toastService from "../../utils/toast.js";
@@ -564,8 +602,18 @@ const router = useRouter();
 const galaxyStore = useGalaxyStore();
 const preferencesStore = usePreferencesStore();
 const sectorStore = useSectorStore();
+const systemStore = useSystemStore();
 const ALL_GALAXIES_VALUE = "__ALL_GALAXIES__";
 const PREFERENCES_STORAGE_KEY = "eclipsed-horizons-preferences";
+const SYSTEMS_STORAGE_KEY = "eclipsed-horizons-systems";
+const STARPORT_LABELS = Object.freeze({
+  A: "Excellent",
+  B: "Good",
+  C: "Routine",
+  D: "Poor",
+  E: "Frontier",
+  X: "No starport",
+});
 
 // ── Hex geometry constants (flat-top) ──────────────────────────────────────
 const HEX_R = 22;
@@ -645,6 +693,12 @@ const HIERARCHY_LEVELS = Object.freeze([
     label: "Orbital",
     description: "Orbital context (opens System Survey for full orbital simulation)",
     parsecsPerHex: 1,
+  },
+  {
+    id: "deep-detail",
+    label: "Deep Detail",
+    description: "Deep detail zoom for local system context",
+    parsecsPerHex: 0.1,
   },
 ]);
 
@@ -973,7 +1027,8 @@ const galaxyDots = computed(() =>
 );
 
 const sectorLabelVisible = computed(
-  () => !dragging.value && parsecsPerHex.value <= 10 && visibleSectorTiles.value.length <= 80,
+  () =>
+    !dragging.value && parsecsPerHex.value <= 10 && parsecsPerHex.value > 1 && visibleSectorTiles.value.length <= 80,
 );
 const sectorLabelSize = computed(() => Math.min(SECTOR_PX_H * (parsecsPerHex.value > 40 ? 0.12 : 0.07), 180));
 const showSectorBorders = computed(() => parsecsPerHex.value <= 100);
@@ -1287,6 +1342,264 @@ const travelZoneHexes = computed(() => []);
 // ── Inspector computed ─────────────────────────────────────────────────────
 const inspectorVisible = computed(() => inspectorMode.value !== null);
 
+function loadPersistedSystemsSnapshot() {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(SYSTEMS_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function firstNonEmptyString(...values) {
+  for (const value of values) {
+    const text = String(value ?? "").trim();
+    if (text) return text;
+  }
+  return "";
+}
+
+function normalizeTradeCodes(value) {
+  if (Array.isArray(value)) {
+    return value.map((entry) => String(entry ?? "").trim()).filter(Boolean);
+  }
+  const text = String(value ?? "").trim();
+  if (!text) return [];
+  return text
+    .split(/[\s,;/]+/)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+function toFiniteNumber(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function isTruthySurveyValue(value) {
+  const text = String(value ?? "")
+    .trim()
+    .toLowerCase();
+  return Boolean(text) && !["none", "no", "false", "0", "n", "na", "n/a"].includes(text);
+}
+
+function splitSurveyList(value) {
+  if (Array.isArray(value)) {
+    return value.map((entry) => String(entry ?? "").trim()).filter(Boolean);
+  }
+  const text = String(value ?? "").trim();
+  if (!text) return [];
+  return text
+    .split(/[;,/|]+/)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+function extractStarportCode(...sources) {
+  for (const source of sources) {
+    if (!source) continue;
+    if (typeof source === "string") {
+      const code = source.trim().charAt(0).toUpperCase();
+      if (/^[A-EX]$/.test(code)) {
+        return code;
+      }
+      continue;
+    }
+    if (typeof source === "object") {
+      const code = String(source.class ?? source.code ?? "")
+        .trim()
+        .charAt(0)
+        .toUpperCase();
+      if (/^[A-EX]$/.test(code)) {
+        return code;
+      }
+    }
+  }
+  return "";
+}
+
+function extractBaseSummary(...sources) {
+  const bases = [];
+  for (const source of sources) {
+    if (!source) continue;
+    if (Array.isArray(source)) {
+      bases.push(...source.map((entry) => String(entry ?? "").trim()).filter(Boolean));
+      continue;
+    }
+    if (typeof source === "string") {
+      bases.push(...splitSurveyList(source));
+      continue;
+    }
+    if (typeof source === "object") {
+      if (isTruthySurveyValue(source.navy)) bases.push("Navy");
+      if (isTruthySurveyValue(source.scout)) bases.push("Scout");
+      if (isTruthySurveyValue(source.military)) bases.push("Military");
+      if (isTruthySurveyValue(source.corsair)) bases.push("Corsair");
+      if (isTruthySurveyValue(source.pirate)) bases.push("Pirate");
+      if (isTruthySurveyValue(source.research)) bases.push("Research");
+      if (isTruthySurveyValue(source.highport)) bases.push("Highport");
+      if (isTruthySurveyValue(source.other)) bases.push(...splitSurveyList(source.other));
+      if (Array.isArray(source.bases)) bases.push(...source.bases.map((entry) => String(entry ?? "").trim()));
+    }
+  }
+  return Array.from(new Set(bases.filter(Boolean)));
+}
+
+function inferStarportCode(uwp) {
+  const code = String(uwp ?? "")
+    .trim()
+    .charAt(0)
+    .toUpperCase();
+  return /^[A-EX]$/.test(code) ? code : "";
+}
+
+function formatStarport(code) {
+  const normalized = String(code ?? "")
+    .trim()
+    .charAt(0)
+    .toUpperCase();
+  if (!normalized) return "—";
+  return STARPORT_LABELS[normalized] ? `${normalized} — ${STARPORT_LABELS[normalized]}` : normalized;
+}
+
+function countGasGiantsFromBodies(bodies) {
+  if (!Array.isArray(bodies)) return null;
+  const matches = bodies.filter((body) => {
+    const type = String(body?.type ?? body?.designation ?? "").toLowerCase();
+    return type.includes("gas giant") || type === "gg";
+  }).length;
+  return matches > 0 ? matches : null;
+}
+
+const atlasSystemRecords = computed(() => {
+  const merged = new Map();
+  for (const system of loadPersistedSystemsSnapshot()) {
+    if (system?.systemId) {
+      merged.set(String(system.systemId), system);
+    }
+  }
+  for (const system of Array.isArray(systemStore.systems) ? systemStore.systems : []) {
+    if (system?.systemId) {
+      merged.set(String(system.systemId), system);
+    }
+  }
+  return Array.from(merged.values());
+});
+
+function findSystemRecordForStar(star) {
+  if (!star) return null;
+  const hexX = Number(String(star.coord ?? "").slice(0, 2));
+  const hexY = Number(String(star.coord ?? "").slice(2, 4));
+  if (!Number.isFinite(hexX) || !Number.isFinite(hexY)) return null;
+
+  return (
+    atlasSystemRecords.value.find(
+      (system) =>
+        String(system?.galaxyId ?? "") === String(star.galaxyId ?? "") &&
+        String(system?.sectorId ?? "") === String(star.sectorId ?? "") &&
+        Number(system?.hexCoordinates?.x) === hexX &&
+        Number(system?.hexCoordinates?.y) === hexY,
+    ) ?? null
+  );
+}
+
+function summarizeSystemRecord(system) {
+  if (!system) {
+    return {
+      hasSavedSystem: false,
+      systemName: "",
+      uwp: "—",
+      starport: "—",
+      bases: [],
+      gasGiants: "—",
+      importance: "—",
+      travelZone: "—",
+      tradeCodes: [],
+      surveyStatus: "Stellar data only",
+    };
+  }
+
+  const profiles = system?.profiles ?? {};
+  const metadata = system?.metadata ?? {};
+  const worlds = Array.isArray(system?.worlds) ? system.worlds : [];
+  const planets = Array.isArray(system?.planets) ? system.planets : [];
+  const mainworld =
+    system?.mainworld ??
+    system?.world ??
+    metadata?.mainworld ??
+    worlds.find((world) => firstNonEmptyString(world?.uwp, world?.starport, world?.name));
+
+  const uwp = firstNonEmptyString(system?.mainworldUwp, profiles?.mainworldUwp, mainworld?.uwp, mainworld?.sah_uwp);
+  const starportCode = extractStarportCode(
+    system?.starport,
+    profiles?.starport,
+    system?.starport?.class,
+    profiles?.starport?.class,
+    mainworld?.starport,
+    mainworld?.starport?.class,
+    inferStarportCode(uwp),
+  );
+  const bases = extractBaseSummary(
+    system?.bases,
+    system?.starport,
+    profiles?.starport,
+    system?.metadata?.bases,
+    mainworld?.starport,
+    mainworld?.bases,
+  );
+  const gasGiantCount =
+    toFiniteNumber(system?.gasGiants) ??
+    toFiniteNumber(system?.objectCounts?.gasGiants) ??
+    toFiniteNumber(metadata?.gasGiants) ??
+    countGasGiantsFromBodies(planets) ??
+    countGasGiantsFromBodies(worlds);
+  const importance = firstNonEmptyString(
+    system?.importance,
+    profiles?.importance,
+    system?.economics?.importance,
+    metadata?.importance,
+    mainworld?.economics?.importance,
+    mainworld?.importance,
+  );
+  const tradeCodes = normalizeTradeCodes(system?.tradeCodes || profiles?.tradeCodes || mainworld?.tradeCodes);
+  const travelZone = firstNonEmptyString(
+    system?.travelZone,
+    profiles?.travelZone,
+    mainworld?.travelZone,
+    metadata?.travelZone,
+  );
+  const systemName = firstNonEmptyString(
+    system?.name,
+    system?.systemDesignation,
+    profiles?.systemDesignation,
+    mainworld?.name,
+  );
+
+  let surveyStatus = "System record saved";
+  if (uwp || tradeCodes.length || starportCode || travelZone || gasGiantCount !== null || bases.length || importance) {
+    surveyStatus = "Survey summary available";
+  } else if (Array.isArray(system?.stars) && system.stars.length) {
+    surveyStatus = "Stellar layout saved";
+  }
+
+  return {
+    hasSavedSystem: true,
+    systemName,
+    uwp: uwp || "—",
+    starport: formatStarport(starportCode),
+    bases,
+    gasGiants: gasGiantCount === null ? "—" : String(gasGiantCount),
+    importance: importance || "—",
+    travelZone: travelZone || "—",
+    tradeCodes,
+    surveyStatus,
+  };
+}
+
+const inspectorSystemSummary = computed(() => summarizeSystemRecord(findSystemRecordForStar(inspectorStar.value)));
+
 const inspectorData = computed(() => {
   if (inspectorMode.value === "sector" && inspectorSector.value) {
     const s = inspectorSector.value;
@@ -1313,14 +1626,24 @@ const inspectorData = computed(() => {
   }
   if (inspectorMode.value === "star" && inspectorStar.value) {
     const star = inspectorStar.value;
+    const systemSummary = inspectorSystemSummary.value;
     return {
-      name: star.starType !== "?" ? `${star.starType} Star` : `System ${star.coord}`,
+      name: systemSummary.systemName || (star.starType !== "?" ? `${star.starType} Star` : `System ${star.coord}`),
       coord: star.coord,
       sectorName: star.sectorName,
       starType: star.starType,
       color: star.color,
       compColor: star.compColor,
       hasSecondary: star.hasSecondary,
+      uwp: systemSummary.uwp,
+      starport: systemSummary.starport,
+      bases: systemSummary.bases,
+      gasGiants: systemSummary.gasGiants,
+      importance: systemSummary.importance,
+      travelZone: systemSummary.travelZone,
+      tradeCodes: systemSummary.tradeCodes,
+      surveyStatus: systemSummary.surveyStatus,
+      hasSavedSystem: systemSummary.hasSavedSystem,
     };
   }
   return {};
@@ -2884,6 +3207,11 @@ watch(
   color: #d0e8ff;
 }
 
+.dv--mono {
+  font-family: "Consolas", "SFMono-Regular", "Liberation Mono", monospace;
+  letter-spacing: 0.04em;
+}
+
 .inspector-actions {
   margin-top: 0.75rem;
   display: flex;
@@ -2913,6 +3241,59 @@ watch(
   font-size: 0.73rem;
   color: #a08860;
   margin-top: 0.12rem;
+}
+
+.detail-grid--system {
+  margin-bottom: 0.7rem;
+}
+
+.trade-code-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.75rem;
+}
+
+.base-code-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.5rem;
+}
+
+.trade-code-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.45rem;
+  padding: 0.08rem 0.45rem;
+  border-radius: 999px;
+  background: rgba(70, 130, 210, 0.2);
+  border: 1px solid rgba(120, 190, 255, 0.24);
+  color: #bfe3ff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.base-code-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.45rem;
+  padding: 0.08rem 0.45rem;
+  border-radius: 999px;
+  background: rgba(214, 155, 66, 0.18);
+  border: 1px solid rgba(237, 190, 108, 0.24);
+  color: #f0d49a;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.inspector-note {
+  margin: 0 0 0.75rem;
+  color: #88a7c9;
+  font-size: 0.73rem;
+  line-height: 1.45;
 }
 
 /* ── Orbital diagram ──────────────────────────────────────────────────────── */

@@ -310,7 +310,7 @@ import { useSystemStore } from "../../stores/systemStore.js";
 import * as toastService from "../../utils/toast.js";
 import { generatePrimaryStar } from "../../utils/primaryStarGenerator.js";
 import * as galaxyApi from "../../api/galaxyApi.js";
-import { createSectorsBatch } from "../../api/sectorApi.js";
+import * as sectorApi from "../../api/sectorApi.js";
 import { calculateHexOccupancyProbability, pickCentralAnomalyType } from "../../utils/sectorGeneration.js";
 import { generatePhonotacticName } from "../../utils/nameGenerator.js";
 import { generateGalaxySectorLayout } from "../../utils/sectorLayoutGenerator.js";
@@ -370,6 +370,17 @@ watch(
   () => generatedSector.value?.name,
   () => {
     stopSectorNameSpeech();
+  },
+);
+
+watch(
+  () => [route.query.sectorId, route.query.gridX, route.query.gridY, route.query.sectorName, route.query.from],
+  async () => {
+    if (!props.galaxyId) {
+      return;
+    }
+    stopSectorNameSpeech();
+    await initializeSectorSelection(props.galaxyId);
   },
 );
 
@@ -1178,12 +1189,22 @@ async function loadPersistedSector(sectorId, showToast = false) {
     return;
   }
 
+  selectedSectorId.value = sectorId;
+
   loadingMode.value = "load";
   isLoading.value = true;
 
   try {
     await systemStore.loadSystems(props.galaxyId, sectorId);
-    const sector = sectorStore.sectors.find((entry) => entry.sectorId === sectorId);
+    let sector = sectorStore.sectors.find((entry) => entry.sectorId === sectorId);
+
+    if (!sector) {
+      try {
+        sector = await sectorApi.getSector(sectorId);
+      } catch {
+        sector = null;
+      }
+    }
 
     if (!sector) {
       toastService.error("Selected sector could not be found.");
@@ -1197,25 +1218,29 @@ async function loadPersistedSector(sectorId, showToast = false) {
     // These hexes have a stellar object recorded but no full system record yet.
     // If hexStarTypes has a starType for the coord the hex has been surveyed to star-type level
     // (★); otherwise it is a raw presence marker only (◦).
-    const presenceCoords = new Set(Array.isArray(sector?.metadata?.occupiedHexes) ? sector.metadata.occupiedHexes : []);
     const hexStarTypes = sector?.metadata?.hexStarTypes ?? {};
+    const presenceCoords = new Set([
+      ...(Array.isArray(sector?.metadata?.occupiedHexes) ? sector.metadata.occupiedHexes : []),
+      ...Object.keys(hexStarTypes),
+    ]);
     const hexes = baseHexes.map((hex) => {
-      if (!hex.hasSystem && presenceCoords.has(hex.coord)) {
-        const saved = hexStarTypes[hex.coord];
-        const starType = saved?.starType ?? hex.starType;
-        return {
-          ...hex,
-          hasSystem: true,
-          // presenceOnly only remains true when there is no star type yet (raw presence marker).
-          // Once a star type is known the hex graduates to a full ★ display.
-          presenceOnly: !starType,
-          starType,
-          starClass: saved?.starClass ?? hex.starClass,
-          secondaryStars: saved?.secondaryStars ?? [],
-          anomalyType: saved?.anomalyType ?? null,
-        };
+      const saved = hexStarTypes[hex.coord];
+      if (!saved && !presenceCoords.has(hex.coord)) {
+        return hex;
       }
-      return hex;
+
+      const starType = saved?.starType ?? hex.starType;
+      return {
+        ...hex,
+        hasSystem: true,
+        // presenceOnly only remains true when there is no star type yet (raw presence marker).
+        // Once a star type is known the hex graduates to a full ★ display.
+        presenceOnly: !starType,
+        starType,
+        starClass: saved?.starClass ?? hex.starClass,
+        secondaryStars: saved?.secondaryStars ?? hex.secondaryStars ?? [],
+        anomalyType: saved?.anomalyType ?? hex.anomalyType ?? null,
+      };
     });
     const systemCount = hexes.filter((h) => h.hasSystem).length;
 
@@ -1414,7 +1439,7 @@ async function mapGalaxySectors() {
 
     const chunkSize = 1000;
     for (let i = 0; i < sectors.length; i += chunkSize) {
-      await createSectorsBatch(sectors.slice(i, i + chunkSize));
+      await sectorApi.createSectorsBatch(sectors.slice(i, i + chunkSize));
     }
 
     await sectorStore.loadSectors(props.galaxyId);
