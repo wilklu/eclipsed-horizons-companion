@@ -1365,24 +1365,88 @@ const visibleSectorTiles = computed(() => {
   return tiles;
 });
 
-// ── Star markers (from sector metadata — no system records needed) ─────────
+// ── Star markers (prefer persisted system records, fall back to sector metadata) ──
 const allStarMarkers = computed(() => {
   if (!starDataEnabled.value) return [];
   const markers = [];
+  const markerByKey = new Map();
+  const tileBySectorId = new Map(visibleSectorTiles.value.map((tile) => [String(tile.sectorId), tile]));
+
+  for (const system of atlasSystemRecords.value) {
+    const sectorId = String(system?.sectorId || "");
+    const tile = tileBySectorId.get(sectorId);
+    if (!tile) continue;
+
+    const x = Number(system?.hexCoordinates?.x);
+    const y = Number(system?.hexCoordinates?.y);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+
+    const coord = `${String(Math.trunc(x)).padStart(2, "0")}${String(Math.trunc(y)).padStart(2, "0")}`;
+    const key = `${tile.sectorId}:${coord}`;
+    const { wx, wy } = hexWorldCenter(tile.sx, tile.sy, Math.trunc(x), Math.trunc(y));
+    const generatedStars = Array.isArray(system?.metadata?.generatedSurvey?.stars)
+      ? system.metadata.generatedSurvey.stars
+      : [];
+    const generatedPrimary = generatedStars[0] ?? null;
+    const starType = String(
+      generatedPrimary?.designation ||
+        generatedPrimary?.spectralType ||
+        generatedPrimary?.spectralClass ||
+        system?.primaryStar?.spectralClass ||
+        tile.sector?.metadata?.hexStarTypes?.[coord]?.starType ||
+        "G2V",
+    );
+    const secondaryStars =
+      generatedStars.length > 1
+        ? generatedStars
+            .slice(1)
+            .map((star) => String(star?.designation || star?.spectralType || star?.spectralClass || "").trim())
+            .filter(Boolean)
+        : Array.isArray(system?.companionStars)
+          ? system.companionStars.map((star) => String(star?.spectralClass || "").trim()).filter(Boolean)
+          : [];
+    const starClass =
+      String(tile.sector?.metadata?.hexStarTypes?.[coord]?.starClass || "").trim() || starTypeToCssClass(starType);
+
+    const marker = {
+      key,
+      galaxyId: tile.sector?.galaxyId,
+      sectorId: tile.sectorId,
+      sectorName: tile.name,
+      coord,
+      wx,
+      wy,
+      starType,
+      starClass,
+      color: starTypeToColor(starType, starClass),
+      compColor: starTypeToColor(secondaryStars[0] || "M", ""),
+      hasSecondary: secondaryStars.length > 0,
+      presenceOnly: false,
+      name: "",
+    };
+    markerByKey.set(key, marker);
+    markers.push(marker);
+  }
+
   for (const tile of visibleSectorTiles.value) {
     const hexStarTypes = tile.sector?.metadata?.hexStarTypes ?? {};
     const occupiedHexes = tile.sector?.metadata?.occupiedHexes ?? [];
     const typedCoords = new Set();
 
     for (const [coord, info] of Object.entries(hexStarTypes)) {
+      const key = `${tile.sectorId}:${coord}`;
+      if (markerByKey.has(key)) {
+        typedCoords.add(coord);
+        continue;
+      }
       const hcol = parseInt(coord.slice(0, 2), 10);
       const hrow = parseInt(coord.slice(2, 4), 10);
       if (!Number.isFinite(hcol) || !Number.isFinite(hrow)) continue;
       const { wx, wy } = hexWorldCenter(tile.sx, tile.sy, hcol, hrow);
       const starType = String(info.starType || "G2");
       typedCoords.add(coord);
-      markers.push({
-        key: `${tile.sectorId}:${coord}`,
+      const marker = {
+        key,
         galaxyId: tile.sector?.galaxyId,
         sectorId: tile.sectorId,
         sectorName: tile.name,
@@ -1396,18 +1460,22 @@ const allStarMarkers = computed(() => {
         hasSecondary: (info.secondaryStars?.length ?? 0) > 0,
         presenceOnly: false,
         name: "",
-      });
+      };
+      markerByKey.set(key, marker);
+      markers.push(marker);
     }
 
     // Presence-only hexes (from "Generate All Sectors" without star types)
     for (const coord of occupiedHexes) {
       if (typedCoords.has(coord)) continue;
+      const key = `${tile.sectorId}:${coord}`;
+      if (markerByKey.has(key)) continue;
       const hcol = parseInt(coord.slice(0, 2), 10);
       const hrow = parseInt(coord.slice(2, 4), 10);
       if (!Number.isFinite(hcol) || !Number.isFinite(hrow)) continue;
       const { wx, wy } = hexWorldCenter(tile.sx, tile.sy, hcol, hrow);
-      markers.push({
-        key: `${tile.sectorId}:${coord}`,
+      const marker = {
+        key,
         galaxyId: tile.sector?.galaxyId,
         sectorId: tile.sectorId,
         sectorName: tile.name,
@@ -1421,7 +1489,9 @@ const allStarMarkers = computed(() => {
         hasSecondary: false,
         presenceOnly: true,
         name: "",
-      });
+      };
+      markerByKey.set(key, marker);
+      markers.push(marker);
     }
   }
   return markers;
@@ -2074,6 +2144,21 @@ function starTypeToColor(starType, starClass) {
   return "#ffd575";
 }
 
+function starTypeToCssClass(starType, starClass) {
+  const s = String(starClass || starType || "G")
+    .trim()
+    .toUpperCase();
+  if (/anomaly|core/i.test(s)) return "anomaly-core";
+  if (/^O/.test(s)) return "spectral-o";
+  if (/^B/.test(s)) return "spectral-b";
+  if (/^A/.test(s)) return "spectral-a";
+  if (/^F/.test(s)) return "spectral-f";
+  if (/^G/.test(s)) return "spectral-g";
+  if (/^K/.test(s)) return "spectral-k";
+  if (/^M/.test(s)) return "spectral-m";
+  return "spectral-g";
+}
+
 // ── Universe helpers ───────────────────────────────────────────────────────
 function galaxyIndexToColor(index) {
   const PALETTE = ["#4d90ff", "#a050e0", "#e050a0", "#e07030", "#30c070", "#20b0b0", "#d0b020", "#e04040"];
@@ -2268,6 +2353,7 @@ function onSectorTileClick(tile) {
 
   setAtlasGenerationDefaultsForScope("sector");
   inspectorSector.value = tile.sector;
+  syncAtlasSelectionState(tile.sector);
   inspectorMode.value = "sector";
   selectedHexKey.value = null;
   inspectorHierarchy.value = null;
@@ -2295,6 +2381,7 @@ function onGridCellClick(tile) {
       metadata: { displayName: `Sector ${sx},${sy}`, explorationStatus: "Unknown", systemCount: 0 },
     };
   }
+  syncAtlasSelectionState(inspectorSector.value);
   inspectorMode.value = "sector";
   selectedHexKey.value = null;
   inspectorHierarchy.value = null;
@@ -2319,6 +2406,19 @@ function onStarClick(star) {
   setAtlasGenerationDefaultsForScope("sector");
   selectedHexKey.value = star.key;
   inspectorStar.value = { ...star };
+  syncAtlasSelectionState({
+    sectorId: star.sectorId,
+    galaxyId: star.galaxyId,
+    coordinates:
+      Number.isFinite(Number(star.sectorX)) && Number.isFinite(Number(star.sectorY))
+        ? { x: Number(star.sectorX), y: Number(star.sectorY) }
+        : null,
+    metadata: {
+      displayName: star.sectorName,
+      gridX: Number(star.sectorX),
+      gridY: Number(star.sectorY),
+    },
+  });
   inspectorMode.value = "star";
   inspectorSector.value = null;
   inspectorHierarchy.value = null;
@@ -2464,6 +2564,22 @@ function applySectorUpdate(updatedSector) {
     atlasSectors.value.unshift(updatedSector);
   }
   inspectorSector.value = updatedSector;
+  syncAtlasSelectionState(updatedSector);
+}
+
+function syncAtlasSelectionState(sector) {
+  const targetGalaxyId = String(sector?.galaxyId || "").trim();
+  if (targetGalaxyId && targetGalaxyId !== ALL_GALAXIES_VALUE) {
+    galaxyStore.setCurrentGalaxy(targetGalaxyId);
+  }
+
+  const sectorId = String(sector?.sectorId || "").trim();
+  if (!sectorId || sectorId.startsWith("grid:")) {
+    sectorStore.setCurrentSector(null);
+    return;
+  }
+
+  sectorStore.setCurrentSector(sectorId);
 }
 
 function startAtlasGenerationProgress(label, total) {
@@ -2517,6 +2633,61 @@ function buildPersistableSector(sector) {
       gridX: sx,
       gridY: sy,
       explorationStatus: sector?.metadata?.explorationStatus || "unexplored",
+    },
+  };
+}
+
+function parseHexCoordinates(coord) {
+  const raw = String(coord || "0000")
+    .replace(/\D/g, "")
+    .padStart(4, "0")
+    .slice(-4);
+  return {
+    x: Number(raw.slice(0, 2)) || 0,
+    y: Number(raw.slice(2, 4)) || 0,
+  };
+}
+
+function normalizeGeneratedStarType(star) {
+  return String(star?.designation || star?.spectralType || star?.spectralClass || "G2V").trim() || "G2V";
+}
+
+function buildAtlasGeneratedSystem(sector, coord, primaryStar, secondaryStars = [], anomalyType = null) {
+  const primaryType = anomalyType ? String(anomalyType).trim() : normalizeGeneratedStarType(primaryStar);
+  const generatedStars = [
+    {
+      designation: primaryType,
+      spectralType: primaryType,
+      spectralClass: primaryType,
+      isAnomaly: Boolean(anomalyType),
+    },
+    ...secondaryStars
+      .map((star) => normalizeGeneratedStarType(star))
+      .filter(Boolean)
+      .map((spectralType) => ({
+        designation: spectralType,
+        spectralType,
+        spectralClass: spectralType,
+      })),
+  ];
+
+  return {
+    systemId: `${sector.sectorId}:${coord}`,
+    galaxyId: sector.galaxyId,
+    sectorId: sector.sectorId,
+    hexCoordinates: parseHexCoordinates(coord),
+    starCount: Math.max(1, Math.min(4, generatedStars.length || 1)),
+    primaryStar: {
+      spectralClass: primaryType,
+    },
+    companionStars: generatedStars.slice(1).map((star) => ({ spectralClass: star.spectralClass })),
+    metadata: {
+      generatedSurvey: {
+        stars: generatedStars,
+      },
+      lastModified: new Date().toISOString(),
+      source: "atlas",
+      anomalyType: anomalyType || null,
     },
   };
 }
@@ -2681,6 +2852,7 @@ async function generateInspectorSectorSystemsInternalWithOptions(sector, { inclu
   }
 
   const hexStarTypes = {};
+  const generatedSystems = [];
   for (const coord of occupiedHexes) {
     if (galacticCenter && coord === centerCoord) {
       hexStarTypes[coord] = {
@@ -2689,14 +2861,19 @@ async function generateInspectorSectorSystemsInternalWithOptions(sector, { inclu
         secondaryStars: [],
         anomalyType,
       };
+      generatedSystems.push(buildAtlasGeneratedSystem(targetSector, coord, null, [], anomalyType));
     } else {
       const primary = generatePrimaryStar();
+      const primaryType = normalizeGeneratedStarType(primary);
+      const secondaryGeneratedStars = hasSecondary() ? [generatePrimaryStar()] : [];
+      const secondaryStarTypes = secondaryGeneratedStars.map((star) => normalizeGeneratedStarType(star));
       hexStarTypes[coord] = {
-        starType: primary.designation,
-        starClass: "",
-        secondaryStars: hasSecondary() ? [generatePrimaryStar().designation] : [],
+        starType: primaryType,
+        starClass: starTypeToCssClass(primaryType),
+        secondaryStars: secondaryStarTypes,
         anomalyType: null,
       };
+      generatedSystems.push(buildAtlasGeneratedSystem(targetSector, coord, primary, secondaryGeneratedStars, null));
     }
   }
 
@@ -2716,6 +2893,17 @@ async function generateInspectorSectorSystemsInternalWithOptions(sector, { inclu
   };
 
   const updated = await sectorApi.upsertSector(payload);
+  await systemStore.replaceSectorSystems(
+    updated.sectorId,
+    generatedSystems.map((system) => ({
+      ...system,
+      galaxyId: updated.galaxyId,
+      sectorId: updated.sectorId,
+      systemId: `${updated.sectorId}:${String(system?.systemId || "")
+        .split(":")
+        .pop()}`,
+    })),
+  );
   applySectorUpdate(updated);
   return { updated, occupiedHexes };
 }
@@ -3031,6 +3219,10 @@ async function handleGalaxyChange() {
   if (!selectedGalaxyId.value) {
     atlasSectors.value = [];
     return;
+  }
+
+  if (selectedGalaxyId.value !== ALL_GALAXIES_VALUE) {
+    galaxyStore.setCurrentGalaxy(selectedGalaxyId.value);
   }
 
   isLoading.value = true;

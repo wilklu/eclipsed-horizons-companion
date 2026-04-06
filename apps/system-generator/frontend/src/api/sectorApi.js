@@ -37,11 +37,48 @@ function saveSectors(sectors) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(sectors));
 }
 
+function hasObjectEntries(value) {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value) && Object.keys(value).length > 0);
+}
+
+function mergeSectorRecords(existingSector, nextSector) {
+  const existing = existingSector ? normalizeSector(existingSector) : null;
+  const incoming = normalizeSector(nextSector);
+  if (!existing) {
+    return incoming;
+  }
+
+  const existingMetadata = existing.metadata ?? {};
+  const incomingMetadata = incoming.metadata ?? {};
+  const existingOccupiedHexes = Array.isArray(existingMetadata.occupiedHexes) ? existingMetadata.occupiedHexes : [];
+  const incomingOccupiedHexes = Array.isArray(incomingMetadata.occupiedHexes) ? incomingMetadata.occupiedHexes : [];
+  const existingHexStarTypes = hasObjectEntries(existingMetadata.hexStarTypes) ? existingMetadata.hexStarTypes : null;
+  const incomingHexStarTypes = hasObjectEntries(incomingMetadata.hexStarTypes) ? incomingMetadata.hexStarTypes : null;
+
+  return {
+    ...existing,
+    ...incoming,
+    coordinates: incoming.coordinates ?? existing.coordinates,
+    metadata: {
+      ...existingMetadata,
+      ...incomingMetadata,
+      occupiedHexes: incomingOccupiedHexes.length > 0 ? incomingOccupiedHexes : existingOccupiedHexes,
+      hexStarTypes: incomingHexStarTypes ?? existingHexStarTypes ?? incomingMetadata.hexStarTypes,
+      hexPresenceGenerated: incomingMetadata.hexPresenceGenerated ?? existingMetadata.hexPresenceGenerated ?? false,
+      hexPresenceGeneratedAt:
+        incomingMetadata.hexPresenceGeneratedAt ?? existingMetadata.hexPresenceGeneratedAt ?? null,
+      centralAnomalyType: incomingMetadata.centralAnomalyType ?? existingMetadata.centralAnomalyType ?? null,
+      isGalacticCenterSector:
+        incomingMetadata.isGalacticCenterSector ?? existingMetadata.isGalacticCenterSector ?? false,
+    },
+  };
+}
+
 function mergeCachedSectors(nextSectors) {
   const byId = new Map(loadSectors().map((sector) => [normalizeSectorId(sector), normalizeSector(sector)]));
   for (const sector of nextSectors) {
-    const normalized = normalizeSector(sector);
-    byId.set(normalized.sectorId, normalized);
+    const sectorId = normalizeSectorId(sector);
+    byId.set(sectorId, mergeSectorRecords(byId.get(sectorId), sector));
   }
   const merged = Array.from(byId.values());
   saveSectors(merged);

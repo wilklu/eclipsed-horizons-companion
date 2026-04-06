@@ -132,6 +132,35 @@
             <input v-model.number="draft.atlasGridBiasY" type="number" step="0.1" />
           </label>
         </section>
+
+        <section class="card">
+          <h2>Maintenance</h2>
+          <p class="section-copy">
+            These tools are intentionally tucked away from the main survey flow. Use them only when you need to clean up
+            legacy placeholder data.
+          </p>
+
+          <div class="maintenance-block">
+            <span class="maintenance-label">Current galaxy</span>
+            <strong class="maintenance-value">{{ currentGalaxyLabel }}</strong>
+          </div>
+
+          <p class="section-copy section-copy--compact">
+            Prune removes empty placeholder sectors only. Run database VACUUM offline if you want to reclaim disk space
+            afterward.
+          </p>
+
+          <div class="field-actions field-actions--maintenance">
+            <button
+              class="btn btn-secondary"
+              type="button"
+              :disabled="!currentGalaxy || isPruningDefaultSectors"
+              @click="pruneCurrentGalaxyDefaultSectors"
+            >
+              {{ isPruningDefaultSectors ? "Pruning Empty Sectors..." : "Prune Empty Sectors" }}
+            </button>
+          </div>
+        </section>
       </div>
 
       <p v-if="statusMessage" class="status-message">{{ statusMessage }}</p>
@@ -140,15 +169,23 @@
 </template>
 
 <script setup>
-import { onBeforeUnmount, onMounted, reactive, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from "vue";
 import SurveyNavigation from "../../components/common/SurveyNavigation.vue";
 import { PREFERENCE_DEFAULTS, usePreferencesStore } from "../../stores/preferencesStore.js";
+import { useGalaxyStore } from "../../stores/galaxyStore.js";
+import { pruneDefaultSectors } from "../../api/sectorApi.js";
 
 const preferencesStore = usePreferencesStore();
+const galaxyStore = useGalaxyStore();
 const statusMessage = ref("");
 const ttsVoiceOptions = ref([]);
 const supportsSpeechSynthesis = typeof window !== "undefined" && "speechSynthesis" in window;
 const isTestingVoice = ref(false);
+const isPruningDefaultSectors = ref(false);
+const currentGalaxy = computed(() => galaxyStore.getCurrentGalaxy);
+const currentGalaxyLabel = computed(
+  () => currentGalaxy.value?.name || currentGalaxy.value?.galaxyId || "No active galaxy selected",
+);
 
 function stopVoicePreview() {
   if (!supportsSpeechSynthesis) {
@@ -293,6 +330,32 @@ function savePreferences() {
   applyDraft(preferencesStore.$state);
   statusMessage.value = "Preferences saved.";
 }
+
+async function pruneCurrentGalaxyDefaultSectors() {
+  const galaxy = currentGalaxy.value;
+  if (!galaxy?.galaxyId || isPruningDefaultSectors.value) {
+    return;
+  }
+
+  const confirmed = window.confirm(
+    `Prune empty placeholder sectors for "${galaxy.name || galaxy.galaxyId}"?\n\n` +
+      "This keeps only meaningful/generated sectors and can greatly improve responsiveness.",
+  );
+  if (!confirmed) {
+    return;
+  }
+
+  isPruningDefaultSectors.value = true;
+  try {
+    const result = await pruneDefaultSectors(galaxy.galaxyId);
+    const deleted = Number(result?.deleted) || 0;
+    statusMessage.value = `Pruned ${deleted.toLocaleString()} empty sectors from ${galaxy.name || galaxy.galaxyId}.`;
+  } catch (err) {
+    statusMessage.value = `Failed to prune empty sectors: ${err.message}`;
+  } finally {
+    isPruningDefaultSectors.value = false;
+  }
+}
 </script>
 
 <style scoped>
@@ -373,6 +436,35 @@ function savePreferences() {
   display: flex;
   justify-content: flex-start;
   margin-bottom: 1rem;
+}
+
+.field-actions--maintenance {
+  margin-top: 1rem;
+  margin-bottom: 0;
+}
+
+.maintenance-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.85rem 0.95rem;
+  margin-bottom: 1rem;
+  border: 1px solid rgba(111, 144, 206, 0.35);
+  border-radius: 12px;
+  background: rgba(4, 10, 24, 0.62);
+}
+
+.maintenance-label {
+  color: #8ad7ff;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.maintenance-value {
+  color: #eef4ff;
+  font-size: 0.98rem;
 }
 
 .field span {

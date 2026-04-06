@@ -13,245 +13,287 @@
     <div class="survey-content">
       <div class="survey-workspace">
         <aside class="control-panel">
-          <div class="control-group">
-            <label>Survey Scope:</label>
-            <select v-model="scope" class="select-input">
-              <option value="sector">Sector (4 × 4 subsectors, 32 × 40 hexes)</option>
-              <option value="subsector">Subsector (8 × 10 hexes)</option>
-            </select>
-          </div>
-
-          <div class="control-group">
-            <label>Load Existing Sector:</label>
-            <select v-model="selectedSectorId" class="select-input">
-              <option value="">Select a saved sector...</option>
-              <option v-for="sector in sectorOptions" :key="sector.sectorId" :value="sector.sectorId">
-                {{ sector.label }}
-              </option>
-            </select>
-            <div class="sector-load-actions">
-              <button class="btn btn-secondary" :disabled="!canLoadSelectedSector" @click="loadSelectedSector">
-                Load Sector
-              </button>
-              <button
-                class="btn btn-secondary"
-                :disabled="!canSaveSector"
-                @click="saveCurrentSector({ showToast: true })"
-              >
-                Save Sector
-              </button>
-            </div>
-          </div>
-
-          <!-- Subsector Selection Grid -->
-          <div v-if="scope === 'subsector'" class="control-group">
-            <label>Select Subsector:</label>
-            <div class="subsector-grid">
-              <button
-                v-for="letter in SUBSECTOR_LETTERS"
-                :key="letter"
-                :class="['subsector-btn', { active: selectedSubsector === letter }]"
-                @click="selectedSubsector = letter"
-              >
-                {{ letter }}
-              </button>
-            </div>
-          </div>
-
-          <div v-if="scope === 'subsector'" class="control-group">
-            <label>Subsector Name:</label>
-            <input v-model="subsectorName" placeholder="Enter subsector name…" class="text-input" />
-          </div>
-
-          <div class="control-group">
-            <label>Sector Name:</label>
-            <div class="name-row">
-              <input
-                v-model="sectorName"
-                placeholder="Enter sector name…"
-                class="text-input"
-                @blur="persistSectorName()"
-                @keydown.enter.prevent="persistSectorName({ showToast: true })"
-              />
-              <button
-                class="btn btn-secondary"
-                @click="randomizeSectorName"
-                title="Random sector name"
-                aria-label="Random sector name"
-              >
-                🎲
-              </button>
-              <button
-                class="btn btn-secondary"
-                type="button"
-                :disabled="!supportsSpeechSynthesis"
-                :title="
-                  supportsSpeechSynthesis
-                    ? isSpeakingSectorName
-                      ? 'Stop sector name audio'
-                      : 'Speak sector name'
-                    : 'Text to speech not supported in this browser'
-                "
-                :aria-label="
-                  supportsSpeechSynthesis
-                    ? isSpeakingSectorName
-                      ? 'Stop sector name audio'
-                      : 'Speak sector name'
-                    : 'Text to speech not supported in this browser'
-                "
-                @mousedown.prevent
-                @click="toggleSectorNameSpeech"
-              >
-                {{ isSpeakingSectorName ? "■" : "🔊" }}
-              </button>
-              <button
-                class="btn btn-secondary"
-                @click="persistSectorName({ showToast: true })"
-                :disabled="!canPersistSectorName"
-                title="Save sector name"
-                aria-label="Save sector name"
-              >
-                💾
-              </button>
-            </div>
-          </div>
-
-          <div class="control-group">
-            <label>Star Density:</label>
-            <select v-model="density" class="select-input">
-              <option value="core">Core (dense — 60–80 %)</option>
-              <option value="dense">Dense (spiral arm — 40–60 %)</option>
-              <option value="average">Average (disk — 20–40 %)</option>
-              <option value="scattered">Scattered (outer — 10–20 %)</option>
-              <option value="void">Void (halo — 1–5 %)</option>
-            </select>
-          </div>
-
-          <div class="control-group">
-            <label>Occupancy Realism: {{ Math.round(occupancyRealism * 100) }}%</label>
-            <input v-model.number="occupancyRealism" class="range-input" type="range" min="0" max="2" step="0.05" />
-            <div class="control-help">
-              {{ occupancyRealismHelp }}
-            </div>
-          </div>
-
-          <div class="control-group control-group--generation-options">
-            <label>Initial Survey Mode:</label>
-            <select v-model="generationMode" class="select-input">
-              <option v-for="option in generationModeOptions" :key="option.id" :value="option.id">
-                {{ option.label }}
-              </option>
-            </select>
-            <div class="control-help">
-              {{ generationAction.description }}
-            </div>
-          </div>
-
-          <div class="control-group control-action">
-            <button class="btn btn-primary" :disabled="isLoading" @click="runSurveyAction">
-              {{ generationAction.label }}
-            </button>
-          </div>
-
-          <div v-if="generatedSector" class="control-group">
-            <label>Stellar Survey</label>
-            <div v-if="selectedHexData?.hasSystem" class="hex-detail hex-detail--sidebar">
-              <h3>System at {{ selectedHexData.coord }}</h3>
-              <div class="detail-grid">
-                <div class="detail-row">
-                  <span class="label">Primary Star:</span>
-                  <span class="value">{{ selectedHexData.starType }}</span>
-                </div>
-                <div class="detail-row" v-if="selectedHexData.secondaryStars?.length">
-                  <span class="label">Secondary Stars:</span>
-                  <span class="value">{{ selectedHexData.secondaryStars.join(", ") }}</span>
-                </div>
-              </div>
-              <div class="detail-actions">
-                <button class="btn btn-primary" @click="proceedToStarSystem">🔭 Stellar Survey →</button>
-              </div>
-            </div>
-            <div v-else-if="hasSystemsInGrid" class="hex-detail hex-detail--sidebar hex-detail--placeholder">
-              <h3>No Hex Selected</h3>
-              <p>Select a surveyed hex (★) in the sector grid to open Stellar Survey.</p>
-            </div>
-          </div>
-
-          <!-- Galaxy Position Minimap -->
-          <div v-if="galaxyMinimap" class="control-group galaxy-position-group">
-            <label>Galaxy Position</label>
-            <div class="galaxy-minimap-container">
-              <svg
-                class="galaxy-minimap-svg"
-                :viewBox="`0 0 ${galaxyMinimap.svgSize} ${galaxyMinimap.svgSize}`"
-                :width="galaxyMinimap.svgSize"
-                :height="galaxyMinimap.svgSize"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <!-- Galaxy boundary ellipse -->
-                <ellipse
-                  :cx="galaxyMinimap.svgSize / 2"
-                  :cy="galaxyMinimap.svgSize / 2"
-                  :rx="galaxyMinimap.ellipseRx"
-                  :ry="galaxyMinimap.ellipseRy"
-                  class="galaxy-boundary"
-                />
-                <!-- Cross-hairs at galactic center -->
-                <line
-                  :x1="galaxyMinimap.centerPx - 6"
-                  :y1="galaxyMinimap.centerPy"
-                  :x2="galaxyMinimap.centerPx + 6"
-                  :y2="galaxyMinimap.centerPy"
-                  class="galaxy-crosshair"
-                />
-                <line
-                  :x1="galaxyMinimap.centerPx"
-                  :y1="galaxyMinimap.centerPy - 6"
-                  :x2="galaxyMinimap.centerPx"
-                  :y2="galaxyMinimap.centerPy + 6"
-                  class="galaxy-crosshair"
-                />
-                <circle
-                  :cx="galaxyMinimap.centerPx"
-                  :cy="galaxyMinimap.centerPy"
-                  :r="galaxyMinimap.centerGuideRadius"
-                  class="galaxy-center-guide"
-                />
-                <path
-                  v-if="galaxyMinimap.centerBearingArcPath"
-                  :d="galaxyMinimap.centerBearingArcPath"
-                  class="galaxy-center-bearing"
-                />
-                <circle
-                  v-if="galaxyMinimap.centerBearingPoint"
-                  :cx="galaxyMinimap.centerBearingPoint.x"
-                  :cy="galaxyMinimap.centerBearingPoint.y"
-                  r="2.8"
-                  class="galaxy-center-bearing-dot"
-                />
-                <!-- Sector tiles for all known sectors -->
-                <rect
-                  v-for="tile in galaxyMinimap.tiles"
-                  :key="tile.id"
-                  :x="tile.px - galaxyMinimap.tileHalf"
-                  :y="tile.py - galaxyMinimap.tileHalf"
-                  :width="galaxyMinimap.tileSize"
-                  :height="galaxyMinimap.tileSize"
-                  rx="1"
-                  ry="1"
-                  :class="tile.cls"
-                />
-              </svg>
-              <div class="galaxy-position-legend">
-                <span class="position-region">📍 {{ galaxyMinimap.regionLabel }}</span>
-                <span v-if="galaxyMinimap.distanceLabel" class="position-dist">{{ galaxyMinimap.distanceLabel }}</span>
-                <span v-if="galaxyMinimap.coordLabel" class="position-coord">Grid {{ galaxyMinimap.coordLabel }}</span>
-                <span v-if="galaxyMinimap.centerBearingLabel" class="position-bearing">
-                  Center bearing {{ galaxyMinimap.centerBearingLabel }}
+          <section v-if="generatedSector" class="control-group control-card sector-summary-card">
+            <label>Current Sector</label>
+            <div class="sector-summary sector-summary--panel">
+              <div class="sector-summary-row">
+                <span class="summary-pill summary-pill--title">
+                  <span class="summary-pill-label">Sector Name</span>
+                  <span class="summary-pill-value summary-pill-value--title">{{ generatedSector.name }}</span>
                 </span>
               </div>
+              <div class="sector-summary-row sector-summary-row--secondary">
+                <div class="sector-summary-group sector-summary-group--left">
+                  <span class="summary-pill">
+                    <span class="summary-pill-label">Systems</span>
+                    <span class="summary-pill-value">{{ generatedSector.systemCount.toLocaleString() }}</span>
+                  </span>
+                  <span class="summary-pill">
+                    <span class="summary-pill-label">Empty Hexes</span>
+                    <span class="summary-pill-value">{{ generatedSector.emptyCount.toLocaleString() }}</span>
+                  </span>
+                </div>
+                <div class="sector-summary-group sector-summary-group--right">
+                  <span class="summary-pill">
+                    <span class="summary-pill-label">Star Density</span>
+                    <span class="summary-pill-value">{{ densityLabel }}</span>
+                  </span>
+                  <span class="summary-pill">
+                    <span class="summary-pill-label">Realism</span>
+                    <span class="summary-pill-value">{{ occupancyRealismLabel }}</span>
+                  </span>
+                </div>
+              </div>
             </div>
-          </div>
+          </section>
+
+          <section class="control-card control-card--survey">
+            <div class="control-group">
+              <label>Survey Scope:</label>
+              <select v-model="scope" class="select-input">
+                <option value="sector">Sector (4 × 4 subsectors, 32 × 40 hexes)</option>
+                <option value="subsector">Subsector (8 × 10 hexes)</option>
+              </select>
+            </div>
+
+            <div class="control-group control-group--span-2">
+              <label>Load Existing Sector:</label>
+              <div class="control-inline-row control-inline-row--load">
+                <select v-model="selectedSectorId" class="select-input control-inline-select">
+                  <option value="">Select a saved sector...</option>
+                  <option v-for="sector in sectorOptions" :key="sector.sectorId" :value="sector.sectorId">
+                    {{ sector.label }}
+                  </option>
+                </select>
+                <button
+                  class="btn btn-secondary btn-icon"
+                  :disabled="!canLoadSelectedSector"
+                  title="Load selected sector"
+                  aria-label="Load selected sector"
+                  @click="loadSelectedSector"
+                >
+                  📂
+                </button>
+                <button
+                  class="btn btn-secondary btn-icon"
+                  :disabled="!canSaveSector"
+                  title="Save current sector"
+                  aria-label="Save current sector"
+                  @click="saveCurrentSector({ showToast: true })"
+                >
+                  💾
+                </button>
+              </div>
+            </div>
+
+            <div v-if="scope === 'subsector'" class="control-group control-group--span-2">
+              <label>Select Subsector:</label>
+              <div class="subsector-grid">
+                <button
+                  v-for="letter in SUBSECTOR_LETTERS"
+                  :key="letter"
+                  :class="['subsector-btn', { active: selectedSubsector === letter }]"
+                  @click="selectedSubsector = letter"
+                >
+                  {{ letter }}
+                </button>
+              </div>
+            </div>
+
+            <div v-if="scope === 'subsector'" class="control-group">
+              <label>Subsector Name:</label>
+              <input v-model="subsectorName" placeholder="Enter subsector name…" class="text-input" />
+            </div>
+
+            <div class="control-group control-group--span-2">
+              <label>Sector Name:</label>
+              <div class="name-row">
+                <input
+                  v-model="sectorName"
+                  placeholder="Enter sector name…"
+                  class="text-input"
+                  @blur="persistSectorName()"
+                  @keydown.enter.prevent="persistSectorName({ showToast: true })"
+                />
+                <button
+                  class="btn btn-secondary"
+                  @click="randomizeSectorName"
+                  title="Random sector name"
+                  aria-label="Random sector name"
+                >
+                  🎲
+                </button>
+                <button
+                  class="btn btn-secondary"
+                  type="button"
+                  :disabled="!supportsSpeechSynthesis"
+                  :title="
+                    supportsSpeechSynthesis
+                      ? isSpeakingSectorName
+                        ? 'Stop sector name audio'
+                        : 'Speak sector name'
+                      : 'Text to speech not supported in this browser'
+                  "
+                  :aria-label="
+                    supportsSpeechSynthesis
+                      ? isSpeakingSectorName
+                        ? 'Stop sector name audio'
+                        : 'Speak sector name'
+                      : 'Text to speech not supported in this browser'
+                  "
+                  @mousedown.prevent
+                  @click="toggleSectorNameSpeech"
+                >
+                  {{ isSpeakingSectorName ? "■" : "🔊" }}
+                </button>
+                <button
+                  class="btn btn-secondary"
+                  @click="persistSectorName({ showToast: true })"
+                  :disabled="!canPersistSectorName"
+                  title="Save sector name"
+                  aria-label="Save sector name"
+                >
+                  💾
+                </button>
+              </div>
+            </div>
+
+            <div class="control-group">
+              <label>Star Density:</label>
+              <select v-model="density" class="select-input">
+                <option value="core">Core (dense — 60–80 %)</option>
+                <option value="dense">Dense (spiral arm — 40–60 %)</option>
+                <option value="average">Average (disk — 20–40 %)</option>
+                <option value="scattered">Scattered (outer — 10–20 %)</option>
+                <option value="void">Void (halo — 1–5 %)</option>
+              </select>
+            </div>
+
+            <div class="control-group control-group--span-2 control-group--slider">
+              <label>Occupancy Realism: {{ Math.round(occupancyRealism * 100) }}%</label>
+              <input v-model.number="occupancyRealism" class="range-input" type="range" min="0" max="2" step="0.05" />
+              <div class="control-help">
+                {{ occupancyRealismHelp }}
+              </div>
+            </div>
+
+            <div class="control-group control-group--generation-options control-group--span-2">
+              <label>Initial Survey Mode:</label>
+              <div class="control-inline-row control-inline-row--generation">
+                <select v-model="generationMode" class="select-input control-inline-select">
+                  <option v-for="option in generationModeOptions" :key="option.id" :value="option.id">
+                    {{ option.label }}
+                  </option>
+                </select>
+                <button class="btn btn-primary" :disabled="isLoading" @click="runSurveyAction">
+                  {{ generationAction.label }}
+                </button>
+              </div>
+              <div class="control-help">
+                {{ generationAction.description }}
+              </div>
+            </div>
+
+            <div v-if="generatedSector" class="control-group control-group--span-2">
+              <label>Stellar Survey</label>
+              <div v-if="selectedHexData?.hasSystem" class="stellar-inline-card">
+                <div class="stellar-inline-copy">
+                  <span class="stellar-inline-title">System {{ selectedHexData.coord }}</span>
+                  <span class="stellar-inline-detail">{{ selectedHexData.starType }}</span>
+                  <span v-if="selectedHexData.secondaryStars?.length" class="stellar-inline-detail"
+                    >+ {{ selectedHexData.secondaryStars.join(", ") }}</span
+                  >
+                </div>
+                <div class="detail-actions">
+                  <button class="btn btn-primary" @click="proceedToStarSystem">🔭 Stellar Survey →</button>
+                </div>
+              </div>
+              <div v-else-if="hasSystemsInGrid" class="stellar-inline-card stellar-inline-card--placeholder">
+                <div class="stellar-inline-copy">
+                  <span class="stellar-inline-title">No Hex Selected</span>
+                  <span class="stellar-inline-detail"
+                    >Select a surveyed hex (★) in the sector grid to open Stellar Survey.</span
+                  >
+                </div>
+              </div>
+            </div>
+
+            <div v-if="galaxyMinimap" class="control-group galaxy-position-group control-group--span-2">
+              <label>Galaxy Position</label>
+              <div class="galaxy-minimap-container">
+                <svg
+                  class="galaxy-minimap-svg"
+                  :viewBox="`0 0 ${galaxyMinimap.svgSize} ${galaxyMinimap.svgSize}`"
+                  :width="galaxyMinimap.svgSize"
+                  :height="galaxyMinimap.svgSize"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <ellipse
+                    :cx="galaxyMinimap.svgSize / 2"
+                    :cy="galaxyMinimap.svgSize / 2"
+                    :rx="galaxyMinimap.ellipseRx"
+                    :ry="galaxyMinimap.ellipseRy"
+                    class="galaxy-boundary"
+                  />
+                  <line
+                    :x1="galaxyMinimap.centerPx - 6"
+                    :y1="galaxyMinimap.centerPy"
+                    :x2="galaxyMinimap.centerPx + 6"
+                    :y2="galaxyMinimap.centerPy"
+                    class="galaxy-crosshair"
+                  />
+                  <line
+                    :x1="galaxyMinimap.centerPx"
+                    :y1="galaxyMinimap.centerPy - 6"
+                    :x2="galaxyMinimap.centerPx"
+                    :y2="galaxyMinimap.centerPy + 6"
+                    class="galaxy-crosshair"
+                  />
+                  <circle
+                    :cx="galaxyMinimap.centerPx"
+                    :cy="galaxyMinimap.centerPy"
+                    :r="galaxyMinimap.centerGuideRadius"
+                    class="galaxy-center-guide"
+                  />
+                  <path
+                    v-if="galaxyMinimap.centerBearingArcPath"
+                    :d="galaxyMinimap.centerBearingArcPath"
+                    class="galaxy-center-bearing"
+                  />
+                  <circle
+                    v-if="galaxyMinimap.centerBearingPoint"
+                    :cx="galaxyMinimap.centerBearingPoint.x"
+                    :cy="galaxyMinimap.centerBearingPoint.y"
+                    r="2.8"
+                    class="galaxy-center-bearing-dot"
+                  />
+                  <rect
+                    v-for="tile in galaxyMinimap.tiles"
+                    :key="tile.id"
+                    :x="tile.px - galaxyMinimap.tileHalf"
+                    :y="tile.py - galaxyMinimap.tileHalf"
+                    :width="galaxyMinimap.tileSize"
+                    :height="galaxyMinimap.tileSize"
+                    rx="1"
+                    ry="1"
+                    :class="tile.cls"
+                  />
+                </svg>
+                <div class="galaxy-position-legend">
+                  <span class="position-region">📍 {{ galaxyMinimap.regionLabel }}</span>
+                  <span v-if="galaxyMinimap.distanceLabel" class="position-dist">{{
+                    galaxyMinimap.distanceLabel
+                  }}</span>
+                  <span v-if="galaxyMinimap.coordLabel" class="position-coord"
+                    >Grid {{ galaxyMinimap.coordLabel }}</span
+                  >
+                  <span v-if="galaxyMinimap.centerBearingLabel" class="position-bearing">
+                    Center bearing {{ galaxyMinimap.centerBearingLabel }}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </section>
         </aside>
 
         <section class="sector-pane">
@@ -262,57 +304,7 @@
             </button>
           </div>
 
-          <!-- Results Grid -->
           <div v-if="generatedSector" class="sector-results">
-            <div class="sector-header">
-              <div class="sector-summary">
-                <span class="summary-pill summary-pill--title">
-                  <span class="summary-pill-label">Sector Name</span>
-                  <span class="summary-pill-value summary-pill-value--title">{{ generatedSector.name }}</span>
-                </span>
-                <span class="summary-pill">
-                  <span class="summary-pill-label">Systems</span>
-                  <span class="summary-pill-value">{{ generatedSector.systemCount.toLocaleString() }}</span>
-                </span>
-                <span class="summary-pill">
-                  <span class="summary-pill-label">Empty Hexes</span>
-                  <span class="summary-pill-value">{{ generatedSector.emptyCount.toLocaleString() }}</span>
-                </span>
-                <span class="summary-pill">
-                  <span class="summary-pill-label">Star Density</span>
-                  <span class="summary-pill-value">{{ densityLabel }}</span>
-                </span>
-                <span class="summary-pill">
-                  <span class="summary-pill-label">Realism</span>
-                  <span class="summary-pill-value">{{ occupancyRealismLabel }}</span>
-                </span>
-                <span class="summary-pill">
-                  <span class="summary-pill-label">Target Density</span>
-                  <span class="summary-pill-value">{{ densityTargetRangeLabel }}</span>
-                </span>
-                <span class="summary-pill">
-                  <span class="summary-pill-label">Rolled Occupancy</span>
-                  <span class="summary-pill-value">{{ rolledOccupancyLabel }}</span>
-                </span>
-              </div>
-              <div class="grid-size-toolbar">
-                <span class="grid-size-label">Grid Size</span>
-                <div class="grid-size-toggle" role="group" aria-label="Sector map grid size">
-                  <button
-                    v-for="option in GRID_SIZE_OPTIONS"
-                    :key="option.value"
-                    type="button"
-                    class="grid-size-btn"
-                    :class="{ active: gridSizeMode === option.value }"
-                    @click="gridSizeMode = option.value"
-                  >
-                    {{ option.label }}
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <!-- Hex Grid -->
             <div class="hex-grid-wrapper" :class="`hex-grid-wrapper--${gridSizeMode}`">
               <div class="hex-grid" :style="gridStyle">
                 <div
@@ -339,14 +331,6 @@
                 </div>
               </div>
             </div>
-
-            <div v-if="!hasSystemsInGrid" class="grid-hint warning">
-              No systems are mapped in this sector yet. Load a different sector or generate one with systems to
-              continue.
-            </div>
-            <div v-else-if="showSelectHexHint" class="grid-hint">
-              Select an occupied hex (★) to continue to Stellar Survey.
-            </div>
           </div>
         </section>
       </div>
@@ -355,9 +339,8 @@
 </template>
 
 <script setup>
-import { ref, computed, watchEffect, watch } from "vue";
-import { useRouter, useRoute } from "vue-router";
-import SurveyNavigation from "../../components/common/SurveyNavigation.vue";
+import { computed, ref, watch, watchEffect } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import LoadingSpinner from "../../components/common/LoadingSpinner.vue";
 import { deserializeReturnRoute, serializeReturnRoute } from "../../utils/returnRoute.js";
 import { useSectorStore } from "../../stores/sectorStore.js";
@@ -398,11 +381,6 @@ const isSpeakingSectorName = ref(false);
 const generationMode = ref("");
 // Subsector letters in 4x4 grid (A-P)
 const SUBSECTOR_LETTERS = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P"];
-const GRID_SIZE_OPTIONS = [
-  { value: "fit", label: "Fit" },
-  { value: "comfortable", label: "Comfortable" },
-  { value: "large", label: "Large" },
-];
 const supportsSpeechSynthesis = typeof window !== "undefined" && "speechSynthesis" in window;
 
 // Update page title dynamically
@@ -970,8 +948,8 @@ function buildHexGridFromSystems(systems, cols, rows) {
   }
 
   const hexes = [];
-  for (let col = 1; col <= cols; col++) {
-    for (let row = 1; row <= rows; row++) {
+  for (let row = 1; row <= rows; row++) {
+    for (let col = 1; col <= cols; col++) {
       const coord = hexCoord(col, row);
       hexes.push(occupied.get(coord) ?? { coord, hasSystem: false });
     }
@@ -997,7 +975,11 @@ function sanitizeId(value) {
     .slice(0, 20);
 }
 
-function createSectorId(name) {
+function createSectorId(name, coordinates = null) {
+  if (props.galaxyId && Number.isFinite(coordinates?.x) && Number.isFinite(coordinates?.y)) {
+    return `${props.galaxyId}:${Math.trunc(coordinates.x)},${Math.trunc(coordinates.y)}`;
+  }
+
   const token = sanitizeId(name) || "sector";
   return `sec_${token}_${Date.now()}`.slice(0, 50);
 }
@@ -1190,7 +1172,7 @@ async function ensureCurrentSectorRecord({ showToast = false } = {}) {
   const displayName = buildGeneratedSectorName(baseName);
   const nowIso = new Date().toISOString();
   const payload = {
-    sectorId: createSectorId(displayName),
+    sectorId: createSectorId(displayName, requestedGrid),
     galaxyId: props.galaxyId,
     coordinates: {
       x: requestedGrid.x,
@@ -1283,8 +1265,8 @@ async function generateSectorPresence() {
     const rate = DENSITY_RATES[density.value] ?? 0.3;
     const hexes = [];
 
-    for (let c = 1; c <= cols; c++) {
-      for (let r = 1; r <= rows; r++) {
+    for (let r = 1; r <= rows; r++) {
+      for (let c = 1; c <= cols; c++) {
         const coord = hexCoord(c, r);
         const isCenterHex = isGalacticCenterSector && coord === centerCoord;
         const occupancyRate = calculateHexOccupancyProbability({
@@ -1377,8 +1359,8 @@ async function generateSystemsFromPresence() {
     const existingTypes = activeSectorMetadata.value?.hexStarTypes ?? {};
     const hexes = [];
 
-    for (let c = 1; c <= cols; c++) {
-      for (let r = 1; r <= rows; r++) {
+    for (let r = 1; r <= rows; r++) {
+      for (let c = 1; c <= cols; c++) {
         const coord = hexCoord(c, r);
         if (!occupiedSet.has(coord)) {
           hexes.push({ coord, hasSystem: false });
@@ -1502,7 +1484,7 @@ async function saveCurrentSector({ showToast = false } = {}) {
 
   const payload = {
     ...(existingSector ?? {}),
-    sectorId: existingSectorId || createSectorId(buildGeneratedSectorName(sectorName.value || "sector")),
+    sectorId: existingSectorId || createSectorId(buildGeneratedSectorName(sectorName.value || "sector"), requestedGrid),
     galaxyId: props.galaxyId,
     coordinates: {
       x: Number(existingSector?.coordinates?.x ?? existingSector?.metadata?.gridX ?? requestedGrid?.x ?? 0),
@@ -1555,19 +1537,24 @@ async function loadPersistedSector(sectorId, showToast = false) {
 
   try {
     await systemStore.loadSystems(props.galaxyId, sectorId);
-    let sector = sectorStore.sectors.find((entry) => entry.sectorId === sectorId);
+    let sector = null;
 
-    if (!sector) {
-      try {
-        sector = await sectorApi.getSector(sectorId);
-      } catch {
-        sector = null;
-      }
+    try {
+      sector = await sectorApi.getSector(sectorId);
+    } catch {
+      sector = sectorStore.sectors.find((entry) => entry.sectorId === sectorId) ?? null;
     }
 
     if (!sector) {
       toastService.error("Selected sector could not be found.");
       return;
+    }
+
+    const sectorIndex = sectorStore.sectors.findIndex((entry) => entry.sectorId === sector.sectorId);
+    if (sectorIndex >= 0) {
+      sectorStore.sectors[sectorIndex] = sector;
+    } else {
+      sectorStore.sectors.unshift(sector);
     }
 
     const { scope: loadedScope, cols, rows } = inferGridDimensions(sector);
@@ -1596,7 +1583,7 @@ async function loadPersistedSector(sectorId, showToast = false) {
         // Once a star type is known the hex graduates to a full ★ display.
         presenceOnly: !starType,
         starType,
-        starClass: saved?.starClass ?? hex.starClass,
+        starClass: saved?.starClass || hex.starClass || spectralClassToCssClass(starType),
         secondaryStars: saved?.secondaryStars ?? hex.secondaryStars ?? [],
         anomalyType: saved?.anomalyType ?? hex.anomalyType ?? null,
       };
@@ -1882,8 +1869,8 @@ async function generateSector() {
     const hexes = [];
     let systemCount = 0;
 
-    for (let c = 1; c <= cols; c++) {
-      for (let r = 1; r <= rows; r++) {
+    for (let r = 1; r <= rows; r++) {
+      for (let c = 1; c <= cols; c++) {
         const coord = hexCoord(c, r);
 
         const isCenterHex = isGalacticCenterSector && coord === centerCoord;
@@ -1969,7 +1956,7 @@ async function generateSector() {
     } else {
       const requestedGrid = getRequestedGridCoordinates();
       const sectorPayload = {
-        sectorId: createSectorId(generatedName),
+        sectorId: createSectorId(generatedName, requestedGrid),
         galaxyId: props.galaxyId,
         coordinates: {
           x: requestedGrid?.x ?? Math.floor(Math.random() * 1001),
@@ -2137,40 +2124,92 @@ function proceedToStarSystem() {
   display: flex;
   flex-direction: column;
   min-height: 100%;
+  height: 100%;
+  overflow: hidden;
 }
 
 .survey-content {
   flex: 1;
   padding: 1.25rem;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
 }
 
 .survey-workspace {
   display: grid;
   grid-template-columns: minmax(16rem, 1fr) minmax(0, 3fr);
   gap: 1.25rem;
-  align-items: start;
+  align-items: stretch;
+  min-height: 0;
+  height: 100%;
 }
 
 .sector-pane {
   min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 7.5rem);
+  max-height: calc(100vh - 7.5rem);
+  overflow: hidden;
+  position: sticky;
+  top: 0.9rem;
+  align-self: start;
 }
 
 .control-panel {
   display: flex;
   flex-direction: column;
   gap: 1rem;
-  padding: 1.25rem;
-  background: #1a1a1a;
-  border-radius: 0.75rem;
-  border: 1px solid rgba(0, 217, 255, 0.14);
   position: sticky;
   top: 0.9rem;
+  height: calc(100vh - 7.5rem);
+  max-height: calc(100vh - 7.5rem);
+  overflow-y: auto;
+  padding-right: 0.2rem;
+}
+
+.control-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  padding: 1.1rem;
+  background: #1a1a1a;
+  border-radius: 0.75rem;
+  border: 2px solid #00d9ff;
+}
+
+.control-card--survey {
+  gap: 1rem;
 }
 
 .control-group {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  min-width: 0;
+}
+
+.sector-summary-card {
+  background: #1a1a2e;
+}
+
+.control-inline-row {
+  display: grid;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.control-inline-row--load {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+}
+
+.control-inline-row--generation {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.control-inline-select {
   min-width: 0;
 }
 
@@ -2190,7 +2229,10 @@ function proceedToStarSystem() {
   font-size: 0.78rem;
   line-height: 1.4;
   color: #8fb3c9;
-  max-width: 24rem;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .context-hint {
@@ -2210,6 +2252,11 @@ function proceedToStarSystem() {
 .control-group--generation-options {
   border-top: 1px solid rgba(0, 217, 255, 0.12);
   padding-top: 0.75rem;
+}
+
+.control-group--generation-options .btn,
+.control-inline-row--load .btn {
+  white-space: nowrap;
 }
 
 /* Galaxy Position Minimap */
@@ -2325,6 +2372,39 @@ function proceedToStarSystem() {
   margin-top: 0.75rem;
 }
 
+.sector-summary--panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0;
+}
+
+.sector-summary-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.sector-summary-row--secondary {
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.sector-summary-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.sector-summary-group--left {
+  justify-content: flex-start;
+}
+
+.sector-summary-group--right {
+  justify-content: flex-end;
+  margin-left: auto;
+}
+
 .summary-pill {
   display: inline-flex;
   align-items: flex-start;
@@ -2339,7 +2419,9 @@ function proceedToStarSystem() {
 }
 
 .summary-pill--title {
-  min-width: min(100%, 24rem);
+  min-width: 0;
+  width: 100%;
+  flex: 1 1 100%;
 }
 
 .summary-pill-label {
@@ -2351,6 +2433,42 @@ function proceedToStarSystem() {
 .summary-pill-value {
   color: #e7fbff;
   font-weight: 700;
+}
+
+.stellar-inline-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid rgba(0, 217, 255, 0.18);
+  border-radius: 0.5rem;
+  background: rgba(18, 18, 46, 0.88);
+}
+
+.stellar-inline-card--placeholder {
+  border-style: dashed;
+  border-color: rgba(0, 217, 255, 0.35);
+}
+
+.stellar-inline-copy {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem 0.75rem;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.stellar-inline-title {
+  color: #00d9ff;
+  font-weight: 700;
+}
+
+.stellar-inline-detail {
+  color: #b7d8ea;
+  font-family: monospace;
+  font-size: 0.88rem;
 }
 
 /* Subsector Selection Grid */
@@ -2424,6 +2542,14 @@ function proceedToStarSystem() {
   transition: all 0.2s;
 }
 
+.btn-icon {
+  min-width: 2.5rem;
+  padding: 0.6rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .btn-primary {
   background: #00d9ff;
   color: #000;
@@ -2450,66 +2576,21 @@ function proceedToStarSystem() {
   border-radius: 0.5rem;
   padding: 1.5rem;
   min-width: 0;
-}
-
-.sector-header {
-  margin-bottom: 1.5rem;
-}
-
-.grid-size-toolbar {
+  min-height: 0;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  margin-top: 0.9rem;
-  flex-wrap: wrap;
-}
-
-.grid-size-label {
-  color: #8fe9ff;
-  font-size: 0.8rem;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-}
-
-.grid-size-toggle {
-  display: inline-flex;
-  gap: 0.25rem;
-  padding: 0.2rem;
-  border: 1px solid rgba(0, 217, 255, 0.2);
-  border-radius: 999px;
-  background: rgba(0, 217, 255, 0.06);
-}
-
-.grid-size-btn {
-  border: none;
-  border-radius: 999px;
-  padding: 0.35rem 0.75rem;
-  background: transparent;
-  color: #8fb3c9;
-  cursor: pointer;
-  font-size: 0.82rem;
-  font-weight: 600;
-  font-family: "Circular Std", Circular, "Lineto Circular", "Segoe UI", sans-serif;
-  transition: all 0.2s ease;
-}
-
-.grid-size-btn:hover {
-  color: #d9f7ff;
-}
-
-.grid-size-btn.active {
-  background: #00d9ff;
-  color: #04111a;
-  box-shadow: 0 0 10px rgba(0, 217, 255, 0.35);
+  flex-direction: column;
+  flex: 1;
+  height: 100%;
+  overflow: hidden;
 }
 
 /* Hex Grid */
 .hex-grid-wrapper {
   overflow-y: auto;
   overflow-x: hidden;
-  max-height: calc(100vh - 17rem);
+  min-height: 0;
+  flex: 1;
+  max-height: none;
   border: 1px solid #333;
   border-radius: 0.25rem;
   padding: 0.5rem;
@@ -2684,30 +2765,94 @@ function proceedToStarSystem() {
 }
 
 .detail-actions {
-  margin-top: 1rem;
+  margin-top: 0;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
 }
 
 @media (max-width: 1100px) {
   .survey-workspace {
     grid-template-columns: minmax(16rem, 1fr) minmax(0, 2.35fr);
   }
+
+  .control-inline-row--load,
+  .control-inline-row--generation {
+    grid-template-columns: 1fr;
+  }
+
+  .stellar-inline-card {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .sector-summary-row {
+    flex-direction: column;
+  }
+
+  .sector-summary-group,
+  .sector-summary-group--right {
+    width: 100%;
+    margin-left: 0;
+    justify-content: flex-start;
+  }
+
+  .detail-actions {
+    margin-top: 0;
+    width: 100%;
+  }
+
+  .detail-actions .btn {
+    width: 100%;
+  }
 }
 
 @media (max-width: 900px) {
+  .sector-survey {
+    overflow: visible;
+    height: auto;
+  }
+
   .survey-content {
     padding: 1rem;
+    overflow: visible;
+    height: auto;
   }
 
   .survey-workspace {
     grid-template-columns: 1fr;
+    height: auto;
   }
 
   .control-panel {
     position: static;
+    height: auto;
+    max-height: none;
+    overflow: visible;
+    padding-right: 0;
+  }
+
+  .control-help {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+  }
+
+  .sector-pane,
+  .sector-results {
+    min-height: auto;
+  }
+
+  .sector-pane {
+    position: static;
+    top: auto;
+    height: auto;
+    max-height: none;
   }
 
   .hex-grid-wrapper {
     max-height: none;
+    flex: none;
   }
 }
 </style>

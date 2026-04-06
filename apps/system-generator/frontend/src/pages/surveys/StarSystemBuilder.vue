@@ -350,10 +350,14 @@ async function runWithStellarLoading(
 }
 
 function normalizeHex(value) {
-  return String(value || "0101")
-    .replace(/\D/g, "")
-    .padStart(4, "0")
-    .slice(0, 4);
+  const raw = String(value || "0101").trim();
+  const lastSegment = raw.split(":").pop() || raw;
+  const digits = lastSegment.replace(/\D/g, "");
+  if (digits.length >= 4) {
+    return digits.slice(-4);
+  }
+
+  return digits.padStart(4, "0").slice(-4);
 }
 
 function normalizePrimarySelection(value) {
@@ -394,6 +398,59 @@ function sectorStarClassForSystem(systemRecord) {
   );
 }
 
+function parseSectorCoordinates(sectorId) {
+  const raw = String(sectorId || "").trim();
+  if (!raw) return null;
+
+  const persistedMatch = raw.match(/^[^:]+:(-?\d+),(-?\d+)$/);
+  if (persistedMatch) {
+    return { x: Number(persistedMatch[1]), y: Number(persistedMatch[2]) };
+  }
+
+  const gridMatch = raw.match(/^grid:(-?\d+):(-?\d+)$/);
+  if (gridMatch) {
+    return { x: Number(gridMatch[1]), y: Number(gridMatch[2]) };
+  }
+
+  return null;
+}
+
+function getPersistedSectorId() {
+  const coords = parseSectorCoordinates(props.sectorId);
+  if (!coords || !props.galaxyId) {
+    return String(props.sectorId || "").trim() || null;
+  }
+
+  return `${props.galaxyId}:${coords.x},${coords.y}`;
+}
+
+function buildFallbackSectorRecord() {
+  const sectorId = getPersistedSectorId();
+  const coords = parseSectorCoordinates(sectorId || props.sectorId);
+  if (!sectorId || !coords || !props.galaxyId) {
+    return null;
+  }
+
+  return {
+    sectorId,
+    galaxyId: props.galaxyId,
+    coordinates: {
+      x: coords.x,
+      y: coords.y,
+    },
+    densityClass: 0,
+    densityVariation: 0,
+    metadata: {
+      galaxyId: props.galaxyId,
+      gridX: coords.x,
+      gridY: coords.y,
+      displayName: `Sector ${coords.x},${coords.y}`,
+      explorationStatus: "unexplored",
+      systemCount: 0,
+    },
+  };
+}
+
 async function syncSectorSurveyState(systemRecord) {
   if (!props.galaxyId || !props.sectorId || !systemRecord) {
     return;
@@ -423,12 +480,13 @@ async function syncSectorSurveyState(systemRecord) {
     return;
   }
 
-  let sector = sectorStore.sectors.find((entry) => entry.sectorId === props.sectorId) ?? null;
+  const persistedSectorId = getPersistedSectorId();
+  let sector = sectorStore.sectors.find((entry) => entry.sectorId === persistedSectorId) ?? null;
   if (!sector) {
     try {
-      sector = await sectorApi.getSector(props.sectorId);
+      sector = await sectorApi.getSector(persistedSectorId);
     } catch {
-      sector = null;
+      sector = buildFallbackSectorRecord();
     }
   }
   if (!sector) {
@@ -452,10 +510,15 @@ async function syncSectorSurveyState(systemRecord) {
       ? systemRecord.companionStars.map((star) => String(star?.spectralClass || "").trim()).filter(Boolean)
       : [];
 
-  await sectorStore.updateSector(sector.sectorId, {
+  const nextSector = {
     ...sector,
+    sectorId: persistedSectorId,
+    galaxyId: props.galaxyId,
     metadata: {
       ...metadata,
+      galaxyId: props.galaxyId,
+      gridX: Number(metadata.gridX ?? sector?.coordinates?.x ?? 0),
+      gridY: Number(metadata.gridY ?? sector?.coordinates?.y ?? 0),
       systemCount: Math.max(Number(metadata.systemCount) || 0, occupiedHexes.length),
       explorationStatus: "surveyed",
       occupiedHexes,
@@ -471,17 +534,27 @@ async function syncSectorSurveyState(systemRecord) {
       },
       lastModified: new Date().toISOString(),
     },
-  });
+  };
+
+  const persistedSector = await sectorApi.upsertSector(nextSector);
+  const sectorIndex = sectorStore.sectors.findIndex((entry) => entry.sectorId === persistedSector.sectorId);
+  if (sectorIndex >= 0) {
+    sectorStore.sectors[sectorIndex] = persistedSector;
+  } else {
+    sectorStore.sectors.unshift(persistedSector);
+  }
+  sectorStore.setCurrentSector(persistedSector.sectorId);
 }
 
 function toPersistedSystem(nextSystem) {
   const normalizedHex = normalizeHex(nextSystem.systemId);
+  const persistedSectorId = getPersistedSectorId();
   const stars = Array.isArray(nextSystem.stars) ? nextSystem.stars : [];
   return {
     ...nextSystem,
-    systemId: `${props.sectorId || "sector"}:${normalizedHex}`,
+    systemId: `${persistedSectorId || "sector"}:${normalizedHex}`,
     galaxyId: props.galaxyId,
-    sectorId: props.sectorId,
+    sectorId: persistedSectorId,
     hexCoordinates: {
       x: Number(normalizedHex.slice(0, 2)) || 0,
       y: Number(normalizedHex.slice(2, 4)) || 0,
@@ -506,6 +579,8 @@ async function hydrateSystem() {
     return;
   }
 
+  const persistedSectorId = getPersistedSectorId();
+
   await runWithStellarLoading(
     "Stellar Survey Sync",
     `Hydrating stellar records for hex ${normalizeHex(hexCoord.value)}...`,
@@ -515,16 +590,16 @@ async function hydrateSystem() {
         stateLabel: "ARCHIVE LOAD",
         statusCode: "STAR-LOAD",
         title: "Stellar Survey Sync",
-        message: `Loading stellar records for sector ${props.sectorId}...`,
+        message: `Loading stellar records for sector ${persistedSectorId || props.sectorId}...`,
         barLabel: "Reading cached stellar survey records",
         diagnostics: [
           { label: "Hex", value: normalizeHex(hexCoord.value) },
-          { label: "Sector", value: props.sectorId || "Standalone" },
+          { label: "Sector", value: persistedSectorId || props.sectorId || "Standalone" },
           { label: "Archive", value: "Reading" },
         ],
         ledger: ["Stellar Survey", "Local archive mounted", "Sector cache: scanning"],
       });
-      await systemStore.loadSystems(props.galaxyId, props.sectorId);
+      await systemStore.loadSystems(props.galaxyId, persistedSectorId);
 
       setStellarLoadingState({
         tone: "analysis",
@@ -535,12 +610,12 @@ async function hydrateSystem() {
         barLabel: "Matching cached systems to requested hex",
         diagnostics: [
           { label: "Hex", value: normalizeHex(hexCoord.value) },
-          { label: "Sector", value: props.sectorId || "Standalone" },
+          { label: "Sector", value: persistedSectorId || props.sectorId || "Standalone" },
           { label: "Archive", value: "Matching" },
         ],
         ledger: ["Stellar Survey", `Hex ${normalizeHex(hexCoord.value)} requested`, "Record matcher: active"],
       });
-      const existing = systemStore.findSystemByHex(props.galaxyId, props.sectorId, hexCoord.value);
+      const existing = systemStore.findSystemByHex(props.galaxyId, persistedSectorId, hexCoord.value);
       if (existing?.stars?.length) {
         system.value = {
           ...existing,

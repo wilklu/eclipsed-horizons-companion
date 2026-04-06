@@ -1,4 +1,5 @@
 import { defineStore } from "pinia";
+import * as systemApi from "../api/systemApi.js";
 
 const STORAGE_KEY = "eclipsed-horizons-systems";
 const CURRENT_KEY = "eclipsed-horizons-current-system";
@@ -61,7 +62,7 @@ export const useSystemStore = defineStore("system", {
       this.isLoading = true;
       this.error = null;
       try {
-        const all = loadSystems();
+        const all = sectorId ? await systemApi.getSystemsBySector(sectorId) : loadSystems();
         this.systems = all.filter((system) => {
           const galaxyMatches = !galaxyId || String(system.galaxyId) === String(galaxyId);
           const sectorMatches = !sectorId || String(system.sectorId) === String(sectorId);
@@ -89,31 +90,29 @@ export const useSystemStore = defineStore("system", {
 
     async createSystem(systemData) {
       this.error = null;
-      const index = this.systems.findIndex((system) => system.systemId === systemData.systemId);
+      const persisted = await systemApi.upsertSystem(systemData);
+      const index = this.systems.findIndex((system) => system.systemId === persisted.systemId);
       if (index >= 0) {
-        this.systems[index] = systemData;
+        this.systems[index] = persisted;
       } else {
-        this.systems.push(systemData);
+        this.systems.push(persisted);
       }
       saveSystems(
         loadSystems()
-          .filter((system) => system.systemId !== systemData.systemId)
-          .concat(systemData),
+          .filter((system) => system.systemId !== persisted.systemId)
+          .concat(persisted),
       );
-      return systemData;
+      return persisted;
     },
 
     async updateSystem(systemId, updates) {
       this.error = null;
-      const existing = loadSystems();
-      const index = existing.findIndex((system) => system.systemId === systemId);
-      const next = index >= 0 ? { ...existing[index], ...updates } : { ...updates, systemId };
-      if (index >= 0) {
-        existing[index] = next;
-      } else {
-        existing.push(next);
-      }
-      saveSystems(existing);
+      const next = await systemApi.updateSystem(systemId, updates);
+      saveSystems(
+        loadSystems()
+          .filter((system) => system.systemId !== systemId)
+          .concat(next),
+      );
       const localIndex = this.systems.findIndex((system) => system.systemId === systemId);
       if (localIndex >= 0) {
         this.systems[localIndex] = next;
@@ -121,6 +120,14 @@ export const useSystemStore = defineStore("system", {
         this.systems.push(next);
       }
       return next;
+    },
+
+    async replaceSectorSystems(sectorId, systems) {
+      this.error = null;
+      const replaced = await systemApi.replaceSystemsForSector(sectorId, systems);
+      const otherSystems = this.systems.filter((system) => String(system?.sectorId) !== String(sectorId));
+      this.systems = otherSystems.concat(replaced);
+      return replaced;
     },
 
     removeSystem(systemId) {

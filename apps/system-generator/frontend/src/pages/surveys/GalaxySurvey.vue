@@ -86,10 +86,6 @@
             </option>
           </select>
         </div>
-        <div v-if="currentGalaxy" class="galaxy-selector-meta">
-          <span class="galaxy-selector-chip">{{ currentGalaxy.type }}</span>
-          <span class="galaxy-selector-summary">{{ currentGalaxy.galaxyId }}</span>
-        </div>
         <div class="survey-top-actions survey-top-actions--compact">
           <button
             v-if="currentGalaxy"
@@ -134,10 +130,6 @@
 
         <div class="galaxy-parameter-strip">
           <div class="galaxy-parameter-pill">
-            <span class="parameter-label">Galaxy ID</span>
-            <span class="parameter-value">{{ currentGalaxy.galaxyId }}</span>
-          </div>
-          <div class="galaxy-parameter-pill">
             <span class="parameter-label">Bulge Radius</span>
             <span class="parameter-value"
               >{{
@@ -171,10 +163,10 @@
           </div>
         </div>
 
-        <div class="details-grid">
-          <section class="detail-section">
+        <div class="details-stack">
+          <section class="detail-section detail-section--strip">
             <h3>🔬 Galaxy Profile</h3>
-            <div class="property-list">
+            <div class="property-strip">
               <div class="property property-link-row">
                 <span class="label">Traveller Atlas:</span>
                 <button
@@ -264,28 +256,9 @@
             </div>
           </section>
 
-          <!-- Metadata -->
-          <section class="detail-section">
-            <h3>📋 Metadata</h3>
-            <div class="property-list">
-              <div class="property">
-                <span class="label">Created:</span>
-                <span class="value">{{ new Date(currentGalaxy.metadata?.createdAt).toLocaleDateString() }}</span>
-              </div>
-              <div class="property">
-                <span class="label">Last Modified:</span>
-                <span class="value">{{ new Date(currentGalaxy.metadata?.lastModified).toLocaleDateString() }}</span>
-              </div>
-              <div class="property">
-                <span class="label">Status:</span>
-                <span class="value">{{ currentGalaxy.metadata?.status || "Active" }}</span>
-              </div>
-            </div>
-          </section>
-
-          <section class="detail-section">
+          <section class="detail-section detail-section--strip">
             <h3>🗺️ Sector Statistics</h3>
-            <div class="property-list">
+            <div class="property-strip">
               <div class="property">
                 <span class="label">Total Sectors:</span>
                 <span class="value">{{ formatNumber(currentGalaxySectorStats.totalSectors) }}</span>
@@ -321,22 +294,24 @@
                   {{ isRefreshingSectorStats ? "Refreshing..." : "Refresh Statistics" }}
                 </button>
               </div>
-              <div class="property property-link-row">
-                <span class="label">Storage Cleanup:</span>
-                <button
-                  type="button"
-                  class="property-link-chip"
-                  :disabled="isPruningDefaultSectors || !currentGalaxy?.galaxyId"
-                  @click="pruneCurrentGalaxyDefaultSectors"
-                >
-                  {{ isPruningDefaultSectors ? "Pruning..." : "Prune Empty Sectors" }}
-                </button>
+            </div>
+          </section>
+
+          <!-- Metadata -->
+          <section class="detail-section detail-section--strip">
+            <h3>📋 Metadata</h3>
+            <div class="property-strip">
+              <div class="property">
+                <span class="label">Created:</span>
+                <span class="value">{{ new Date(currentGalaxy.metadata?.createdAt).toLocaleDateString() }}</span>
               </div>
               <div class="property">
-                <span class="label">Cleanup Note:</span>
-                <span class="value"
-                  >Prune removes legacy empty placeholder sectors; run DB VACUUM offline to reclaim disk space.</span
-                >
+                <span class="label">Last Modified:</span>
+                <span class="value">{{ new Date(currentGalaxy.metadata?.lastModified).toLocaleDateString() }}</span>
+              </div>
+              <div class="property">
+                <span class="label">Status:</span>
+                <span class="value">{{ currentGalaxy.metadata?.status || "Active" }}</span>
               </div>
             </div>
           </section>
@@ -840,7 +815,7 @@ import { ref, computed, onMounted, watchEffect, watch, nextTick } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import { useGalaxyStore } from "../../stores/galaxyStore.js";
 import { useSectorStore } from "../../stores/sectorStore.js";
-import { createSectorsBatch, getSectorStats, pruneDefaultSectors, upsertSector } from "../../api/sectorApi.js";
+import { createSectorsBatch, getSectorStats, upsertSector } from "../../api/sectorApi.js";
 import { calculateHexOccupancyProbability } from "../../utils/sectorGeneration.js";
 import { generatePrimaryStar } from "../../utils/primaryStarGenerator.js";
 import LoadingSpinner from "../../components/common/LoadingSpinner.vue";
@@ -884,7 +859,6 @@ const isEditingGalaxy = ref(false);
 const isGeneratingSectors = ref(false);
 const isGeneratingFullGalaxy = ref(false);
 const isRefreshingSectorStats = ref(false);
-const isPruningDefaultSectors = ref(false);
 const galaxySurveyGenerationMode = ref("names");
 const galaxyMapZoomLevel = ref("fit");
 const galaxyMapPan = ref({ x: 0, y: 0 });
@@ -1515,37 +1489,6 @@ async function loadCurrentGalaxySectorStats({
     if (!silent) {
       isRefreshingSectorStats.value = false;
     }
-  }
-}
-
-async function pruneCurrentGalaxyDefaultSectors() {
-  const galaxy = currentGalaxy.value;
-  if (!galaxy?.galaxyId || isPruningDefaultSectors.value) {
-    return;
-  }
-
-  const confirmed = window.confirm(
-    `Prune empty placeholder sectors for "${galaxy.name || galaxy.galaxyId}"?\n\n` +
-      "This keeps only meaningful/generated sectors and can greatly improve responsiveness.",
-  );
-  if (!confirmed) {
-    return;
-  }
-
-  isPruningDefaultSectors.value = true;
-  try {
-    const result = await pruneDefaultSectors(galaxy.galaxyId);
-    const deleted = Number(result?.deleted) || 0;
-
-    await loadCurrentGalaxySectorStats({ galaxyId: galaxy.galaxyId, silent: true, force: true });
-
-    toastService.success(
-      `Pruned ${deleted.toLocaleString()} empty sectors. Run VACUUM while the API is offline to reclaim disk space.`,
-    );
-  } catch (err) {
-    toastService.error(`Failed to prune empty sectors: ${err.message}`);
-  } finally {
-    isPruningDefaultSectors.value = false;
   }
 }
 
@@ -3247,7 +3190,7 @@ function formatNumber(num) {
 
 .galaxy-selector-bar {
   display: grid;
-  grid-template-columns: minmax(240px, 1.2fr) auto auto;
+  grid-template-columns: minmax(240px, 1.2fr) auto;
   gap: 0.9rem;
   align-items: end;
   margin: 0 0 1rem;
@@ -3280,31 +3223,6 @@ function formatNumber(num) {
   color: #d9efff;
   border-radius: 0.4rem;
   padding: 0.55rem 0.75rem;
-}
-
-.galaxy-selector-meta {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-}
-
-.galaxy-selector-chip {
-  display: inline-flex;
-  align-items: center;
-  min-height: 2.25rem;
-  padding: 0.35rem 0.8rem;
-  border-radius: 999px;
-  background: rgba(0, 217, 255, 0.15);
-  color: #8fe9ff;
-  font-size: 0.78rem;
-  font-weight: 700;
-}
-
-.galaxy-selector-summary {
-  color: #9fb7c7;
-  font-size: 0.8rem;
-  font-family: monospace;
 }
 
 .survey-top-actions {
@@ -3413,10 +3331,10 @@ function formatNumber(num) {
   font-weight: bold;
 }
 
-.details-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 1.2rem;
+.details-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
   margin-bottom: 1.2rem;
 }
 
@@ -3425,10 +3343,28 @@ function formatNumber(num) {
   margin-bottom: 1rem;
 }
 
+.detail-section--strip {
+  display: grid;
+  grid-template-columns: 170px minmax(0, 1fr);
+  gap: 0.9rem;
+  align-items: start;
+}
+
+.detail-section--strip h3 {
+  margin: 0;
+  padding-top: 0.35rem;
+}
+
 .property-list {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+}
+
+.property-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
 }
 
 .property {
@@ -3436,6 +3372,22 @@ function formatNumber(num) {
   justify-content: space-between;
   padding: 0.5rem 0;
   border-bottom: 1px solid #333;
+}
+
+.property-strip .property {
+  min-width: 150px;
+  flex: 1 1 150px;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 0.3rem;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid rgba(0, 217, 255, 0.14);
+  border-radius: 0.45rem;
+  background: rgba(6, 19, 35, 0.52);
+}
+
+.property-strip .property-link-row {
+  align-items: flex-start;
 }
 
 .property .label {
@@ -3451,6 +3403,12 @@ function formatNumber(num) {
 .property .inline-edit-input,
 .property .inline-edit-select {
   width: 180px;
+}
+
+.property-strip .inline-edit-input,
+.property-strip .inline-edit-select {
+  width: 100%;
+  min-width: 0;
 }
 
 .property-link-row {
@@ -3556,6 +3514,16 @@ function formatNumber(num) {
 
 .preview-delta-down {
   color: #ffb6a8;
+}
+
+@media (max-width: 1040px) {
+  .detail-section--strip {
+    grid-template-columns: 1fr;
+  }
+
+  .detail-section--strip h3 {
+    padding-top: 0;
+  }
 }
 
 .region-list {

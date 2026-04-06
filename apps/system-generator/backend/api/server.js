@@ -101,6 +101,25 @@ function toSector(row) {
   };
 }
 
+function toSystem(row) {
+  const metadata = parseJsonField(row.metadata, {});
+  const snapshot = metadata?.systemRecord && typeof metadata.systemRecord === "object" ? metadata.systemRecord : {};
+  return {
+    ...snapshot,
+    systemId: row.systemId,
+    sectorId: row.sectorId,
+    galaxyId: String(row.galaxyId ?? metadata.galaxyId ?? snapshot.galaxyId ?? ""),
+    hexCoordinates: parseJsonField(row.hexCoordinates, { x: 0, y: 0 }),
+    starCount: Number(row.starCount) || 1,
+    primaryStar: parseJsonField(row.primaryStar, {}),
+    companionStars: parseJsonField(row.companionStars, []),
+    habitableZone: snapshot.habitableZone ?? null,
+    metadata,
+    createdAt: row.createdAt,
+    lastModified: row.lastModified,
+  };
+}
+
 function normalizeSectorPayload(payload) {
   const metadata = payload?.metadata && typeof payload.metadata === "object" ? payload.metadata : {};
   const coordinates = payload?.coordinates && typeof payload.coordinates === "object" ? payload.coordinates : {};
@@ -114,6 +133,49 @@ function normalizeSectorPayload(payload) {
     densityClass: Math.max(0, Math.min(5, Number(payload?.densityClass) || 0)),
     densityVariation: Number(payload?.densityVariation) || 0,
     metadata,
+  };
+}
+
+function normalizeSystemPayload(payload) {
+  const metadata = payload?.metadata && typeof payload.metadata === "object" ? { ...payload.metadata } : {};
+  const snapshot = payload && typeof payload === "object" ? { ...payload } : {};
+  const generatedStars = Array.isArray(payload?.stars) ? payload.stars : [];
+  const primaryStar =
+    payload?.primaryStar && typeof payload.primaryStar === "object"
+      ? payload.primaryStar
+      : generatedStars[0]
+        ? {
+            spectralClass: String(generatedStars[0]?.designation || generatedStars[0]?.spectralClass || "G2V"),
+          }
+        : { spectralClass: "G2V" };
+  const companionStars = Array.isArray(payload?.companionStars)
+    ? payload.companionStars
+    : generatedStars.length > 1
+      ? generatedStars.slice(1).map((star) => ({ spectralClass: star?.designation || star?.spectralClass || "" }))
+      : [];
+  const rawHexCoordinates =
+    payload?.hexCoordinates && typeof payload.hexCoordinates === "object" ? payload.hexCoordinates : {};
+
+  return {
+    systemId: String(payload?.systemId || "").trim(),
+    sectorId: String(payload?.sectorId || metadata.sectorId || "").trim(),
+    galaxyId: String(payload?.galaxyId || metadata.galaxyId || snapshot.galaxyId || "").trim(),
+    hexCoordinates: {
+      x: Number(rawHexCoordinates.x ?? 0),
+      y: Number(rawHexCoordinates.y ?? 0),
+    },
+    starCount: Math.max(1, Math.min(4, Number(payload?.starCount ?? generatedStars.length ?? 1) || 1)),
+    primaryStar,
+    companionStars,
+    habitableZone:
+      payload?.habitableZone && typeof payload.habitableZone === "object"
+        ? payload.habitableZone
+        : (snapshot?.habitableZone ?? null),
+    metadata: {
+      ...metadata,
+      galaxyId: String(payload?.galaxyId || metadata.galaxyId || snapshot.galaxyId || "").trim(),
+      systemRecord: snapshot,
+    },
   };
 }
 
@@ -241,6 +303,93 @@ function upsertSector(payload) {
 
   const row = db.prepare("SELECT * FROM sectors WHERE sectorId = ?").get(sector.sectorId);
   return toSector(row);
+}
+
+function upsertSystem(payload) {
+  const system = normalizeSystemPayload(payload);
+  if (!system.systemId) throw new Error("systemId is required");
+  if (!system.sectorId) throw new Error("sectorId is required");
+
+  const sectorRow = db.prepare("SELECT sectorId, galaxyId FROM sectors WHERE sectorId = ?").get(system.sectorId);
+  if (!sectorRow) {
+    throw new Error(`Sector not found for system: ${system.sectorId}`);
+  }
+
+  const existingRow = db.prepare("SELECT * FROM systems WHERE systemId = ?").get(system.systemId);
+  const mergedMetadata = {
+    ...parseJsonField(existingRow?.metadata, {}),
+    ...(system.metadata ?? {}),
+    galaxyId: sectorRow.galaxyId,
+  };
+
+  db.prepare(
+    `INSERT INTO systems (systemId, sectorId, hexCoordinates, starCount, primaryStar, companionStars, habitable_zone, metadata)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(systemId) DO UPDATE SET
+       sectorId = excluded.sectorId,
+       hexCoordinates = excluded.hexCoordinates,
+       starCount = excluded.starCount,
+       primaryStar = excluded.primaryStar,
+       companionStars = excluded.companionStars,
+       habitable_zone = excluded.habitable_zone,
+       metadata = excluded.metadata,
+       lastModified = CURRENT_TIMESTAMP`,
+  ).run(
+    system.systemId,
+    system.sectorId,
+    JSON.stringify(system.hexCoordinates),
+    system.starCount,
+    JSON.stringify(system.primaryStar ?? {}),
+    JSON.stringify(system.companionStars ?? []),
+    system.habitableZone && typeof system.habitableZone === "object"
+      ? Number(system.habitableZone.innerAU ?? 0) || null
+      : Number(system.habitableZone) || null,
+    JSON.stringify(mergedMetadata),
+  );
+
+  const row = db
+    .prepare(
+      `SELECT systems.*, sectors.galaxyId AS galaxyId
+       FROM systems
+       JOIN sectors ON sectors.sectorId = systems.sectorId
+       WHERE systems.systemId = ?`,
+    )
+    .get(system.systemId);
+  return toSystem(row);
+}
+
+function replaceSectorSystems(sectorId, payload) {
+  const normalizedSectorId = String(sectorId || "").trim();
+  if (!normalizedSectorId) {
+    throw new Error("sectorId is required");
+  }
+
+  const sectorRow = db.prepare("SELECT sectorId FROM sectors WHERE sectorId = ?").get(normalizedSectorId);
+  if (!sectorRow) {
+    throw new Error(`Sector not found: ${normalizedSectorId}`);
+  }
+
+  const systems = Array.isArray(payload) ? payload : [];
+  const transaction = db.transaction((items) => {
+    db.prepare("DELETE FROM systems WHERE sectorId = ?").run(normalizedSectorId);
+    for (const item of items) {
+      upsertSystem({ ...item, sectorId: normalizedSectorId });
+    }
+  });
+
+  transaction(systems);
+
+  const rows = db
+    .prepare(
+      `SELECT systems.*, sectors.galaxyId AS galaxyId
+       FROM systems
+       JOIN sectors ON sectors.sectorId = systems.sectorId
+       WHERE systems.sectorId = ?
+       ORDER BY CAST(json_extract(hexCoordinates, '$.y') AS REAL) ASC,
+                CAST(json_extract(hexCoordinates, '$.x') AS REAL) ASC`,
+    )
+    .all(normalizedSectorId);
+  return rows.map(toSystem);
 }
 
 function matchPath(pathname, pattern) {
@@ -388,6 +537,40 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    params = matchPath(pathname, "/api/sectors/:id/systems");
+    if (req.method === "GET" && params) {
+      const rows = db
+        .prepare(
+          `SELECT systems.*, sectors.galaxyId AS galaxyId
+           FROM systems
+           JOIN sectors ON sectors.sectorId = systems.sectorId
+           WHERE systems.sectorId = ?
+           ORDER BY CAST(json_extract(hexCoordinates, '$.y') AS REAL) ASC,
+                    CAST(json_extract(hexCoordinates, '$.x') AS REAL) ASC`,
+        )
+        .all(params.id);
+      sendJson(res, 200, rows.map(toSystem));
+      return;
+    }
+
+    params = matchPath(pathname, "/api/systems/:id");
+    if (req.method === "GET" && params) {
+      const row = db
+        .prepare(
+          `SELECT systems.*, sectors.galaxyId AS galaxyId
+           FROM systems
+           JOIN sectors ON sectors.sectorId = systems.sectorId
+           WHERE systems.systemId = ?`,
+        )
+        .get(params.id);
+      if (!row) {
+        sendJson(res, 404, { error: `System not found: ${params.id}` });
+        return;
+      }
+      sendJson(res, 200, toSystem(row));
+      return;
+    }
+
     if (req.method === "POST" && pathname === "/api/sectors") {
       const payload = await readRequestBody(req);
       const created = upsertSector(payload);
@@ -423,10 +606,44 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    if (req.method === "POST" && pathname === "/api/systems") {
+      const payload = await readRequestBody(req);
+      const created = upsertSystem(payload);
+      sendJson(res, 201, created);
+      return;
+    }
+
+    if (req.method === "POST" && pathname === "/api/systems/upsert") {
+      const payload = await readRequestBody(req);
+      const updated = upsertSystem(payload);
+      sendJson(res, 201, updated);
+      return;
+    }
+
+    params = matchPath(pathname, "/api/sectors/:id/systems/replace");
+    if (req.method === "POST" && params) {
+      const payload = await readRequestBody(req);
+      if (!Array.isArray(payload)) {
+        sendJson(res, 400, { error: "Request body must be an array of systems" });
+        return;
+      }
+      const replaced = replaceSectorSystems(params.id, payload);
+      sendJson(res, 200, replaced);
+      return;
+    }
+
     params = matchPath(pathname, "/api/sectors/:id");
     if (req.method === "PUT" && params) {
       const payload = await readRequestBody(req);
       const updated = upsertSector({ ...payload, sectorId: params.id });
+      sendJson(res, 200, updated);
+      return;
+    }
+
+    params = matchPath(pathname, "/api/systems/:id");
+    if (req.method === "PUT" && params) {
+      const payload = await readRequestBody(req);
+      const updated = upsertSystem({ ...payload, systemId: params.id });
       sendJson(res, 200, updated);
       return;
     }

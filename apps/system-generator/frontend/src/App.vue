@@ -12,7 +12,7 @@
       <nav class="header-nav">
         <router-link to="/atlas" class="nav-link">Traveller Atlas</router-link>
         <router-link to="/galaxy" class="nav-link">Galaxy Survey</router-link>
-        <router-link :to="galaxyId ? `/sector/${galaxyId}` : '/galaxy'" class="nav-link">Sector Survey</router-link>
+        <router-link :to="sectorSurveyRoute" class="nav-link">Sector Survey</router-link>
         <router-link to="/sophont-generator" class="nav-link">Sophont Generator</router-link>
         <router-link to="/creature-generator" class="nav-link">Creature Generator</router-link>
         <router-link to="/history-generator" class="nav-link">History Generator</router-link>
@@ -36,11 +36,27 @@ import { computed, onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
 import LoadingSpinner from "./components/common/LoadingSpinner.vue";
 import { useGalaxyStore } from "./stores/galaxyStore.js";
+import { useSectorStore } from "./stores/sectorStore.js";
 
 const galaxyStore = useGalaxyStore();
+const sectorStore = useSectorStore();
 const route = useRoute();
 const isBooting = ref(true);
 const galaxyId = computed(() => galaxyStore.getCurrentGalaxy?.galaxyId ?? null);
+const sectorSurveyRoute = computed(() => {
+  if (!galaxyId.value) {
+    return "/galaxy";
+  }
+
+  const currentSectorId = String(sectorStore.currentSectorId || "").trim();
+  return currentSectorId && currentSectorId.startsWith(`${galaxyId.value}:`)
+    ? {
+        name: "SectorSurvey",
+        params: { galaxyId: galaxyId.value },
+        query: { sectorId: currentSectorId },
+      }
+    : `/sector/${galaxyId.value}`;
+});
 const routeTitleFallbacks = Object.freeze({
   TravellerAtlas: "Traveller Atlas",
   GalaxySurvey: "Galaxy Survey",
@@ -89,6 +105,7 @@ body {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  height: 100vh;
 }
 
 .app-header {
@@ -160,6 +177,7 @@ body {
   flex: 1;
   min-height: 0;
   display: flex;
+  overflow: hidden;
 }
 
 .app-main > * {
