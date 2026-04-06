@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "npm --prefix apps/system-generator/frontend run dev",
     "api:dev": "node apps/system-generator/backend/api/server.js",
+    "test:backend-api": "node --test apps/system-generator/backend/api/server.test.js",
     "validate:rules": "node scripts/validate-rules.js",
     "validate:yaml": "node scripts/lint-yaml.js",
     "validate:data": "node scripts/test-data-validation.js",
