@@ -1,6 +1,7 @@
 <template>
   <div class="sector-survey">
-    <LoadingSpinner :isVisible="isLoading" context="sector" :message="loadingMessage" />
+    <LoadingSpinner :isVisible="isLoading" context="sector" tone="sync" :message="loadingMessage" />
+    <LoadingSpinner v-bind="sectorExportOverlayProps" />
     <SurveyNavigation
       currentClass="Sector Survey"
       :back-route="backRoute"
@@ -369,6 +370,7 @@ import { calculateHexOccupancyProbability, pickCentralAnomalyType } from "../../
 import { generatePhonotacticName } from "../../utils/nameGenerator.js";
 import { generateGalaxySectorLayout } from "../../utils/sectorLayoutGenerator.js";
 import { usePreferencesStore } from "../../stores/preferencesStore.js";
+import { useArchiveTransfer } from "../../composables/useArchiveTransfer.js";
 
 const props = defineProps({ galaxyId: { type: String, default: null } });
 const router = useRouter();
@@ -828,6 +830,14 @@ const galaxyMinimap = computed(() => {
 const loadingMessage = computed(() =>
   loadingMode.value === "load" ? "Loading sector systems..." : "Generating sector...",
 );
+const { overlayProps: sectorExportOverlayProps, exportJson: exportSectorArchive } = useArchiveTransfer({
+  context: "sector",
+  noun: "Sector",
+  title: "Sector Export In Progress",
+  barLabel: "Packaging sector archive for transfer",
+  statusPrefix: "SEC",
+  targetLabel: () => generatedSector.value?.name || generatedSector.value?.sectorId || "Archive target pending",
+});
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const DENSITY_RATES = { core: 0.7, dense: 0.5, average: 0.3, scattered: 0.15, void: 0.03 };
@@ -2066,16 +2076,22 @@ function regenerateSector() {
   runSurveyAction();
 }
 
-function exportSector() {
+async function exportSector() {
   if (!generatedSector.value) return;
-  const dataStr = JSON.stringify(generatedSector.value, null, 2);
-  const blob = new Blob([dataStr], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `${generatedSector.value.name.replace(/\s+/g, "-")}-Sector.json`;
-  a.click();
-  URL.revokeObjectURL(url);
+
+  try {
+    await exportSectorArchive({
+      data: generatedSector,
+      filename: (sector) => `${sector.name.replace(/\s+/g, "-")}-Sector.json`,
+      serializeMessage: "Serializing sector manifest...",
+      encodeMessage: "Encoding sector archive for transfer...",
+      readyMessage: "Sector archive staged for local transfer.",
+      serializingProgress: 22,
+      encodingProgress: 68,
+    });
+  } catch (err) {
+    toastService.error(`Failed to export sector: ${err.message}`);
+  }
 }
 
 function proceedToStarSystem() {

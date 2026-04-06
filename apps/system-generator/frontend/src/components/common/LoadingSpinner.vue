@@ -1,13 +1,16 @@
 <template>
   <div v-if="isVisible" class="loading-spinner-overlay">
-    <div class="loading-spinner-content" :class="[`mode-${mode}`, `context-${resolvedContext}`]">
+    <div
+      class="loading-spinner-content"
+      :class="[`mode-${mode}`, `context-${resolvedContext}`, `tone-${resolvedTone}`]"
+    >
       <div class="loading-screen-grid"></div>
       <div class="loading-screen-noise"></div>
 
       <div class="loading-shell">
         <div class="loading-shell-header">
-          <span class="loading-kicker">{{ loadingProfile.kicker }}</span>
-          <span class="loading-state">{{ loadingProfile.state }}</span>
+          <span class="loading-kicker">{{ resolvedKicker }}</span>
+          <span class="loading-state">{{ resolvedState }}</span>
         </div>
 
         <div class="loading-title-block">
@@ -16,7 +19,7 @@
         </div>
 
         <div class="loading-diagnostics">
-          <div v-for="line in loadingProfile.diagnostics" :key="line.label" class="diagnostic-row">
+          <div v-for="line in resolvedDiagnostics" :key="line.label" class="diagnostic-row">
             <span class="diagnostic-label">{{ line.label }}</span>
             <span class="diagnostic-value">{{ line.value }}</span>
           </div>
@@ -45,7 +48,7 @@
             <div class="loading-radar-core"></div>
           </div>
           <div class="loading-ledger">
-            <div v-for="entry in loadingProfile.ledger" :key="entry" class="ledger-line">{{ entry }}</div>
+            <div v-for="entry in resolvedLedger" :key="entry" class="ledger-line">{{ entry }}</div>
           </div>
         </div>
       </div>
@@ -80,6 +83,30 @@ const props = defineProps({
   barLabel: {
     type: String,
     default: "",
+  },
+  kicker: {
+    type: String,
+    default: "",
+  },
+  stateLabel: {
+    type: String,
+    default: "",
+  },
+  statusCode: {
+    type: String,
+    default: "",
+  },
+  tone: {
+    type: String,
+    default: "",
+  },
+  diagnostics: {
+    type: Array,
+    default: () => [],
+  },
+  ledger: {
+    type: Array,
+    default: () => [],
   },
   progressCurrent: {
     type: Number,
@@ -181,6 +208,7 @@ const LOADING_CONTEXT_PROFILES = Object.freeze({
 });
 
 const resolvedContext = computed(() => (LOADING_CONTEXT_PROFILES[props.context] ? props.context : "generic"));
+const resolvedTone = computed(() => props.tone || (props.mode === "boot" ? "boot" : "default"));
 
 const loadingProfile = computed(() => {
   const baseProfile = LOADING_CONTEXT_PROFILES[resolvedContext.value] || LOADING_CONTEXT_PROFILES.generic;
@@ -206,6 +234,20 @@ const loadingProfile = computed(() => {
 
 const resolvedTitle = computed(() => props.title || loadingProfile.value.title);
 const resolvedBarLabel = computed(() => props.barLabel || loadingProfile.value.barLabel);
+const resolvedKicker = computed(() => props.kicker || loadingProfile.value.kicker);
+const resolvedState = computed(() => props.stateLabel || loadingProfile.value.state);
+const resolvedDiagnostics = computed(() => {
+  if (Array.isArray(props.diagnostics) && props.diagnostics.length > 0) {
+    return props.diagnostics;
+  }
+  return loadingProfile.value.diagnostics;
+});
+const resolvedLedger = computed(() => {
+  if (Array.isArray(props.ledger) && props.ledger.length > 0) {
+    return props.ledger;
+  }
+  return loadingProfile.value.ledger;
+});
 const hasProgress = computed(() => Number.isFinite(props.progressPercent));
 const normalizedProgressPercent = computed(() => {
   if (!hasProgress.value) return 0;
@@ -215,7 +257,7 @@ const progressFillStyle = computed(() =>
   hasProgress.value ? { width: `${normalizedProgressPercent.value}%`, transform: "none" } : undefined,
 );
 const progressCodeLabel = computed(() =>
-  hasProgress.value ? `${normalizedProgressPercent.value}%` : loadingProfile.value.statusCode,
+  hasProgress.value ? `${normalizedProgressPercent.value}%` : props.statusCode || loadingProfile.value.statusCode,
 );
 const progressCountLabel = computed(() => {
   if (!Number.isFinite(props.progressCurrent) || !Number.isFinite(props.progressTotal)) return "";
@@ -231,6 +273,9 @@ const progressSummaryLabel = computed(() => props.progressMeta || `${normalizedP
   --loading-accent-glow: rgba(57, 153, 209, 0.18);
   --loading-highlight: #ffd98a;
   --loading-highlight-glow: rgba(255, 217, 138, 0.75);
+  --loading-grid-opacity: 0.3;
+  --loading-sweep-duration: 2.8s;
+  --loading-shell-inset: rgba(0, 170, 255, 0.08);
 }
 
 .loading-spinner-content.context-galaxy {
@@ -258,6 +303,37 @@ const progressSummaryLabel = computed(() => props.progressMeta || `${normalizedP
   --loading-accent: #b597ff;
   --loading-accent-soft: rgba(181, 151, 255, 0.3);
   --loading-accent-glow: rgba(115, 90, 202, 0.16);
+}
+
+.loading-spinner-content.tone-analysis {
+  --loading-grid-opacity: 0.34;
+  --loading-sweep-duration: 2.35s;
+}
+
+.loading-spinner-content.tone-boot {
+  --loading-grid-opacity: 0.38;
+  --loading-sweep-duration: 2.1s;
+  --loading-shell-inset: rgba(129, 214, 255, 0.18);
+}
+
+.loading-spinner-content.tone-fabrication {
+  --loading-grid-opacity: 0.42;
+  --loading-sweep-duration: 1.95s;
+  --loading-shell-inset: rgba(255, 205, 112, 0.16);
+}
+
+.loading-spinner-content.tone-sync {
+  --loading-grid-opacity: 0.24;
+  --loading-sweep-duration: 3.25s;
+  --loading-shell-inset: rgba(120, 239, 209, 0.16);
+}
+
+.loading-spinner-content.tone-ready {
+  --loading-highlight: #9bffcb;
+  --loading-highlight-glow: rgba(155, 255, 203, 0.72);
+  --loading-grid-opacity: 0.2;
+  --loading-sweep-duration: 4.4s;
+  --loading-shell-inset: rgba(155, 255, 203, 0.18);
 }
 
 .loading-spinner-overlay {
@@ -293,7 +369,7 @@ const progressSummaryLabel = computed(() => props.progressMeta || `${normalizedP
     linear-gradient(rgba(63, 198, 255, 0.08) 1px, transparent 1px),
     linear-gradient(90deg, rgba(63, 198, 255, 0.08) 1px, transparent 1px);
   background-size: 28px 28px;
-  opacity: 0.3;
+  opacity: var(--loading-grid-opacity);
 }
 
 .loading-screen-noise {
@@ -312,7 +388,7 @@ const progressSummaryLabel = computed(() => props.progressMeta || `${normalizedP
     linear-gradient(180deg, rgba(6, 18, 32, 0.98), rgba(7, 15, 28, 0.94)),
     radial-gradient(circle at top right, var(--loading-accent-glow), transparent 35%);
   box-shadow:
-    0 0 0 1px rgba(0, 170, 255, 0.08) inset,
+    0 0 0 1px var(--loading-shell-inset) inset,
     0 24px 70px rgba(0, 0, 0, 0.42);
 }
 
@@ -480,7 +556,7 @@ const progressSummaryLabel = computed(() => props.progressMeta || `${normalizedP
   width: 150px;
   height: 150px;
   background: conic-gradient(from 0deg, transparent 0deg 305deg, var(--loading-accent-soft) 345deg, transparent 360deg);
-  animation: radar-sweep 2.8s linear infinite;
+  animation: radar-sweep var(--loading-sweep-duration) linear infinite;
 }
 
 .loading-ledger {

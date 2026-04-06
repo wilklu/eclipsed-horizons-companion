@@ -1,12 +1,36 @@
 <template>
   <div class="galaxy-survey">
-    <LoadingSpinner :isVisible="isLoading" context="galaxy" message="Loading galaxies..." />
+    <LoadingSpinner :isVisible="isLoading" context="galaxy" tone="sync" message="Loading galaxies..." />
+    <LoadingSpinner v-bind="galaxyExportOverlayProps" />
+    <LoadingSpinner
+      :isVisible="importInProgress"
+      context="galaxy"
+      tone="sync"
+      kicker="Archive Relay"
+      stateLabel="GALAXY IMPORT"
+      title="Galaxy Import In Progress"
+      :message="importOverlayMessage"
+      barLabel="Reconciling archive with current universe"
+      statusCode="GAL-IMPT"
+      :diagnostics="importOverlayDiagnostics"
+      :ledger="importOverlayLedger"
+      :progressCurrent="importProgress"
+      :progressTotal="100"
+      :progressPercent="importProgress"
+      :progressMeta="importOverlayMeta"
+    />
     <LoadingSpinner
       :isVisible="generationProgress.active"
       context="galaxy"
+      tone="fabrication"
+      kicker="Survey Command"
+      stateLabel="SECTOR FABRICATION"
       title="Galaxy Generation In Progress"
       :message="generationProgress.label"
       barLabel="Projecting sectors and generation queues"
+      statusCode="GAL-FAB"
+      :diagnostics="galaxyGenerationDiagnostics"
+      :ledger="galaxyGenerationLedger"
       :progressCurrent="generationProgress.current"
       :progressTotal="generationProgress.total"
       :progressPercent="generationProgressPercent"
@@ -729,7 +753,7 @@
       </div>
 
       <!-- Import Galaxy Form (Modal) -->
-      <div v-if="showImportForm" class="modal-overlay" @click="showImportForm = false">
+      <div v-if="showImportForm" class="modal-overlay" @click="handleImportModalDismiss">
         <div class="modal-content" @click.stop>
           <h2>Import Galaxy</h2>
           <form @submit.prevent="importGalaxyData">
@@ -791,14 +815,18 @@
               <label>Placement Seed (optional):</label>
               <input v-model.trim="importForm.placementSeed" placeholder="e.g. imports-v1" />
             </div>
-            <div v-if="importProgress > 0" class="progress-bar">
-              <div class="progress-fill" :style="{ width: importProgress + '%' }">{{ importProgress }}%</div>
-            </div>
             <div class="form-actions">
               <button type="submit" class="btn btn-primary" :disabled="importInProgress">
                 {{ importInProgress ? "Importing..." : "Import Galaxy" }}
               </button>
-              <button type="button" @click="showImportForm = false" class="btn btn-secondary">Cancel</button>
+              <button
+                type="button"
+                @click="handleImportModalDismiss"
+                class="btn btn-secondary"
+                :disabled="importInProgress"
+              >
+                Cancel
+              </button>
             </div>
           </form>
         </div>
@@ -820,6 +848,7 @@ import ConfirmDialog from "../../components/common/ConfirmDialog.vue";
 import * as toastService from "../../utils/toast.js";
 import { generateGalaxyName, generatePhonotacticName } from "../../utils/nameGenerator.js";
 import { usePreferencesStore } from "../../stores/preferencesStore.js";
+import { useArchiveTransfer } from "../../composables/useArchiveTransfer.js";
 import {
   estimateGalaxySectorLayoutCount,
   generateGalaxySectorLayout,
@@ -904,6 +933,64 @@ const generationProgressEtaLabel = computed(() => {
   const remaining = progress.total - progress.current;
   const etaSeconds = remaining / sectorsPerSecond;
   return `ETA ${formatDuration(etaSeconds)}`;
+});
+
+const importOverlayPhase = computed(() => {
+  const progress = Number(importProgress.value) || 0;
+  if (progress >= 100) return "Commit";
+  if (progress >= 80) return "Finalizing";
+  if (progress >= 30) return "Placement";
+  if (progress > 0) return "Validation";
+  return "Queued";
+});
+
+const importOverlayMessage = computed(() => {
+  const phase = importOverlayPhase.value;
+  const mode = String(importForm.value.placementMode || "clustered");
+  const label =
+    mode === "manual" ? "manual coordinates" : mode === "keep-source" ? "source coordinates" : "clustered placement";
+  return `${phase} imported galaxy using ${label}...`;
+});
+
+const importOverlayMeta = computed(() => `${Math.round(Number(importProgress.value) || 0)}% archived`);
+
+const importOverlayDiagnostics = computed(() => [
+  { label: "Phase", value: importOverlayPhase.value },
+  { label: "Placement", value: String(importForm.value.placementMode || "clustered") },
+  { label: "Progress", value: `${Math.round(Number(importProgress.value) || 0)}%` },
+]);
+
+const importOverlayLedger = computed(() => [
+  "Galaxy Import",
+  importForm.value.fileData?.name || importForm.value.fileData?.galaxyId || "Archive payload staged",
+  `${importOverlayPhase.value} phase active`,
+]);
+
+const { overlayProps: galaxyExportOverlayProps, exportJson: exportGalaxyArchive } = useArchiveTransfer({
+  context: "galaxy",
+  noun: "Galaxy",
+  title: "Galaxy Export In Progress",
+  barLabel: "Packaging galaxy archive for transfer",
+  statusPrefix: "GAL",
+  targetLabel: () => currentGalaxy.value?.name || currentGalaxy.value?.galaxyId || "Archive target pending",
+});
+
+const galaxyGenerationDiagnostics = computed(() => {
+  const progress = generationProgress.value;
+  return [
+    { label: "Stage", value: progress.label || "Queued" },
+    { label: "Completion", value: `${generationProgressPercent.value}%` },
+    { label: "ETA", value: generationProgressEtaLabel.value.replace("ETA ", "") || "--" },
+  ];
+});
+
+const galaxyGenerationLedger = computed(() => {
+  const progress = generationProgress.value;
+  return [
+    "Galaxy Registry",
+    `${progress.current.toLocaleString()} of ${progress.total.toLocaleString()} sectors queued`,
+    progress.label || "Awaiting generation directive",
+  ];
 });
 
 const currentGalaxySectorStats = ref({
@@ -1987,6 +2074,13 @@ function handleFileSelect(event) {
   }
 }
 
+function handleImportModalDismiss() {
+  if (importInProgress.value) {
+    return;
+  }
+  showImportForm.value = false;
+}
+
 async function importGalaxyData() {
   if (!importForm.value.fileData) {
     toastService.error("Please select a file to import");
@@ -3063,16 +3157,24 @@ function regenerateGalaxy() {
   toastService.info("Regeneration not yet implemented");
 }
 
-function exportGalaxy() {
+async function exportGalaxy() {
+  if (!currentGalaxy.value) {
+    return;
+  }
+
   try {
-    const dataStr = JSON.stringify(currentGalaxy.value, null, 2);
-    const dataBlob = new Blob([dataStr], { type: "application/json" });
-    const url = URL.createObjectURL(dataBlob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `${currentGalaxy.value?.name || currentGalaxy.value?.galaxyId || "Galaxy"}-Galaxy.json`;
-    link.click();
-    toastService.success("Galaxy exported successfully");
+    const exported = await exportGalaxyArchive({
+      data: currentGalaxy,
+      filename: (galaxy) => `${galaxy?.name || galaxy?.galaxyId || "Galaxy"}-Galaxy.json`,
+      serializeMessage: "Serializing galaxy manifest...",
+      encodeMessage: "Encoding galaxy archive for transfer...",
+      readyMessage: "Galaxy archive staged for local transfer.",
+      serializingProgress: 18,
+      encodingProgress: 62,
+    });
+    if (exported) {
+      toastService.success("Galaxy exported successfully");
+    }
   } catch (err) {
     toastService.error(`Failed to export galaxy: ${err.message}`);
   }

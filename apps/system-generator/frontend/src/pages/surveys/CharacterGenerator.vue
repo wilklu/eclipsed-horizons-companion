@@ -1,5 +1,6 @@
 <template>
   <div class="character-generator">
+    <LoadingSpinner v-bind="characterExportOverlayProps" />
     <SurveyNavigation
       currentClass="Character Generator"
       :show-regenerate="!!character"
@@ -152,7 +153,17 @@
 
 <script setup>
 import { ref } from "vue";
+import LoadingSpinner from "../../components/common/LoadingSpinner.vue";
 import SurveyNavigation from "../../components/common/SurveyNavigation.vue";
+import { useArchiveTransfer } from "../../composables/useArchiveTransfer.js";
+
+const { overlayProps: characterExportOverlayProps, exportJson: exportCharacterArchive } = useArchiveTransfer({
+  noun: "Character",
+  title: "Character Export In Progress",
+  barLabel: "Packaging character archive for transfer",
+  statusPrefix: "CHAR",
+  targetLabel: () => character.value?.name || "Archive target pending",
+});
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 const SPECIES_LIST = [
@@ -496,15 +507,15 @@ function generateCharacter() {
   };
 }
 
-function exportCharacter() {
+async function exportCharacter() {
   if (!character.value) return;
-  const blob = new Blob([JSON.stringify(character.value, null, 2)], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `${character.value.name.replace(/\s+/g, "-")}-Character.json`;
-  a.click();
-  URL.revokeObjectURL(url);
+  await exportCharacterArchive({
+    data: character,
+    filename: (characterRecord) => `${characterRecord.name.replace(/\s+/g, "-")}-Character.json`,
+    serializeMessage: "Serializing character dossier...",
+    encodeMessage: "Encoding character archive for transfer...",
+    readyMessage: "Character archive staged for local transfer.",
+  });
 }
 </script>
 

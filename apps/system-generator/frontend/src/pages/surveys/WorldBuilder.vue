@@ -1,11 +1,17 @@
 <template>
   <div class="world-builder">
+    <LoadingSpinner v-bind="worldExportOverlayProps" />
     <LoadingSpinner
       :isVisible="worldLoadingState.active"
       context="world"
+      :tone="worldLoadingState.tone"
+      :stateLabel="worldLoadingState.stateLabel"
+      :statusCode="worldLoadingState.statusCode"
       :title="worldLoadingState.title"
       :message="worldLoadingState.message"
       :barLabel="worldLoadingState.barLabel"
+      :diagnostics="worldLoadingState.diagnostics"
+      :ledger="worldLoadingState.ledger"
     />
     <SurveyNavigation
       currentClass="World Survey"
@@ -184,6 +190,7 @@ import { computed, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import LoadingSpinner from "../../components/common/LoadingSpinner.vue";
 import SurveyNavigation from "../../components/common/SurveyNavigation.vue";
+import { useArchiveTransfer } from "../../composables/useArchiveTransfer.js";
 
 defineProps({ systemId: { type: String, default: null } });
 const router = useRouter();
@@ -293,17 +300,44 @@ const sourceZone = ref("");
 const sourceWorldIndex = ref("");
 const worldLoadingState = ref({
   active: false,
+  tone: "analysis",
+  stateLabel: "PLANETARY DATA",
+  statusCode: "WRLD-SYNC",
   title: "World Survey Initialization",
   message: "Preparing planetary registers...",
   barLabel: "Synchronizing planetary registers",
+  diagnostics: [
+    { label: "Climate", value: "Parsing" },
+    { label: "Culture", value: "Indexing" },
+    { label: "Trade", value: "Nominal" },
+  ],
+  ledger: ["World Survey", "Census Matrix", "Planetology Core: Linked"],
+});
+
+const { overlayProps: worldExportOverlayProps, exportJson: exportWorldArchive } = useArchiveTransfer({
+  context: "world",
+  noun: "World",
+  title: "World Export In Progress",
+  barLabel: "Packaging world archive for transfer",
+  statusPrefix: "WRLD",
+  targetLabel: () => world.value?.name || "Archive target pending",
 });
 
 function resetWorldLoadingState() {
   worldLoadingState.value = {
     active: false,
+    tone: "analysis",
+    stateLabel: "PLANETARY DATA",
+    statusCode: "WRLD-SYNC",
     title: "World Survey Initialization",
     message: "Preparing planetary registers...",
     barLabel: "Synchronizing planetary registers",
+    diagnostics: [
+      { label: "Climate", value: "Parsing" },
+      { label: "Culture", value: "Indexing" },
+      { label: "Trade", value: "Nominal" },
+    ],
+    ledger: ["World Survey", "Census Matrix", "Planetology Core: Linked"],
   };
 }
 
@@ -316,9 +350,18 @@ function delay(ms) {
 async function runWithWorldLoading(title, message, operation, barLabel = "Synchronizing planetary registers") {
   worldLoadingState.value = {
     active: true,
+    tone: "fabrication",
+    stateLabel: "WORLD SYNTHESIS",
+    statusCode: "WRLD-BUILD",
     title,
     message,
     barLabel,
+    diagnostics: [
+      { label: "Star", value: starClass.value === "random" ? "Auto" : starClass.value },
+      { label: "Source", value: selectedSourceWorldLabel.value || "Standalone" },
+      { label: "Trade", value: "Projecting" },
+    ],
+    ledger: ["World Survey", "Climate heuristics engaged", "Census lattice: primed"],
   };
 
   await delay(220);
@@ -524,7 +567,33 @@ async function generateWorld() {
     "World Survey Synthesis",
     `Projecting planetary profile for ${worldLabel}...`,
     async () => {
+      worldLoadingState.value = {
+        ...worldLoadingState.value,
+        tone: "fabrication",
+        diagnostics: [
+          { label: "Star", value: starClass.value === "random" ? "Auto" : starClass.value },
+          { label: "Source", value: selectedSourceWorldLabel.value || "Standalone" },
+          { label: "Climate", value: "Rolling" },
+        ],
+        ledger: ["World Survey", `Target world: ${worldLabel}`, "Climate and census rules engaged"],
+      };
       buildGeneratedWorld();
+      worldLoadingState.value = {
+        ...worldLoadingState.value,
+        tone: "ready",
+        stateLabel: "PROFILE COMPLETE",
+        statusCode: "WRLD-READY",
+        diagnostics: [
+          { label: "Climate", value: world.value?.tempCategory || "Resolved" },
+          { label: "Life", value: world.value?.nativeSophontLife ? "Present" : "Absent" },
+          { label: "Trade", value: `${world.value?.tradeCodes?.length || 0} codes` },
+        ],
+        ledger: [
+          "World Survey",
+          world.value ? `${world.value.name} profile assembled` : "World profile assembled",
+          "Planetology Core: solution stable",
+        ],
+      };
     },
     "Running climate, census, and trade heuristics",
   );
@@ -534,15 +603,17 @@ function regenerateWorld() {
   if (world.value) return generateWorld();
 }
 
-function exportWorld() {
+async function exportWorld() {
   if (!world.value) return;
-  const blob = new Blob([JSON.stringify(world.value, null, 2)], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `${world.value.name.replace(/\s+/g, "-")}-World.json`;
-  a.click();
-  URL.revokeObjectURL(url);
+  await exportWorldArchive({
+    data: world,
+    filename: (worldRecord) => `${worldRecord.name.replace(/\s+/g, "-")}-World.json`,
+    serializeMessage: "Serializing world profile...",
+    encodeMessage: "Encoding world archive for transfer...",
+    readyMessage: "World archive staged for local transfer.",
+    serializingProgress: 24,
+    encodingProgress: 70,
+  });
 }
 
 function goToSophontGenerator() {

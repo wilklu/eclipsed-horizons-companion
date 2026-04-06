@@ -1,5 +1,6 @@
 <template>
   <div class="history-generator">
+    <LoadingSpinner v-bind="historyExportOverlayProps" />
     <SurveyNavigation
       currentClass="Procedural History Generator"
       :show-regenerate="!!history"
@@ -82,7 +83,17 @@
 
 <script setup>
 import { ref } from "vue";
+import LoadingSpinner from "../../components/common/LoadingSpinner.vue";
 import SurveyNavigation from "../../components/common/SurveyNavigation.vue";
+import { useArchiveTransfer } from "../../composables/useArchiveTransfer.js";
+
+const { overlayProps: historyExportOverlayProps, exportJson: exportHistoryArchive } = useArchiveTransfer({
+  noun: "History",
+  title: "History Export In Progress",
+  barLabel: "Packaging history archive for transfer",
+  statusPrefix: "HIST",
+  targetLabel: () => history.value?.civilizationName || "Archive target pending",
+});
 
 // ── Lookup tables ─────────────────────────────────────────────────────────────
 const EVENT_CATEGORIES = [
@@ -365,15 +376,15 @@ function generateHistory() {
   };
 }
 
-function exportHistory() {
+async function exportHistory() {
   if (!history.value) return;
-  const blob = new Blob([JSON.stringify(history.value, null, 2)], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `${history.value.civilizationName.replace(/\s+/g, "-")}-History.json`;
-  a.click();
-  URL.revokeObjectURL(url);
+  await exportHistoryArchive({
+    data: history,
+    filename: (historyRecord) => `${historyRecord.civilizationName.replace(/\s+/g, "-")}-History.json`,
+    serializeMessage: "Serializing historical archive...",
+    encodeMessage: "Encoding history archive for transfer...",
+    readyMessage: "History archive staged for local transfer.",
+  });
 }
 </script>
 

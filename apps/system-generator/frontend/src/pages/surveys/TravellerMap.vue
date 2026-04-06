@@ -1,12 +1,18 @@
 <template>
   <div ref="atlasRootRef" class="atlas-root">
-    <LoadingSpinner :isVisible="isLoading" context="atlas" message="Loading atlas data..." />
+    <LoadingSpinner :isVisible="isLoading" context="atlas" tone="sync" message="Loading atlas data..." />
     <LoadingSpinner
       :isVisible="atlasGenerationProgress.active"
       context="atlas"
+      tone="fabrication"
+      kicker="Atlas Relay"
+      stateLabel="REGION FABRICATION"
       title="Atlas Generation In Progress"
       :message="atlasGenerationProgress.label"
       barLabel="Projecting atlas sectors and overlays"
+      statusCode="ATLAS-FAB"
+      :diagnostics="atlasGenerationDiagnostics"
+      :ledger="atlasGenerationLedger"
       :progressCurrent="atlasGenerationProgress.current"
       :progressTotal="atlasGenerationProgress.total"
       :progressPercent="atlasGenerationProgressPercent"
@@ -850,6 +856,24 @@ const atlasGenerationProgressPercent = computed(() => {
   if (!atlasGenerationProgress.value.active || atlasGenerationProgress.value.total <= 0) return 0;
   const pct = Math.round((atlasGenerationProgress.value.current / atlasGenerationProgress.value.total) * 100);
   return Math.max(0, Math.min(100, pct));
+});
+
+const atlasGenerationDiagnostics = computed(() => {
+  const progress = atlasGenerationProgress.value;
+  return [
+    { label: "Stage", value: progress.label || "Queued" },
+    { label: "Coverage", value: `${progress.current.toLocaleString()} / ${progress.total.toLocaleString()}` },
+    { label: "Completion", value: `${atlasGenerationProgressPercent.value}%` },
+  ];
+});
+
+const atlasGenerationLedger = computed(() => {
+  const progress = atlasGenerationProgress.value;
+  return [
+    "Traveller Atlas",
+    `${progress.current.toLocaleString()} sectors processed`,
+    progress.label || "Awaiting atlas directive",
+  ];
 });
 
 const SECTOR_HEX_PRESENCE_RATE = Object.freeze([0.03, 0.03, 0.15, 0.3, 0.5, 0.7]);

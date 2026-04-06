@@ -1,11 +1,17 @@
 <template>
   <div class="star-system-builder">
+    <LoadingSpinner v-bind="systemExportOverlayProps" />
     <LoadingSpinner
       :isVisible="stellarLoadingState.active"
       context="stellar"
+      :tone="stellarLoadingState.tone"
+      :stateLabel="stellarLoadingState.stateLabel"
+      :statusCode="stellarLoadingState.statusCode"
       :title="stellarLoadingState.title"
       :message="stellarLoadingState.message"
       :barLabel="stellarLoadingState.barLabel"
+      :diagnostics="stellarLoadingState.diagnostics"
+      :ledger="stellarLoadingState.ledger"
     />
     <SurveyNavigation
       currentClass="Stellar Survey"
@@ -186,6 +192,7 @@ import * as sectorApi from "../../api/sectorApi.js";
 import { deserializeReturnRoute } from "../../utils/returnRoute.js";
 import { useSectorStore } from "../../stores/sectorStore.js";
 import { useSystemStore } from "../../stores/systemStore.js";
+import { useArchiveTransfer } from "../../composables/useArchiveTransfer.js";
 
 const props = defineProps({
   galaxyId: { type: String, default: null },
@@ -265,9 +272,27 @@ const system = ref(null);
 const selectedWorldIndex = ref(null);
 const stellarLoadingState = ref({
   active: false,
+  tone: "analysis",
+  stateLabel: "PRIMARY ANALYSIS",
+  statusCode: "STAR-CORE",
   title: "Stellar Survey Sync",
   message: "Loading stellar records...",
   barLabel: "Synchronizing stellar records and survey state",
+  diagnostics: [
+    { label: "Spectra", value: "Sampling" },
+    { label: "Orbits", value: "Modeling" },
+    { label: "Bodies", value: "Queued" },
+  ],
+  ledger: ["Stellar Survey", "Orbital Solver", "Primary Cache: Stable"],
+});
+
+const { overlayProps: systemExportOverlayProps, exportJson: exportSystemArchive } = useArchiveTransfer({
+  context: "stellar",
+  noun: "System",
+  title: "System Export In Progress",
+  barLabel: "Packaging stellar archive for transfer",
+  statusPrefix: "SYS",
+  targetLabel: () => system.value?.systemId || normalizeHex(hexCoord.value),
 });
 
 function setStellarLoadingState(nextState) {
@@ -280,9 +305,18 @@ function setStellarLoadingState(nextState) {
 function resetStellarLoadingState() {
   stellarLoadingState.value = {
     active: false,
+    tone: "analysis",
+    stateLabel: "PRIMARY ANALYSIS",
+    statusCode: "STAR-CORE",
     title: "Stellar Survey Sync",
     message: "Loading stellar records...",
     barLabel: "Synchronizing stellar records and survey state",
+    diagnostics: [
+      { label: "Spectra", value: "Sampling" },
+      { label: "Orbits", value: "Modeling" },
+      { label: "Bodies", value: "Queued" },
+    ],
+    ledger: ["Stellar Survey", "Orbital Solver", "Primary Cache: Stable"],
   };
 }
 
@@ -294,9 +328,18 @@ async function runWithStellarLoading(
 ) {
   stellarLoadingState.value = {
     active: true,
+    tone: "analysis",
+    stateLabel: "PRIMARY ANALYSIS",
+    statusCode: "STAR-CORE",
     title,
     message,
     barLabel,
+    diagnostics: [
+      { label: "Hex", value: normalizeHex(hexCoord.value) },
+      { label: "Sector", value: props.sectorId || "Standalone" },
+      { label: "Records", value: "Queued" },
+    ],
+    ledger: ["Stellar Survey", "Orbital Solver", "Primary Cache: Stable"],
   };
 
   try {
@@ -357,9 +400,18 @@ async function syncSectorSurveyState(systemRecord) {
   }
 
   setStellarLoadingState({
+    tone: "sync",
+    stateLabel: "LEDGER UPDATE",
+    statusCode: "SYNC-HEX",
     title: "Sector Ledger Sync",
     message: `Synchronizing sector metadata for hex ${normalizeHex(systemRecord?.systemId || hexCoord.value)}...`,
     barLabel: "Updating sector occupancy and stellar signatures",
+    diagnostics: [
+      { label: "Hex", value: normalizeHex(systemRecord?.systemId || hexCoord.value) },
+      { label: "Sector", value: props.sectorId || "Standalone" },
+      { label: "Occupancy", value: "Updating" },
+    ],
+    ledger: ["Sector Survey Ledger", "Occupancy manifest: pending", "Stellar signatures: reconciling"],
   });
 
   const normalizedHex = normalizeHex(systemRecord?.systemId || hexCoord.value);
@@ -459,16 +511,34 @@ async function hydrateSystem() {
     `Hydrating stellar records for hex ${normalizeHex(hexCoord.value)}...`,
     async () => {
       setStellarLoadingState({
+        tone: "analysis",
+        stateLabel: "ARCHIVE LOAD",
+        statusCode: "STAR-LOAD",
         title: "Stellar Survey Sync",
         message: `Loading stellar records for sector ${props.sectorId}...`,
         barLabel: "Reading cached stellar survey records",
+        diagnostics: [
+          { label: "Hex", value: normalizeHex(hexCoord.value) },
+          { label: "Sector", value: props.sectorId || "Standalone" },
+          { label: "Archive", value: "Reading" },
+        ],
+        ledger: ["Stellar Survey", "Local archive mounted", "Sector cache: scanning"],
       });
       await systemStore.loadSystems(props.galaxyId, props.sectorId);
 
       setStellarLoadingState({
+        tone: "analysis",
+        stateLabel: "RECORD MATCH",
+        statusCode: "STAR-MATCH",
         title: "Record Analysis",
         message: `Checking for an existing stellar survey at hex ${normalizeHex(hexCoord.value)}...`,
         barLabel: "Matching cached systems to requested hex",
+        diagnostics: [
+          { label: "Hex", value: normalizeHex(hexCoord.value) },
+          { label: "Sector", value: props.sectorId || "Standalone" },
+          { label: "Archive", value: "Matching" },
+        ],
+        ledger: ["Stellar Survey", `Hex ${normalizeHex(hexCoord.value)} requested`, "Record matcher: active"],
       });
       const existing = systemStore.findSystemByHex(props.galaxyId, props.sectorId, hexCoord.value);
       if (existing?.stars?.length) {
@@ -631,9 +701,18 @@ async function buildSystem() {
       async () => {
         const persisted = toPersistedSystem(nextSystem);
         setStellarLoadingState({
+          tone: "fabrication",
+          stateLabel: "ARCHIVE WRITE",
+          statusCode: "STAR-WRITE",
           title: "Stellar Survey Update",
           message: `Persisting stellar profile for hex ${normalizeHex(nextSystem.systemId)}...`,
           barLabel: "Writing stellar system record to archive",
+          diagnostics: [
+            { label: "Hex", value: normalizeHex(nextSystem.systemId) },
+            { label: "Multiplicity", value: `${stars.length} star${stars.length === 1 ? "" : "s"}` },
+            { label: "Bodies", value: `${planets.length} catalogued` },
+          ],
+          ledger: ["Stellar Survey", "Primary archive: write lock", "Sector mirror: pending sync"],
         });
         await systemStore.createSystem(persisted);
         systemStore.setCurrentSystem(persisted.systemId);
@@ -648,15 +727,17 @@ function regenerateSystem() {
   return buildSystem();
 }
 
-function exportSystem() {
+async function exportSystem() {
   if (!system.value) return;
-  const blob = new Blob([JSON.stringify(system.value, null, 2)], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `System-${system.value.systemId}.json`;
-  a.click();
-  URL.revokeObjectURL(url);
+  await exportSystemArchive({
+    data: system,
+    filename: (systemRecord) => `System-${systemRecord.systemId}.json`,
+    serializeMessage: "Serializing stellar system manifest...",
+    encodeMessage: "Encoding stellar archive for transfer...",
+    readyMessage: "Stellar archive staged for local transfer.",
+    serializingProgress: 24,
+    encodingProgress: 70,
+  });
 }
 
 function proceedToWorldBuilder() {

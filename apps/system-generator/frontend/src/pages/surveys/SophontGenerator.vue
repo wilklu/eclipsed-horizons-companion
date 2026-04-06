@@ -1,5 +1,6 @@
 <template>
   <div class="sophont-generator">
+    <LoadingSpinner v-bind="sophontExportOverlayProps" />
     <SurveyNavigation
       currentClass="Sophont Generator"
       :show-regenerate="!!sophont"
@@ -139,7 +140,17 @@
 
 <script setup>
 import { ref } from "vue";
+import LoadingSpinner from "../../components/common/LoadingSpinner.vue";
 import SurveyNavigation from "../../components/common/SurveyNavigation.vue";
+import { useArchiveTransfer } from "../../composables/useArchiveTransfer.js";
+
+const { overlayProps: sophontExportOverlayProps, exportJson: exportSophontArchive } = useArchiveTransfer({
+  noun: "Sophont",
+  title: "Sophont Export In Progress",
+  barLabel: "Packaging sophont archive for transfer",
+  statusPrefix: "SOPH",
+  targetLabel: () => sophont.value?.name || "Archive target pending",
+});
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const BODY_PLANS = [
@@ -308,15 +319,15 @@ function generateSophont() {
   };
 }
 
-function exportSophont() {
+async function exportSophont() {
   if (!sophont.value) return;
-  const blob = new Blob([JSON.stringify(sophont.value, null, 2)], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `${sophont.value.name.replace(/\s+/g, "-")}-Sophont.json`;
-  a.click();
-  URL.revokeObjectURL(url);
+  await exportSophontArchive({
+    data: sophont,
+    filename: (sophontRecord) => `${sophontRecord.name.replace(/\s+/g, "-")}-Sophont.json`,
+    serializeMessage: "Serializing sophont dossier...",
+    encodeMessage: "Encoding sophont archive for transfer...",
+    readyMessage: "Sophont archive staged for local transfer.",
+  });
 }
 </script>
 

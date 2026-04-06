@@ -3,6 +3,7 @@
     <LoadingSpinner
       :isVisible="isBooting"
       mode="boot"
+      tone="boot"
       :context="bootLoadingContext"
       :message="`Initializing ${headerContextTitle || 'Traveller systems'}...`"
     />

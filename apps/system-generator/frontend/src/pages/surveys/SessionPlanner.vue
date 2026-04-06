@@ -1,5 +1,6 @@
 <template>
   <div class="session-planner">
+    <LoadingSpinner v-bind="sessionExportOverlayProps" />
     <SurveyNavigation
       currentClass="Session Planner"
       :show-regenerate="!!session"
@@ -134,7 +135,17 @@
 
 <script setup>
 import { ref } from "vue";
+import LoadingSpinner from "../../components/common/LoadingSpinner.vue";
 import SurveyNavigation from "../../components/common/SurveyNavigation.vue";
+import { useArchiveTransfer } from "../../composables/useArchiveTransfer.js";
+
+const { overlayProps: sessionExportOverlayProps, exportJson: exportSessionArchive } = useArchiveTransfer({
+  noun: "Session",
+  title: "Session Export In Progress",
+  barLabel: "Packaging session archive for transfer",
+  statusPrefix: "SESS",
+  targetLabel: () => session.value?.title || "Archive target pending",
+});
 
 // ── Lookup tables ─────────────────────────────────────────────────────────────
 const MISSION_TYPES = [
@@ -433,15 +444,15 @@ function generateSession() {
   };
 }
 
-function exportSession() {
+async function exportSession() {
   if (!session.value) return;
-  const blob = new Blob([JSON.stringify(session.value, null, 2)], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `${session.value.title.replace(/\s+/g, "-")}-Session.json`;
-  a.click();
-  URL.revokeObjectURL(url);
+  await exportSessionArchive({
+    data: session,
+    filename: (sessionRecord) => `${sessionRecord.title.replace(/\s+/g, "-")}-Session.json`,
+    serializeMessage: "Serializing session dossier...",
+    encodeMessage: "Encoding session archive for transfer...",
+    readyMessage: "Session archive staged for local transfer.",
+  });
 }
 </script>
 

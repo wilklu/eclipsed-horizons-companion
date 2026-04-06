@@ -1,5 +1,6 @@
 <template>
   <div class="creature-generator">
+    <LoadingSpinner v-bind="creatureExportOverlayProps" />
     <SurveyNavigation
       currentClass="Creature Generator"
       :show-regenerate="!!creature"
@@ -140,7 +141,17 @@
 
 <script setup>
 import { ref } from "vue";
+import LoadingSpinner from "../../components/common/LoadingSpinner.vue";
 import SurveyNavigation from "../../components/common/SurveyNavigation.vue";
+import { useArchiveTransfer } from "../../composables/useArchiveTransfer.js";
+
+const { overlayProps: creatureExportOverlayProps, exportJson: exportCreatureArchive } = useArchiveTransfer({
+  noun: "Creature",
+  title: "Creature Export In Progress",
+  barLabel: "Packaging creature archive for transfer",
+  statusPrefix: "CREA",
+  targetLabel: () => creature.value?.name || "Archive target pending",
+});
 
 const ECO_ROLES = [
   "Herbivore",
@@ -285,15 +296,15 @@ function generateCreature() {
   };
 }
 
-function exportCreature() {
+async function exportCreature() {
   if (!creature.value) return;
-  const blob = new Blob([JSON.stringify(creature.value, null, 2)], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `${creature.value.name.replace(/\s+/g, "-")}-Creature.json`;
-  a.click();
-  URL.revokeObjectURL(url);
+  await exportCreatureArchive({
+    data: creature,
+    filename: (creatureRecord) => `${creatureRecord.name.replace(/\s+/g, "-")}-Creature.json`,
+    serializeMessage: "Serializing creature dossier...",
+    encodeMessage: "Encoding creature archive for transfer...",
+    readyMessage: "Creature archive staged for local transfer.",
+  });
 }
 </script>
 
