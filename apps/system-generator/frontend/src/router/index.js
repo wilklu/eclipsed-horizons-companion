@@ -48,6 +48,13 @@ const routes = [
     meta: { title: "Orbital View" },
   },
   {
+    path: "/system-survey/:galaxyId?/:sectorId?/:systemId?",
+    name: "SystemSurvey",
+    component: () => import("../pages/surveys/SystemSurvey.vue"),
+    props: true,
+    meta: { title: "System Survey" },
+  },
+  {
     path: "/world-builder/:systemId?",
     name: "WorldBuilder",
     component: () => import("../pages/surveys/WorldBuilder.vue"),

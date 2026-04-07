@@ -2,15 +2,15 @@ import { generateObjectName } from "./nameGenerator.js";
 import { resolveStarDescriptorToken } from "./starDisplay.js";
 import {
   applyWorldProfileToPlanet,
+  applySystemWorldSocialProfiles,
   generateAutomaticWorldName,
   generateWorldProfile,
 } from "./worldProfileGenerator.js";
 import {
-  calculateGasGiantPresence,
   calculateHabitableZoneCenterAu,
   calculateHabitableZoneCenterOrbit,
+  determineWbhSystemBodyPlan,
   calculatePlanetaryOrbitalPeriod,
-  calculateWbhTotalWorlds,
   fractionalOrbitToAu,
   getWbhBodyTypes,
 } from "./wbh/systemGenerationWbh.js";
@@ -175,40 +175,12 @@ function planetZone(orbitAU, habitableZone) {
 }
 
 function buildPlanets(habitableZone, stars, namingOptions = {}) {
-  const gasGiants = calculateGasGiantPresence({
-    method: "2d",
-    rollTotal: 1 + Math.floor(Math.random() * 6) + 1 + Math.floor(Math.random() * 6),
-  })
-    ? 1 + Math.floor(Math.random() * 3)
-    : 0;
-  const planetoidBelts = Math.random() < 0.4 ? 1 + (Math.random() < 0.2 ? 1 : 0) : 0;
-  const terrestrialPlanets = 2 + Math.floor(Math.random() * 5);
-  const count = calculateWbhTotalWorlds({ gasGiants, planetoidBelts, terrestrialPlanets });
-  const planets = [];
+  const plan = determineWbhSystemBodyPlan({ stars });
   const usedNames = new Set();
-  const spread = 0.45 + Math.random() * 0.35;
-  const centerIndex = Math.floor((count - 1) / 2);
-  const baseOrbit = Math.max(0.1, habitableZone.centerOrbit - centerIndex * spread);
-  const totalStellarMass = (Array.isArray(stars) ? stars : []).map((star) =>
-    Number(star?.massInSolarMasses ?? star?.mass ?? 0),
-  );
-  const typeAssignments = Array.from({ length: count }, () => "Terrestrial Planet");
-  let outerCursor = count - 1;
-
-  for (let index = 0; index < gasGiants && outerCursor >= 0; index += 1) {
-    typeAssignments[outerCursor] = "Gas Giant";
-    outerCursor -= 1;
-  }
-  for (let index = 0; index < planetoidBelts && outerCursor >= 0; index += 1) {
-    typeAssignments[outerCursor] = "Planetoid Belt";
-    outerCursor -= 1;
-  }
-
-  for (let index = 0; index < count; index += 1) {
-    const type = typeAssignments[index];
-    const orbitNumber = +(baseOrbit + index * spread).toFixed(2);
-    const roundedOrbit = +fractionalOrbitToAu(orbitNumber).toFixed(2);
-    const zone = planetZone(roundedOrbit, habitableZone);
+  return plan.planets.map((body) => {
+    const type = body.type;
+    const roundedOrbit = Number(body.orbitAU ?? fractionalOrbitToAu(body.orbitNumber).toFixed(2));
+    const zone = body.zone || planetZone(roundedOrbit, habitableZone);
     const name =
       type === "Planetoid Belt"
         ? generateObjectName({
@@ -226,20 +198,24 @@ function buildPlanets(habitableZone, stars, namingOptions = {}) {
           });
 
     usedNames.add(name);
-    const period = calculatePlanetaryOrbitalPeriod({ orbitNumber, stellarMasses: totalStellarMass });
+    const period = calculatePlanetaryOrbitalPeriod({
+      orbitNumber: body.orbitNumber,
+      stellarMasses: body.stellarMasses,
+    });
 
-    planets.push({
+    return {
       name,
       type,
       composition: pickPlanetComposition(type, zone),
-      orbitNumber,
+      orbitNumber: body.orbitNumber,
       orbitAU: roundedOrbit,
       orbitalPeriodDays: Math.round(period.days),
       zone,
-    });
-  }
-
-  return planets;
+      hzco: body.hzco,
+      orbitGroup: body.groupLabel,
+      isAnomalousOrbit: Boolean(body.isAnomalous),
+    };
+  });
 }
 
 export function buildPersistedSurveySystemFromHex({ galaxyId, sectorId, hex, namingOptions = {} }) {
@@ -250,12 +226,14 @@ export function buildPersistedSurveySystemFromHex({ galaxyId, sectorId, hex, nam
   const stars = [primary, ...companionStars];
   const habitableZone = calcHabitableZone(stars);
   const primaryWorldStarClass = primary.designation || primary.spectralClass;
-  const planets = buildPlanets(habitableZone, stars, namingOptions).map((planet) => {
+  const profiledPlanets = buildPlanets(habitableZone, stars, namingOptions).map((planet) => {
     const baseProfile = generateWorldProfile({
       worldName: planet.name,
       starClass: primaryWorldStarClass,
       randomWorldName: () => planet.name,
       isGasGiant: planet.type === "Gas Giant",
+      orbitNumber: planet.orbitNumber,
+      hzco: planet.hzco,
     });
     const enrichedProfile =
       planet.type === "Gas Giant"
@@ -274,6 +252,8 @@ export function buildPersistedSurveySystemFromHex({ galaxyId, sectorId, hex, nam
 
     return applyWorldProfileToPlanet(planet, enrichedProfile);
   });
+  const planets = applySystemWorldSocialProfiles(profiledPlanets);
+  const mainworld = planets.find((world) => world?.isMainworld) ?? null;
   const nowIso = new Date().toISOString();
 
   return {
@@ -290,6 +270,16 @@ export function buildPersistedSurveySystemFromHex({ galaxyId, sectorId, hex, nam
     companionStars: companionStars,
     habitableZone,
     planets,
+    mainworld,
+    mainworldName: mainworld?.name ?? "",
+    mainworldType: mainworld?.isMoon ? "Moon" : (mainworld?.type ?? ""),
+    mainworldParentWorldName: mainworld?.parentWorldName ?? "",
+    mainworldUwp: mainworld?.uwp ?? "",
+    nativeLifeform: mainworld?.nativeLifeform ?? "",
+    habitability: mainworld?.habitability ?? "",
+    resourceRating: mainworld?.resourceRating ?? "",
+    tradeCodes: Array.isArray(mainworld?.tradeCodes) ? [...mainworld.tradeCodes] : [],
+    mainworldRemarks: Array.isArray(mainworld?.remarks) ? [...mainworld.remarks] : [],
     metadata: {
       generatedSurvey: {
         stars,

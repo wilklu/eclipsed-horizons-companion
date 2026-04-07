@@ -117,9 +117,11 @@ function openSystemSurvey() {
     query: { ...route.query },
   });
   router.push({
-    name: "StarSystemBuilder",
+    name: "SystemSurvey",
     params: { galaxyId: galaxyId.value, sectorId: sectorId.value },
     query: {
+      systemId: String(route.query.systemId || ""),
+      systemRecordId: String(route.query.systemRecordId || ""),
       hex: hexLabel.value,
       star: primaryLabel.value,
       from: "orbital",

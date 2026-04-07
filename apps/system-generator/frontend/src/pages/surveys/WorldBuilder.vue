@@ -153,6 +153,9 @@
                 <span class="prop-value">{{ world.magnetosphere }}</span>
               </div>
             </div>
+            <div class="section-actions">
+              <button class="btn btn-secondary" @click="openSystemSurvey">📡 Open System Survey</button>
+            </div>
           </section>
 
           <section class="world-section">
@@ -184,11 +187,12 @@
               </div>
             </div>
             <div v-if="world.nativeSophontLife" class="world-note">
-              Native sophont life is present, but census and civilization values remain zero until a sophont is assigned
-              in the Sophont Generator.
+              Native sophont life is present. Census and civilization values are provisional WBH-style survey results
+              and can be refined further in the Sophont Generator.
             </div>
             <div v-else class="world-note">
-              No native sophont life developed on this world, so census and civilization values remain uninhabited.
+              No native sophont life developed on this world. Census values reflect current settlement assumptions for
+              the surveyed mainworld profile.
             </div>
           </section>
 
@@ -228,7 +232,7 @@ import { useRoute, useRouter } from "vue-router";
 import LoadingSpinner from "../../components/common/LoadingSpinner.vue";
 import SurveyNavigation from "../../components/common/SurveyNavigation.vue";
 import { useArchiveTransfer } from "../../composables/useArchiveTransfer.js";
-import { deserializeReturnRoute } from "../../utils/returnRoute.js";
+import { deserializeReturnRoute, serializeReturnRoute } from "../../utils/returnRoute.js";
 import {
   applyWorldProfileToPlanet,
   extractStoredWorldProfile,
@@ -857,6 +861,25 @@ function goToSophontGenerator() {
 
 function goToHistoryGenerator() {
   router.push({ name: "HistoryGenerator" });
+}
+
+function openSystemSurvey() {
+  const returnTo = serializeReturnRoute({
+    name: String(route.name || "WorldBuilder"),
+    params: { ...route.params },
+    query: { ...route.query },
+  });
+
+  router.push({
+    name: "SystemSurvey",
+    query: {
+      systemId: String(route.params.systemId || ""),
+      systemRecordId: String(systemStore.currentSystemId || ""),
+      hex: String(route.query.hex || ""),
+      star: String(route.query.star || ""),
+      ...(returnTo ? { returnTo } : {}),
+    },
+  });
 }
 
 watch(

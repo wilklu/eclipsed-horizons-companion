@@ -1,4 +1,4 @@
-import { calculatePlanetaryOrbitalPeriod } from "./systemGenerationWbh.js";
+import { calculatePlanetaryOrbitalPeriod, fractionalOrbitToAu } from "./systemGenerationWbh.js";
 
 import { createRandomRoller, rollDice } from "./dice.js";
 
@@ -106,6 +106,8 @@ const TERRESTRIAL_DENSITY_TABLE = Object.freeze({
 const TERRA_DIAMETER_KM = 12742;
 const TERRA_RADIUS_KM = 6371;
 const TERRA_ESCAPE_VELOCITY_MPS = 11186;
+const AU_TO_MILLION_KM = 149.5978707;
+const SOLAR_MASS_TO_EARTH_MASS = 332946;
 const ATMOSPHERE_TABLE = Object.freeze({
   0: "Vacuum",
   1: "Trace",
@@ -137,6 +139,8 @@ const STAR_TEMP_MOD = Object.freeze({
   Y: -6,
   PROTO: 1,
 });
+const GAS_GIANT_SIZE_CLASS_CODES = Object.freeze(["GS", "GM", "GL"]);
+const MOON_SUFFIXES = Object.freeze("abcdefghijklmnopqrstuvwxyz".split(""));
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
@@ -200,6 +204,205 @@ function toRomanNumeral(value) {
 
 function rollSingleDie(rollDie, sides) {
   return clamp(Math.round(Number(rollDie(sides)) || 1), 1, sides);
+}
+
+function rollD3(rollDie) {
+  return Math.ceil(rollSingleDie(rollDie, 6) / 2);
+}
+
+function normalizeGasGiantDiameterCode(value) {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) {
+    return "0";
+  }
+  if (numericValue <= 9) {
+    return String(numericValue);
+  }
+  return String.fromCharCode(55 + numericValue);
+}
+
+function resolveGasGiantDm({ starClass, systemSpread }) {
+  const normalized = String(starClass || "")
+    .trim()
+    .toUpperCase();
+  let modifier = 0;
+
+  if (/^BD/.test(normalized) || /^M\d*V$/.test(normalized) || /VI$/.test(normalized)) {
+    modifier -= 1;
+  }
+  if (Number(systemSpread) < 0.1) {
+    modifier -= 1;
+  }
+
+  return modifier;
+}
+
+function describeGasGiantSizeClass(sizeClass) {
+  if (sizeClass === "GS") return "Small Gas Giant";
+  if (sizeClass === "GM") return "Medium Gas Giant";
+  return "Large Gas Giant";
+}
+
+export function determineGasGiantProfile({
+  starClass,
+  systemSpread,
+  rollDie = createRandomRoller(),
+  categoryRoll = null,
+} = {}) {
+  const initialRoll = (categoryRoll ?? rollSingleDie(rollDie, 6)) + resolveGasGiantDm({ starClass, systemSpread });
+
+  let sizeClass = "GL";
+  let diameterTerran = 0;
+  let massEarth = 0;
+
+  if (initialRoll <= 2) {
+    sizeClass = "GS";
+    diameterTerran = rollD3(rollDie) + rollD3(rollDie);
+    massEarth = 5 * (rollSingleDie(rollDie, 6) + 1);
+  } else if (initialRoll <= 4) {
+    sizeClass = "GM";
+    diameterTerran = rollSingleDie(rollDie, 6) + 6;
+    massEarth = 20 * (rollDice(rollDie, 3, 6) - 1);
+  } else {
+    sizeClass = "GL";
+    diameterTerran = rollDice(rollDie, 2, 6) + 6;
+    massEarth = rollD3(rollDie) * 50 * (rollDice(rollDie, 3, 6) + 4);
+    if (massEarth >= 3000) {
+      massEarth = 4000 - (rollDice(rollDie, 2, 6) - 2) * 200;
+    }
+  }
+
+  return {
+    sizeClass,
+    sizeClassLabel: describeGasGiantSizeClass(sizeClass),
+    diameterTerran,
+    diameterCode: normalizeGasGiantDiameterCode(diameterTerran),
+    diameterKm: Math.round(diameterTerran * TERRA_DIAMETER_KM),
+    massEarth,
+    gasGiantCode: `${sizeClass}${normalizeGasGiantDiameterCode(diameterTerran)}`,
+  };
+}
+
+function resolveMoonQuantityPenalty({ orbitNumber, moonQuantityPenalty = false } = {}) {
+  if (moonQuantityPenalty) {
+    return true;
+  }
+  return Number(orbitNumber) < 1;
+}
+
+export function determineSignificantMoonQuantity({
+  sizeCode,
+  orbitNumber,
+  isGasGiant = false,
+  gasGiantSizeClass = null,
+  moonQuantityPenalty = false,
+  rollDie = createRandomRoller(),
+} = {}) {
+  const penalized = resolveMoonQuantityPenalty({ orbitNumber, moonQuantityPenalty });
+  let diceCount = 0;
+  let subtract = 0;
+
+  if (isGasGiant) {
+    diceCount = gasGiantSizeClass === "GS" ? 3 : 4;
+    subtract = gasGiantSizeClass === "GS" ? 7 : 6;
+  } else {
+    const numericSize = sizeCodeToNumeric(sizeCode);
+    if (numericSize <= 2) {
+      diceCount = 1;
+      subtract = 5;
+    } else if (numericSize <= 9) {
+      diceCount = 2;
+      subtract = 8;
+    } else {
+      diceCount = 2;
+      subtract = 6;
+    }
+  }
+
+  const penalty = penalized ? diceCount : 0;
+  const total = rollDice(rollDie, diceCount, 6) - subtract - penalty;
+  return {
+    quantity: Math.max(0, total),
+    hasRingOnly: total === 0,
+    penalized,
+  };
+}
+
+function resolveMoonOrdinal(index) {
+  return MOON_SUFFIXES[index] || `${index + 1}`;
+}
+
+function buildMoonName(parentName, index) {
+  return `${parentName} ${resolveMoonOrdinal(index)}`;
+}
+
+function resolveGasGiantSpecialMoonSize({ parentDiameterTerran, rollDie = createRandomRoller() } = {}) {
+  const firstRoll = rollSingleDie(rollDie, 6);
+  if (firstRoll <= 3) {
+    return Math.ceil(rollSingleDie(rollDie, 6) / 3);
+  }
+  if (firstRoll <= 5) {
+    return clamp(rollDice(rollDie, 2, 6) - 2, 0, 10);
+  }
+
+  const giantMoonSize = clamp(Math.round(parentDiameterTerran) - 1 - rollSingleDie(rollDie, 6), 6, 16);
+  return giantMoonSize;
+}
+
+export function determineSignificantMoonSizes({
+  sizeCode,
+  moonCount,
+  isGasGiant = false,
+  gasGiantProfile = null,
+  rollDie = createRandomRoller(),
+} = {}) {
+  const parentSize = sizeCodeToNumeric(sizeCode);
+  const parentDiameterTerran = Number(gasGiantProfile?.diameterTerran || 0);
+  const moonSizes = [];
+
+  for (let index = 0; index < Number(moonCount || 0); index += 1) {
+    const firstRoll = rollSingleDie(rollDie, 6);
+    let size = "S";
+
+    if (firstRoll <= 3) {
+      size = "S";
+    } else if (firstRoll <= 5) {
+      const secondRoll = rollD3(rollDie) - 1;
+      size = secondRoll <= 0 ? "R" : secondRoll;
+    } else if (isGasGiant) {
+      const specialSize = resolveGasGiantSpecialMoonSize({ parentDiameterTerran, rollDie });
+      if (specialSize === 0) {
+        size = "R";
+      } else if (specialSize >= 16) {
+        size = gasGiantProfile?.sizeClass === "GL" && rollDice(rollDie, 2, 6) === 12 ? 12 : 6;
+      } else {
+        size = specialSize;
+      }
+    } else {
+      const terrestrialSize = parentSize - 1 - rollSingleDie(rollDie, 6);
+      if (terrestrialSize < 0) {
+        size = "S";
+      } else if (terrestrialSize === 0) {
+        size = "R";
+      } else {
+        size = terrestrialSize;
+      }
+
+      if (Number(size) === parentSize - 2) {
+        const twinCheck = rollDice(rollDie, 2, 6);
+        if (twinCheck === 2) size = parentSize - 1;
+        if (twinCheck === 12) size = parentSize;
+      }
+    }
+
+    if (parentSize === 1 && Number(size) < 1) {
+      size = "S";
+    }
+
+    moonSizes.push(size);
+  }
+
+  return moonSizes;
 }
 
 export function getWbhAtmosphereDescription(code) {
@@ -310,71 +513,331 @@ export function determineNativeSophontLife({
   return rollDice(rollDie, 2, 6) >= threshold;
 }
 
+export function buildNativeLifeProfile(world = {}) {
+  if (!world?.nativeSophontLife) {
+    return "0000";
+  }
+
+  const atmosphereCode = Number(world?.atmosphereCode ?? 0);
+  const hydrographics = Number(world?.hydrographics ?? 0);
+  const avgTempC = Number(world?.avgTempC ?? 0);
+  const biomass = clamp((hydrographics > 0 ? 1 : 0) + (atmosphereCode >= 4 && atmosphereCode <= 9 ? 1 : 0), 0, 3);
+  const biocomplexity = clamp(
+    (atmosphereCode >= 5 && atmosphereCode <= 8 ? 2 : 0) + (avgTempC >= -10 && avgTempC <= 35 ? 1 : 0),
+    0,
+    3,
+  );
+  const biodiversity = clamp(
+    (hydrographics >= 4 ? 2 : hydrographics > 0 ? 1 : 0) + (avgTempC >= -5 && avgTempC <= 30 ? 1 : 0),
+    0,
+    3,
+  );
+  const compatibility = clamp(
+    (atmosphereCode >= 4 && atmosphereCode <= 9 ? 2 : 0) + (avgTempC >= -20 && avgTempC <= 40 ? 1 : 0),
+    0,
+    3,
+  );
+
+  return `${biomass}${biocomplexity}${biodiversity}${compatibility}`;
+}
+
+export function determineHabitabilityRating({ candidateScore, size, atmosphereCode, hydrographics, avgTempC } = {}) {
+  const numericCandidateScore = Number(candidateScore);
+  if (Number.isFinite(numericCandidateScore)) {
+    if (numericCandidateScore >= 12) return "Excellent";
+    if (numericCandidateScore >= 8) return "Good";
+    if (numericCandidateScore >= 4) return "Marginal";
+    if (numericCandidateScore >= 1) return "Poor";
+    return "Hostile";
+  }
+
+  const environmentalScore = [
+    Number(size) >= 4 ? 1 : 0,
+    Number(atmosphereCode) >= 4 && Number(atmosphereCode) <= 9
+      ? 2
+      : Number(atmosphereCode) >= 2 && Number(atmosphereCode) <= 3
+        ? 1
+        : 0,
+    Number(hydrographics) >= 1 && Number(hydrographics) <= 9 ? 2 : Number(hydrographics) === 10 ? 1 : 0,
+    Number(avgTempC) >= -10 && Number(avgTempC) <= 38 ? 2 : Number(avgTempC) >= -30 && Number(avgTempC) <= 60 ? 1 : 0,
+  ].reduce((total, value) => total + value, 0);
+
+  if (environmentalScore >= 6) return "Excellent";
+  if (environmentalScore >= 4) return "Good";
+  if (environmentalScore >= 2) return "Marginal";
+  if (environmentalScore >= 1) return "Poor";
+  return "Hostile";
+}
+
+export function determineResourceRating(world = {}) {
+  const size = Number(world?.size ?? 0);
+  const type = String(world?.type || world?.worldType || "");
+  const atmosphereCode = Number(world?.atmosphereCode ?? 0);
+  const hydrographics = Number(world?.hydrographics ?? 0);
+  const base =
+    (type === "Planetoid Belt" ? 3 : 0) +
+    (type.includes("Gas Giant") ? 2 : 0) +
+    (size >= 8 ? 2 : size >= 4 ? 1 : 0) +
+    (atmosphereCode >= 10 ? 1 : 0) +
+    (hydrographics === 0 ? 1 : 0);
+
+  if (base >= 6) return "Abundant";
+  if (base >= 4) return "Good";
+  if (base >= 2) return "Moderate";
+  return "Sparse";
+}
+
+export function calculateResidualSeismicStress({
+  size,
+  systemAgeGyr = 0,
+  isMoon = false,
+  majorMoonCount = 0,
+  density = 0,
+} = {}) {
+  let modifier = 0;
+  if (isMoon) modifier += 1;
+  modifier += clamp(Math.floor(Number(majorMoonCount) || 0), 0, 12);
+  if (Number(density) > 1) modifier += 1;
+  else if (Number(density) < 0.5) modifier -= 1;
+
+  const preSquare = Math.floor(Number(size) - Number(systemAgeGyr) + modifier);
+  if (preSquare < 1) {
+    return 0;
+  }
+  return preSquare ** 2;
+}
+
+export function calculateTidalStressFactor({ tidalEffects = [], totalTidalEffect = null } = {}) {
+  const total =
+    totalTidalEffect !== null
+      ? Number(totalTidalEffect)
+      : (Array.isArray(tidalEffects) ? tidalEffects : []).reduce((sum, effect) => sum + Number(effect || 0), 0);
+  if (!(total > 0)) {
+    return 0;
+  }
+  return Math.floor(total / 10);
+}
+
+export function calculateTidalHeatingFactor({
+  primaryMassEarth = 0,
+  worldSize = 0,
+  eccentricity = 0,
+  distanceMillionKm = 0,
+  periodDays = 0,
+  worldMassEarth = 0,
+} = {}) {
+  const numerator = Number(primaryMassEarth) ** 2 * Number(worldSize) ** 5 * Math.max(0, Number(eccentricity)) ** 2;
+  const denominator =
+    3000 *
+    Math.max(0, Number(distanceMillionKm)) ** 5 *
+    Math.max(0, Number(periodDays)) *
+    Math.max(0, Number(worldMassEarth));
+
+  if (!(numerator > 0) || !(denominator > 0)) {
+    return 0;
+  }
+
+  const factor = numerator / denominator;
+  return factor >= 1 ? Math.floor(factor) : 0;
+}
+
+export function calculateTotalSeismicStress({
+  residualSeismicStress = 0,
+  tidalStressFactor = 0,
+  tidalHeatingFactor = 0,
+} = {}) {
+  return Number(residualSeismicStress || 0) + Number(tidalStressFactor || 0) + Number(tidalHeatingFactor || 0);
+}
+
+export function calculateSeismicAdjustedTemperatureK({ temperatureK = 0, totalSeismicStress = 0 } = {}) {
+  const numericTemperature = Math.max(0, Number(temperatureK) || 0);
+  const numericStress = Math.max(0, Number(totalSeismicStress) || 0);
+  return Math.pow(numericTemperature ** 4 + numericStress ** 4, 0.25);
+}
+
+export function determineMajorTectonicPlates({ size, hydrographics, totalSeismicStress = 0, rollTotal } = {}) {
+  if (!(Number(totalSeismicStress) > 0) || !(Number(hydrographics) >= 1)) {
+    return 0;
+  }
+
+  let modifier = 0;
+  if (Number(totalSeismicStress) > 100) modifier += 2;
+  else if (Number(totalSeismicStress) >= 10) modifier += 1;
+
+  const result = Number(size || 0) + Number(hydrographics || 0) - Number(rollTotal || 0) + modifier;
+  return result > 1 ? result : 0;
+}
+
+export function buildWbhSeismologyProfile({
+  size,
+  systemAgeGyr = 0,
+  isMoon = false,
+  moonsData = [],
+  density = 0,
+  tidalEffects = [],
+  totalTidalEffect = null,
+  primaryMassEarth = null,
+  primaryMassInSolarMasses = null,
+  stellarMasses = [],
+  eccentricity = 0,
+  distanceMillionKm = null,
+  orbitNumber = null,
+  periodDays = null,
+  worldMassEarth = 0,
+  hydrographics = 0,
+  avgTempC = 0,
+  tectonicRollTotal = null,
+  rollDie = createRandomRoller(),
+} = {}) {
+  const majorMoonCount = (Array.isArray(moonsData) ? moonsData : []).filter((moon) => {
+    if (moon?.ring) {
+      return false;
+    }
+    return sizeCodeToNumeric(moon?.sizeCode ?? moon?.size ?? 0) >= 1;
+  }).length;
+  const resolvedPrimaryMassEarth =
+    primaryMassEarth !== null
+      ? Number(primaryMassEarth)
+      : Number(primaryMassInSolarMasses || 0) > 0
+        ? Number(primaryMassInSolarMasses) * SOLAR_MASS_TO_EARTH_MASS
+        : (Array.isArray(stellarMasses) ? stellarMasses : []).reduce((sum, mass) => sum + Number(mass || 0), 0) *
+          SOLAR_MASS_TO_EARTH_MASS;
+  const resolvedDistanceMillionKm =
+    distanceMillionKm !== null
+      ? Number(distanceMillionKm)
+      : Number.isFinite(Number(orbitNumber))
+        ? fractionalOrbitToAu(orbitNumber) * AU_TO_MILLION_KM
+        : 0;
+  const resolvedPeriodDays =
+    periodDays !== null
+      ? Number(periodDays)
+      : Number.isFinite(Number(orbitNumber)) && Array.isArray(stellarMasses) && stellarMasses.length
+        ? calculatePlanetaryOrbitalPeriod({ orbitNumber, stellarMasses }).days
+        : 0;
+
+  const residualSeismicStress = calculateResidualSeismicStress({
+    size,
+    systemAgeGyr,
+    isMoon,
+    majorMoonCount,
+    density,
+  });
+  const tidalStressFactor = calculateTidalStressFactor({ tidalEffects, totalTidalEffect });
+  const tidalHeatingFactor = calculateTidalHeatingFactor({
+    primaryMassEarth: resolvedPrimaryMassEarth,
+    worldSize: size,
+    eccentricity,
+    distanceMillionKm: resolvedDistanceMillionKm,
+    periodDays: resolvedPeriodDays,
+    worldMassEarth,
+  });
+  const totalSeismicStress = calculateTotalSeismicStress({
+    residualSeismicStress,
+    tidalStressFactor,
+    tidalHeatingFactor,
+  });
+  const seismicAdjustedTemperatureK = calculateSeismicAdjustedTemperatureK({
+    temperatureK: Number(avgTempC) + 273.15,
+    totalSeismicStress,
+  });
+  const majorTectonicPlates = determineMajorTectonicPlates({
+    size,
+    hydrographics,
+    totalSeismicStress,
+    rollTotal: tectonicRollTotal ?? rollDice(rollDie, 2, 6),
+  });
+
+  return {
+    residualSeismicStress,
+    tidalStressFactor,
+    tidalHeatingFactor,
+    totalSeismicStress,
+    seismicAdjustedTemperatureK: Number(seismicAdjustedTemperatureK.toFixed(3)),
+    majorTectonicPlates,
+  };
+}
+
 export function determineWorldMoons({
   sizeCode,
   atmosphereCode,
   hydrographics,
   isGasGiant = false,
+  gasGiantProfile = null,
+  orbitNumber = null,
+  moonQuantityPenalty = false,
   parentName,
   generateMoons = true,
   moonProfileFactory = null,
   rollDie = createRandomRoller(),
 } = {}) {
-  if (!generateMoons || sizeCodeToNumeric(sizeCode) <= 0) {
+  if (!generateMoons || (!isGasGiant && sizeCodeToNumeric(sizeCode) <= 0)) {
     return [];
   }
 
   const moons = [];
-  let dm = 0;
-  const numericSize = sizeCodeToNumeric(sizeCode);
-  if (numericSize <= 2) dm -= 2;
-  if (numericSize >= 8) dm += 2;
-  if (Number(atmosphereCode) === 0) dm -= 1;
-  if (Number(hydrographics) === 0) dm -= 1;
-  if (isGasGiant) dm += 3;
+  const moonQuantity = determineSignificantMoonQuantity({
+    sizeCode,
+    orbitNumber,
+    isGasGiant,
+    gasGiantSizeClass: gasGiantProfile?.sizeClass,
+    moonQuantityPenalty,
+    rollDie,
+  });
+  const sizeResults = determineSignificantMoonSizes({
+    sizeCode,
+    moonCount: moonQuantity.quantity,
+    isGasGiant,
+    gasGiantProfile,
+    rollDie,
+  });
 
-  const adjusted = rollDice(rollDie, 2, 6) + dm;
-  let significant = Math.max(0, Math.round((adjusted - 7) / 2) + (isGasGiant ? 1 : 0));
-  significant = clamp(significant, 0, 12);
-
-  const ringBase = isGasGiant ? 0.25 : 0.05;
-  const ringChance = Math.min(0.9, ringBase + significant * 0.05);
-  const hasRings = rollSingleDie(rollDie, 20) / 20 < ringChance;
-
-  for (let index = 0; index < significant; index += 1) {
-    const ordinal = toRomanNumeral(index + 1);
-    const name = `${parentName} ${ordinal}`;
-    const sizeCategory = clamp(Math.max(0, Math.round(rollDice(rollDie, 1, 6) / 2) + (isGasGiant ? 1 : 0)), 0, 10);
+  sizeResults.forEach((sizeResult, index) => {
+    const name = buildMoonName(parentName, index);
+    const isRing = sizeResult === "R";
+    const sizeCategory = isRing ? "R" : sizeResult;
     const worldProfile =
-      typeof moonProfileFactory === "function" ? moonProfileFactory({ worldName: name, sizeCode: sizeCategory }) : null;
+      !isRing && typeof moonProfileFactory === "function"
+        ? moonProfileFactory({ worldName: name, sizeCode: sizeCategory })
+        : null;
     moons.push({
       name,
       type: "significant",
       size: sizeCategory,
+      sizeCode: String(sizeCategory),
       orbitalSlot: index + 1,
-      ring: false,
-      description: `${isGasGiant ? "Gas-giant" : "World"} significant moon`,
+      ring: isRing,
+      description: isRing ? "Significant ring" : `${isGasGiant ? "Gas-giant" : "World"} significant moon`,
       ...(worldProfile && typeof worldProfile === "object" ? { worldProfile } : {}),
+    });
+  });
+
+  if (moonQuantity.hasRingOnly) {
+    moons.push({
+      name: `${parentName} ring`,
+      type: "significant",
+      size: "R",
+      sizeCode: "R",
+      orbitalSlot: 0,
+      ring: true,
+      description: "Significant ring",
     });
   }
 
-  const minorCount = Math.max(0, Math.round((rollDice(rollDie, 2, 6) - 6) / 3 + Math.floor(significant / 2)));
+  const significantNonRingCount = moons.filter((moon) => moon.type === "significant" && !moon.ring).length;
+  const baseMinorCount = isGasGiant
+    ? Math.max(0, Math.round((Number(gasGiantProfile?.diameterTerran || 0) * 8) / 10))
+    : Math.max(0, sizeCodeToNumeric(sizeCode));
+  const minorCount = Math.max(0, Math.round(baseMinorCount / 4 + Math.floor(significantNonRingCount / 2)));
   for (let index = 0; index < minorCount; index += 1) {
-    const slot = significant + index + 1;
+    const slot = moons.length + index + 1;
     moons.push({
-      name: `${parentName} ${toRomanNumeral(slot)}`,
+      name: `${parentName} ${slot}`,
       type: "insignificant",
       size: clamp(Math.round((rollSingleDie(rollDie, 6) - 1) / 2), 0, 5),
       orbitalSlot: slot,
       ring: false,
       description: "Small/insignificant moon",
     });
-  }
-
-  if (hasRings && moons.length > 0) {
-    const pick = clamp(rollSingleDie(rollDie, moons.length) - 1, 0, moons.length - 1);
-    moons[pick].ring = true;
-    moons[pick].description += ", with ring";
   }
 
   return moons;
@@ -398,6 +861,9 @@ export function buildWbhEnvironmentalProfile(params = {}) {
     atmosphereCode,
     hydrographics,
     isGasGiant: params.isGasGiant,
+    gasGiantProfile: params.gasGiantProfile,
+    orbitNumber: params.orbitNumber,
+    moonQuantityPenalty: params.moonQuantityPenalty,
     parentName: String(params.worldName || params.name || "World").trim() || "World",
     generateMoons: params.generateMoons !== false,
     moonProfileFactory: params.moonProfileFactory,
@@ -607,8 +1073,25 @@ export function generateWorldPhysicalCharacteristicsWbh(params = {}) {
   let escapeVelocityMps = Number(fallbackWorld.escapeVelocityMps ?? 0);
   let surfaceOrbitalVelocityMps = Number(fallbackWorld.surfaceOrbitalVelocityMps ?? 0);
   let sizeProfile = fallbackWorld.sizeProfile ?? null;
+  let resolvedSize = params.size ?? sizeCode;
+  let gasGiantProfile = null;
 
-  if (sizeCode !== "0" && sizeCode !== "R") {
+  if (params.isGasGiant) {
+    gasGiantProfile = determineGasGiantProfile({
+      starClass: params.starClass,
+      systemSpread: params.systemSpread,
+      rollDie,
+    });
+    resolvedSize = gasGiantProfile.diameterTerran;
+    diameterKm = gasGiantProfile.diameterKm;
+    composition = "Hydrogen-helium envelope";
+    density = Number.NaN;
+    gravity = Number.NaN;
+    mass = Number.NaN;
+    escapeVelocityMps = Number.NaN;
+    surfaceOrbitalVelocityMps = Number.NaN;
+    sizeProfile = gasGiantProfile.gasGiantCode;
+  } else if (sizeCode !== "0" && sizeCode !== "R") {
     const detailDie = params.detailDie ?? (rollDie(10) - 1) * 10 + (rollDie(10) - 1);
     diameterKm = determineWorldDiameter({ sizeCode, rollDie, detailDie });
     composition = determineTerrestrialComposition({
@@ -633,10 +1116,33 @@ export function generateWorldPhysicalCharacteristicsWbh(params = {}) {
     ...params,
     worldName: resolvedWorldName,
     sizeCode,
+    size: resolvedSize,
     density,
     gravity,
+    gasGiantProfile,
     generateMoons: params.generateMoons,
     moonProfileFactory: params.moonProfileFactory,
+    rollDie,
+  });
+  const seismology = buildWbhSeismologyProfile({
+    size: sizeCodeToNumeric(resolvedSize),
+    systemAgeGyr: params.systemAgeGyr,
+    isMoon: params.isMoon,
+    moonsData: environment.moonsData,
+    density,
+    totalTidalEffect: params.totalTidalEffect,
+    tidalEffects: params.tidalEffects,
+    primaryMassEarth: params.primaryMassEarth,
+    primaryMassInSolarMasses: params.primaryMassInSolarMasses,
+    stellarMasses: params.stellarMasses,
+    eccentricity: params.eccentricity,
+    distanceMillionKm: params.distanceMillionKm,
+    orbitNumber: params.orbitNumber,
+    periodDays: params.orbitalPeriodDays ?? environment.orbitalPeriodDays,
+    worldMassEarth: mass,
+    hydrographics: environment.hydrographics,
+    avgTempC: environment.avgTempC,
+    tectonicRollTotal: params.tectonicRollTotal,
     rollDie,
   });
 
@@ -644,7 +1150,8 @@ export function generateWorldPhysicalCharacteristicsWbh(params = {}) {
     ...fallbackWorld,
     ...environment,
     name: resolvedWorldName,
-    size: params.size ?? sizeCode,
+    size: resolvedSize,
+    sizeCode,
     diameterKm,
     composition,
     density,
@@ -653,6 +1160,9 @@ export function generateWorldPhysicalCharacteristicsWbh(params = {}) {
     escapeVelocityMps,
     surfaceOrbitalVelocityMps,
     sizeProfile,
+    seismology,
+    majorTectonicPlates: seismology.majorTectonicPlates,
+    ...(gasGiantProfile ? { gasGiantProfile, gasGiantCode: gasGiantProfile.gasGiantCode } : {}),
     generatorModel: "wbh-world-physics",
     wbhStatus:
       sizeCode === "0" || sizeCode === "R"

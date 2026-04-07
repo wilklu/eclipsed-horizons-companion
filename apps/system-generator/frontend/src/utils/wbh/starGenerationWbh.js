@@ -1,7 +1,6 @@
 import { generatePrimaryStarHeuristic } from "../primaryStarGeneratorHeuristic.js";
 
 import { createRandomRoller, rollDice } from "./dice.js";
-
 export const STAR_WBH_RULES = Object.freeze([
   {
     id: "primary-star-types",
@@ -37,7 +36,7 @@ export const STAR_WBH_RULES = Object.freeze([
     id: "multiple-stars",
     section: "Chapter 3 > Systems With Multiple Stars",
     source: "docs/reference/World Builder's Handbook.md",
-    status: "planned",
+    status: "partial",
   },
 ]);
 
@@ -380,6 +379,274 @@ function applyTypeConstraints(type, luminosityClass) {
 
 function roll2d(rollDie) {
   return rollDice(rollDie, 2, 6);
+}
+
+function rollD3(rollDie) {
+  return Math.ceil(rollDie(6) / 2);
+}
+
+function getPrimaryPresenceDm(star) {
+  const luminosityClass = String(star?.luminosityClass || "V").trim();
+  const baseType = String(star?.baseSpectralType || star?.designation || star?.spectralClass || "G")
+    .charAt(0)
+    .toUpperCase();
+  const objectType = String(star?.objectType || star?.designation || "").toUpperCase();
+
+  if (["IA", "IB", "II", "III", "IV"].includes(luminosityClass.toUpperCase())) {
+    return 1;
+  }
+  if (["V", "VI"].includes(luminosityClass.toUpperCase()) && ["O", "B", "A", "F"].includes(baseType)) {
+    return 1;
+  }
+  if (["V", "VI"].includes(luminosityClass.toUpperCase()) && baseType === "M") {
+    return -1;
+  }
+  if (objectType.includes("BD") || objectType.includes(" D")) {
+    return -1;
+  }
+  if (["PSR", "PULSAR", "NS", "BLACK HOLE", "BH"].some((token) => objectType.includes(token))) {
+    return -1;
+  }
+
+  return 0;
+}
+
+function getNonPrimaryColumnRoll({ rollTotal, column, parentLuminosityClass }) {
+  const adjustedRoll = rollTotal + (["III", "IV"].includes(String(parentLuminosityClass || "").trim()) ? -1 : 0);
+  const normalizedColumn = String(column || "secondary").toLowerCase();
+
+  if (normalizedColumn === "other") {
+    if (adjustedRoll <= 2) return "NS";
+    if (adjustedRoll <= 7) return "D";
+    return "BD";
+  }
+
+  if (normalizedColumn === "post-stellar") {
+    if (adjustedRoll <= 5) return "Random";
+    if (adjustedRoll <= 8) return "Random";
+    if (adjustedRoll <= 10) return "Lesser";
+    return "Twin";
+  }
+
+  if (adjustedRoll <= 3) return "Other";
+  if (adjustedRoll <= 5) return "Random";
+  if (adjustedRoll <= 8) return normalizedColumn === "companion" ? "Lesser" : adjustedRoll === 8 ? "Sibling" : "Lesser";
+  if (adjustedRoll === 9) return "Sibling";
+  if (adjustedRoll >= 10) return normalizedColumn === "secondary" && adjustedRoll === 10 ? "Sibling" : "Twin";
+  return "Twin";
+}
+
+function parseParentDescriptor(parentStar) {
+  const baseSpectralType = String(
+    parentStar?.baseSpectralType || parentStar?.designation || parentStar?.spectralClass || "G",
+  )
+    .trim()
+    .charAt(0)
+    .toUpperCase();
+  const subtype = Number.isInteger(parentStar?.subtype)
+    ? parentStar.subtype
+    : Number(String(parentStar?.designation || "").match(/(\d)/)?.[1] ?? 0);
+  const luminosityClass = String(
+    parentStar?.luminosityClass || String(parentStar?.designation || "").match(/Ia|Ib|II|III|IV|V|VI/i)?.[0] || "V",
+  ).trim();
+
+  return {
+    spectralType: baseSpectralType,
+    subtype: clamp(subtype, 0, 9),
+    luminosityClass,
+  };
+}
+
+function createDerivedDescriptor(parentStar, relation, rollDie) {
+  const parent = parseParentDescriptor(parentStar);
+
+  if (relation === "Twin") {
+    return parent;
+  }
+
+  if (relation === "Sibling") {
+    let spectralType = parent.spectralType;
+    let subtype = parent.subtype + rollDie(6);
+
+    while (subtype > 9) {
+      subtype -= 10;
+      spectralType = getCoolerSpectralType(spectralType);
+    }
+
+    return {
+      spectralType,
+      subtype: clamp(subtype, 0, spectralType === "M" ? 9 : 9),
+      luminosityClass: parent.luminosityClass,
+    };
+  }
+
+  if (relation === "Lesser") {
+    const spectralType = getCoolerSpectralType(parent.spectralType);
+    if (parent.spectralType === "M") {
+      const subtype = clamp(parent.subtype + rollDie(6), 0, 9);
+      if (subtype > parent.subtype) {
+        return { objectType: "BD" };
+      }
+      return { spectralType: "M", subtype, luminosityClass: parent.luminosityClass };
+    }
+
+    return {
+      spectralType,
+      subtype: clamp(roll2d(rollDie) - 2, 0, spectralType === "M" ? 9 : 9),
+      luminosityClass: parent.luminosityClass === "IV" && spectralType === "M" ? "V" : parent.luminosityClass,
+    };
+  }
+
+  if (relation === "Random") {
+    const randomStar = generatePrimaryStarWbh({ rollDie });
+    const randomDescriptor = parseParentDescriptor(randomStar);
+    if (SPECTRAL_SEQUENCE.indexOf(randomDescriptor.spectralType) < SPECTRAL_SEQUENCE.indexOf(parent.spectralType)) {
+      return createDerivedDescriptor(parentStar, "Lesser", rollDie);
+    }
+    return randomDescriptor;
+  }
+
+  const otherRoll = getNonPrimaryColumnRoll({
+    rollTotal: roll2d(rollDie),
+    column: "other",
+    parentLuminosityClass: parent.luminosityClass,
+  });
+  return { objectType: otherRoll };
+}
+
+function createNonPrimaryStar({ parentStar, orbitType, relation, rollDie }) {
+  const descriptor = createDerivedDescriptor(parentStar, relation, rollDie);
+
+  if (descriptor.objectType) {
+    const fallbackStar = generatePrimaryStarHeuristic({ spectralType: "G" });
+    return {
+      ...fallbackStar,
+      designation: descriptor.objectType,
+      spectralType: descriptor.objectType,
+      spectralClass: descriptor.objectType,
+      persistedSpectralClass: descriptor.objectType,
+      luminosityClass: null,
+      luminosity: null,
+      mass: null,
+      massInSolarMasses: null,
+      temperature: null,
+      temperatureK: null,
+      objectType: descriptor.objectType,
+      generatorModel: "wbh-primary-star",
+      wbhStatus: "non-stellar-object",
+      wbhCoverage: STAR_WBH_RULES,
+      orbitType,
+      isAnomaly: ["NS", "PSR", "BH"].includes(String(descriptor.objectType || "").toUpperCase()),
+    };
+  }
+
+  return generatePrimaryStarWbh({
+    spectralType: descriptor.spectralType,
+    luminosityClass: descriptor.luminosityClass,
+    decimal: descriptor.subtype,
+    rollDie,
+  });
+}
+
+function rollStellarOrbitNumber(orbitType, parentStar, rollDie) {
+  const normalizedType = String(orbitType || "Near").toLowerCase();
+  if (normalizedType === "companion") {
+    if (["Ia", "Ib", "II", "III"].includes(String(parentStar?.luminosityClass || "").trim())) {
+      return Number((rollDie(6) * Math.max(0.01, Number(parentStar?.diameter || 0.1) * 0.01)).toFixed(2));
+    }
+    return Number((rollDie(10) / 10 + (roll2d(rollDie) - 7) / 100).toFixed(2));
+  }
+
+  if (normalizedType === "close") {
+    const base = Math.max(0.5, rollDie(6) - 1);
+    return Number((base + rollDie(10) / 20).toFixed(2));
+  }
+  if (normalizedType === "near") {
+    return Number((rollDie(6) + 5 + rollDie(10) / 20).toFixed(2));
+  }
+  return Number((rollDie(6) + 11 + rollDie(10) / 20).toFixed(2));
+}
+
+function rollStellarEccentricity(rollDie) {
+  const firstRoll = roll2d(rollDie) + 2;
+  if (firstRoll <= 5) return 0;
+  if (firstRoll <= 7) return Number((rollDie(6) / 200).toFixed(3));
+  if (firstRoll <= 9) return Number((0.03 + rollDie(6) / 100).toFixed(3));
+  if (firstRoll === 10) return Number((0.05 + rollDie(6) / 20).toFixed(3));
+  if (firstRoll === 11) return Number((0.05 + rollDice(rollDie, 2, 6) / 20).toFixed(3));
+  return Number((0.3 + rollDice(rollDie, 2, 6) / 20).toFixed(3));
+}
+
+function buildStarKey(index) {
+  return `star-${index}`;
+}
+
+function resolveCompanionParent(stars = [], rollDie = createRandomRoller()) {
+  const nonPrimaryHosts = stars.filter(
+    (star, index) => index > 0 && String(star?.orbitType || "").toLowerCase() !== "companion",
+  );
+  if (!nonPrimaryHosts.length) {
+    return stars[0] ?? null;
+  }
+  if (nonPrimaryHosts.length === 1) {
+    return roll2d(rollDie) >= 9 ? nonPrimaryHosts[0] : stars[0];
+  }
+  return roll2d(rollDie) >= 8 ? nonPrimaryHosts[nonPrimaryHosts.length - 1] : stars[0];
+}
+
+export function generateMultipleStarSystemWbh(params = {}) {
+  const rollDie = typeof params.rollDie === "function" ? params.rollDie : createRandomRoller();
+  const primary = generatePrimaryStarWbh(params);
+  const presenceDm = getPrimaryPresenceDm(primary);
+  const maxStars = clamp(Number(params.maxStars || 3), 1, 8);
+  const orbitChecks = ["Close", "Near", "Far", "Companion"];
+  const stars = [
+    {
+      ...primary,
+      starKey: buildStarKey(0),
+      parentStarKey: null,
+      hierarchyLevel: 0,
+      orbitType: null,
+      orbitNumber: null,
+      eccentricity: 0,
+    },
+  ];
+
+  for (const orbitType of orbitChecks) {
+    if (stars.length >= maxStars) {
+      break;
+    }
+    if (orbitType === "Close" && ["Ia", "Ib", "II", "III"].includes(String(primary?.luminosityClass || "").trim())) {
+      continue;
+    }
+
+    const present = roll2d(rollDie) + presenceDm >= 10;
+    if (!present) {
+      continue;
+    }
+
+    const relation = getNonPrimaryColumnRoll({
+      rollTotal: roll2d(rollDie),
+      column: orbitType === "Companion" ? "companion" : "secondary",
+      parentLuminosityClass: primary?.luminosityClass,
+    });
+    const hostStar = orbitType === "Companion" ? resolveCompanionParent(stars, rollDie) : primary;
+    const derived = createNonPrimaryStar({ parentStar: hostStar, orbitType, relation, rollDie });
+    const parentStarKey = hostStar?.starKey ?? stars[0]?.starKey ?? null;
+    stars.push({
+      ...derived,
+      starKey: buildStarKey(stars.length),
+      parentStarKey,
+      hierarchyLevel:
+        orbitType === "Companion" && parentStarKey !== stars[0]?.starKey ? 2 : orbitType === "Companion" ? 1 : 1,
+      continuationOf: orbitType === "Companion" && parentStarKey !== stars[0]?.starKey ? parentStarKey : null,
+      orbitType,
+      orbitNumber: rollStellarOrbitNumber(orbitType, hostStar, rollDie),
+      eccentricity: rollStellarEccentricity(rollDie),
+    });
+  }
+
+  return stars;
 }
 
 export function resolvePrimaryStarType({ rollDie = createRandomRoller() } = {}) {

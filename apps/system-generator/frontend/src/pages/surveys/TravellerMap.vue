@@ -568,6 +568,15 @@
             <div class="dr">
               <span class="dl">Travel Zone</span><span class="dv">{{ inspectorData.travelZone }}</span>
             </div>
+            <div class="dr">
+              <span class="dl">Mainworld</span><span class="dv">{{ inspectorData.mainworldName || "—" }}</span>
+            </div>
+            <div class="dr">
+              <span class="dl">Habitability</span><span class="dv">{{ inspectorData.habitability }}</span>
+            </div>
+            <div class="dr">
+              <span class="dl">Resources</span><span class="dv">{{ inspectorData.resourceRating }}</span>
+            </div>
           </div>
 
           <div v-if="inspectorData.bases?.length" class="base-code-strip">
@@ -1824,6 +1833,20 @@ function summarizeSystemRecord(system) {
     mainworld?.importance,
   );
   const tradeCodes = normalizeTradeCodes(system?.tradeCodes || profiles?.tradeCodes || mainworld?.tradeCodes);
+  const habitability = firstNonEmptyString(
+    system?.habitability,
+    profiles?.habitability,
+    metadata?.habitability,
+    mainworld?.economics?.habitability,
+    mainworld?.habitability,
+  );
+  const resourceRating = firstNonEmptyString(
+    system?.resourceRating,
+    profiles?.resourceRating,
+    metadata?.resourceRating,
+    mainworld?.economics?.resourceRating,
+    mainworld?.resourceRating,
+  );
   const travelZone = firstNonEmptyString(
     system?.travelZone,
     profiles?.travelZone,
@@ -1853,6 +1876,10 @@ function summarizeSystemRecord(system) {
     gasGiants: gasGiantCount === null ? "—" : String(gasGiantCount),
     importance: importance || "—",
     travelZone: travelZone || "—",
+    mainworldName: firstNonEmptyString(mainworld?.name, metadata?.mainworld?.name) || "—",
+    mainworldType: firstNonEmptyString(mainworld?.type, mainworld?.parentWorldName ? "Moon" : "") || "—",
+    habitability: habitability || "—",
+    resourceRating: resourceRating || "—",
     tradeCodes,
     surveyStatus,
   };
@@ -3181,10 +3208,32 @@ function openStarSystem() {
   if (!star || !selectedGalaxyId.value) return;
   const targetGalaxyId = selectedGalaxyId.value === ALL_GALAXIES_VALUE ? star.galaxyId : selectedGalaxyId.value;
   if (!targetGalaxyId) return;
+  const systemRecord = findSystemRecordForStar(star);
   const returnTo = serializeReturnRoute({
     name: "TravellerAtlas",
     query: selectedGalaxyId.value ? { galaxyId: String(selectedGalaxyId.value) } : {},
   });
+
+  if (systemRecord?.systemId) {
+    systemStore.setCurrentSystem(systemRecord.systemId);
+    router.push({
+      name: "SystemSurvey",
+      params: {
+        galaxyId: targetGalaxyId,
+        sectorId: star.sectorId,
+        systemId: systemRecord.systemId,
+      },
+      query: {
+        systemId: systemRecord.systemId,
+        systemRecordId: systemRecord.systemId,
+        hex: star.coord,
+        star: star.starType,
+        ...(returnTo ? { returnTo } : {}),
+      },
+    });
+    return;
+  }
+
   router.push({
     name: "StarSystemBuilder",
     params: { galaxyId: targetGalaxyId, sectorId: star.sectorId },

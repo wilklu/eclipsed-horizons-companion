@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { createSequenceRoller } from "./dice.js";
 import {
   STAR_WBH_RULES,
   calculateGiantLifespan,
@@ -8,13 +9,13 @@ import {
   calculateStarFinalAge,
   calculateSubgiantLifespan,
   calculateWbhLuminosity,
+  generateMultipleStarSystemWbh,
   generatePrimaryStarWbh,
   getWbhStarDiameter,
   getWbhStarMassAndTemperature,
   resolvePrimaryStarType,
   resolveStarSubtype,
 } from "./starGenerationWbh.js";
-import { createSequenceRoller } from "./dice.js";
 
 describe("starGenerationWbh", () => {
   it("tracks handbook coverage checkpoints", () => {
@@ -63,5 +64,24 @@ describe("starGenerationWbh", () => {
     expect(star.luminosityClass).toBe("V");
     expect(typeof star.mass).toBe("number");
     expect(typeof star.temperatureK).toBe("number");
+  });
+
+  it("generates multiple-star systems from the WBH presence table", () => {
+    const rollDie = createSequenceRoller([6, 6, 6, 6, 6, 6, 6, 6, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4]);
+    const stars = generateMultipleStarSystemWbh({ spectralType: "G", rollDie, maxStars: 3 });
+
+    expect(stars.length).toBeGreaterThanOrEqual(1);
+    expect(stars[0].designation).toContain("G");
+    expect(stars.every((star) => star.orbitType === null || typeof star.orbitType === "string")).toBe(true);
+  });
+
+  it("can assign companion stars to non-primary parents", () => {
+    const rollDie = (sides) => sides;
+    const stars = generateMultipleStarSystemWbh({ spectralType: "G", rollDie, maxStars: 5 });
+    const companion = stars.find((star) => star.orbitType === "Companion" && star.parentStarKey !== stars[0].starKey);
+
+    expect(companion).toBeTruthy();
+    expect(companion?.continuationOf).toBe(companion?.parentStarKey);
+    expect(companion?.hierarchyLevel).toBe(2);
   });
 });

@@ -170,6 +170,7 @@
             Selected world: {{ selectedWorldCandidate.name }} · {{ selectedWorldCandidate.type }} ·
             {{ selectedWorldCandidate.zone }}
           </div>
+          <button v-if="system" class="btn btn-secondary" @click="openSystemSurvey">📡 Open System Survey</button>
           <button v-if="selectedWorldCandidate" class="btn btn-primary" @click="proceedToWorldBuilder">
             🌍 Build Selected World →
           </button>
@@ -203,18 +204,18 @@ import { generatePrimaryStar } from "../../utils/primaryStarGenerator.js";
 import { starDescriptorToCssClass } from "../../utils/starDisplay.js";
 import {
   applyWorldProfileToPlanet,
+  applySystemWorldSocialProfiles,
   generateAutomaticWorldName,
   generateWorldProfile,
 } from "../../utils/worldProfileGenerator.js";
 import {
-  calculateGasGiantPresence,
   calculateHabitableZoneCenterAu,
   calculateHabitableZoneCenterOrbit,
-  calculatePlanetaryOrbitalPeriod,
-  calculateWbhTotalWorlds,
+  determineWbhSystemBodyPlan,
   fractionalOrbitToAu,
   getWbhBodyTypes,
 } from "../../utils/wbh/systemGenerationWbh.js";
+import { generateMultipleStarSystemWbh } from "../../utils/wbh/starGenerationWbh.js";
 import { generateWorldPhysicalCharacteristicsWbh } from "../../utils/wbh/worldPhysicalCharacteristicsWbh.js";
 
 const props = defineProps({
@@ -587,6 +588,8 @@ function toPersistedSystem(nextSystem) {
   const normalizedHex = normalizeHex(nextSystem.systemId);
   const persistedSectorId = getPersistedSectorId();
   const stars = Array.isArray(nextSystem.stars) ? nextSystem.stars : [];
+  const planets = Array.isArray(nextSystem.planets) ? nextSystem.planets : [];
+  const mainworld = planets.find((world) => world?.isMainworld) ?? null;
   const primary = stars[0] ? { ...stars[0] } : null;
   const companions = stars.slice(1).map((s) => ({ ...s }));
 
@@ -602,6 +605,16 @@ function toPersistedSystem(nextSystem) {
     primaryStar: primary ? primary : { spectralClass: "G2V" },
     companionStars: companions,
     starCount: stars.length,
+    mainworld,
+    mainworldName: mainworld?.name ?? "",
+    mainworldType: mainworld?.isMoon ? "Moon" : (mainworld?.type ?? ""),
+    mainworldParentWorldName: mainworld?.parentWorldName ?? "",
+    mainworldUwp: mainworld?.uwp ?? "",
+    nativeLifeform: mainworld?.nativeLifeform ?? "",
+    habitability: mainworld?.habitability ?? "",
+    resourceRating: mainworld?.resourceRating ?? "",
+    tradeCodes: Array.isArray(mainworld?.tradeCodes) ? [...mainworld.tradeCodes] : [],
+    mainworldRemarks: Array.isArray(mainworld?.remarks) ? [...mainworld.remarks] : [],
     metadata: {
       generatedSurvey: {
         stars,
@@ -736,40 +749,13 @@ function planetZone(orbitAU, hz) {
 }
 
 function buildPlanets(hz, stars) {
-  const gasGiants = calculateGasGiantPresence({
-    method: "2d",
-    rollTotal: 1 + Math.floor(Math.random() * 6) + 1 + Math.floor(Math.random() * 6),
-  })
-    ? 1 + Math.floor(Math.random() * 3)
-    : 0;
-  const planetoidBelts = Math.random() < 0.4 ? 1 + (Math.random() < 0.2 ? 1 : 0) : 0;
-  const terrestrialPlanets = 2 + Math.floor(Math.random() * 5);
-  const count = calculateWbhTotalWorlds({ gasGiants, planetoidBelts, terrestrialPlanets });
-  const planets = [];
+  const plan = determineWbhSystemBodyPlan({ stars });
   const usedNames = new Set();
-  const spread = 0.45 + Math.random() * 0.35;
-  const centerIndex = Math.floor((count - 1) / 2);
-  const baseOrbit = Math.max(0.1, hz.centerOrbit - centerIndex * spread);
-  const totalStellarMass = (Array.isArray(stars) ? stars : []).map((star) =>
-    Number(star?.massInSolarMasses ?? star?.mass ?? 0),
-  );
-
-  const typeAssignments = Array.from({ length: count }, () => "Terrestrial Planet");
-  let outerCursor = count - 1;
-  for (let index = 0; index < gasGiants && outerCursor >= 0; index += 1) {
-    typeAssignments[outerCursor] = "Gas Giant";
-    outerCursor -= 1;
-  }
-  for (let index = 0; index < planetoidBelts && outerCursor >= 0; index += 1) {
-    typeAssignments[outerCursor] = "Planetoid Belt";
-    outerCursor -= 1;
-  }
-
-  for (let i = 0; i < count; i++) {
-    const type = typeAssignments[i];
-    const orbitNumber = +(baseOrbit + i * spread).toFixed(2);
-    const orbitAU = +fractionalOrbitToAu(orbitNumber).toFixed(2);
-    const zone = planetZone(orbitAU, hz);
+  return plan.planets.map((body) => {
+    const type = body.type;
+    const orbitNumber = body.orbitNumber;
+    const orbitAU = Number(body.orbitAU ?? fractionalOrbitToAu(orbitNumber).toFixed(2));
+    const zone = body.zone || planetZone(orbitAU, hz);
     const name =
       type === "Planetoid Belt"
         ? generateObjectName({
@@ -786,26 +772,31 @@ function buildPlanets(hz, stars) {
             usedNames,
           });
     usedNames.add(name);
-    const period = calculatePlanetaryOrbitalPeriod({ orbitNumber, stellarMasses: totalStellarMass });
-    planets.push({
+
+    return {
       name,
       type,
       composition: pickPlanetComposition(type, zone),
       orbitNumber,
       orbitAU,
-      orbitalPeriodDays: Math.round(period.days),
+      orbitalPeriodDays: Number(body.orbitalPeriodDays ?? 0),
       zone,
-    });
-  }
-  return planets;
+      hzco: body.hzco,
+      orbitGroup: body.groupLabel,
+      isAnomalousOrbit: Boolean(body.isAnomalous),
+    };
+  });
 }
 
 function isWorldBuilderCandidate(planet) {
-  return Boolean(planet) && String(planet?.type || "") !== "Gas Giant";
+  return Boolean(planet) && String(planet?.type || "") !== "Gas Giant" && String(planet?.sizeCode || "") !== "R";
 }
 
 function findDefaultWorldIndex(planets) {
   if (!Array.isArray(planets) || !planets.length) return null;
+
+  const flaggedMainworldIndex = planets.findIndex((planet) => planet?.isMainworld && isWorldBuilderCandidate(planet));
+  if (flaggedMainworldIndex >= 0) return flaggedMainworldIndex;
 
   const habitableIndex = planets.findIndex((planet) => planet.zone === "habitable" && isWorldBuilderCandidate(planet));
   if (habitableIndex >= 0) return habitableIndex;
@@ -852,27 +843,24 @@ async function buildSystem() {
       : (PRIMARY_TYPE_OPTIONS.find((entry) => entry.code === requestedPrimary) ?? null);
   const primaryIsAnomaly = primaryEntry ? ANOMALY_TYPES.some((entry) => entry.code === primaryEntry.code) : false;
 
-  let starCount = 1;
-  if (multiplicity.value === "binary") starCount = 2;
-  else if (multiplicity.value === "trinary") starCount = 3;
-  else if (multiplicity.value === "random") {
-    const r = Math.random();
-    starCount = r < 0.5 ? 1 : r < 0.8 ? 2 : 3;
-  }
-
-  const stars = [primaryIsAnomaly ? buildAnomalyPrimary(primaryEntry) : buildStar(requestedPrimary, "primary")];
-  for (let i = 1; i < starCount; i++) {
-    stars.push(buildStar(pickRandomSpectralCode(), "secondary"));
-  }
+  const starCountLimit = multiplicity.value === "single" ? 1 : multiplicity.value === "binary" ? 2 : 3;
+  const stars = primaryIsAnomaly
+    ? [buildAnomalyPrimary(primaryEntry)]
+    : generateMultipleStarSystemWbh({
+        spectralType: requestedPrimary === "random" ? undefined : requestedPrimary,
+        maxStars: multiplicity.value === "random" ? 3 : starCountLimit,
+      }).slice(0, multiplicity.value === "random" ? 3 : starCountLimit);
 
   const hz = calcHabitableZone(stars);
   const primaryWorldStarClass = stars[0]?.designation || stars[0]?.spectralClass || primarySpectral.value;
-  const planets = buildPlanets(hz, stars).map((planet) => {
+  const profiledPlanets = buildPlanets(hz, stars).map((planet) => {
     const baseProfile = generateWorldProfile({
       worldName: planet.name,
       starClass: primaryWorldStarClass,
       randomWorldName: () => planet.name,
       isGasGiant: planet.type === "Gas Giant",
+      orbitNumber: planet.orbitNumber,
+      hzco: planet.hzco,
     });
 
     const enrichedProfile =
@@ -892,6 +880,7 @@ async function buildSystem() {
 
     return applyWorldProfileToPlanet(planet, enrichedProfile);
   });
+  const planets = applySystemWorldSocialProfiles(profiledPlanets);
 
   const nextSystem = {
     systemId: hexCoord.value || "0000",
@@ -976,6 +965,32 @@ function proceedToWorldBuilder() {
       orbitAU: String(selectedWorldCandidate.value.orbitAU ?? ""),
       zone: selectedWorldCandidate.value.zone,
       worldIndex: String(selectedWorldIndex.value ?? ""),
+    },
+  });
+}
+
+function openSystemSurvey() {
+  if (!system.value) return;
+
+  const returnTo = serializeReturnRoute({
+    name: String(route.name || "StarSystemBuilder"),
+    params: { ...route.params },
+    query: {
+      ...route.query,
+      hex: normalizeHex(system.value?.systemId || hexCoord.value),
+      star: String(system.value?.stars?.[0]?.designation || route.query.star || "").trim(),
+    },
+  });
+
+  router.push({
+    name: "SystemSurvey",
+    params: { galaxyId: props.galaxyId, sectorId: props.sectorId },
+    query: {
+      systemId: String(system.value?.systemId || ""),
+      systemRecordId: String(systemStore.currentSystemId || ""),
+      hex: normalizeHex(system.value?.systemId || hexCoord.value),
+      star: String(system.value?.stars?.[0]?.designation || route.query.star || "").trim(),
+      ...(returnTo ? { returnTo } : {}),
     },
   });
 }
