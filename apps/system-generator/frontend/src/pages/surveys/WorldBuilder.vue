@@ -236,6 +236,8 @@ import {
   generateWorldProfile,
   normalizeWorldStarClass,
 } from "../../utils/worldProfileGenerator.js";
+import { auToFractionalOrbit, calculateHabitableZoneCenterOrbit } from "../../utils/wbh/systemGenerationWbh.js";
+import { generateWorldPhysicalCharacteristicsWbh } from "../../utils/wbh/worldPhysicalCharacteristicsWbh.js";
 import { usePreferencesStore } from "../../stores/preferencesStore.js";
 import { useSystemStore } from "../../stores/systemStore.js";
 import * as toastService from "../../utils/toast.js";
@@ -544,6 +546,23 @@ function getSelectedPlanetRecord() {
   return persistedSystem.planets[worldIndex] ?? null;
 }
 
+function getSelectedPrimaryStarRecord() {
+  const persistedSystem = resolveBoundSystemRecord();
+  if (!persistedSystem || typeof persistedSystem !== "object") {
+    return null;
+  }
+
+  if (persistedSystem.primaryStar && typeof persistedSystem.primaryStar === "object") {
+    return persistedSystem.primaryStar;
+  }
+
+  if (Array.isArray(persistedSystem.stars) && persistedSystem.stars[0]) {
+    return persistedSystem.stars[0];
+  }
+
+  return null;
+}
+
 function hydrateStoredWorldProfile() {
   const storedProfile = extractStoredWorldProfile(getSelectedPlanetRecord());
   if (!storedProfile) {
@@ -733,10 +752,39 @@ async function randomizeName() {
 function buildGeneratedWorld() {
   const resolvedWorldName = String(worldName.value || "").trim() || generateRandomWorldName();
 
-  world.value = generateWorldProfile({
+  const baseProfile = generateWorldProfile({
     worldName: resolvedWorldName,
     starClass: starClass.value,
     randomWorldName: generateRandomWorldName,
+  });
+
+  const selectedPlanet = getSelectedPlanetRecord();
+  const selectedPrimaryStar = getSelectedPrimaryStarRecord();
+  const sourceType = String(sourceWorldType.value || selectedPlanet?.type || "").trim();
+  const orbitAu = Number(sourceOrbitAU.value || (selectedPlanet?.orbitAU ?? NaN));
+  const primaryLuminosity = Number(
+    selectedPrimaryStar?.luminosity ?? selectedPrimaryStar?.lum ?? selectedPrimaryStar?.massInSolarMasses ?? NaN,
+  );
+
+  const canApplyWbhPhysics =
+    sourceType !== "Gas Giant" && Number.isFinite(orbitAu) && Number.isFinite(primaryLuminosity);
+  if (!canApplyWbhPhysics) {
+    world.value = baseProfile;
+    return;
+  }
+
+  const orbitNumber = auToFractionalOrbit(orbitAu);
+  const hzco = calculateHabitableZoneCenterOrbit(primaryLuminosity);
+  world.value = generateWorldPhysicalCharacteristicsWbh({
+    ...baseProfile,
+    baseWorld: baseProfile,
+    worldName: resolvedWorldName,
+    starClass: starClass.value,
+    sizeCode: sourceType === "Planetoid Belt" ? "0" : baseProfile.size,
+    orbitNumber,
+    hzco,
+    systemAgeGyr: Number(selectedPrimaryStar?.systemAge ?? 5),
+    stellarMasses: [Number(selectedPrimaryStar?.massInSolarMasses ?? selectedPrimaryStar?.mass ?? 0)],
   });
 }
 

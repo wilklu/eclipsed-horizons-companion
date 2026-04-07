@@ -36,6 +36,11 @@ Target integration points:
 - `apps/system-generator/frontend/src/pages/surveys/StarSystemBuilder.vue`
 - `apps/system-generator/frontend/src/utils/stellarSurveySystemGenerator.js`
 
+Current status:
+
+- `StarSystemBuilder.vue` now consumes WBH orbit/HZ helpers and applies WBH world-physics enrichment for non-gas-giant bodies.
+- `stellarSurveySystemGenerator.js` now uses the same WBH orbit/HZ helper path as `StarSystemBuilder.vue` while still keeping heuristic body-count and placement rules.
+
 ## Phase 3: World Physical Characteristics
 
 Implement Chapter 5 in `apps/system-generator/frontend/src/utils/wbh/worldPhysicalCharacteristicsWbh.js`.
@@ -54,9 +59,15 @@ Target integration points:
 - `apps/system-generator/frontend/src/pages/surveys/WorldBuilder.vue`
 - `apps/system-generator/frontend/src/pages/surveys/StarSystemBuilder.vue`
 
+Current status:
+
+- `WorldBuilder.vue` now enriches generated non-gas-giant worlds with WBH size/density/gravity/mass calculations when bound system context is available.
+- `StarSystemBuilder.vue` now applies the same WBH physical-characteristics enrichment when generating planetary catalog entries.
+- `worldProfileGenerator.js` now delegates atmosphere, hydrographics, temperature, moons, magnetosphere, and related physical fields to the WBH module while still keeping heuristic social/default data.
+
 ## Validation Strategy
 
 1. Keep new WBH logic in separate modules until chapter-level parity is reached.
 2. Add deterministic unit tests for every handbook formula and table resolver.
 3. Add adapter-level tests before swapping any existing UI flow to WBH-backed generation.
-4. Preserve the current generators as temporary fallbacks until each UI surface is verified.
+4. Preserve heuristic fallbacks only for subsystems that still lack WBH table coverage, not for UI display of valid WBH outputs.

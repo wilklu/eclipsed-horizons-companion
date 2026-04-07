@@ -3,11 +3,18 @@ import { describe, expect, it } from "vitest";
 import {
   STAR_WBH_RULES,
   calculateGiantLifespan,
+  calculateLargeStarAge,
   calculateMainSequenceLifespan,
+  calculateStarFinalAge,
   calculateSubgiantLifespan,
   calculateWbhLuminosity,
   generatePrimaryStarWbh,
+  getWbhStarDiameter,
+  getWbhStarMassAndTemperature,
+  resolvePrimaryStarType,
+  resolveStarSubtype,
 } from "./starGenerationWbh.js";
+import { createSequenceRoller } from "./dice.js";
 
 describe("starGenerationWbh", () => {
   it("tracks handbook coverage checkpoints", () => {
@@ -23,13 +30,38 @@ describe("starGenerationWbh", () => {
     expect(calculateMainSequenceLifespan(1)).toBeCloseTo(10, 5);
     expect(calculateSubgiantLifespan({ mainSequenceLifespan: 10, mass: 1 })).toBeCloseTo(2, 5);
     expect(calculateGiantLifespan({ mainSequenceLifespan: 10, mass: 1 })).toBeCloseTo(1, 5);
+    expect(calculateLargeStarAge({ mainSequenceLifespan: 10, percentileRoll: 40 })).toBeCloseTo(4, 5);
+    expect(calculateStarFinalAge(1)).toBeGreaterThan(10);
   });
 
-  it("returns a usable scaffold result while generation is incomplete", () => {
-    const star = generatePrimaryStarWbh({ spectralType: "G", decimal: 2, luminosityClass: "V" });
+  it("resolves a primary star from WBH tables", () => {
+    const rollDie = createSequenceRoller([1, 5]);
+    const starType = resolvePrimaryStarType({ rollDie });
 
-    expect(star.generatorModel).toBe("wbh-scaffold");
-    expect(star.wbhStatus).toBe("fallback-heuristic");
-    expect(star.designation.startsWith("G2")).toBe(true);
+    expect(starType.kind).toBe("stellar");
+    expect(starType.spectralType).toBe("M");
+    expect(starType.luminosityClass).toBe("V");
+  });
+
+  it("resolves subtype and interpolated star values", () => {
+    const rollDie = createSequenceRoller([1, 2]);
+    expect(resolveStarSubtype({ spectralType: "M", isPrimary: true, rollDie })).toBe(6);
+
+    const { mass, temperature } = getWbhStarMassAndTemperature({ spectralType: "G", luminosityClass: "V", subtype: 7 });
+    expect(mass).toBeCloseTo(0.86, 2);
+    expect(temperature).toBeCloseTo(5440, 0);
+    expect(getWbhStarDiameter({ spectralType: "G", luminosityClass: "V", subtype: 7 })).toBeCloseTo(0.93, 2);
+  });
+
+  it("generates a WBH-backed primary star", () => {
+    const rollDie = createSequenceRoller([1, 5, 1, 2, 5, 5, 6, 6, 5, 4]);
+    const star = generatePrimaryStarWbh({ rollDie });
+
+    expect(star.generatorModel).toBe("wbh-primary-star");
+    expect(star.wbhStatus).toBe("implemented-core-tables");
+    expect(star.baseSpectralType).toBe("M");
+    expect(star.luminosityClass).toBe("V");
+    expect(typeof star.mass).toBe("number");
+    expect(typeof star.temperatureK).toBe("number");
   });
 });

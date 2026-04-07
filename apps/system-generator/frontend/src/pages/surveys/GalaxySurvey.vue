@@ -820,6 +820,7 @@ import { useSystemStore } from "../../stores/systemStore.js";
 import { createSectorsBatch, getSectorStats, upsertSector } from "../../api/sectorApi.js";
 import { calculateHexOccupancyProbability } from "../../utils/sectorGeneration.js";
 import { generatePrimaryStar } from "../../utils/primaryStarGenerator.js";
+import { starDescriptorToCssClass } from "../../utils/starDisplay.js";
 import LoadingSpinner from "../../components/common/LoadingSpinner.vue";
 import ConfirmDialog from "../../components/common/ConfirmDialog.vue";
 import * as toastService from "../../utils/toast.js";
@@ -2962,18 +2963,7 @@ function normalizeStarTypeValue(value, fallback = "G2V") {
 }
 
 function spectralClassToCssClass(spectralClass) {
-  const code = normalizeStarTypeValue(spectralClass, "G").charAt(0).toUpperCase();
-  return (
-    {
-      O: "spectral-o",
-      B: "spectral-b",
-      A: "spectral-a",
-      F: "spectral-f",
-      G: "spectral-g",
-      K: "spectral-k",
-      M: "spectral-m",
-    }[code] || "spectral-g"
-  );
+  return starDescriptorToCssClass(normalizeStarTypeValue(spectralClass, "G"));
 }
 
 function showFullGalaxyConfirm() {

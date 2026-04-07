@@ -693,6 +693,7 @@ import { useSectorStore } from "../../stores/sectorStore.js";
 import { useSystemStore } from "../../stores/systemStore.js";
 import * as toastService from "../../utils/toast.js";
 import { generatePrimaryStar } from "../../utils/primaryStarGenerator.js";
+import { starDescriptorToColor, starDescriptorToCssClass } from "../../utils/starDisplay.js";
 import * as galaxyApi from "../../api/galaxyApi.js";
 import * as sectorApi from "../../api/sectorApi.js";
 import { calculateHexOccupancyProbability, pickCentralAnomalyType } from "../../utils/sectorGeneration.js";
@@ -1599,34 +1600,11 @@ function isValidStarLabel(value) {
 }
 
 function spectralClassToCssClass(spectralClass) {
-  const code = normalizeStarTypeValue(spectralClass, "G").charAt(0).toUpperCase();
-  return (
-    {
-      O: "spectral-o",
-      B: "spectral-b",
-      A: "spectral-a",
-      F: "spectral-f",
-      G: "spectral-g",
-      K: "spectral-k",
-      M: "spectral-m",
-    }[code] || "spectral-g"
-  );
+  return starDescriptorToCssClass(normalizeStarTypeValue(spectralClass, "G"));
 }
 
 function starColorForDesignation(designation) {
-  const code = normalizeStarTypeValue(designation, "G").charAt(0).toUpperCase();
-
-  return (
-    {
-      O: "#9bb0ff",
-      B: "#aabfff",
-      A: "#cad7ff",
-      F: "#f8f7ff",
-      G: "#fff4ea",
-      K: "#ffd2a1",
-      M: "#ff8c69",
-    }[code] || "#8fe9ff"
-  );
+  return starDescriptorToColor(normalizeStarTypeValue(designation, "G"));
 }
 
 function describeAnomalyType(anomalyType) {

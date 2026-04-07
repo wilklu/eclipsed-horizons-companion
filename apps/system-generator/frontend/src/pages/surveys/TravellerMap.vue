@@ -695,6 +695,7 @@ import { usePreferencesStore } from "../../stores/preferencesStore.js";
 import { useSectorStore } from "../../stores/sectorStore.js";
 import { useSystemStore } from "../../stores/systemStore.js";
 import { generatePrimaryStar } from "../../utils/primaryStarGenerator.js";
+import { starDescriptorToColor, starDescriptorToCssClass } from "../../utils/starDisplay.js";
 import { serializeReturnRoute } from "../../utils/returnRoute.js";
 import { calculateHexOccupancyProbability } from "../../utils/sectorGeneration.js";
 import { generateGalaxySectorLayoutWindow } from "../../utils/sectorLayoutGenerator.js";
@@ -2101,35 +2102,11 @@ function toSectorTile(sector) {
 }
 
 function starTypeToColor(starType, starClass) {
-  const s = String(starClass || starType || "").toUpperCase();
-  if (/^O/.test(s)) return "#b8d4ff";
-  if (/^B/.test(s)) return "#cce0ff";
-  if (/^A/.test(s)) return "#eeeeff";
-  if (/^F/.test(s)) return "#ffffcc";
-  if (/^G/.test(s)) return "#ffee88";
-  if (/^K/.test(s)) return "#ffaa44";
-  if (/^M/.test(s)) return "#ff6633";
-  if (/^D/.test(s)) return "#aabfdd";
-  if (/^L/.test(s)) return "#882200";
-  if (/^T/.test(s)) return "#5a1800";
-  if (/^Y/.test(s)) return "#3a0e00";
-  if (/anomaly|core/i.test(s)) return "#ff44ff";
-  return "#ffd575";
+  return starDescriptorToColor(starClass || starType, "#ffd575");
 }
 
 function starTypeToCssClass(starType, starClass) {
-  const s = String(starClass || starType || "G")
-    .trim()
-    .toUpperCase();
-  if (/anomaly|core/i.test(s)) return "anomaly-core";
-  if (/^O/.test(s)) return "spectral-o";
-  if (/^B/.test(s)) return "spectral-b";
-  if (/^A/.test(s)) return "spectral-a";
-  if (/^F/.test(s)) return "spectral-f";
-  if (/^G/.test(s)) return "spectral-g";
-  if (/^K/.test(s)) return "spectral-k";
-  if (/^M/.test(s)) return "spectral-m";
-  return "spectral-g";
+  return starDescriptorToCssClass(starClass || starType, "spectral-g");
 }
 
 // ── Universe helpers ───────────────────────────────────────────────────────

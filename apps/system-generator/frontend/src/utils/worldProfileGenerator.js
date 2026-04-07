@@ -1,21 +1,6 @@
 import { generatePhonotacticName } from "./nameGenerator.js";
-
-const ATMOSPHERE_TABLE = {
-  0: "Vacuum",
-  1: "Trace",
-  2: "Very Thin, Tainted",
-  3: "Very Thin",
-  4: "Thin, Tainted",
-  5: "Thin",
-  6: "Standard",
-  7: "Standard, Tainted",
-  8: "Dense",
-  9: "Dense, Tainted",
-  10: "Exotic",
-  11: "Corrosive",
-  12: "Insidious",
-  15: "Dense, High",
-};
+import { resolveStarDescriptorToken } from "./starDisplay.js";
+import { generateWorldPhysicalCharacteristicsWbh } from "./wbh/worldPhysicalCharacteristicsWbh.js";
 
 const GOVERNMENT_TABLE = {
   0: "No Government",
@@ -76,7 +61,6 @@ const STARPORT_TABLE = {
 };
 
 const RANDOM_WORLD_STARS = ["O", "B", "A", "F", "G", "G", "G", "K", "K", "M", "M", "M"];
-const STAR_TEMP_MOD = { O: +4, B: +3, A: +2, F: +1, G: 0, K: -1, M: -2 };
 export const WORLD_NAMES = [
   "Arrakis",
   "Hestia",
@@ -145,11 +129,24 @@ function toHex(value) {
 }
 
 export function normalizeWorldStarClass(value) {
-  const firstChar = String(value || "")
-    .trim()
-    .charAt(0)
-    .toUpperCase();
-  return STAR_TEMP_MOD[firstChar] !== undefined ? firstChar : "random";
+  const token = resolveStarDescriptorToken(value, "G");
+  return (
+    {
+      O: "O",
+      B: "B",
+      A: "A",
+      F: "F",
+      G: "G",
+      K: "K",
+      M: "M",
+      D: "A",
+      BD: "M",
+      L: "M",
+      T: "M",
+      Y: "M",
+      PROTO: "K",
+    }[token] || "random"
+  );
 }
 
 function resolveWorldStarClass(starClass) {
@@ -260,33 +257,32 @@ export function generateWorldProfile({
   generateMoons: generateMoonsFlag = true,
 } = {}) {
   const resolvedStarClass = resolveWorldStarClass(starClass);
-  const tempMod = STAR_TEMP_MOD[resolvedStarClass] ?? 0;
-
   const size = clamp(d6() - 2, 0, 10);
-  const atmoRaw = clamp(d6() - 7 + size, 0, 15);
-  const atmosphereCode = atmoRaw;
-  const atmosphereDesc = ATMOSPHERE_TABLE[atmoRaw] ?? "Unusual";
-  const hydrographics = atmoRaw === 0 || atmoRaw === 1 ? 0 : clamp(d6() - 7 + atmoRaw, 0, 10);
-
-  const baseTemp = 15 + tempMod * 15 + (atmoRaw >= 6 ? 20 : 0) - hydrographics * 2;
-  const avgTempC = Math.round(baseTemp);
-  const tempCategory =
-    avgTempC < -50
-      ? "Frozen"
-      : avgTempC < 0
-        ? "Cold"
-        : avgTempC < 30
-          ? "Temperate"
-          : avgTempC < 60
-            ? "Hot"
-            : "Scorching";
-
-  const nativeSophontLife = rollNativeSophontLife({
+  const resolvedWorldName =
+    String(worldName || "").trim() || (typeof randomWorldName === "function" ? randomWorldName() : "World");
+  const generatedWorld = generateWorldPhysicalCharacteristicsWbh({
+    baseWorld: {
+      name: resolvedWorldName,
+      size,
+    },
+    worldName: resolvedWorldName,
+    starClass: resolvedStarClass,
     size,
-    atmosphereCode,
-    hydrographics,
-    avgTempC,
+    sizeCode: size,
+    isGasGiant,
+    generateMoons: generateMoonsFlag,
+    moonProfileFactory: ({ worldName: moonName }) =>
+      generateWorldProfile({
+        worldName: moonName,
+        starClass: resolvedStarClass,
+        isGasGiant: false,
+        generateMoons: false,
+      }),
   });
+
+  const atmosphereCode = Number(generatedWorld.atmosphereCode ?? 0);
+  const hydrographics = Number(generatedWorld.hydrographics ?? 0);
+  const nativeSophontLife = Boolean(generatedWorld.nativeSophontLife);
 
   const popCode = 0;
   const population = 0;
@@ -298,126 +294,49 @@ export function generateWorldProfile({
   const techLevel = 0;
 
   const tradeCodes = [];
-  if (atmoRaw >= 4 && atmoRaw <= 9 && hydrographics >= 4 && hydrographics <= 8 && popCode >= 5 && popCode <= 7) {
+  if (
+    atmosphereCode >= 4 &&
+    atmosphereCode <= 9 &&
+    hydrographics >= 4 &&
+    hydrographics <= 8 &&
+    popCode >= 5 &&
+    popCode <= 7
+  ) {
     tradeCodes.push("Ag");
   }
-  if (size === 0 && atmoRaw === 0 && hydrographics === 0) tradeCodes.push("As");
+  if (Number(generatedWorld.size) === 0 && atmosphereCode === 0 && hydrographics === 0) tradeCodes.push("As");
   if (popCode === 0 && governmentCode === 0 && lawLevel === 0) tradeCodes.push("Ba");
-  if (atmoRaw >= 2 && hydrographics === 0) tradeCodes.push("De");
-  if (atmoRaw >= 10 && hydrographics >= 1) tradeCodes.push("Fl");
-  if (size >= 6 && (atmoRaw === 5 || atmoRaw === 6 || atmoRaw === 8) && hydrographics >= 5) tradeCodes.push("Ga");
+  if (atmosphereCode >= 2 && hydrographics === 0) tradeCodes.push("De");
+  if (atmosphereCode >= 10 && hydrographics >= 1) tradeCodes.push("Fl");
+  if (
+    Number(generatedWorld.size) >= 6 &&
+    (atmosphereCode === 5 || atmosphereCode === 6 || atmosphereCode === 8) &&
+    hydrographics >= 5
+  )
+    tradeCodes.push("Ga");
   if (popCode >= 9) tradeCodes.push("Hi");
   if (techLevel >= 12) tradeCodes.push("Ht");
-  if (hydrographics >= 1 && hydrographics <= 5 && atmoRaw <= 3) tradeCodes.push("Ic");
-  if ((atmoRaw <= 2 || atmoRaw === 4 || atmoRaw === 7 || atmoRaw === 9) && popCode >= 9) tradeCodes.push("In");
+  if (hydrographics >= 1 && hydrographics <= 5 && atmosphereCode <= 3) tradeCodes.push("Ic");
+  if ((atmosphereCode <= 2 || atmosphereCode === 4 || atmosphereCode === 7 || atmosphereCode === 9) && popCode >= 9)
+    tradeCodes.push("In");
   if (popCode >= 1 && popCode <= 3) tradeCodes.push("Lo");
   if (techLevel <= 5) tradeCodes.push("Lt");
-  if (atmoRaw <= 3 && hydrographics <= 3 && popCode >= 6) tradeCodes.push("Na");
+  if (atmosphereCode <= 3 && hydrographics <= 3 && popCode >= 6) tradeCodes.push("Na");
   if (popCode >= 4 && popCode <= 6) tradeCodes.push("Ni");
-  if (atmoRaw >= 2 && atmoRaw <= 5 && hydrographics <= 3) tradeCodes.push("Po");
-  if ((atmoRaw === 6 || atmoRaw === 8) && popCode >= 6 && governmentCode >= 4 && governmentCode <= 9) {
+  if (atmosphereCode >= 2 && atmosphereCode <= 5 && hydrographics <= 3) tradeCodes.push("Po");
+  if ((atmosphereCode === 6 || atmosphereCode === 8) && popCode >= 6 && governmentCode >= 4 && governmentCode <= 9) {
     tradeCodes.push("Ri");
   }
   if (hydrographics >= 10) tradeCodes.push("Wa");
-  if (atmoRaw === 0) tradeCodes.push("Va");
+  if (atmosphereCode === 0) tradeCodes.push("Va");
 
-  const diameterKm = size === 0 ? 800 : size * 1600;
-  const gravity = +(size * 0.1 + 0.05).toFixed(2);
   const uwp = `${starportCode}${toHex(size)}${toHex(atmosphereCode)}${toHex(hydrographics)}${toHex(popCode)}${toHex(governmentCode)}${toHex(lawLevel)}-${toHex(techLevel)}`;
-  const resolvedWorldName =
-    String(worldName || "").trim() || (typeof randomWorldName === "function" ? randomWorldName() : "World");
-
-  function generateMoons({ size, atmosphereCode, hydrographics, isGasGiant = false, parentName }) {
-    const nameReserved = new Set([parentName]);
-    const moons = [];
-
-    const roll = d6(); // 2-12
-    let dm = 0;
-    if (size <= 2) dm -= 2;
-    if (size >= 8) dm += 2;
-    if (atmosphereCode === 0) dm -= 1;
-    if (hydrographics === 0) dm -= 1;
-    if (isGasGiant) dm += 3;
-
-    const adjusted = roll + dm;
-    // Heuristic: map adjusted roll to significant moon count
-    let significant = Math.max(0, Math.round((adjusted - 7) / 2) + (isGasGiant ? 1 : 0));
-    significant = clamp(significant, 0, 12);
-
-    // Chance of rings increases with significant moons and for gas giants
-    const ringBase = isGasGiant ? 0.25 : 0.05;
-    const ringChance = Math.min(0.9, ringBase + significant * 0.05);
-    const hasRings = Math.random() < ringChance;
-
-    // Create significant moons (attach full world profiles)
-    for (let i = 0; i < significant; i += 1) {
-      const ordinal = toRomanNumeral(i + 1);
-      const name = `${parentName} ${ordinal}`;
-      const sizeCategory = clamp(Math.max(0, Math.round(d6() / 2) + (isGasGiant ? 1 : 0)), 0, 10);
-      // Generate a full world profile for the significant moon but avoid recursive moon generation
-      const worldProfile = generateWorldProfile({
-        worldName: name,
-        starClass: "random",
-        isGasGiant: false,
-        generateMoons: false,
-      });
-      moons.push({
-        name,
-        type: "significant",
-        size: sizeCategory,
-        orbitalSlot: i + 1,
-        ring: false,
-        description: `${isGasGiant ? "Gas-giant" : "World"} significant moon`,
-        worldProfile,
-      });
-    }
-
-    // Add some insignificant moons probabilistically
-    const minorRoll = d6();
-    const minorCount = Math.max(0, Math.round((minorRoll - 6) / 3 + Math.floor(significant / 2)));
-    for (let j = 0; j < minorCount; j += 1) {
-      const idx = significant + j + 1;
-      const ordinal = toRomanNumeral(idx);
-      const name = `${parentName} ${ordinal}`;
-      moons.push({
-        name,
-        type: "insignificant",
-        size: clamp(Math.max(0, Math.round(Math.random() * 3)), 0, 5),
-        orbitalSlot: idx,
-        ring: false,
-        description: "Small/insignificant moon",
-      });
-    }
-
-    // Assign rings to one of the moons if present
-    if (hasRings && moons.length > 0) {
-      const pick = Math.floor(Math.random() * moons.length);
-      moons[pick].ring = true;
-      moons[pick].description += ", with ring";
-    }
-
-    return moons;
-  }
-
-  const moonsData = generateMoons({ size, atmosphereCode, hydrographics, isGasGiant, parentName: resolvedWorldName });
 
   return {
+    ...generatedWorld,
     name: resolvedWorldName,
     uwp,
     size,
-    diameterKm,
-    gravity,
-    atmosphereCode,
-    atmosphereDesc,
-    hydrographics,
-    avgTempC,
-    tempCategory,
-    orbitalPeriodDays: Math.round(200 + Math.random() * 1200),
-    dayLengthHours: +(15 + Math.random() * 50).toFixed(1),
-    axialTilt: Math.round(Math.random() * 40),
-    moons: Array.isArray(moonsData) ? moonsData.length : 0,
-    moonsData,
-    magnetosphere: Math.random() < 0.5 ? "Present" : "Absent",
     nativeSophontLife,
     populationCode: popCode,
     population,
