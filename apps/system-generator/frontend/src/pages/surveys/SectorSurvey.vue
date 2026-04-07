@@ -637,13 +637,23 @@
                   orbitalPreview.secondaryLabel
                 }}</span>
               </div>
-              <button class="btn btn-primary" @click="proceedToStarSystem">🔭 Stellar Survey →</button>
+              <div class="orbital-preview-actions">
+                <button class="btn btn-secondary" @click="generateSystemForSelectedHex" :disabled="isLoading">
+                  ⚙ Generate System
+                </button>
+                <button class="btn btn-primary" @click="proceedToStarSystem">🔭 Stellar Survey →</button>
+              </div>
             </div>
             <div v-else class="orbital-preview orbital-preview--placeholder">
               <div class="orbital-preview-empty-icon">◌</div>
               <div class="orbital-preview-copy">
                 <span class="orbital-preview-title">{{ orbitalPreview.title }}</span>
                 <span class="orbital-preview-detail">{{ orbitalPreview.message }}</span>
+              </div>
+              <div v-if="selectedHexData?.presenceOnly" class="orbital-preview-actions">
+                <button class="btn btn-primary" @click="generateSystemForSelectedHex" :disabled="isLoading">
+                  ⚙ Generate System
+                </button>
               </div>
             </div>
           </section>
@@ -2125,9 +2135,20 @@ async function generateSectorPresence() {
     const rate = DENSITY_RATES[density.value] ?? 0.3;
     const hexes = [];
 
+    // When operating in subsector scope, map local subsector grid coordinates to global sector coords
+    let baseCol = 1;
+    let baseRow = 1;
+    if (scope.value === "subsector") {
+      const bounds = getSubsectorViewportBounds(selectedSubsector.value);
+      baseCol = Number(bounds.colStart || 1);
+      baseRow = Number(bounds.rowStart || 1);
+    }
+
     for (let r = 1; r <= rows; r++) {
       for (let c = 1; c <= cols; c++) {
-        const coord = hexCoord(c, r);
+        const globalCol = baseCol + (c - 1);
+        const globalRow = baseRow + (r - 1);
+        const coord = hexCoord(globalCol, globalRow);
         const isCenterHex = isGalacticCenterSector && coord === centerCoord;
         const occupancyRate = calculateHexOccupancyProbability({
           baseRate: rate,
@@ -2175,6 +2196,16 @@ async function generateSectorPresence() {
       metadata: nextMetadata,
     });
 
+    // Remove any existing persisted systems that fall inside the newly generated presence-area.
+    // Passing the generated hexes will result in generatedSystems === [] (presenceOnly true),
+    // so replaceGeneratedSystemsForScope will delete any systems at those coords.
+    try {
+      await replaceGeneratedSystemsForScope(currentSector.sectorId, hexes);
+    } catch (err) {
+      // Non-fatal: if persistence fails, leave metadata updated and surface an error toast below
+      console.warn("Failed to replace persisted systems for presence generation:", err);
+    }
+
     generatedSector.value = buildSectorPreviewState({
       sectorId: currentSector.sectorId,
       name: String(nextMetadata.displayName || currentSector.sectorId),
@@ -2219,9 +2250,20 @@ async function generateSystemsFromPresence() {
     const existingTypes = activeSectorMetadata.value?.hexStarTypes ?? {};
     const hexes = [];
 
+    // When operating in subsector scope, map local subsector grid coordinates to global sector coords
+    let baseCol = 1;
+    let baseRow = 1;
+    if (scope.value === "subsector") {
+      const bounds = getSubsectorViewportBounds(selectedSubsector.value);
+      baseCol = Number(bounds.colStart || 1);
+      baseRow = Number(bounds.rowStart || 1);
+    }
+
     for (let r = 1; r <= rows; r++) {
       for (let c = 1; c <= cols; c++) {
-        const coord = hexCoord(c, r);
+        const globalCol = baseCol + (c - 1);
+        const globalRow = baseRow + (r - 1);
+        const coord = hexCoord(globalCol, globalRow);
         if (!occupiedSet.has(coord)) {
           hexes.push({ coord, hasSystem: false });
           continue;
@@ -3106,6 +3148,87 @@ function proceedToStarSystem() {
     query,
   });
 }
+
+async function generateSystemForSelectedHex({ openAfter = false } = {}) {
+  if (!props.galaxyId) {
+    toastService.error("No galaxy selected. Please create/select a galaxy first.");
+    return;
+  }
+
+  const hex = selectedHexData.value;
+  if (!hex || !hex.coord) {
+    toastService.error("No hex selected. Select a surveyed hex first.");
+    return;
+  }
+
+  let currentSector = activeSectorRecord.value;
+  if (!currentSector) {
+    try {
+      currentSector = await ensureCurrentSectorRecord({ showToast: true });
+    } catch (err) {
+      toastService.error(`Failed to prepare sector: ${err?.message || err}`);
+      return;
+    }
+  }
+
+  if (!currentSector) {
+    toastService.error("Sector not available; save or generate the parent sector first.");
+    return;
+  }
+
+  const coord = String(hex.coord || "").trim();
+  const existingTypes = activeSectorMetadata.value?.hexStarTypes ?? {};
+  const saved = existingTypes[coord] ?? {};
+  const primary = generatePrimaryStar();
+  const primaryType = normalizeStarTypeValue(
+    primary.designation || primary.spectralType || primary.spectralClass || primary.persistedSpectralClass,
+    "G2V",
+  );
+
+  const hexObj = {
+    coord,
+    hasSystem: true,
+    presenceOnly: false,
+    starType: normalizeStarTypeValue(saved?.starType, primaryType),
+    starClass: String(
+      saved?.starClass ||
+        spectralClassToCssClass(primary.spectralType || primary.persistedSpectralClass || primaryType),
+    ),
+    secondaryStars: Array.isArray(saved?.secondaryStars) ? [...saved.secondaryStars] : [],
+    anomalyType: saved?.anomalyType ?? null,
+  };
+
+  loadingMode.value = "generate";
+  isLoading.value = true;
+  try {
+    const persistedSurveyTotals = await replaceGeneratedSystemsForScope(currentSector.sectorId, [hexObj]);
+
+    if (generatedSector.value?.hexes?.length) {
+      const nextHexes = generatedSector.value.hexes.map((h) => (h.coord === coord ? { ...h, ...hexObj } : h));
+      generatedSector.value = {
+        ...generatedSector.value,
+        hexes: nextHexes,
+        systemCount: nextHexes.filter((h) => h.hasSystem).length,
+        emptyCount:
+          (generatedSector.value.gridCols || 0) * (generatedSector.value.gridRows || 0) -
+          nextHexes.filter((h) => h.hasSystem).length,
+        presenceOnlyCount: nextHexes.filter((h) => h.presenceOnly).length,
+      };
+    }
+
+    toastService.success(
+      `System generated — ${persistedSurveyTotals.systemCount.toLocaleString()} system(s), ${persistedSurveyTotals.worldCount.toLocaleString()} world profile(s) created.`,
+    );
+
+    if (openAfter) {
+      proceedToStarSystem();
+    }
+  } catch (err) {
+    toastService.error(`Failed to generate system: ${err?.message || err}`);
+  } finally {
+    isLoading.value = false;
+  }
+}
 </script>
 
 <style scoped>
@@ -3630,6 +3753,19 @@ function proceedToStarSystem() {
   align-items: center;
   gap: 0.28rem;
   text-align: center;
+}
+
+.orbital-preview-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  width: 100%;
+}
+
+.orbital-preview-actions .btn {
+  flex: 1 1 auto;
+  padding: 8px 10px;
 }
 
 .orbital-preview-title {
