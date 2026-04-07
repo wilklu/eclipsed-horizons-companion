@@ -931,6 +931,55 @@ function chooseUniqueIndexes(candidates, count, chooseIndex) {
   return selected;
 }
 
+function buildGroupPlacementOrder(groups = []) {
+  const childGroupsByParent = new Map();
+
+  groups.forEach((group) => {
+    if (group?.key === "primary") {
+      return;
+    }
+
+    const parentKey = String(group?.parentStarKey || "primary");
+    if (!childGroupsByParent.has(parentKey)) {
+      childGroupsByParent.set(parentKey, []);
+    }
+    childGroupsByParent.get(parentKey).push(group);
+  });
+
+  const sortGroups = (left, right) => {
+    const orbitDelta =
+      Number(left?.orbitNumber ?? Number.POSITIVE_INFINITY) - Number(right?.orbitNumber ?? Number.POSITIVE_INFINITY);
+    if (orbitDelta !== 0) {
+      return orbitDelta;
+    }
+
+    const priorityDelta = getOrbitPriority(left) - getOrbitPriority(right);
+    if (priorityDelta !== 0) {
+      return priorityDelta;
+    }
+
+    return String(left?.key || "").localeCompare(String(right?.key || ""));
+  };
+
+  const primaryGroup = groups.find((group) => group?.key === "primary");
+  const orderedKeys = [];
+
+  function visitChildren(parentHostKey) {
+    const children = [...(childGroupsByParent.get(parentHostKey) ?? [])].sort(sortGroups);
+    children.forEach((child) => {
+      orderedKeys.push(child.key);
+      visitChildren(String(child?.hostStarKey || child?.key || ""));
+    });
+  }
+
+  if (primaryGroup) {
+    orderedKeys.push(primaryGroup.key);
+    visitChildren(String(primaryGroup?.stars?.[0]?.starKey || "star-0"));
+  }
+
+  return new Map(orderedKeys.map((key, index) => [key, index]));
+}
+
 export function determineWbhSystemBodyPlan({ stars = [], rollDie = createRandomRoller() } = {}) {
   const primary = Array.isArray(stars) ? stars[0] : null;
   const starCount = Array.isArray(stars) ? stars.length : 0;
@@ -1074,7 +1123,22 @@ export function determineWbhSystemBodyPlan({ stars = [], rollDie = createRandomR
     };
   });
 
-  const allSlots = [...slots, ...anomalousSlots].sort((left, right) => left.orbitNumber - right.orbitNumber);
+  const placementOrder = buildGroupPlacementOrder(groups);
+  const allSlots = [...slots, ...anomalousSlots].sort((left, right) => {
+    const groupDelta =
+      Number(placementOrder.get(left.groupKey) ?? Number.MAX_SAFE_INTEGER) -
+      Number(placementOrder.get(right.groupKey) ?? Number.MAX_SAFE_INTEGER);
+    if (groupDelta !== 0) {
+      return groupDelta;
+    }
+
+    const orbitDelta = Number(left.orbitNumber) - Number(right.orbitNumber);
+    if (orbitDelta !== 0) {
+      return orbitDelta;
+    }
+
+    return Number(left.slotIndex) - Number(right.slotIndex);
+  });
   const chooseIndex = (length) => Math.max(0, Math.min(length - 1, roll2d(rollDie) - 2));
 
   const emptyIndexes = new Set(

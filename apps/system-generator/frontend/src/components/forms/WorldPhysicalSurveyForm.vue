@@ -570,9 +570,9 @@
           <select v-model="surveyData.resources.rating" class="cell-input">
             <option value="">—</option>
             <option value="abundant">Abundant</option>
-            <option value="common">Common</option>
-            <option value="scarce">Scarce</option>
-            <option value="rare">Rare</option>
+            <option value="good">Good</option>
+            <option value="moderate">Moderate</option>
+            <option value="sparse">Sparse</option>
             <option value="none">None</option>
           </select>
         </div>
@@ -599,9 +599,9 @@
             <option value="">—</option>
             <option value="excellent">Excellent</option>
             <option value="good">Good</option>
-            <option value="moderate">Moderate</option>
+            <option value="marginal">Marginal</option>
             <option value="poor">Poor</option>
-            <option value="inhospitable">Inhospitable</option>
+            <option value="hostile">Hostile</option>
           </select>
         </div>
         <div class="form-cell grow-6">
@@ -721,120 +721,38 @@
 </template>
 
 <script setup>
-import { ref } from "vue";
+import { computed, ref, watch } from "vue";
+import { useRoute } from "vue-router";
+import { useSystemStore } from "../../stores/systemStore.js";
 
-// Form data
-const surveyData = ref({
-  worldName: "",
-  sah_uwp: "",
-  sectorLocation: "",
-  initialSurvey: new Date().toISOString().split("T")[0],
-  lastUpdated: new Date().toISOString().split("T")[0],
-  primaryObjects: "",
-  systemAge: null,
-  travelZone: "",
-
-  orbit: {
-    number: null,
-    au: null,
-    eccentricity: null,
-    period: "",
-    notes: "",
+const props = defineProps({
+  systemRecord: {
+    type: Object,
+    default: null,
   },
-
-  size: {
-    diameter: null,
-    composition: "",
-    density: null,
-    gravity: null,
-    mass: null,
-    escapeVelocity: null,
-    notes: "",
+  worldRecord: {
+    type: Object,
+    default: null,
   },
-
-  atmosphere: {
-    pressure: null,
-    composition: "",
-    o2Partial: null,
-    taints: "",
-    scaleHeight: null,
-    notes: "",
+  systemId: {
+    type: String,
+    default: "",
   },
-
-  hydrographics: {
-    coverage: null,
-    composition: "",
-    distribution: "",
-    majorBodies: "",
-    minorBodies: "",
-    other: "",
-    notes: "",
+  worldIndex: {
+    type: [String, Number],
+    default: "",
   },
-
-  rotation: {
-    sidereal: null,
-    solar: null,
-    solarDaysPerYear: null,
-    axialTilt: null,
-    tidalLock: "no",
-    tides: "",
-    notes: "",
+  autofill: {
+    type: Boolean,
+    default: true,
   },
-
-  temperature: {
-    high: null,
-    mean: null,
-    low: null,
-    luminosity: null,
-    albedo: null,
-    greenhouse: "",
-    seismicStress: "",
-    residualStress: "",
-    tidalStress: "",
-    tidalHeating: "",
-    majorTectonicPlates: null,
-    notes: "",
-  },
-
-  life: {
-    biomass: "",
-    biocomplexity: "",
-    sophonts: "none",
-    biodiversity: "",
-    compatibility: "",
-    notes: "",
-  },
-
-  resources: {
-    rating: "",
-    notes: "",
-  },
-
-  habitability: {
-    rating: "",
-    notes: "",
-  },
-
-  subordinates: Array.from({ length: 5 }, () => ({
-    name: "",
-    sah_uwp: "",
-    orbitPD: null,
-    orbitKm: null,
-    eccentricity: null,
-    diameter: null,
-    density: null,
-    mass: null,
-    periodHours: null,
-    sizeAngle: null,
-    notes: "",
-  })),
-
-  comments: "",
 });
 
-// Add moon
-const addSubordinate = () => {
-  surveyData.value.subordinates.push({
+const route = useRoute();
+const systemStore = useSystemStore();
+
+function createEmptySubordinateRow() {
+  return {
     name: "",
     sah_uwp: "",
     orbitPD: null,
@@ -846,44 +764,17 @@ const addSubordinate = () => {
     periodHours: null,
     sizeAngle: null,
     notes: "",
-  });
-};
+  };
+}
 
-// Remove moon
-const removeSubordinate = (index) => {
-  surveyData.value.subordinates.splice(index, 1);
-};
-
-// Save survey
-const saveSurvey = async () => {
-  if (!surveyData.value.worldName) {
-    alert("Please enter a world name");
-    return;
-  }
-
-  try {
-    const payload = {
-      ...surveyData.value,
-      subordinates: surveyData.value.subordinates.filter((m) => m.name),
-    };
-
-    console.log("✓ World Physical Survey saved:", payload);
-    alert("✓ World Physical Survey saved successfully!");
-    resetForm();
-  } catch (error) {
-    console.error("✗ Save failed:", error);
-    alert("✗ Failed to save survey. Check console for details.");
-  }
-};
-
-// Reset form
-const resetForm = () => {
-  surveyData.value = {
+function createEmptySurveyData() {
+  const today = new Date().toISOString().split("T")[0];
+  return {
     worldName: "",
     sah_uwp: "",
     sectorLocation: "",
-    initialSurvey: new Date().toISOString().split("T")[0],
-    lastUpdated: new Date().toISOString().split("T")[0],
+    initialSurvey: today,
+    lastUpdated: today,
     primaryObjects: "",
     systemAge: null,
     travelZone: "",
@@ -959,24 +850,443 @@ const resetForm = () => {
       rating: "",
       notes: "",
     },
-    subordinates: Array.from({ length: 5 }, () => ({
-      name: "",
-      sah_uwp: "",
-      orbitPD: null,
-      orbitKm: null,
-      eccentricity: null,
-      diameter: null,
-      density: null,
-      mass: null,
-      periodHours: null,
-      sizeAngle: null,
-      notes: "",
-    })),
+    subordinates: Array.from({ length: 5 }, () => createEmptySubordinateRow()),
     comments: "",
   };
+}
+
+function normalizeHexCoordinates(value) {
+  return String(value || "")
+    .replace(/\D/g, "")
+    .padStart(4, "0")
+    .slice(-4);
+}
+
+function parseNumericString(value) {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? numericValue : null;
+}
+
+function formatSectorLocation(systemRecord) {
+  if (!systemRecord || typeof systemRecord !== "object") {
+    return "";
+  }
+  if (String(systemRecord?.sectorHex || "").trim()) {
+    return String(systemRecord.sectorHex).trim();
+  }
+  const x = String(systemRecord?.hexCoordinates?.x ?? "").padStart(2, "0");
+  const y = String(systemRecord?.hexCoordinates?.y ?? "").padStart(2, "0");
+  return [String(systemRecord?.sectorId || "").trim(), `${x}${y}`.trim()].filter(Boolean).join(" ");
+}
+
+function normalizeResourceRatingForSurvey(value) {
+  switch (
+    String(value || "")
+      .trim()
+      .toLowerCase()
+  ) {
+    case "abundant":
+      return "abundant";
+    case "good":
+      return "good";
+    case "moderate":
+      return "moderate";
+    case "sparse":
+      return "sparse";
+    case "none":
+      return "none";
+    default:
+      return "";
+  }
+}
+
+function normalizeHabitabilityForSurvey(value) {
+  switch (
+    String(value || "")
+      .trim()
+      .toLowerCase()
+  ) {
+    case "excellent":
+      return "excellent";
+    case "good":
+      return "good";
+    case "marginal":
+      return "marginal";
+    case "poor":
+      return "poor";
+    case "hostile":
+      return "hostile";
+    default:
+      return "";
+  }
+}
+
+function titleCase(value) {
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase();
+  return normalized ? normalized.charAt(0).toUpperCase() + normalized.slice(1) : "";
+}
+
+function buildLifeSurvey(nativeLifeform, nativeSophontLife) {
+  const digits = String(nativeLifeform || "").trim();
+  return {
+    biomass: digits.charAt(0) || "",
+    biocomplexity: digits.charAt(1) || "",
+    biodiversity: digits.charAt(2) || "",
+    compatibility: digits.charAt(3) || "",
+    sophonts: nativeSophontLife ? "native" : "none",
+    notes: "",
+  };
+}
+
+function buildSubordinates(worldRecord) {
+  const moons = Array.isArray(worldRecord?.moonsData) ? worldRecord.moonsData : [];
+  const significantMoons = moons.filter((moon) => moon?.type === "significant" && !moon?.ring);
+  const rows = significantMoons.map((moon) => ({
+    name: String(moon?.name || ""),
+    sah_uwp: String(moon?.worldProfile?.uwp || ""),
+    orbitPD: moon?.orbitalSlot ?? null,
+    orbitKm: null,
+    eccentricity: null,
+    diameter: moon?.worldProfile?.diameterKm ?? null,
+    density: moon?.worldProfile?.density ?? null,
+    mass: moon?.worldProfile?.mass ?? null,
+    periodHours: moon?.worldProfile?.dayLengthHours ?? null,
+    sizeAngle: null,
+    notes: String(moon?.description || ""),
+  }));
+
+  while (rows.length < 5) {
+    rows.push(createEmptySubordinateRow());
+  }
+
+  return rows;
+}
+
+function buildSurveyDataFromWorld(systemRecord, worldRecord) {
+  const base = createEmptySurveyData();
+  if (!worldRecord || typeof worldRecord !== "object") {
+    return base;
+  }
+
+  const physicalSurvey =
+    worldRecord?.physicalSurvey && typeof worldRecord.physicalSurvey === "object" ? worldRecord.physicalSurvey : null;
+  if (physicalSurvey) {
+    return {
+      ...base,
+      ...physicalSurvey,
+      orbit: { ...base.orbit, ...(physicalSurvey.orbit || {}) },
+      size: { ...base.size, ...(physicalSurvey.size || {}) },
+      atmosphere: { ...base.atmosphere, ...(physicalSurvey.atmosphere || {}) },
+      hydrographics: { ...base.hydrographics, ...(physicalSurvey.hydrographics || {}) },
+      rotation: { ...base.rotation, ...(physicalSurvey.rotation || {}) },
+      temperature: { ...base.temperature, ...(physicalSurvey.temperature || {}) },
+      life: { ...base.life, ...(physicalSurvey.life || {}) },
+      resources: { ...base.resources, ...(physicalSurvey.resources || {}) },
+      habitability: { ...base.habitability, ...(physicalSurvey.habitability || {}) },
+      subordinates:
+        Array.isArray(physicalSurvey.subordinates) && physicalSurvey.subordinates.length
+          ? physicalSurvey.subordinates.map((row) => ({ ...createEmptySubordinateRow(), ...row }))
+          : base.subordinates,
+    };
+  }
+
+  const meanTemperatureK = Number.isFinite(Number(worldRecord?.avgTempC))
+    ? Number(worldRecord.avgTempC) + 273.15
+    : null;
+  const orbitalPeriodDays = Number(worldRecord?.orbitalPeriodDays ?? 0) || null;
+  const dayLengthHours = Number(worldRecord?.dayLengthHours ?? 0) || null;
+  const solarDaysPerYear =
+    orbitalPeriodDays && dayLengthHours ? Number((orbitalPeriodDays * 24) / dayLengthHours).toFixed(2) : null;
+  const seismology =
+    worldRecord?.seismology && typeof worldRecord.seismology === "object" ? worldRecord.seismology : {};
+  const stars = Array.isArray(systemRecord?.stars) ? systemRecord.stars : [];
+
+  return {
+    ...base,
+    worldName: String(worldRecord?.name || ""),
+    sah_uwp: String(worldRecord?.uwp || worldRecord?.sah_uwp || ""),
+    sectorLocation: formatSectorLocation(systemRecord),
+    primaryObjects: stars
+      .map((star) => String(star?.designation || star?.spectralClass || "").trim())
+      .filter(Boolean)
+      .join(", "),
+    systemAge: Number(systemRecord?.stars?.[0]?.systemAge ?? systemRecord?.systemAge ?? 0) || null,
+    travelZone: String(systemRecord?.travelZone || ""),
+    orbit: {
+      number: worldRecord?.orbitNumber ?? null,
+      au: worldRecord?.orbitAU ?? worldRecord?.orbitAu ?? null,
+      eccentricity: worldRecord?.eccentricity ?? null,
+      period: orbitalPeriodDays ? `${orbitalPeriodDays} days` : "",
+      notes: String(worldRecord?.orbitGroup || worldRecord?.zone || ""),
+    },
+    size: {
+      diameter: worldRecord?.diameterKm ?? null,
+      composition: String(worldRecord?.composition || ""),
+      density: worldRecord?.density ?? null,
+      gravity: worldRecord?.gravity ?? null,
+      mass: worldRecord?.mass ?? null,
+      escapeVelocity: Number(worldRecord?.escapeVelocityMps ?? 0) ? Number(worldRecord.escapeVelocityMps) / 1000 : null,
+      notes: String(worldRecord?.sizeProfile || ""),
+    },
+    atmosphere: {
+      pressure: null,
+      composition: String(worldRecord?.atmosphereDesc || ""),
+      o2Partial: null,
+      taints: String(worldRecord?.atmosphereDesc || "").includes("Tainted") ? "Tainted" : "",
+      scaleHeight: null,
+      notes: `Code ${String(worldRecord?.atmosphereCode ?? "")}`.trim(),
+    },
+    hydrographics: {
+      coverage: Number(worldRecord?.hydrographics ?? 0) * 10,
+      composition: Number(worldRecord?.hydrographics ?? 0) > 0 ? "Water-based surface volatiles" : "Dry world",
+      distribution:
+        String(worldRecord?.hydrographics ?? 0) > 0
+          ? "Survey-derived global distribution"
+          : "Minimal free-standing liquids",
+      majorBodies: "",
+      minorBodies: "",
+      other: "",
+      notes: "",
+    },
+    rotation: {
+      sidereal: dayLengthHours,
+      solar: dayLengthHours,
+      solarDaysPerYear,
+      axialTilt: worldRecord?.axialTilt ?? null,
+      tidalLock: Number(dayLengthHours) >= Number(orbitalPeriodDays) * 24 && orbitalPeriodDays ? "yes" : "no",
+      tides: Number(seismology?.tidalStressFactor ?? 0) > 0 ? "Present" : "Minimal",
+      notes: "",
+    },
+    temperature: {
+      high: null,
+      mean: meanTemperatureK ? Number(meanTemperatureK.toFixed(1)) : null,
+      low: null,
+      luminosity: stars.reduce((sum, star) => sum + Number(star?.luminosity || 0), 0) || null,
+      albedo: null,
+      greenhouse: "",
+      seismicStress: String(seismology?.totalSeismicStress ?? ""),
+      residualStress: String(seismology?.residualSeismicStress ?? ""),
+      tidalStress: String(seismology?.tidalStressFactor ?? ""),
+      tidalHeating: String(seismology?.tidalHeatingFactor ?? ""),
+      majorTectonicPlates: worldRecord?.majorTectonicPlates ?? seismology?.majorTectonicPlates ?? null,
+      notes: worldRecord?.tempCategory ? `${worldRecord.tempCategory} climate regime` : "",
+    },
+    life: buildLifeSurvey(worldRecord?.nativeLifeform, worldRecord?.nativeSophontLife),
+    resources: {
+      rating: normalizeResourceRatingForSurvey(worldRecord?.resourceRating),
+      notes: "",
+    },
+    habitability: {
+      rating: normalizeHabitabilityForSurvey(worldRecord?.habitability),
+      notes: "",
+    },
+    subordinates: buildSubordinates(worldRecord),
+    comments: Array.isArray(worldRecord?.remarks) ? worldRecord.remarks.join(", ") : "",
+  };
+}
+
+const resolvedSystemRecord = computed(() => {
+  if (props.systemRecord && typeof props.systemRecord === "object") {
+    return props.systemRecord;
+  }
+
+  const requestedId = String(
+    props.systemId || route.query.systemRecordId || route.query.systemId || systemStore.currentSystemId || "",
+  ).trim();
+  if (!requestedId) {
+    return systemStore.getCurrentSystem;
+  }
+
+  return systemStore.systems.find((system) => String(system?.systemId) === requestedId) ?? systemStore.getCurrentSystem;
+});
+
+const resolvedWorldIndex = computed(() => {
+  const explicitIndex = props.worldIndex ?? route.query.worldIndex;
+  const parsed = Number.parseInt(String(explicitIndex ?? ""), 10);
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : null;
+});
+
+const resolvedWorldRecord = computed(() => {
+  if (props.worldRecord && typeof props.worldRecord === "object") {
+    return props.worldRecord;
+  }
+
+  const systemRecord = resolvedSystemRecord.value;
+  if (!systemRecord || !Array.isArray(systemRecord?.planets)) {
+    return null;
+  }
+
+  if (resolvedWorldIndex.value !== null) {
+    return systemRecord.planets[resolvedWorldIndex.value] ?? null;
+  }
+
+  const routeWorldName = String(route.query.worldName || "").trim();
+  if (!routeWorldName) {
+    return null;
+  }
+
+  return systemRecord.planets.find((planet) => String(planet?.name || "").trim() === routeWorldName) ?? null;
+});
+
+const surveyData = ref(createEmptySurveyData());
+
+watch(
+  [resolvedSystemRecord, resolvedWorldRecord],
+  ([systemRecord, worldRecord]) => {
+    if (!props.autofill) {
+      return;
+    }
+    surveyData.value = buildSurveyDataFromWorld(systemRecord, worldRecord);
+  },
+  { immediate: true },
+);
+
+const addSubordinate = () => {
+  surveyData.value.subordinates.push(createEmptySubordinateRow());
 };
 
-// Print form
+const removeSubordinate = (index) => {
+  surveyData.value.subordinates.splice(index, 1);
+};
+
+function updateMoonData(existingMoons = [], subordinates = []) {
+  let subordinateIndex = 0;
+  return (Array.isArray(existingMoons) ? existingMoons : []).map((moon) => {
+    if (moon?.type !== "significant" || moon?.ring) {
+      return moon;
+    }
+
+    const subordinate = subordinates[subordinateIndex] ?? null;
+    subordinateIndex += 1;
+    if (!subordinate) {
+      return moon;
+    }
+
+    return {
+      ...moon,
+      name: String(subordinate.name || moon.name || "").trim() || moon.name,
+      worldProfile:
+        moon?.worldProfile && typeof moon.worldProfile === "object"
+          ? {
+              ...moon.worldProfile,
+              ...(subordinate.sah_uwp ? { uwp: subordinate.sah_uwp } : {}),
+              ...(subordinate.diameter !== null ? { diameterKm: subordinate.diameter } : {}),
+              ...(subordinate.density !== null ? { density: subordinate.density } : {}),
+              ...(subordinate.mass !== null ? { mass: subordinate.mass } : {}),
+            }
+          : moon?.worldProfile,
+    };
+  });
+}
+
+const saveSurvey = async () => {
+  if (!surveyData.value.worldName) {
+    alert("Please enter a world name");
+    return;
+  }
+
+  try {
+    const payload = {
+      ...surveyData.value,
+      subordinates: surveyData.value.subordinates.filter((moon) => String(moon?.name || "").trim()),
+    };
+
+    const currentSystem = resolvedSystemRecord.value;
+    const worldIndex = resolvedWorldIndex.value;
+    if (
+      currentSystem?.systemId &&
+      worldIndex !== null &&
+      Array.isArray(currentSystem?.planets) &&
+      currentSystem.planets[worldIndex]
+    ) {
+      const currentPlanet = currentSystem.planets[worldIndex];
+      const nextPlanet = {
+        ...currentPlanet,
+        name: String(payload.worldName || currentPlanet.name || "").trim() || currentPlanet.name,
+        uwp: String(payload.sah_uwp || currentPlanet.uwp || "").trim() || currentPlanet.uwp,
+        diameterKm: payload.size.diameter ?? currentPlanet.diameterKm,
+        composition: String(payload.size.composition || currentPlanet.composition || ""),
+        density: payload.size.density ?? currentPlanet.density,
+        gravity: payload.size.gravity ?? currentPlanet.gravity,
+        mass: payload.size.mass ?? currentPlanet.mass,
+        escapeVelocityMps:
+          payload.size.escapeVelocity !== null && payload.size.escapeVelocity !== undefined
+            ? Number(payload.size.escapeVelocity) * 1000
+            : currentPlanet.escapeVelocityMps,
+        orbitalPeriodDays: parseNumericString(payload.orbit.period) ?? currentPlanet.orbitalPeriodDays,
+        dayLengthHours: payload.rotation.sidereal ?? currentPlanet.dayLengthHours,
+        axialTilt: payload.rotation.axialTilt ?? currentPlanet.axialTilt,
+        avgTempC:
+          payload.temperature.mean !== null && payload.temperature.mean !== undefined
+            ? Number(payload.temperature.mean) - 273.15
+            : currentPlanet.avgTempC,
+        majorTectonicPlates: payload.temperature.majorTectonicPlates ?? currentPlanet.majorTectonicPlates,
+        resourceRating: titleCase(payload.resources.rating) || currentPlanet.resourceRating,
+        habitability: titleCase(payload.habitability.rating) || currentPlanet.habitability,
+        nativeSophontLife:
+          payload.life.sophonts === "native" || payload.life.sophonts === "mixed"
+            ? true
+            : currentPlanet.nativeSophontLife,
+        nativeLifeform:
+          `${payload.life.biomass}${payload.life.biocomplexity}${payload.life.biodiversity}${payload.life.compatibility}`.replace(
+            /\s+/g,
+            "",
+          ) || currentPlanet.nativeLifeform,
+        seismology: {
+          ...(currentPlanet?.seismology && typeof currentPlanet.seismology === "object"
+            ? currentPlanet.seismology
+            : {}),
+          residualSeismicStress:
+            parseNumericString(payload.temperature.residualStress) ?? currentPlanet?.seismology?.residualSeismicStress,
+          tidalStressFactor:
+            parseNumericString(payload.temperature.tidalStress) ?? currentPlanet?.seismology?.tidalStressFactor,
+          tidalHeatingFactor:
+            parseNumericString(payload.temperature.tidalHeating) ?? currentPlanet?.seismology?.tidalHeatingFactor,
+          totalSeismicStress:
+            parseNumericString(payload.temperature.seismicStress) ?? currentPlanet?.seismology?.totalSeismicStress,
+          majorTectonicPlates:
+            payload.temperature.majorTectonicPlates ?? currentPlanet?.seismology?.majorTectonicPlates,
+        },
+        moonsData: updateMoonData(currentPlanet?.moonsData, payload.subordinates),
+        physicalSurvey: payload,
+      };
+
+      const nextPlanets = currentSystem.planets.map((planet, index) => (index === worldIndex ? nextPlanet : planet));
+      const updatedSystem = await systemStore.updateSystem(currentSystem.systemId, {
+        planets: nextPlanets,
+        metadata: {
+          ...(currentSystem?.metadata && typeof currentSystem.metadata === "object" ? currentSystem.metadata : {}),
+          lastModified: new Date().toISOString(),
+        },
+      });
+
+      if (updatedSystem?.systemId) {
+        systemStore.setCurrentSystem(updatedSystem.systemId);
+      }
+    } else {
+      console.log("✓ World Physical Survey saved:", payload);
+    }
+
+    alert("✓ World Physical Survey saved successfully!");
+  } catch (error) {
+    console.error("✗ Save failed:", error);
+    alert("✗ Failed to save survey. Check console for details.");
+  }
+};
+
+const resetForm = () => {
+  if (props.autofill) {
+    surveyData.value = buildSurveyDataFromWorld(resolvedSystemRecord.value, resolvedWorldRecord.value);
+    return;
+  }
+  surveyData.value = createEmptySurveyData();
+};
+
 const printForm = () => {
   window.print();
 };

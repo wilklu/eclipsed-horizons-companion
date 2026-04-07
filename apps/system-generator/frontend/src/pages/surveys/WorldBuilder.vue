@@ -126,6 +126,29 @@
                 <span class="prop-label">Temperature:</span>
                 <span class="prop-value">{{ world.tempCategory }} (avg {{ world.avgTempC }}°C)</span>
               </div>
+              <div class="prop-row">
+                <span class="prop-label">Habitability:</span>
+                <span class="prop-value">{{ world.habitability }}</span>
+              </div>
+              <div class="prop-row">
+                <span class="prop-label">Resources:</span>
+                <span class="prop-value">{{ world.resourceRating }}</span>
+              </div>
+              <div class="prop-row">
+                <span class="prop-label">Candidate Score:</span>
+                <span class="prop-value">{{ world.mainworldCandidateScore }}</span>
+              </div>
+              <div class="prop-row">
+                <span class="prop-label">Seismic Stress:</span>
+                <span class="prop-value">{{ world.seismology?.totalSeismicStress ?? 0 }}</span>
+              </div>
+              <div class="prop-row">
+                <span class="prop-label">Tectonic Plates:</span>
+                <span class="prop-value">{{ world.majorTectonicPlates ?? 0 }}</span>
+              </div>
+            </div>
+            <div class="section-actions">
+              <button class="btn btn-secondary" @click="openWorldPhysicalSurvey">🔬 Open Physical Survey</button>
             </div>
           </section>
 
@@ -877,6 +900,30 @@ function openSystemSurvey() {
       systemRecordId: String(systemStore.currentSystemId || ""),
       hex: String(route.query.hex || ""),
       star: String(route.query.star || ""),
+      ...(returnTo ? { returnTo } : {}),
+    },
+  });
+}
+
+function openWorldPhysicalSurvey() {
+  const returnTo = serializeReturnRoute({
+    name: String(route.name || "WorldBuilder"),
+    params: { ...route.params },
+    query: { ...route.query },
+  });
+
+  router.push({
+    name: "WorldPhysicalSurvey",
+    params: {
+      systemId: String(route.params.systemId || ""),
+      worldIndex: String(getSelectedWorldIndex() ?? route.query.worldIndex ?? ""),
+    },
+    query: {
+      ...route.query,
+      systemId: String(route.params.systemId || ""),
+      systemRecordId: String(systemStore.currentSystemId || ""),
+      worldIndex: String(getSelectedWorldIndex() ?? route.query.worldIndex ?? ""),
+      worldName: String(world.value?.name || worldName.value || ""),
       ...(returnTo ? { returnTo } : {}),
     },
   });

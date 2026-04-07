@@ -313,4 +313,56 @@ describe("systemGenerationWbh", () => {
     expect(selection.world.name).toBe("Prime Moon");
     expect(selection.withinHabitableBand).toBe(true);
   });
+
+  it("orders placement slots by WBH group sequence before local orbit numbers", () => {
+    const stars = [
+      {
+        designation: "G2V",
+        luminosityClass: "V",
+        diameter: 1,
+        luminosity: 1,
+        massInSolarMasses: 1,
+        starKey: "star-0",
+      },
+      {
+        designation: "K7V",
+        luminosityClass: "V",
+        diameter: 0.8,
+        luminosity: 0.3,
+        massInSolarMasses: 0.7,
+        orbitType: "Near",
+        orbitNumber: 6.1,
+        eccentricity: 0.1,
+        starKey: "star-1",
+        parentStarKey: "star-0",
+      },
+      {
+        designation: "M3V",
+        luminosityClass: "V",
+        diameter: 0.4,
+        luminosity: 0.05,
+        massInSolarMasses: 0.3,
+        orbitType: "Far",
+        orbitNumber: 10.2,
+        eccentricity: 0.25,
+        starKey: "star-2",
+        parentStarKey: "star-0",
+      },
+    ];
+
+    const plan = determineWbhSystemBodyPlan({
+      stars,
+      rollDie: createSequenceRoller([3, 4, 3, 4, 4, 4, 5, 5, 3, 4, 4, 4, 4, 3, 4, 4, 4, 5, 5, 5, 5, 4, 4, 4]),
+    });
+
+    const firstSecondaryIndex = plan.slots.findIndex((slot) => slot.groupKey !== "primary");
+    const lastPrimaryIndex = plan.slots.reduce(
+      (lastIndex, slot, index) => (slot.groupKey === "primary" ? index : lastIndex),
+      -1,
+    );
+
+    expect(firstSecondaryIndex).toBeGreaterThan(-1);
+    expect(lastPrimaryIndex).toBeGreaterThan(-1);
+    expect(firstSecondaryIndex).toBeGreaterThan(lastPrimaryIndex);
+  });
 });

@@ -62,6 +62,13 @@ const routes = [
     meta: { title: "World Survey" },
   },
   {
+    path: "/world-physical-survey/:systemId?/:worldIndex?",
+    name: "WorldPhysicalSurvey",
+    component: () => import("../pages/surveys/WorldPhysicalSurvey.vue"),
+    props: true,
+    meta: { title: "World Physical Survey" },
+  },
+  {
     path: "/sophont-generator",
     name: "SophontGenerator",
     component: () => import("../pages/surveys/SurveyUnavailable.vue"),
