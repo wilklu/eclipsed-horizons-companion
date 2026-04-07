@@ -216,6 +216,17 @@ export const useGalaxyStore = defineStore("galaxy", {
       }
     },
 
+    resetUniverseState() {
+      this.galaxies = [];
+      this.currentGalaxyId = null;
+      this.importInProgress = false;
+      this.importProgress = 0;
+      saveToStorage([]);
+      localStorage.removeItem(CURRENT_KEY);
+      localStorage.setItem(NEXT_ID_KEY, "1");
+      purgeAllCachedGalaxyArtifacts();
+    },
+
     async importGalaxy(galaxyData, coordinates) {
       this.importInProgress = true;
       this.importProgress = 10;

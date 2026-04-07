@@ -829,6 +829,7 @@ import {
   estimateGalaxySectorLayoutCount,
   generateGalaxySectorLayout,
   iterateGalaxySectorLayout,
+  iterateGalaxySectorLayoutByRing,
 } from "../../utils/sectorLayoutGenerator.js";
 import { generateClusteredUniverseCoordinates } from "../../../../backend/generators/utils/universePlacement.js";
 
@@ -2639,19 +2640,25 @@ async function createTrueScaleSectorsInChunks(galaxy, { chunkSize = 1000 } = {})
 }
 
 async function generateNamedSectorsForGalaxy(galaxy, { progressLabel = "Naming sectors", chunkSize = 1000 } = {}) {
-  const layout = generateGalaxySectorLayout(galaxy, { scale: "true" });
-  if (!layout.length) {
+  const estimatedLayoutCount = estimateGalaxySectorLayoutCount(galaxy, { scale: "true" });
+  if (!estimatedLayoutCount) {
     return { estimatedLayoutCount: 0, namedSectorCount: 0, populatedSectorCount: 0, totalSystems: 0 };
   }
 
-  startGenerationProgress(progressLabel, layout.length);
+  startGenerationProgress(progressLabel, estimatedLayoutCount);
+  await flushGenerationProgressUi();
 
   let created = 0;
-  for (let index = 0; index < layout.length; index += chunkSize) {
-    const chunk = layout.slice(index, index + chunkSize).map((sector) => ({
+  let chunk = [];
+  for (const sector of iterateGalaxySectorLayout(galaxy, { scale: "true" })) {
+    chunk.push({
       ...sector,
       metadata: ensureSectorNamingMetadata(sector, sector.metadata ?? {}),
-    }));
+    });
+
+    if (chunk.length < chunkSize) {
+      continue;
+    }
 
     const result = await createSectorsBatch(chunk);
     if (Array.isArray(result)) {
@@ -2660,11 +2667,36 @@ async function generateNamedSectorsForGalaxy(galaxy, { progressLabel = "Naming s
       created += Number(result?.created ?? chunk.length) || chunk.length;
     }
 
-    updateGenerationProgress(Math.min(created, layout.length), layout.length, progressLabel);
+    updateGenerationProgress(Math.min(created, estimatedLayoutCount), estimatedLayoutCount, progressLabel);
+    chunk = [];
+    await flushGenerationProgressUi();
   }
 
+  if (chunk.length > 0) {
+    const result = await createSectorsBatch(chunk);
+    if (Array.isArray(result)) {
+      created += result.length;
+    } else {
+      created += Number(result?.created ?? chunk.length) || chunk.length;
+    }
+
+    updateGenerationProgress(Math.min(created, estimatedLayoutCount), estimatedLayoutCount, progressLabel);
+  }
+
+  const stats = normalizeSectorStats({
+    totalSectors: created,
+    populatedSectors: 0,
+    generatedPresenceSectors: 0,
+    emptySectors: created,
+    totalObjects: 0,
+    avgObjectsPerSector: 0,
+    lastUpdated: new Date().toISOString(),
+  });
+  await persistCachedSectorStats(galaxy, stats);
+  currentGalaxySectorStats.value = stats;
+
   return {
-    estimatedLayoutCount: layout.length,
+    estimatedLayoutCount,
     namedSectorCount: created,
     populatedSectorCount: 0,
     totalSystems: 0,
@@ -2672,22 +2704,25 @@ async function generateNamedSectorsForGalaxy(galaxy, { progressLabel = "Naming s
 }
 
 async function generateSectorPresenceForGalaxy(galaxy) {
-  return generateSectorPresenceForSectors(galaxy, getGalaxyLayoutSectors(galaxy), {
+  return generateSectorPresenceForSectors(galaxy, iterateGalaxySectorLayout(galaxy, { scale: "true" }), {
     progressLabel: "Generating sector presence",
+    totalCount: estimateGalaxySectorLayoutCount(galaxy, { scale: "true" }),
   });
 }
 
 async function generateSectorPresenceForSectors(
   galaxy,
   sectors,
-  { progressLabel = "Generating sector presence", stopAfterEmptyRing = false } = {},
+  { progressLabel = "Generating sector presence", stopAfterEmptyRing = false, totalCount = null } = {},
 ) {
-  const targetSectors = Array.isArray(sectors) ? sectors : [];
-  if (!targetSectors.length) {
+  const targetSectors = sectors && typeof sectors[Symbol.iterator] === "function" ? sectors : [];
+  const resolvedTotal = Math.max(0, Number(totalCount) || (Array.isArray(sectors) ? sectors.length : 0));
+  if (!resolvedTotal) {
     return { estimatedLayoutCount: 0, namedSectorCount: 0, populatedSectorCount: 0, totalSystems: 0 };
   }
 
-  startGenerationProgress(progressLabel, targetSectors.length);
+  startGenerationProgress(progressLabel, resolvedTotal);
+  await flushGenerationProgressUi();
 
   let totalSystems = 0;
   let populatedSectorCount = 0;
@@ -2758,8 +2793,9 @@ async function generateSectorPresenceForSectors(
     );
 
     processed += 1;
-    if (processed % GENERATION_PROGRESS_STEP === 0 || processed === targetSectors.length) {
-      updateGenerationProgress(processed, targetSectors.length, progressLabel);
+    if (processed % GENERATION_PROGRESS_STEP === 0 || processed === resolvedTotal) {
+      updateGenerationProgress(processed, resolvedTotal, progressLabel);
+      await flushGenerationProgressUi();
     }
   }
 
@@ -2778,7 +2814,7 @@ async function generateSectorPresenceForSectors(
   currentGalaxySectorStats.value = stats;
 
   return {
-    estimatedLayoutCount: targetSectors.length,
+    estimatedLayoutCount: resolvedTotal,
     namedSectorCount: generatedSectorCount,
     populatedSectorCount,
     totalSystems,
@@ -2794,6 +2830,17 @@ function startGenerationProgress(label, total) {
     total: Math.max(0, Number(total) || 0),
     startedAtMs: now,
   };
+}
+
+async function flushGenerationProgressUi() {
+  await nextTick();
+  await new Promise((resolve) => {
+    if (typeof window === "undefined" || typeof window.requestAnimationFrame !== "function") {
+      setTimeout(resolve, 0);
+      return;
+    }
+    window.requestAnimationFrame(() => resolve());
+  });
 }
 
 function updateGenerationProgress(
@@ -2837,7 +2884,6 @@ async function doGenerateAllSectors() {
   isGeneratingSectors.value = true;
   try {
     const result = await generateNamedSectorsForGalaxy(galaxy, { progressLabel: "Naming sectors" });
-    await sectorStore.loadSectors(galaxy.galaxyId);
     if (result.estimatedLayoutCount === 0) {
       toastService.warning("Could not generate sector layout for this galaxy.");
       return;
@@ -2905,20 +2951,25 @@ function cancelFullGalaxy() {
 }
 
 async function generateFullGalaxyForGalaxy(galaxy, { progressLabel = "Generating sectors and systems" } = {}) {
-  return generateSectorSystemsForSectors(galaxy, getGalaxyLayoutSectors(galaxy), { progressLabel });
+  return generateSectorSystemsForSectors(galaxy, iterateGalaxySectorLayout(galaxy, { scale: "true" }), {
+    progressLabel,
+    totalCount: estimateGalaxySectorLayoutCount(galaxy, { scale: "true" }),
+  });
 }
 
 async function generateSectorSystemsForSectors(
   galaxy,
   sectors,
-  { progressLabel = "Generating sectors and systems", stopAfterEmptyRing = false } = {},
+  { progressLabel = "Generating sectors and systems", stopAfterEmptyRing = false, totalCount = null } = {},
 ) {
-  const targetSectors = Array.isArray(sectors) ? sectors : [];
-  if (!targetSectors.length) {
+  const targetSectors = sectors && typeof sectors[Symbol.iterator] === "function" ? sectors : [];
+  const resolvedTotal = Math.max(0, Number(totalCount) || (Array.isArray(sectors) ? sectors.length : 0));
+  if (!resolvedTotal) {
     return { estimatedLayoutCount: 0, namedSectorCount: 0, populatedSectorCount: 0, totalSystems: 0 };
   }
 
-  startGenerationProgress(progressLabel, targetSectors.length);
+  startGenerationProgress(progressLabel, resolvedTotal);
+  await flushGenerationProgressUi();
 
   let totalSystems = 0;
   let populatedSectorCount = 0;
@@ -2999,8 +3050,9 @@ async function generateSectorSystemsForSectors(
     });
 
     processed += 1;
-    if (processed % GENERATION_PROGRESS_STEP === 0 || processed === targetSectors.length) {
-      updateGenerationProgress(processed, targetSectors.length, progressLabel);
+    if (processed % GENERATION_PROGRESS_STEP === 0 || processed === resolvedTotal) {
+      updateGenerationProgress(processed, resolvedTotal, progressLabel);
+      await flushGenerationProgressUi();
     }
   }
 
@@ -3019,7 +3071,7 @@ async function generateSectorSystemsForSectors(
   currentGalaxySectorStats.value = stats;
 
   return {
-    estimatedLayoutCount: targetSectors.length,
+    estimatedLayoutCount: resolvedTotal,
     namedSectorCount: generatedSectorCount,
     populatedSectorCount,
     totalSystems,
@@ -3043,17 +3095,10 @@ async function generateCenterSurroundingPresenceForGalaxy(
 }
 
 async function generateExpandingCenterSectorsForGalaxy(galaxy, { progressLabel = "Expanding from center" } = {}) {
-  const sectors = getGalaxyLayoutSectors(galaxy).sort((left, right) => {
-    const ringDelta = sectorRingDistance(left) - sectorRingDistance(right);
-    if (ringDelta !== 0) return ringDelta;
-    const leftX = Number(left?.metadata?.gridX ?? 0);
-    const rightX = Number(right?.metadata?.gridX ?? 0);
-    if (leftX !== rightX) return leftX - rightX;
-    return Number(left?.metadata?.gridY ?? 0) - Number(right?.metadata?.gridY ?? 0);
-  });
-  return generateSectorSystemsForSectors(galaxy, sectors, {
+  return generateSectorSystemsForSectors(galaxy, iterateGalaxySectorLayoutByRing(galaxy, { scale: "true" }), {
     progressLabel,
     stopAfterEmptyRing: true,
+    totalCount: estimateGalaxySectorLayoutCount(galaxy, { scale: "true" }),
   });
 }
 

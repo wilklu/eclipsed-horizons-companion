@@ -157,7 +157,7 @@
           <h2>Maintenance</h2>
           <p class="section-copy">
             These tools are intentionally tucked away from the main survey flow. Use them only when you need to clean up
-            legacy placeholder data.
+            legacy placeholder data or fully reset the generated universe.
           </p>
 
           <div class="maintenance-block">
@@ -180,6 +180,17 @@
               {{ isPruningDefaultSectors ? "Pruning Empty Sectors..." : "Prune Empty Sectors" }}
             </button>
           </div>
+
+          <p class="section-copy section-copy--compact maintenance-warning-copy">
+            Reset Universe clears backend galaxy, sector, and system records and resets the local galaxy ID counter so
+            the next created galaxy starts at 001.
+          </p>
+
+          <div class="field-actions field-actions--maintenance">
+            <button class="btn btn-danger" type="button" :disabled="isResettingUniverse" @click="resetUniverse">
+              {{ isResettingUniverse ? "Resetting Universe..." : "Reset Universe Data" }}
+            </button>
+          </div>
         </section>
       </div>
 
@@ -193,15 +204,20 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref } from "vue";
 import SurveyNavigation from "../../components/common/SurveyNavigation.vue";
 import { PREFERENCE_DEFAULTS, usePreferencesStore } from "../../stores/preferencesStore.js";
 import { useGalaxyStore } from "../../stores/galaxyStore.js";
-import { pruneDefaultSectors } from "../../api/sectorApi.js";
+import { useSectorStore } from "../../stores/sectorStore.js";
+import { useSystemStore } from "../../stores/systemStore.js";
+import { pruneDefaultSectors, resetUniverseData } from "../../api/sectorApi.js";
 
 const preferencesStore = usePreferencesStore();
 const galaxyStore = useGalaxyStore();
+const sectorStore = useSectorStore();
+const systemStore = useSystemStore();
 const statusMessage = ref("");
 const ttsVoiceOptions = ref([]);
 const supportsSpeechSynthesis = typeof window !== "undefined" && "speechSynthesis" in window;
 const isTestingVoice = ref(false);
 const isPruningDefaultSectors = ref(false);
+const isResettingUniverse = ref(false);
 const currentGalaxy = computed(() => galaxyStore.getCurrentGalaxy);
 const currentGalaxyLabel = computed(
   () => currentGalaxy.value?.name || currentGalaxy.value?.galaxyId || "No active galaxy selected",
@@ -380,6 +396,33 @@ async function pruneCurrentGalaxyDefaultSectors() {
     isPruningDefaultSectors.value = false;
   }
 }
+
+async function resetUniverse() {
+  if (isResettingUniverse.value) {
+    return;
+  }
+
+  const confirmed = window.confirm(
+    "Reset the universe database and local generated data?\n\n" +
+      "This will remove all galaxies, sectors, and systems and reset the next galaxy ID to 001. Preferences will be kept.",
+  );
+  if (!confirmed) {
+    return;
+  }
+
+  isResettingUniverse.value = true;
+  try {
+    await resetUniverseData();
+    galaxyStore.resetUniverseState();
+    sectorStore.clearSectors();
+    systemStore.clearSystems();
+    statusMessage.value = "Universe data reset. The next created galaxy will start at 001.";
+  } catch (err) {
+    statusMessage.value = `Failed to reset universe data: ${err.message}`;
+  } finally {
+    isResettingUniverse.value = false;
+  }
+}
 </script>
 
 <style scoped>
@@ -533,6 +576,16 @@ async function pruneCurrentGalaxyDefaultSectors() {
   background: transparent;
   color: #8ad7ff;
   border-color: rgba(138, 215, 255, 0.6);
+}
+
+.btn-danger {
+  background: #a83d4f;
+  color: #fff4f6;
+}
+
+.maintenance-warning-copy {
+  margin-top: 1rem;
+  color: #ffb4c2;
 }
 
 @media (max-width: 800px) {

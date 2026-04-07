@@ -350,3 +350,9 @@ export async function pruneDefaultSectors(galaxyId) {
     };
   }
 }
+
+export async function resetUniverseData() {
+  return request("/admin/reset-universe", {
+    method: "POST",
+  });
+}

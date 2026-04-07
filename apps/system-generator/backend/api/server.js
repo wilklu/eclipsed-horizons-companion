@@ -392,6 +392,36 @@ function replaceSectorSystems(sectorId, payload) {
   return rows.map(toSystem);
 }
 
+function resetUniverseData() {
+  const existingTables = new Set(
+    db
+      .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
+      .all()
+      .map((row) => String(row?.name || "")),
+  );
+  const resetOrder = ["sophonts", "worlds", "systems", "sectors", "galaxies"];
+
+  const transaction = db.transaction(() => {
+    for (const tableName of resetOrder) {
+      if (!existingTables.has(tableName)) continue;
+      db.prepare(`DELETE FROM ${tableName}`).run();
+    }
+    if (existingTables.has("sqlite_sequence")) {
+      db.prepare(
+        "DELETE FROM sqlite_sequence WHERE name IN ('sophonts', 'worlds', 'systems', 'sectors', 'galaxies')",
+      ).run();
+    }
+  });
+
+  transaction();
+
+  return {
+    ok: true,
+    resetAt: new Date().toISOString(),
+    clearedTables: resetOrder.filter((tableName) => existingTables.has(tableName)),
+  };
+}
+
 function matchPath(pathname, pattern) {
   const pathParts = pathname.split("/").filter(Boolean);
   const patternParts = pattern.split("/").filter(Boolean);
@@ -431,6 +461,11 @@ const server = http.createServer(async (req, res) => {
         dbPath: DB_PATH,
         timestamp: new Date().toISOString(),
       });
+      return;
+    }
+
+    if (req.method === "POST" && pathname === "/api/admin/reset-universe") {
+      sendJson(res, 200, resetUniverseData());
       return;
     }
 
