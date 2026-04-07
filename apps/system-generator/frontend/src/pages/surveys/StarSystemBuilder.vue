@@ -379,6 +379,14 @@ function normalizePrimarySelection(value) {
   return spectralMatch?.code || "random";
 }
 
+function multiplicityFromStars(stars) {
+  const count = Array.isArray(stars) ? stars.length : 0;
+  if (count >= 3) return "trinary";
+  if (count === 2) return "binary";
+  if (count === 1) return "single";
+  return "random";
+}
+
 function sectorStarClassForSystem(systemRecord) {
   const primary = Array.isArray(systemRecord?.stars) ? systemRecord.stars[0] : null;
   if (primary?.isAnomaly) {
@@ -622,6 +630,10 @@ async function hydrateSystem() {
       });
       const existing = systemStore.findSystemByHex(props.galaxyId, persistedSectorId, hexCoord.value);
       if (existing?.stars?.length) {
+        primarySpectral.value = normalizePrimarySelection(
+          existing.stars[0]?.designation || existing.stars[0]?.spectralClass || existing?.primaryStar?.spectralClass,
+        );
+        multiplicity.value = multiplicityFromStars(existing.stars);
         system.value = {
           ...existing,
           systemId: normalizeHex(hexCoord.value),
@@ -633,6 +645,7 @@ async function hydrateSystem() {
       }
 
       system.value = null;
+      multiplicity.value = "random";
       selectedWorldIndex.value = null;
       systemStore.setCurrentSystem(null);
     },
@@ -796,6 +809,7 @@ async function buildSystem() {
     planets,
   };
 
+  multiplicity.value = multiplicityFromStars(stars);
   system.value = nextSystem;
   selectedWorldIndex.value = resolveSelectedWorldIndex(planets);
 

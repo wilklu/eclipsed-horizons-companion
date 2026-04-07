@@ -2497,10 +2497,6 @@ function sectorHexCoord(col, row) {
   return `${String(col).padStart(2, "0")}${String(row).padStart(2, "0")}`;
 }
 
-function hasSecondary() {
-  return Math.random() < 0.35;
-}
-
 function getSectorGenerationContext(sector) {
   if (!sector) return { galaxy: null, densityClass: 3 };
   const galaxy = galaxies.value.find((g) => g.galaxyId === sector.galaxyId) ?? null;
@@ -2853,15 +2849,13 @@ async function generateInspectorSectorSystemsInternalWithOptions(sector, { inclu
     } else {
       const primary = generatePrimaryStar();
       const primaryType = normalizeGeneratedStarType(primary);
-      const secondaryGeneratedStars = hasSecondary() ? [generatePrimaryStar()] : [];
-      const secondaryStarTypes = secondaryGeneratedStars.map((star) => normalizeGeneratedStarType(star));
       hexStarTypes[coord] = {
         starType: primaryType,
         starClass: starTypeToCssClass(primaryType),
-        secondaryStars: secondaryStarTypes,
+        secondaryStars: [],
         anomalyType: null,
       };
-      generatedSystems.push(buildAtlasGeneratedSystem(targetSector, coord, primary, secondaryGeneratedStars, null));
+      generatedSystems.push(buildAtlasGeneratedSystem(targetSector, coord, primary, [], null));
     }
   }
 

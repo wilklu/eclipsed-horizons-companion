@@ -26,14 +26,18 @@
                 <div class="sector-summary-group sector-summary-group--left">
                   <span class="summary-pill">
                     <span class="summary-pill-label">Systems</span>
-                    <span class="summary-pill-value">{{ generatedSector.systemCount.toLocaleString() }}</span>
+                    <span class="summary-pill-value">{{ displayedSector.systemCount.toLocaleString() }}</span>
                   </span>
                   <span class="summary-pill">
                     <span class="summary-pill-label">Empty Hexes</span>
-                    <span class="summary-pill-value">{{ generatedSector.emptyCount.toLocaleString() }}</span>
+                    <span class="summary-pill-value">{{ displayedSector.emptyCount.toLocaleString() }}</span>
                   </span>
                 </div>
                 <div class="sector-summary-group sector-summary-group--right">
+                  <span v-if="displayedSector.viewportLabel" class="summary-pill">
+                    <span class="summary-pill-label">View</span>
+                    <span class="summary-pill-value">{{ displayedSector.viewportLabel }}</span>
+                  </span>
                   <span class="summary-pill">
                     <span class="summary-pill-label">Star Density</span>
                     <span class="summary-pill-value">{{ densityLabel }}</span>
@@ -102,7 +106,55 @@
 
             <div v-if="scope === 'subsector'" class="control-group">
               <label>Subsector Name:</label>
-              <input v-model="subsectorName" placeholder="Enter subsector name…" class="text-input" />
+              <div class="name-row">
+                <input
+                  v-model="subsectorName"
+                  placeholder="Enter subsector name…"
+                  class="text-input"
+                  @blur="persistSectorName()"
+                  @keydown.enter.prevent="persistSectorName({ showToast: true })"
+                />
+                <button
+                  class="btn btn-secondary"
+                  @click="randomizeSubsectorName"
+                  title="Random subsector name"
+                  aria-label="Random subsector name"
+                >
+                  🎲
+                </button>
+                <button
+                  class="btn btn-secondary"
+                  type="button"
+                  :disabled="!supportsSpeechSynthesis"
+                  :title="
+                    supportsSpeechSynthesis
+                      ? isSpeakingSubsectorName
+                        ? 'Stop subsector name audio'
+                        : 'Speak subsector name'
+                      : 'Text to speech not supported in this browser'
+                  "
+                  :aria-label="
+                    supportsSpeechSynthesis
+                      ? isSpeakingSubsectorName
+                        ? 'Stop subsector name audio'
+                        : 'Speak subsector name'
+                      : 'Text to speech not supported in this browser'
+                  "
+                  @mousedown.prevent
+                  @click="toggleSubsectorNameSpeech"
+                >
+                  {{ isSpeakingSubsectorName ? "■" : "🔊" }}
+                </button>
+                <button
+                  class="btn btn-secondary"
+                  @click="persistSectorName({ showToast: true })"
+                  :disabled="!canPersistSectorName"
+                  title="Save subsector name"
+                  aria-label="Save subsector name"
+                >
+                  💾
+                </button>
+              </div>
             </div>
 
             <div class="control-group control-group--span-2">
@@ -305,10 +357,10 @@
           </div>
 
           <div v-if="generatedSector" class="sector-results">
-            <div class="hex-grid-wrapper" :class="`hex-grid-wrapper--${gridSizeMode}`">
+            <div ref="gridWrapperRef" class="hex-grid-wrapper" :class="`hex-grid-wrapper--${gridSizeMode}`">
               <div class="hex-grid" :style="gridStyle">
                 <div
-                  v-for="hex in generatedSector.hexes"
+                  v-for="hex in displayedSector.hexes"
                   :key="hex.coord"
                   class="hex-cell"
                   :class="{
@@ -339,7 +391,7 @@
 </template>
 
 <script setup>
-import { computed, ref, watch, watchEffect } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch, watchEffect } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import LoadingSpinner from "../../components/common/LoadingSpinner.vue";
 import { deserializeReturnRoute, serializeReturnRoute } from "../../utils/returnRoute.js";
@@ -378,10 +430,14 @@ const occupancyRealism = ref(1);
 const isMappingSectors = ref(false);
 const gridSizeMode = ref("fit");
 const isSpeakingSectorName = ref(false);
+const isSpeakingSubsectorName = ref(false);
 const generationMode = ref("");
+const gridWrapperRef = ref(null);
+const gridWrapperBounds = ref({ width: 0, height: 0 });
 // Subsector letters in 4x4 grid (A-P)
 const SUBSECTOR_LETTERS = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P"];
 const supportsSpeechSynthesis = typeof window !== "undefined" && "speechSynthesis" in window;
+let gridWrapperResizeObserver = null;
 
 // Update page title dynamically
 watchEffect(() => {
@@ -447,9 +503,9 @@ const densityTargetRangeLabel = computed(() => {
   return ranges[density.value] ?? "20-40%";
 });
 const rolledOccupancyLabel = computed(() => {
-  const systemCount = Number(generatedSector.value?.systemCount ?? 0);
-  const cols = Number(generatedSector.value?.gridCols ?? 0);
-  const rows = Number(generatedSector.value?.gridRows ?? 0);
+  const systemCount = Number(displayedSector.value?.systemCount ?? 0);
+  const cols = Number(displayedSector.value?.gridCols ?? 0);
+  const rows = Number(displayedSector.value?.gridRows ?? 0);
   const totalHexes = cols * rows;
   if (!totalHexes) {
     return "0%";
@@ -468,45 +524,132 @@ const occupancyRealismHelp = computed(() => {
   return "100% uses the selected density as-is. Local hex variation still applies based on galaxy morphology.";
 });
 
+const isSubsectorViewport = computed(
+  () => Number(displayedSector.value?.gridCols ?? 0) === 8 && Number(displayedSector.value?.gridRows ?? 0) === 10,
+);
+
+const subsectorFitWidth = computed(() => {
+  if (!isSubsectorViewport.value) {
+    return null;
+  }
+
+  const boundsWidth = Number(gridWrapperBounds.value?.width ?? 0);
+  const boundsHeight = Number(gridWrapperBounds.value?.height ?? 0);
+  if (!boundsWidth || !boundsHeight) {
+    return null;
+  }
+
+  const cols = Number(displayedSector.value?.gridCols ?? 0);
+  const rows = Number(displayedSector.value?.gridRows ?? 0);
+  if (!cols || !rows) {
+    return null;
+  }
+
+  const wrapperPadding = 16;
+  const gap = 1;
+  const availableWidth = Math.max(0, boundsWidth - wrapperPadding);
+  const availableHeight = Math.max(0, boundsHeight - wrapperPadding);
+  const widthFromHeight = ((availableHeight - gap * (rows - 1)) * cols) / rows + gap * (cols - 1);
+  const targetWidth = Math.min(availableWidth, widthFromHeight);
+
+  return targetWidth > 0 ? `${Math.floor(targetWidth)}px` : null;
+});
+
 const gridStyle = computed(() => {
-  if (!generatedSector.value) return {};
-  const cols = generatedSector.value.gridCols;
+  if (!displayedSector.value) return {};
+  const cols = displayedSector.value.gridCols;
   const sizePresets = {
     fit: {
       columnSize: "minmax(0, 1fr)",
-      gridWidth: "100%",
-      coordFontSize: cols >= 24 ? "0.32rem" : cols >= 12 ? "0.44rem" : "0.52rem",
-      starFontSize: cols >= 24 ? "0.7rem" : cols >= 12 ? "0.9rem" : "1rem",
+      gridWidth: isSubsectorViewport.value ? subsectorFitWidth.value || "100%" : "100%",
+      coordFontSize: cols >= 24 ? "0.38rem" : cols >= 12 ? "0.5rem" : isSubsectorViewport.value ? "1.04rem" : "0.6rem",
+      starFontSize: cols >= 24 ? "0.7rem" : cols >= 12 ? "0.9rem" : isSubsectorViewport.value ? "0.9rem" : "1rem",
     },
     comfortable: {
-      columnSize: cols >= 24 ? "minmax(1.45rem, 1fr)" : "minmax(2rem, 1fr)",
+      columnSize:
+        cols >= 24 ? "minmax(1.45rem, 1fr)" : isSubsectorViewport.value ? "minmax(1.7rem, 1fr)" : "minmax(2rem, 1fr)",
       gridWidth: "max-content",
-      coordFontSize: cols >= 24 ? "0.38rem" : cols >= 12 ? "0.48rem" : "0.55rem",
-      starFontSize: cols >= 24 ? "0.8rem" : cols >= 12 ? "1rem" : "1.1rem",
+      coordFontSize:
+        cols >= 24 ? "0.44rem" : cols >= 12 ? "0.56rem" : isSubsectorViewport.value ? "1.12rem" : "0.64rem",
+      starFontSize: cols >= 24 ? "0.8rem" : cols >= 12 ? "1rem" : isSubsectorViewport.value ? "1rem" : "1.1rem",
     },
     large: {
-      columnSize: cols >= 24 ? "minmax(1.85rem, 1fr)" : "minmax(2.4rem, 1fr)",
+      columnSize:
+        cols >= 24 ? "minmax(1.85rem, 1fr)" : isSubsectorViewport.value ? "minmax(2rem, 1fr)" : "minmax(2.4rem, 1fr)",
       gridWidth: "max-content",
-      coordFontSize: cols >= 24 ? "0.42rem" : cols >= 12 ? "0.52rem" : "0.6rem",
-      starFontSize: cols >= 24 ? "0.9rem" : cols >= 12 ? "1.1rem" : "1.2rem",
+      coordFontSize: cols >= 24 ? "0.5rem" : cols >= 12 ? "0.6rem" : isSubsectorViewport.value ? "1.24rem" : "0.72rem",
+      starFontSize: cols >= 24 ? "0.9rem" : cols >= 12 ? "1.1rem" : isSubsectorViewport.value ? "1.05rem" : "1.2rem",
     },
   };
   const preset = sizePresets[gridSizeMode.value] ?? sizePresets.fit;
   return {
     gridTemplateColumns: `repeat(${cols}, ${preset.columnSize})`,
     width: preset.gridWidth,
+    maxWidth: "100%",
+    marginInline: isSubsectorViewport.value ? "auto" : undefined,
     "--hex-coord-font-size": preset.coordFontSize,
     "--hex-star-font-size": preset.starFontSize,
+    "--hex-grid-gap": isSubsectorViewport.value ? "1px" : "2px",
+    "--hex-cell-padding": isSubsectorViewport.value ? "0.04rem" : "0.08rem",
   };
 });
-const showHexCoords = computed(() => {
-  if (!generatedSector.value) return true;
-  return !(gridSizeMode.value === "fit" && Number(generatedSector.value.gridCols ?? 0) >= 24);
+
+function updateGridWrapperBounds() {
+  const element = gridWrapperRef.value;
+  if (!element) {
+    return;
+  }
+
+  gridWrapperBounds.value = {
+    width: element.clientWidth,
+    height: element.clientHeight,
+  };
+}
+
+function syncGridWrapperObserver(element) {
+  gridWrapperResizeObserver?.disconnect();
+  gridWrapperResizeObserver = null;
+
+  if (typeof ResizeObserver === "undefined" || !element) {
+    return;
+  }
+
+  gridWrapperResizeObserver = new ResizeObserver(() => {
+    updateGridWrapperBounds();
+  });
+  gridWrapperResizeObserver.observe(element);
+}
+
+onMounted(() => {
+  updateGridWrapperBounds();
+  syncGridWrapperObserver(gridWrapperRef.value);
 });
 
-const selectedHexData = computed(() => generatedSector.value?.hexes.find((h) => h.coord === selectedHex.value) ?? null);
+onBeforeUnmount(() => {
+  gridWrapperResizeObserver?.disconnect();
+  gridWrapperResizeObserver = null;
+});
 
-const hasSystemsInGrid = computed(() => (generatedSector.value?.systemCount ?? 0) > 0);
+watch([generatedSector, scope, selectedSubsector, gridSizeMode], () => {
+  updateGridWrapperBounds();
+});
+
+watch(gridWrapperRef, (element) => {
+  syncGridWrapperObserver(element);
+  updateGridWrapperBounds();
+});
+
+const showHexCoords = computed(() => {
+  if (!displayedSector.value) return true;
+  if (isSubsectorViewport.value) {
+    return true;
+  }
+  return gridSizeMode.value !== "fit";
+});
+
+const selectedHexData = computed(() => displayedSector.value?.hexes.find((h) => h.coord === selectedHex.value) ?? null);
+
+const hasSystemsInGrid = computed(() => (displayedSector.value?.systemCount ?? 0) > 0);
 const showSelectHexHint = computed(() => hasSystemsInGrid.value && !selectedHexData.value?.hasSystem);
 const isAtlasEntry = computed(() => String(route.query.from || "").trim() === "atlas");
 const backRoute = computed(() => {
@@ -958,10 +1101,6 @@ function buildHexGridFromSystems(systems, cols, rows) {
   return { hexes, systemCount: occupied.size };
 }
 
-function hasSecondary() {
-  return Math.random() < 0.35;
-}
-
 function hexCoord(col, row) {
   return String(col).padStart(2, "0") + String(row).padStart(2, "0");
 }
@@ -1008,6 +1147,67 @@ function buildGeneratedSectorName(baseName) {
   return `${safeBaseName} / ${safeLetter} - ${safeSubsectorName}`;
 }
 
+function getSubsectorViewportBounds(letter) {
+  const safeLetter = String(letter || "A")
+    .charAt(0)
+    .toUpperCase();
+  const index = Math.max(0, SUBSECTOR_LETTERS.indexOf(safeLetter));
+  const gridColumn = index % 4;
+  const gridRow = Math.floor(index / 4);
+
+  return {
+    colStart: gridColumn * 8 + 1,
+    colEnd: gridColumn * 8 + 8,
+    rowStart: gridRow * 10 + 1,
+    rowEnd: gridRow * 10 + 10,
+  };
+}
+
+function isCoordInSubsector(coord, letter) {
+  const rawCoord = String(coord || "").trim();
+  if (!/^\d{4}$/.test(rawCoord)) {
+    return false;
+  }
+
+  const bounds = getSubsectorViewportBounds(letter);
+  const col = Number(rawCoord.slice(0, 2));
+  const row = Number(rawCoord.slice(2, 4));
+  return col >= bounds.colStart && col <= bounds.colEnd && row >= bounds.rowStart && row <= bounds.rowEnd;
+}
+
+const displayedSector = computed(() => {
+  const sector = generatedSector.value;
+  if (!sector) {
+    return null;
+  }
+
+  const gridCols = Number(sector.gridCols ?? 0);
+  const gridRows = Number(sector.gridRows ?? 0);
+  if (scope.value !== "subsector" || gridCols !== 32 || gridRows !== 40) {
+    return {
+      ...sector,
+      viewportLabel: scope.value === "subsector" ? `Subsector ${selectedSubsector.value}` : null,
+    };
+  }
+
+  const visibleHexes = (Array.isArray(sector.hexes) ? sector.hexes : []).filter((hex) =>
+    isCoordInSubsector(hex?.coord, selectedSubsector.value),
+  );
+  const systemCount = visibleHexes.filter((hex) => hex.hasSystem).length;
+
+  return {
+    ...sector,
+    scope: "subsector",
+    gridCols: 8,
+    gridRows: 10,
+    hexes: visibleHexes,
+    systemCount,
+    emptyCount: Math.max(0, 80 - systemCount),
+    presenceOnlyCount: visibleHexes.filter((hex) => hex.presenceOnly).length,
+    viewportLabel: `Subsector ${selectedSubsector.value}`,
+  };
+});
+
 function getRequestedGridCoordinates() {
   const gridX = Number(route.query.gridX);
   const gridY = Number(route.query.gridY);
@@ -1018,6 +1218,23 @@ function getRequestedGridCoordinates() {
   return {
     x: Math.trunc(gridX),
     y: Math.trunc(gridY),
+  };
+}
+
+function getRequestedViewportState() {
+  const requestedScope = String(route.query.viewScope || "")
+    .trim()
+    .toLowerCase();
+  const requestedSubsector = String(route.query.subsector || "")
+    .trim()
+    .charAt(0)
+    .toUpperCase();
+  const requestedSubsectorName = String(route.query.subsectorName || "").trim();
+
+  return {
+    scope: requestedScope === "subsector" ? "subsector" : requestedScope === "sector" ? "sector" : null,
+    subsector: SUBSECTOR_LETTERS.includes(requestedSubsector) ? requestedSubsector : null,
+    subsectorName: requestedSubsectorName || null,
   };
 }
 
@@ -1391,11 +1608,7 @@ async function generateSystemsFromPresence() {
           starClass: String(
             saved?.starClass || spectralClassToCssClass(primary.spectralType || primary.persistedSpectralClass),
           ),
-          secondaryStars: Array.isArray(saved?.secondaryStars)
-            ? [...saved.secondaryStars]
-            : hasSecondary()
-              ? [generatePrimaryStar().designation]
-              : [],
+          secondaryStars: Array.isArray(saved?.secondaryStars) ? [...saved.secondaryStars] : [],
           anomalyType: saved?.anomalyType ?? null,
         });
       }
@@ -1719,6 +1932,7 @@ async function initializeSectorSelection(galaxyId) {
   selectedHex.value = null;
   selectedSectorId.value = "";
   generationMode.value = "";
+  const requestedViewport = getRequestedViewportState();
 
   if (!galaxyId) {
     galaxyProfile.value = null;
@@ -1773,6 +1987,15 @@ async function initializeSectorSelection(galaxyId) {
   if (initialSector) {
     selectedSectorId.value = initialSector.sectorId;
     await loadPersistedSector(initialSector.sectorId, false);
+    if (requestedViewport.scope) {
+      scope.value = requestedViewport.scope;
+    }
+    if (requestedViewport.subsector) {
+      selectedSubsector.value = requestedViewport.subsector;
+    }
+    if (requestedViewport.scope === "subsector" && requestedViewport.subsectorName) {
+      subsectorName.value = requestedViewport.subsectorName;
+    }
   } else {
     initializeAtlasRequestedSector();
   }
@@ -1825,6 +2048,10 @@ function randomizeSectorName() {
   }
 
   sectorName.value = randomName;
+}
+
+function randomizeSubsectorName() {
+  subsectorName.value = generateRandomSectorBaseName();
 }
 
 async function generateSector() {
@@ -1884,7 +2111,6 @@ async function generateSector() {
         const hasSystem = isCenterHex || Math.random() < occupancyRate;
         if (hasSystem) {
           const primary = isCenterHex ? null : generatePrimaryStar();
-          const secondaryStars = isCenterHex ? [] : hasSecondary() ? [generatePrimaryStar().designation] : [];
           hexes.push({
             coord,
             hasSystem: true,
@@ -1892,7 +2118,7 @@ async function generateSector() {
             starClass: isCenterHex
               ? "anomaly-core"
               : spectralClassToCssClass(primary.spectralType || primary.persistedSpectralClass),
-            secondaryStars,
+            secondaryStars: [],
             anomalyType: isCenterHex ? centerAnomalyType : null,
           });
           systemCount++;
@@ -2014,6 +2240,34 @@ function stopSectorNameSpeech() {
   if (!supportsSpeechSynthesis) return;
   window.speechSynthesis.cancel();
   isSpeakingSectorName.value = false;
+  isSpeakingSubsectorName.value = false;
+}
+
+function speakName(text, target) {
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.rate = Math.min(1.5, Math.max(0.5, Number(preferencesStore.ttsRate) || 1));
+  utterance.pitch = Math.min(1.5, Math.max(0.5, Number(preferencesStore.ttsPitch) || 1));
+  const preferredVoiceURI = String(preferencesStore.ttsVoiceURI || "").trim();
+  if (preferredVoiceURI) {
+    const voice = window.speechSynthesis.getVoices().find((entry) => entry.voiceURI === preferredVoiceURI);
+    if (voice) {
+      utterance.voice = voice;
+    }
+  }
+  utterance.onend = () => {
+    isSpeakingSectorName.value = false;
+    isSpeakingSubsectorName.value = false;
+  };
+  utterance.onerror = () => {
+    isSpeakingSectorName.value = false;
+    isSpeakingSubsectorName.value = false;
+    toastService.error(`Unable to play ${target} name audio.`);
+  };
+
+  isSpeakingSectorName.value = target === "sector";
+  isSpeakingSubsectorName.value = target === "subsector";
+  window.speechSynthesis.speak(utterance);
 }
 
 function toggleSectorNameSpeech() {
@@ -2033,26 +2287,27 @@ function toggleSectorNameSpeech() {
     return;
   }
 
-  window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(sectorDisplayName);
-  utterance.rate = Math.min(1.5, Math.max(0.5, Number(preferencesStore.ttsRate) || 1));
-  utterance.pitch = Math.min(1.5, Math.max(0.5, Number(preferencesStore.ttsPitch) || 1));
-  const preferredVoiceURI = String(preferencesStore.ttsVoiceURI || "").trim();
-  if (preferredVoiceURI) {
-    const voice = window.speechSynthesis.getVoices().find((entry) => entry.voiceURI === preferredVoiceURI);
-    if (voice) {
-      utterance.voice = voice;
-    }
+  speakName(sectorDisplayName, "sector");
+}
+
+function toggleSubsectorNameSpeech() {
+  if (!supportsSpeechSynthesis) {
+    toastService.error("Text to speech is not supported in this browser.");
+    return;
   }
-  utterance.onend = () => {
-    isSpeakingSectorName.value = false;
-  };
-  utterance.onerror = () => {
-    isSpeakingSectorName.value = false;
-    toastService.error("Unable to play sector name audio.");
-  };
-  isSpeakingSectorName.value = true;
-  window.speechSynthesis.speak(utterance);
+
+  if (isSpeakingSubsectorName.value) {
+    stopSectorNameSpeech();
+    return;
+  }
+
+  const currentSubsectorName = String(subsectorName.value || "").trim();
+  if (!currentSubsectorName) {
+    toastService.error("No subsector name is available to speak yet.");
+    return;
+  }
+
+  speakName(currentSubsectorName, "subsector");
 }
 
 function regenerateSector() {
@@ -2103,6 +2358,9 @@ function proceedToStarSystem() {
       query: {
         ...route.query,
         ...(generatedSector.value?.sectorId ? { sectorId: generatedSector.value.sectorId } : {}),
+        viewScope: scope.value,
+        subsector: scope.value === "subsector" ? selectedSubsector.value : undefined,
+        subsectorName: scope.value === "subsector" ? String(subsectorName.value || "").trim() || undefined : undefined,
       },
     }),
   };
@@ -2600,7 +2858,7 @@ function proceedToStarSystem() {
 
 .hex-grid {
   display: grid;
-  gap: 2px;
+  gap: var(--hex-grid-gap, 2px);
   width: 100%;
   max-width: 100%;
 }
@@ -2631,7 +2889,7 @@ function proceedToStarSystem() {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 0.08rem;
+  padding: var(--hex-cell-padding, 0.08rem);
   cursor: pointer;
   transition:
     background 0.15s,
@@ -2657,9 +2915,10 @@ function proceedToStarSystem() {
 
 .hex-coord {
   font-size: var(--hex-coord-font-size, 0.55rem);
-  color: #555;
+  color: #7f93ab;
   font-family: monospace;
   line-height: 1;
+  font-weight: 600;
 }
 
 .hex-star {

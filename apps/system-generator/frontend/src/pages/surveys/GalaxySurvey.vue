@@ -2965,10 +2965,6 @@ function spectralClassToCssClass(spectralClass) {
   );
 }
 
-function hasSecondary() {
-  return Math.random() < 0.35;
-}
-
 function showFullGalaxyConfirm() {
   if (!currentGalaxy.value) {
     toastService.error("No galaxy selected.");
@@ -3062,14 +3058,11 @@ async function generateSectorSystemsForSectors(
         if (Math.random() < prob) {
           const primary = generatePrimaryStar();
           const primaryType = primary.designation || primary.spectralType || primary.persistedSpectralClass || "G2V";
-          const secondary = hasSecondary() ? generatePrimaryStar() : null;
           occupiedHexes.push(coord);
           hexStarTypes[coord] = {
             starType: primaryType,
             starClass: spectralClassToCssClass(primary.spectralType || primary.persistedSpectralClass || primaryType),
-            secondaryStars: secondary
-              ? [secondary.designation || secondary.spectralType || secondary.persistedSpectralClass || "G2V"]
-              : [],
+            secondaryStars: [],
             anomalyType: null,
           };
         }
@@ -3084,7 +3077,7 @@ async function generateSectorSystemsForSectors(
       ringPopulatedCount += 1;
     }
 
-    await upsertSector({
+    const persistedSector = await upsertSector({
       ...sector,
       metadata: ensureSectorNamingMetadata(sector, {
         ...(sector.metadata ?? {}),
@@ -3099,6 +3092,11 @@ async function generateSectorSystemsForSectors(
         centralAnomalyHex: seeded.centerAnomaly?.coord,
       }),
     });
+
+    await systemStore.replaceSectorSystems(
+      persistedSector.sectorId,
+      buildPersistedSystemRecordsForSector(persistedSector, seeded.hexStarTypes),
+    );
 
     processed += 1;
     if (processed % GENERATION_PROGRESS_STEP === 0 || processed === resolvedTotal) {
