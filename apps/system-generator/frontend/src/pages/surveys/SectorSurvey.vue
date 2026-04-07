@@ -174,6 +174,25 @@
                   {{ letter }}
                 </button>
               </div>
+
+              <div class="subsector-select-actions" style="margin-top: 0.6rem">
+                <div class="control-inline-row control-inline-row--generation">
+                  <template v-if="scopePresenceCount > 0 && scopeTypedHexCount < scopePresenceCount">
+                    <button class="btn btn-primary" @click="generateSubsectorStellarSurvey" :disabled="isLoading">
+                      {{ isLoading ? "Generating..." : "⭐ Generate Stellar + Worlds" }}
+                    </button>
+                  </template>
+                  <template v-else>
+                    <button
+                      class="btn btn-secondary"
+                      @click="generateSystemForSelectedHex"
+                      :disabled="!selectedHexData || !selectedHexData.presenceOnly || isLoading"
+                    >
+                      ⚙ Generate System
+                    </button>
+                  </template>
+                </div>
+              </div>
             </div>
 
             <div v-if="scope === 'subsector' && currentViewMode !== 'subsector'" class="control-group">
@@ -551,16 +570,18 @@
             class="control-card subsector-sidebar-card subsector-sidebar-card--actions"
           >
             <label>Subsector Survey</label>
+            <div class="subsector-sidebar-actions" style="margin-bottom: 0.4rem">
+              <button
+                class="btn btn-primary subsector-sidebar-btn"
+                :disabled="isLoading"
+                @click="generateSubsectorStellarSurvey"
+              >
+                {{ isLoading ? "Generating..." : "⭐ Generate Stellar + Worlds" }}
+              </button>
+            </div>
             <div class="subsector-sidebar-copy">
               Generate stellar systems and world profiles for every occupied hex in the current subsector viewport.
             </div>
-            <button
-              class="btn btn-primary subsector-sidebar-btn"
-              :disabled="isLoading"
-              @click="generateSubsectorStellarSurvey"
-            >
-              {{ isLoading ? "Generating..." : "⭐ Generate Stellar + Worlds" }}
-            </button>
           </section>
 
           <section class="control-card subsector-sidebar-card subsector-sidebar-card--orbital">
@@ -1156,6 +1177,22 @@ const activeSectorRecord = computed(() => {
   return sectorStore.sectors.find((entry) => entry.sectorId === selectedSectorId.value) ?? null;
 });
 const activeSectorMetadata = computed(() => activeSectorRecord.value?.metadata ?? {});
+
+watch(
+  [selectedSubsector, activeSectorMetadata, scope],
+  ([letter, metadata, activeScope]) => {
+    if (activeScope !== "subsector") {
+      return;
+    }
+
+    const nextName = getStoredSubsectorName(metadata, letter);
+    if (String(nextName || "").trim() !== String(subsectorName.value || "").trim()) {
+      subsectorName.value = nextName;
+    }
+  },
+  { immediate: true },
+);
+
 const sectorPresenceCount = computed(() =>
   Array.isArray(activeSectorMetadata.value?.occupiedHexes) ? activeSectorMetadata.value.occupiedHexes.length : 0,
 );
@@ -1292,7 +1329,7 @@ const canPersistSectorName = computed(() => {
 
   if (scope.value === "subsector") {
     const currentSubsectorName = String(subsectorName.value || "").trim();
-    const persistedSubsectorName = String(sector?.metadata?.subsectorName || "").trim();
+    const persistedSubsectorName = getStoredSubsectorName(sector?.metadata, selectedSubsector.value);
     if (currentSubsectorName !== persistedSubsectorName) {
       return true;
     }
@@ -1674,11 +1711,6 @@ function describeBearing(dx, dyNorth) {
 
 function inferGridDimensions(sector) {
   const metadata = sector?.metadata || {};
-  if (Number.isInteger(metadata.gridCols) && Number.isInteger(metadata.gridRows)) {
-    const inferredScope = metadata.gridCols === 8 && metadata.gridRows === 10 ? "subsector" : "sector";
-    return { scope: inferredScope, cols: metadata.gridCols, rows: metadata.gridRows };
-  }
-
   const knownCoords = [
     ...(Array.isArray(metadata.occupiedHexes) ? metadata.occupiedHexes : []),
     ...Object.keys(metadata.hexStarTypes && typeof metadata.hexStarTypes === "object" ? metadata.hexStarTypes : {}),
@@ -1694,6 +1726,11 @@ function inferGridDimensions(sector) {
     })
   ) {
     return { scope: "sector", cols: 32, rows: 40 };
+  }
+
+  if (Number.isInteger(metadata.gridCols) && Number.isInteger(metadata.gridRows)) {
+    const inferredScope = metadata.gridCols === 8 && metadata.gridRows === 10 ? "subsector" : "sector";
+    return { scope: inferredScope, cols: metadata.gridCols, rows: metadata.gridRows };
   }
 
   if (metadata.scope === "subsector") {
@@ -1816,6 +1853,43 @@ function buildGeneratedSectorName(baseName) {
   return String(baseName || "").trim();
 }
 
+function getNormalizedSubsectorLetter(letter) {
+  const normalized = String(letter || "A")
+    .trim()
+    .charAt(0)
+    .toUpperCase();
+  return normalized || "A";
+}
+
+function getStoredSubsectorNames(metadata) {
+  const stored = metadata?.subsectorNames;
+  const normalized = {};
+
+  if (stored && typeof stored === "object") {
+    for (const [letter, value] of Object.entries(stored)) {
+      const safeLetter = getNormalizedSubsectorLetter(letter);
+      const safeValue = String(value || "").trim();
+      if (safeValue) {
+        normalized[safeLetter] = safeValue;
+      }
+    }
+  }
+
+  const legacyLetter = getNormalizedSubsectorLetter(metadata?.subsector);
+  const legacyValue = String(metadata?.subsectorName || "").trim();
+  if (legacyValue && !normalized[legacyLetter]) {
+    normalized[legacyLetter] = legacyValue;
+  }
+
+  return normalized;
+}
+
+function getStoredSubsectorName(metadata, letter) {
+  const safeLetter = getNormalizedSubsectorLetter(letter);
+  const storedNames = getStoredSubsectorNames(metadata);
+  return String(storedNames[safeLetter] || "").trim();
+}
+
 const currentSubsectorSummary = computed(() => {
   const activeScope = String(scope.value || generatedSector.value?.scope || "")
     .trim()
@@ -1921,36 +1995,157 @@ function getSelectedSectorContext() {
 
 function buildSharedSectorMetadata({ hexes, systemCount, isGalacticCenterSector, preserveLastGeneratedAt = false }) {
   const existingMetadata = activeSectorRecord.value?.metadata ?? {};
-  const typedHexCount = hexes.filter((h) => h.hasSystem && h.starType).length;
-  const nextMetadata = {
+  const existingKnownCoords = [
+    ...(Array.isArray(existingMetadata.occupiedHexes) ? existingMetadata.occupiedHexes : []),
+    ...Object.keys(
+      existingMetadata.hexStarTypes && typeof existingMetadata.hexStarTypes === "object"
+        ? existingMetadata.hexStarTypes
+        : {},
+    ),
+  ]
+    .map((coord) => String(coord || "").trim())
+    .filter((coord) => /^\d{4}$/.test(coord));
+  const existingUsesSectorLayout =
+    existingKnownCoords.some((coord) => Number(coord.slice(0, 2)) > 8 || Number(coord.slice(2, 4)) > 10) ||
+    Number(existingMetadata.gridCols) === 32 ||
+    Number(existingMetadata.gridRows) === 40 ||
+    String(existingMetadata.scope || "")
+      .trim()
+      .toLowerCase() === "sector";
+  const preserveSectorLayout = scope.value === "subsector" && existingUsesSectorLayout;
+  let nextMetadata = {
     ...existingMetadata,
     lastModified: new Date().toISOString(),
-    systemCount,
-    explorationStatus: systemCount <= 0 ? "unexplored" : typedHexCount >= systemCount ? "surveyed" : "mapped",
     displayName: buildGeneratedSectorName(sectorName.value || String(existingMetadata?.displayName || "").trim()),
-    scope: scope.value,
-    gridCols: hexes.length ? (scope.value === "sector" ? 32 : 8) : existingMetadata.gridCols,
-    gridRows: hexes.length ? (scope.value === "sector" ? 40 : 10) : existingMetadata.gridRows,
+    scope: preserveSectorLayout ? "sector" : scope.value,
+    gridCols: preserveSectorLayout
+      ? 32
+      : hexes.length
+        ? scope.value === "sector"
+          ? 32
+          : 8
+        : existingMetadata.gridCols,
+    gridRows: preserveSectorLayout
+      ? 40
+      : hexes.length
+        ? scope.value === "sector"
+          ? 40
+          : 10
+        : existingMetadata.gridRows,
     subsector: scope.value === "subsector" ? selectedSubsector.value : null,
     subsectorName: scope.value === "subsector" ? String(subsectorName.value || "").trim() : null,
     isGalacticCenterSector,
     occupancyRealism: occupancyRealism.value,
-    occupiedHexes: hexes.filter((h) => h.hasSystem).map((h) => h.coord),
-    hexStarTypes: Object.fromEntries(
-      hexes
-        .filter((h) => h.hasSystem && h.starType)
-        .map((h) => [
-          h.coord,
-          {
-            starType: h.starType,
-            starClass: h.starClass,
-            secondaryStars: h.secondaryStars ?? [],
-            anomalyType: h.anomalyType ?? null,
-          },
-        ]),
-    ),
     hexPresenceGenerated: true,
   };
+
+  if (scope.value === "subsector") {
+    const nextSubsectorNames = getStoredSubsectorNames(existingMetadata);
+    const currentLetter = getNormalizedSubsectorLetter(selectedSubsector.value);
+    const currentLabel = String(subsectorName.value || "").trim();
+    if (currentLabel) {
+      nextSubsectorNames[currentLetter] = currentLabel;
+    } else {
+      delete nextSubsectorNames[currentLetter];
+    }
+    nextMetadata.subsectorNames = nextSubsectorNames;
+  }
+
+  // Build the hex presence and star-type maps. If we're operating inside a
+  // subsector, merge the newly-generated data with the existing sector-level
+  // metadata so we don't clobber other subsectors' data.
+  const newHexes = Array.isArray(hexes) ? hexes : [];
+  const newOccupied = new Set(
+    newHexes
+      .filter((h) => h.hasSystem)
+      .map((h) => String(h.coord || "").trim())
+      .filter(Boolean),
+  );
+  const newHexStarTypes = Object.fromEntries(
+    newHexes
+      .filter((h) => h.hasSystem && h.starType)
+      .map((h) => [
+        String(h.coord || "").trim(),
+        {
+          starType: h.starType,
+          starClass: h.starClass,
+          secondaryStars: h.secondaryStars ?? [],
+          anomalyType: h.anomalyType ?? null,
+        },
+      ]),
+  );
+
+  if (scope.value === "subsector" && existingMetadata) {
+    // Remove any existing entries that fall inside the subsector bounds and
+    // then merge in the newly-generated subsector entries.
+    try {
+      const bounds = getSubsectorViewportBounds(selectedSubsector.value);
+      const isInSubsector = (coord) => {
+        const raw = String(coord || "").trim();
+        if (!/^[0-9]{4}$/.test(raw)) return false;
+        const col = Number(raw.slice(0, 2));
+        const row = Number(raw.slice(2, 4));
+        return (
+          col >= Number(bounds.colStart || 1) &&
+          col <= Number(bounds.colEnd || 32) &&
+          row >= Number(bounds.rowStart || 1) &&
+          row <= Number(bounds.rowEnd || 40)
+        );
+      };
+
+      const existingOccupied = Array.isArray(existingMetadata.occupiedHexes) ? [...existingMetadata.occupiedHexes] : [];
+      const mergedOccupiedSet = new Set(
+        existingOccupied.filter((c) => !isInSubsector(c)).map((c) => String(c || "").trim()),
+      );
+      for (const c of newOccupied) mergedOccupiedSet.add(c);
+
+      const existingHexTypes =
+        existingMetadata.hexStarTypes && typeof existingMetadata.hexStarTypes === "object"
+          ? { ...existingMetadata.hexStarTypes }
+          : {};
+      // Remove subsector keys from existingHexTypes
+      for (const k of Object.keys(existingHexTypes)) {
+        if (isInSubsector(k)) delete existingHexTypes[k];
+      }
+      // Merge in new subsector hex types
+      const mergedHexTypes = { ...existingHexTypes, ...newHexStarTypes };
+      const totalTypedHexCount = Object.keys(mergedHexTypes).length;
+
+      nextMetadata.occupiedHexes = Array.from(mergedOccupiedSet);
+      nextMetadata.hexStarTypes = mergedHexTypes;
+      nextMetadata.systemCount = nextMetadata.occupiedHexes.length;
+      nextMetadata.explorationStatus =
+        nextMetadata.systemCount <= 0
+          ? "unexplored"
+          : totalTypedHexCount >= nextMetadata.systemCount
+            ? "surveyed"
+            : "mapped";
+    } catch (err) {
+      // Fallback to conservative assignment if anything goes wrong.
+      nextMetadata.occupiedHexes = Array.from(newOccupied);
+      nextMetadata.hexStarTypes = newHexStarTypes;
+      nextMetadata.systemCount = Array.from(newOccupied).length;
+      const totalTypedHexCount = Object.keys(newHexStarTypes).length;
+      nextMetadata.explorationStatus =
+        nextMetadata.systemCount <= 0
+          ? "unexplored"
+          : totalTypedHexCount >= nextMetadata.systemCount
+            ? "surveyed"
+            : "mapped";
+    }
+  } else {
+    // Sector-level operation; replace metadata as before.
+    nextMetadata.occupiedHexes = Array.from(newOccupied);
+    nextMetadata.hexStarTypes = newHexStarTypes;
+    nextMetadata.systemCount = Array.from(newOccupied).length;
+    const totalTypedHexCount = Object.keys(newHexStarTypes).length;
+    nextMetadata.explorationStatus =
+      nextMetadata.systemCount <= 0
+        ? "unexplored"
+        : totalTypedHexCount >= nextMetadata.systemCount
+          ? "surveyed"
+          : "mapped";
+  }
 
   if (!preserveLastGeneratedAt || !existingMetadata.hexPresenceGeneratedAt) {
     nextMetadata.hexPresenceGeneratedAt = new Date().toISOString();
@@ -2022,6 +2217,51 @@ function buildSectorPreviewState({ sectorId, name, cols, rows, hexes }) {
   };
 }
 
+function buildSectorHexesFromMetadata(metadata, cols = 32, rows = 40) {
+  const occupiedSet = new Set(
+    (Array.isArray(metadata?.occupiedHexes) ? metadata.occupiedHexes : [])
+      .map((coord) => String(coord || "").trim())
+      .filter(Boolean),
+  );
+  const hexStarTypes = metadata?.hexStarTypes && typeof metadata.hexStarTypes === "object" ? metadata.hexStarTypes : {};
+  const hexes = [];
+
+  for (let row = 1; row <= rows; row++) {
+    for (let col = 1; col <= cols; col++) {
+      const coord = hexCoord(col, row);
+      const saved = hexStarTypes[coord];
+      const hasSystem = occupiedSet.has(coord) || Boolean(saved);
+      if (!hasSystem) {
+        hexes.push({ coord, hasSystem: false });
+        continue;
+      }
+
+      const starType = normalizeStarTypeValue(saved?.starType, "");
+      hexes.push({
+        coord,
+        hasSystem: true,
+        presenceOnly: !starType,
+        starType,
+        starClass: saved?.starClass || spectralClassToCssClass(starType),
+        secondaryStars: Array.isArray(saved?.secondaryStars) ? [...saved.secondaryStars] : [],
+        anomalyType: saved?.anomalyType ?? null,
+      });
+    }
+  }
+
+  return hexes;
+}
+
+function buildFullSectorPreviewState({ sectorId, name, metadata }) {
+  const cols = 32;
+  const rows = 40;
+  const hexes = buildSectorHexesFromMetadata(metadata, cols, rows);
+  return {
+    ...buildSectorPreviewState({ sectorId, name, cols, rows, hexes }),
+    metadata,
+  };
+}
+
 async function ensureCurrentSectorRecord({ showToast = false } = {}) {
   if (activeSectorRecord.value) {
     return activeSectorRecord.value;
@@ -2060,6 +2300,17 @@ async function ensureCurrentSectorRecord({ showToast = false } = {}) {
       gridRows: rows,
       subsector: scope.value === "subsector" ? selectedSubsector.value : null,
       subsectorName: scope.value === "subsector" ? String(subsectorName.value || "").trim() : null,
+      subsectorNames:
+        scope.value === "subsector"
+          ? {
+              ...getStoredSubsectorNames(activeSectorRecord.value?.metadata),
+              ...(String(subsectorName.value || "").trim()
+                ? {
+                    [getNormalizedSubsectorLetter(selectedSubsector.value)]: String(subsectorName.value || "").trim(),
+                  }
+                : {}),
+            }
+          : {},
       isGalacticCenterSector,
       occupancyRealism: occupancyRealism.value,
       occupiedHexes: [],
@@ -2206,13 +2457,20 @@ async function generateSectorPresence() {
       console.warn("Failed to replace persisted systems for presence generation:", err);
     }
 
-    generatedSector.value = buildSectorPreviewState({
-      sectorId: currentSector.sectorId,
-      name: String(nextMetadata.displayName || currentSector.sectorId),
-      cols,
-      rows,
-      hexes,
-    });
+    generatedSector.value =
+      scope.value === "subsector"
+        ? buildFullSectorPreviewState({
+            sectorId: currentSector.sectorId,
+            name: String(nextMetadata.displayName || currentSector.sectorId),
+            metadata: nextMetadata,
+          })
+        : buildSectorPreviewState({
+            sectorId: currentSector.sectorId,
+            name: String(nextMetadata.displayName || currentSector.sectorId),
+            cols,
+            rows,
+            hexes,
+          });
     selectedHex.value = null;
     toastService.success(
       `System presence generated — ${nextMetadata.occupiedHexes.length.toLocaleString()} occupied hex${nextMetadata.occupiedHexes.length !== 1 ? "es" : ""} detected.`,
@@ -2320,13 +2578,20 @@ async function generateSystemsFromPresence() {
 
     const persistedSurveyTotals = await replaceGeneratedSystemsForScope(currentSector.sectorId, hexes);
 
-    generatedSector.value = buildSectorPreviewState({
-      sectorId: currentSector.sectorId,
-      name: String(nextMetadata.displayName || currentSector.sectorId),
-      cols,
-      rows,
-      hexes,
-    });
+    generatedSector.value =
+      scope.value === "subsector"
+        ? buildFullSectorPreviewState({
+            sectorId: currentSector.sectorId,
+            name: String(nextMetadata.displayName || currentSector.sectorId),
+            metadata: nextMetadata,
+          })
+        : buildSectorPreviewState({
+            sectorId: currentSector.sectorId,
+            name: String(nextMetadata.displayName || currentSector.sectorId),
+            cols,
+            rows,
+            hexes,
+          });
     selectedHex.value = null;
     toastService.success(
       `Systems generated — ${persistedSurveyTotals.systemCount.toLocaleString()} stellar system${persistedSurveyTotals.systemCount !== 1 ? "s" : ""} and ${persistedSurveyTotals.worldCount.toLocaleString()} world profile${persistedSurveyTotals.worldCount !== 1 ? "s" : ""} created.`,
@@ -2364,6 +2629,13 @@ async function generateSystemsFromExistingSurvey() {
     await new Promise((resolve) => setTimeout(resolve, 200));
 
     const persistedSurveyTotals = await replaceGeneratedSystemsForScope(currentSector.sectorId, scopeHexes);
+    if (scope.value === "subsector") {
+      generatedSector.value = buildFullSectorPreviewState({
+        sectorId: currentSector.sectorId,
+        name: String(activeSectorMetadata.value?.displayName || currentSector.sectorId),
+        metadata: activeSectorMetadata.value,
+      });
+    }
     selectedHex.value = null;
     toastService.success(
       `Systems generated from existing survey data — ${persistedSurveyTotals.systemCount.toLocaleString()} stellar system${persistedSurveyTotals.systemCount !== 1 ? "s" : ""} and ${persistedSurveyTotals.worldCount.toLocaleString()} world profile${persistedSurveyTotals.worldCount !== 1 ? "s" : ""} created.`,
@@ -2547,8 +2819,8 @@ async function loadPersistedSector(sectorId, showToast = false) {
         .charAt(0)
         .toUpperCase() || "A";
     const loadedDisplayName = String(sector?.metadata?.displayName || sectorId);
-    const metadataSubsectorName = String(sector?.metadata?.subsectorName || "").trim();
-    if (currentViewMode.value === "subsector" && loadedScope === "subsector") {
+    const metadataSubsectorName = getStoredSubsectorName(sector?.metadata, selectedSubsector.value);
+    if (currentViewMode.value === "subsector") {
       if (metadataSubsectorName) {
         subsectorName.value = metadataSubsectorName;
       } else {
@@ -2620,12 +2892,22 @@ async function persistSectorName({ showToast = false } = {}) {
   const nextDisplayName = buildGeneratedSectorName(baseName);
   const nextSubsectorName = scope.value === "subsector" ? String(subsectorName.value || "").trim() : null;
   const persistedDisplayName = String(sector?.metadata?.displayName || sector.sectorId).trim();
-  const persistedSubsectorName = String(sector?.metadata?.subsectorName || "").trim();
+  const persistedSubsectorName = getStoredSubsectorName(sector?.metadata, selectedSubsector.value);
 
   const isSameDisplayName = nextDisplayName === persistedDisplayName;
   const isSameSubsectorName = scope.value !== "subsector" || nextSubsectorName === persistedSubsectorName;
   if (isSameDisplayName && isSameSubsectorName) {
     return;
+  }
+
+  const nextSubsectorNames = getStoredSubsectorNames(sector?.metadata);
+  if (scope.value === "subsector") {
+    const currentLetter = getNormalizedSubsectorLetter(selectedSubsector.value);
+    if (nextSubsectorName) {
+      nextSubsectorNames[currentLetter] = nextSubsectorName;
+    } else {
+      delete nextSubsectorNames[currentLetter];
+    }
   }
 
   const updatePayload = {
@@ -2634,6 +2916,7 @@ async function persistSectorName({ showToast = false } = {}) {
       ...(sector.metadata ?? {}),
       displayName: nextDisplayName,
       subsectorName: nextSubsectorName,
+      subsectorNames: nextSubsectorNames,
       lastModified: new Date().toISOString(),
     },
   };
@@ -2846,10 +3129,18 @@ async function generateSector() {
 
     const hexes = [];
     let systemCount = 0;
+    let baseCol = 1;
+    let baseRow = 1;
+
+    if (scope.value === "subsector") {
+      const bounds = getSubsectorViewportBounds(selectedSubsector.value);
+      baseCol = Number(bounds.colStart || 1);
+      baseRow = Number(bounds.rowStart || 1);
+    }
 
     for (let r = 1; r <= rows; r++) {
       for (let c = 1; c <= cols; c++) {
-        const coord = hexCoord(c, r);
+        const coord = hexCoord(baseCol + (c - 1), baseRow + (r - 1));
 
         const isCenterHex = isGalacticCenterSector && coord === centerCoord;
         const occupancyRate = calculateHexOccupancyProbability({
@@ -2891,35 +3182,11 @@ async function generateSector() {
     const baseName = sectorName.value || fallbackName;
     const generatedName = buildGeneratedSectorName(baseName);
 
-    const sharedMetadata = {
-      lastModified: new Date().toISOString(),
+    const sharedMetadata = buildSharedSectorMetadata({
+      hexes,
       systemCount,
-      explorationStatus: systemCount <= 0 ? "unexplored" : "surveyed",
-      displayName: generatedName,
-      scope: scope.value,
-      gridCols: cols,
-      gridRows: rows,
-      subsector: scope.value === "subsector" ? selectedSubsector.value : null,
-      subsectorName: scope.value === "subsector" ? String(subsectorName.value || "").trim() : null,
       isGalacticCenterSector,
-      occupancyRealism: occupancyRealism.value,
-      occupiedHexes: hexes.filter((h) => h.hasSystem).map((h) => h.coord),
-      hexPresenceGenerated: true,
-      hexPresenceGeneratedAt: new Date().toISOString(),
-      hexStarTypes: Object.fromEntries(
-        hexes
-          .filter((h) => h.hasSystem)
-          .map((h) => [
-            h.coord,
-            {
-              starType: h.starType,
-              starClass: h.starClass,
-              secondaryStars: h.secondaryStars ?? [],
-              anomalyType: h.anomalyType ?? null,
-            },
-          ]),
-      ),
-    };
+    });
 
     let finalSectorId;
     if (existingSectorId) {
@@ -2931,10 +3198,7 @@ async function generateSector() {
         ...currentSectorRecord,
         densityClass: DENSITY_CLASS_MAP[density.value] ?? 3,
         densityVariation: +(rate * 100).toFixed(2),
-        metadata: {
-          ...(currentSectorRecord.metadata ?? {}),
-          ...sharedMetadata,
-        },
+        metadata: sharedMetadata,
       });
       finalSectorId = existingSectorId;
     } else {
@@ -2968,19 +3232,26 @@ async function generateSector() {
 
     const persistedSurveyTotals = await replaceGeneratedSystemsForScope(finalSectorId, hexes);
 
-    generatedSector.value = {
-      sectorId: finalSectorId,
-      name: generatedName,
-      scope: scope.value,
-      density: density.value,
-      occupancyRealism: occupancyRealism.value,
-      gridCols: cols,
-      gridRows: rows,
-      hexes,
-      systemCount,
-      emptyCount: cols * rows - systemCount,
-      presenceOnlyCount: hexes.filter((h) => h.presenceOnly).length,
-    };
+    generatedSector.value =
+      scope.value === "subsector"
+        ? buildFullSectorPreviewState({
+            sectorId: finalSectorId,
+            name: generatedName,
+            metadata: sharedMetadata,
+          })
+        : {
+            sectorId: finalSectorId,
+            name: generatedName,
+            scope: scope.value,
+            density: density.value,
+            occupancyRealism: occupancyRealism.value,
+            gridCols: cols,
+            gridRows: rows,
+            hexes,
+            systemCount,
+            emptyCount: cols * rows - systemCount,
+            presenceOnlyCount: hexes.filter((h) => h.presenceOnly).length,
+          };
     selectedHex.value = null;
 
     if (existingSectorId) {

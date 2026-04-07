@@ -23,7 +23,29 @@ const ANOMALY_TYPES = [
   { code: "Dense Cluster", designation: "CL", mass: 250, lum: 15000, temp: 12000, orbitRole: "Cluster core" },
 ];
 
-const PLANET_TYPES = ["Rocky", "Super-Earth", "Gas Giant", "Ice Giant", "Dwarf Planet", "Asteroid Belt"];
+const PLANET_TYPES = ["Gas Giant", "Terrestrial Planet", "Planetoid Belt"];
+
+function pickPlanetComposition(type, zone) {
+  if (type === "Gas Giant") {
+    return zone === "cold" || zone === "warm"
+      ? "Hydrogen-helium envelope with volatile ices"
+      : "Hydrogen-helium envelope";
+  }
+
+  if (type === "Planetoid Belt") {
+    return zone === "hot" ? "Rocky-metallic debris" : "Rocky-icy debris";
+  }
+
+  const terrestrialOptionsByZone = {
+    hot: ["Rocky silicates", "Metal-rich rocky body"],
+    habitable: ["Rocky silicates", "Rocky with surface volatiles"],
+    warm: ["Rocky with volatile deposits", "Rocky-icy crust"],
+    cold: ["Icy-rocky body", "Rocky core with ice mantle"],
+  };
+
+  const options = terrestrialOptionsByZone[zone] || terrestrialOptionsByZone.habitable;
+  return options[Math.floor(Math.random() * options.length)];
+}
 
 function resolveAnomalyEntry(value) {
   const normalized = String(value || "")
@@ -94,8 +116,9 @@ function buildPlanets(habitableZone, namingOptions = {}) {
   for (let index = 0; index < count; index += 1) {
     const type = PLANET_TYPES[Math.floor(Math.random() * PLANET_TYPES.length)];
     const roundedOrbit = +orbitAU.toFixed(2);
+    const zone = planetZone(roundedOrbit, habitableZone);
     const name =
-      type === "Asteroid Belt"
+      type === "Planetoid Belt"
         ? generateObjectName({
             mode: String(namingOptions.asteroidBeltNameMode || "phonotactic")
               .trim()
@@ -115,8 +138,9 @@ function buildPlanets(habitableZone, namingOptions = {}) {
     planets.push({
       name,
       type,
+      composition: pickPlanetComposition(type, zone),
       orbitAU: roundedOrbit,
-      zone: planetZone(roundedOrbit, habitableZone),
+      zone,
     });
     orbitAU *= 1.5 + Math.random() * 0.8;
   }

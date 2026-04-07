@@ -134,6 +134,7 @@
                   <th>#</th>
                   <th>Name</th>
                   <th>Type</th>
+                  <th>Composition</th>
                   <th>Orbit (AU)</th>
                   <th>Zone</th>
                 </tr>
@@ -152,6 +153,7 @@
                   <td>{{ i + 1 }}</td>
                   <td>{{ planet.name }}</td>
                   <td>{{ planet.type }}</td>
+                  <td>{{ planet.composition || "Unknown" }}</td>
                   <td>{{ planet.orbitAU }}</td>
                   <td>
                     <span class="zone-badge" :class="planet.zone">{{ planet.zone }}</span>
@@ -271,8 +273,30 @@ const ANOMALY_TYPES = [
 ];
 const PRIMARY_TYPE_OPTIONS = [...SPECTRAL_TYPES, ...ANOMALY_TYPES];
 
-const PLANET_TYPES = ["Rocky", "Super-Earth", "Gas Giant", "Ice Giant", "Dwarf Planet", "Asteroid Belt"];
+const PLANET_TYPES = ["Gas Giant", "Terrestrial Planet", "Planetoid Belt"];
 const ORBIT_TYPES = ["Close", "Near", "Far", "Distant"];
+
+function pickPlanetComposition(type, zone) {
+  if (type === "Gas Giant") {
+    return zone === "cold" || zone === "warm"
+      ? "Hydrogen-helium envelope with volatile ices"
+      : "Hydrogen-helium envelope";
+  }
+
+  if (type === "Planetoid Belt") {
+    return zone === "hot" ? "Rocky-metallic debris" : "Rocky-icy debris";
+  }
+
+  const terrestrialOptionsByZone = {
+    hot: ["Rocky silicates", "Metal-rich rocky body"],
+    habitable: ["Rocky silicates", "Rocky with surface volatiles"],
+    warm: ["Rocky with volatile deposits", "Rocky-icy crust"],
+    cold: ["Icy-rocky body", "Rocky core with ice mantle"],
+  };
+
+  const options = terrestrialOptionsByZone[zone] || terrestrialOptionsByZone.habitable;
+  return options[Math.floor(Math.random() * options.length)];
+}
 
 // ── State ─────────────────────────────────────────────────────────────────────
 const hexCoord = ref(route.query.hex ?? "0101");
@@ -719,8 +743,9 @@ function buildPlanets(hz) {
   for (let i = 0; i < count; i++) {
     const type = PLANET_TYPES[Math.floor(Math.random() * PLANET_TYPES.length)];
     const orbitAU = +au.toFixed(2);
+    const zone = planetZone(orbitAU, hz);
     const name =
-      type === "Asteroid Belt"
+      type === "Planetoid Belt"
         ? generateObjectName({
             mode: String(preferencesStore.asteroidBeltNameMode || "phonotactic")
               .trim()
@@ -738,8 +763,9 @@ function buildPlanets(hz) {
     orbits.push({
       name,
       type,
+      composition: pickPlanetComposition(type, zone),
       orbitAU,
-      zone: planetZone(orbitAU, hz),
+      zone,
     });
     au = au * (1.5 + Math.random() * 0.8);
   }
