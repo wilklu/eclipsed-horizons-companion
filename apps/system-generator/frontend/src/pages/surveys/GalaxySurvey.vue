@@ -2545,9 +2545,9 @@ function buildPersistedSystemRecordsForSector(sector, hexStarTypes) {
       const rawCoord = String(coord || "").trim();
       if (!/^\d{4}$/.test(rawCoord)) return null;
 
-      const primaryType = String(info?.starType || "G2V").trim() || "G2V";
+      const primaryType = normalizeStarTypeValue(info?.starType, "G2V");
       const secondaryStarTypes = Array.isArray(info?.secondaryStars)
-        ? info.secondaryStars.map((star) => String(star || "").trim()).filter(Boolean)
+        ? info.secondaryStars.map((star) => normalizeStarTypeValue(star, "")).filter(Boolean)
         : [];
       const generatedStars = [
         {
@@ -2947,10 +2947,22 @@ async function doGenerateAllSectors() {
 
 // ── Full Galaxy Generation ────────────────────────────────────────────────────
 
+function normalizeStarTypeValue(value, fallback = "G2V") {
+  const normalized = String(value ?? "").trim();
+  if (!normalized) {
+    return fallback;
+  }
+
+  const lowered = normalized.toLowerCase();
+  if (lowered === "undefined" || lowered === "null" || lowered === "nan") {
+    return fallback;
+  }
+
+  return normalized;
+}
+
 function spectralClassToCssClass(spectralClass) {
-  const code = String(spectralClass || "G")
-    .charAt(0)
-    .toUpperCase();
+  const code = normalizeStarTypeValue(spectralClass, "G").charAt(0).toUpperCase();
   return (
     {
       O: "spectral-o",

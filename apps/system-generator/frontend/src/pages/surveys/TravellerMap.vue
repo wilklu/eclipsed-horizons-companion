@@ -1374,22 +1374,23 @@ const allStarMarkers = computed(() => {
       ? system.metadata.generatedSurvey.stars
       : [];
     const generatedPrimary = generatedStars[0] ?? null;
-    const starType = String(
-      generatedPrimary?.designation ||
+    const starType = normalizeGeneratedStarType({
+      designation:
+        generatedPrimary?.designation ||
         generatedPrimary?.spectralType ||
         generatedPrimary?.spectralClass ||
         system?.primaryStar?.spectralClass ||
         tile.sector?.metadata?.hexStarTypes?.[coord]?.starType ||
         "G2V",
-    );
+    });
     const secondaryStars =
       generatedStars.length > 1
         ? generatedStars
             .slice(1)
-            .map((star) => String(star?.designation || star?.spectralType || star?.spectralClass || "").trim())
+            .map((star) => normalizeGeneratedStarType(star))
             .filter(Boolean)
         : Array.isArray(system?.companionStars)
-          ? system.companionStars.map((star) => String(star?.spectralClass || "").trim()).filter(Boolean)
+          ? system.companionStars.map((star) => normalizeGeneratedStarType(star)).filter(Boolean)
           : [];
     const starClass =
       String(tile.sector?.metadata?.hexStarTypes?.[coord]?.starClass || "").trim() || starTypeToCssClass(starType);
@@ -2668,7 +2669,13 @@ function parseHexCoordinates(coord) {
 }
 
 function normalizeGeneratedStarType(star) {
-  return String(star?.designation || star?.spectralType || star?.spectralClass || "G2V").trim() || "G2V";
+  const normalized = String(star?.designation || star?.spectralType || star?.spectralClass || "").trim();
+  if (!normalized) {
+    return "G2V";
+  }
+
+  const lowered = normalized.toLowerCase();
+  return lowered === "undefined" || lowered === "null" || lowered === "nan" ? "G2V" : normalized;
 }
 
 function buildAtlasGeneratedSystem(sector, coord, primaryStar, secondaryStars = [], anomalyType = null) {

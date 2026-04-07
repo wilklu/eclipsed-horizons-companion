@@ -568,6 +568,9 @@ function toPersistedSystem(nextSystem) {
   const normalizedHex = normalizeHex(nextSystem.systemId);
   const persistedSectorId = getPersistedSectorId();
   const stars = Array.isArray(nextSystem.stars) ? nextSystem.stars : [];
+  const primary = stars[0] ? { ...stars[0] } : null;
+  const companions = stars.slice(1).map((s) => ({ ...s }));
+
   return {
     ...nextSystem,
     systemId: `${persistedSectorId || "sector"}:${normalizedHex}`,
@@ -577,10 +580,9 @@ function toPersistedSystem(nextSystem) {
       x: Number(normalizedHex.slice(0, 2)) || 0,
       y: Number(normalizedHex.slice(2, 4)) || 0,
     },
-    primaryStar: {
-      spectralClass: stars[0]?.designation || stars[0]?.spectralClass || "G2V",
-    },
-    companionStars: stars.slice(1).map((star) => ({ spectralClass: star.designation || star.spectralClass })),
+    primaryStar: primary ? primary : { spectralClass: "G2V" },
+    companionStars: companions,
+    starCount: stars.length,
     metadata: {
       generatedSurvey: {
         stars,

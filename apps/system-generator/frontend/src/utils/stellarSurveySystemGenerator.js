@@ -153,10 +153,8 @@ export function buildPersistedSurveySystemFromHex({ galaxyId, sectorId, hex, nam
     },
     starCount: stars.length,
     stars,
-    primaryStar: {
-      spectralClass: primary.designation || primary.spectralClass || "G2V",
-    },
-    companionStars: companionStars.map((star) => ({ spectralClass: star.designation || star.spectralClass || "" })),
+    primaryStar: primary, // Always full star object
+    companionStars: companionStars,
     habitableZone,
     planets,
     metadata: {

@@ -252,7 +252,13 @@ function rollNativeSophontLife({ size, atmosphereCode, hydrographics, avgTempC }
   return d6() >= threshold;
 }
 
-export function generateWorldProfile({ worldName = "", starClass = "random", randomWorldName } = {}) {
+export function generateWorldProfile({
+  worldName = "",
+  starClass = "random",
+  randomWorldName,
+  isGasGiant = false,
+  generateMoons: generateMoonsFlag = true,
+} = {}) {
   const resolvedStarClass = resolveWorldStarClass(starClass);
   const tempMod = STAR_TEMP_MOD[resolvedStarClass] ?? 0;
 
@@ -321,6 +327,80 @@ export function generateWorldProfile({ worldName = "", starClass = "random", ran
   const resolvedWorldName =
     String(worldName || "").trim() || (typeof randomWorldName === "function" ? randomWorldName() : "World");
 
+  function generateMoons({ size, atmosphereCode, hydrographics, isGasGiant = false, parentName }) {
+    const nameReserved = new Set([parentName]);
+    const moons = [];
+
+    const roll = d6(); // 2-12
+    let dm = 0;
+    if (size <= 2) dm -= 2;
+    if (size >= 8) dm += 2;
+    if (atmosphereCode === 0) dm -= 1;
+    if (hydrographics === 0) dm -= 1;
+    if (isGasGiant) dm += 3;
+
+    const adjusted = roll + dm;
+    // Heuristic: map adjusted roll to significant moon count
+    let significant = Math.max(0, Math.round((adjusted - 7) / 2) + (isGasGiant ? 1 : 0));
+    significant = clamp(significant, 0, 12);
+
+    // Chance of rings increases with significant moons and for gas giants
+    const ringBase = isGasGiant ? 0.25 : 0.05;
+    const ringChance = Math.min(0.9, ringBase + significant * 0.05);
+    const hasRings = Math.random() < ringChance;
+
+    // Create significant moons (attach full world profiles)
+    for (let i = 0; i < significant; i += 1) {
+      const ordinal = toRomanNumeral(i + 1);
+      const name = `${parentName} ${ordinal}`;
+      const sizeCategory = clamp(Math.max(0, Math.round(d6() / 2) + (isGasGiant ? 1 : 0)), 0, 10);
+      // Generate a full world profile for the significant moon but avoid recursive moon generation
+      const worldProfile = generateWorldProfile({
+        worldName: name,
+        starClass: "random",
+        isGasGiant: false,
+        generateMoons: false,
+      });
+      moons.push({
+        name,
+        type: "significant",
+        size: sizeCategory,
+        orbitalSlot: i + 1,
+        ring: false,
+        description: `${isGasGiant ? "Gas-giant" : "World"} significant moon`,
+        worldProfile,
+      });
+    }
+
+    // Add some insignificant moons probabilistically
+    const minorRoll = d6();
+    const minorCount = Math.max(0, Math.round((minorRoll - 6) / 3 + Math.floor(significant / 2)));
+    for (let j = 0; j < minorCount; j += 1) {
+      const idx = significant + j + 1;
+      const ordinal = toRomanNumeral(idx);
+      const name = `${parentName} ${ordinal}`;
+      moons.push({
+        name,
+        type: "insignificant",
+        size: clamp(Math.max(0, Math.round(Math.random() * 3)), 0, 5),
+        orbitalSlot: idx,
+        ring: false,
+        description: "Small/insignificant moon",
+      });
+    }
+
+    // Assign rings to one of the moons if present
+    if (hasRings && moons.length > 0) {
+      const pick = Math.floor(Math.random() * moons.length);
+      moons[pick].ring = true;
+      moons[pick].description += ", with ring";
+    }
+
+    return moons;
+  }
+
+  const moonsData = generateMoons({ size, atmosphereCode, hydrographics, isGasGiant, parentName: resolvedWorldName });
+
   return {
     name: resolvedWorldName,
     uwp,
@@ -335,7 +415,8 @@ export function generateWorldProfile({ worldName = "", starClass = "random", ran
     orbitalPeriodDays: Math.round(200 + Math.random() * 1200),
     dayLengthHours: +(15 + Math.random() * 50).toFixed(1),
     axialTilt: Math.round(Math.random() * 40),
-    moons: Math.floor(Math.random() * 4),
+    moons: Array.isArray(moonsData) ? moonsData.length : 0,
+    moonsData,
     magnetosphere: Math.random() < 0.5 ? "Present" : "Absent",
     nativeSophontLife,
     populationCode: popCode,
