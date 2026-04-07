@@ -26,13 +26,21 @@
       </div>
     </header>
     <main class="app-main">
-      <router-view />
+      <div v-if="routeErrorMessage" class="route-error-state" role="alert">
+        <div class="route-error-card">
+          <p class="route-error-kicker">Route Error</p>
+          <h1>{{ headerContextTitle || "Application Error" }}</h1>
+          <p class="route-error-copy">{{ routeErrorMessage }}</p>
+          <pre v-if="routeErrorDetails" class="route-error-details">{{ routeErrorDetails }}</pre>
+        </div>
+      </div>
+      <router-view v-else />
     </main>
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from "vue";
+import { computed, onErrorCaptured, onMounted, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import LoadingSpinner from "./components/common/LoadingSpinner.vue";
 import { useGalaxyStore } from "./stores/galaxyStore.js";
@@ -42,6 +50,8 @@ const galaxyStore = useGalaxyStore();
 const sectorStore = useSectorStore();
 const route = useRoute();
 const isBooting = ref(true);
+const routeErrorMessage = ref("");
+const routeErrorDetails = ref("");
 const galaxyId = computed(() => galaxyStore.getCurrentGalaxy?.galaxyId ?? null);
 const sectorSurveyRoute = computed(() => {
   if (!galaxyId.value) {
@@ -77,6 +87,29 @@ const routeLoadingContexts = Object.freeze({
 
 const headerContextTitle = computed(() => route.meta?.title || routeTitleFallbacks[route.name] || "");
 const bootLoadingContext = computed(() => routeLoadingContexts[route.name] || "generic");
+
+watch(
+  () => route.fullPath,
+  () => {
+    routeErrorMessage.value = "";
+    routeErrorDetails.value = "";
+  },
+);
+
+onErrorCaptured((error, instance, info) => {
+  routeErrorMessage.value = error instanceof Error ? error.message : String(error || "Unexpected route error");
+  const componentName = instance?.type?.name || instance?.type?.__name || instance?.type?.__file || "Unknown component";
+  const stack = error instanceof Error ? String(error.stack || "") : "";
+  routeErrorDetails.value = [
+    `Component: ${componentName}`,
+    info ? `Context: ${info}` : null,
+    stack ? `Stack:\n${stack}` : null,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+  console.error("[Route Error]", { error, componentName, info });
+  return false;
+});
 
 onMounted(() => {
   window.setTimeout(() => {
@@ -184,6 +217,55 @@ body {
   flex: 1;
   min-height: 0;
   min-width: 0;
+}
+
+.route-error-state {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+}
+
+.route-error-card {
+  width: min(40rem, 100%);
+  padding: 1.5rem;
+  border: 1px solid rgba(255, 101, 101, 0.35);
+  border-radius: 0.75rem;
+  background: linear-gradient(180deg, rgba(44, 11, 18, 0.92), rgba(24, 8, 14, 0.95));
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.35);
+}
+
+.route-error-kicker {
+  color: #ff9f9f;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 0.75rem;
+}
+
+.route-error-card h1 {
+  color: #fff1f1;
+  font-size: 1.35rem;
+  margin-bottom: 0.75rem;
+}
+
+.route-error-copy {
+  color: #ffd4d4;
+  line-height: 1.55;
+}
+
+.route-error-details {
+  margin-top: 1rem;
+  padding: 0.9rem;
+  border-radius: 0.5rem;
+  background: rgba(0, 0, 0, 0.28);
+  color: #ffdede;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow: auto;
 }
 
 @media (max-width: 1200px) {

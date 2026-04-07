@@ -429,6 +429,7 @@
           <div class="inspector-actions">
             <button class="btn btn-primary" @click="focusSectorFromInspector">🔍 Zoom to Sector</button>
             <button class="btn btn-primary" @click="openSectorSurvey">🧭 Sector Survey</button>
+            <button class="btn btn-secondary" @click="openSubsectorSurvey">🧭 Subsector Survey</button>
           </div>
           <div class="inspector-generation-panel">
             <div class="inspector-generation-row">
@@ -621,6 +622,7 @@
 
           <div class="inspector-actions">
             <button class="btn btn-primary" @click="openSectorSurvey">🧭 Sector Survey</button>
+            <button class="btn btn-secondary" @click="openSubsectorSurvey">🧭 Subsector Survey</button>
             <button
               class="btn btn-primary"
               :disabled="inspectorData.presenceOnly"
@@ -696,6 +698,7 @@ import { generatePrimaryStar } from "../../utils/primaryStarGenerator.js";
 import { serializeReturnRoute } from "../../utils/returnRoute.js";
 import { calculateHexOccupancyProbability } from "../../utils/sectorGeneration.js";
 import { generateGalaxySectorLayoutWindow } from "../../utils/sectorLayoutGenerator.js";
+import { SUBSECTOR_LETTERS, getSubsectorLetterForHex } from "../../utils/subsector.js";
 import * as toastService from "../../utils/toast.js";
 
 const router = useRouter();
@@ -942,25 +945,6 @@ const ATLAS_SEEDED_NAME_SUFFIXES = Object.freeze([
   "Basin",
   "Gate",
 ]);
-const ATLAS_SUBSECTOR_LETTERS = Object.freeze([
-  "A",
-  "B",
-  "C",
-  "D",
-  "E",
-  "F",
-  "G",
-  "H",
-  "I",
-  "J",
-  "K",
-  "L",
-  "M",
-  "N",
-  "O",
-  "P",
-]);
-
 // ── Store data ─────────────────────────────────────────────────────────────
 const galaxies = computed(() => galaxyStore.getAllGalaxies || []);
 const currentGalaxy = computed(
@@ -2069,7 +2053,7 @@ function ensureAtlasSectorNamingMetadata(sector, metadata = {}) {
       ? { ...baseMetadata.subsectorNames }
       : {};
   const subsectorNames = Object.fromEntries(
-    ATLAS_SUBSECTOR_LETTERS.map((letter) => [
+    SUBSECTOR_LETTERS.map((letter) => [
       letter,
       (() => {
         const existingName = String(existingSubsectorNames[letter] || "").trim();
@@ -2486,6 +2470,57 @@ function openSectorSurvey() {
       ...(Number.isFinite(gridX) ? { gridX: String(gridX) } : {}),
       ...(Number.isFinite(gridY) ? { gridY: String(gridY) } : {}),
       ...(sectorName ? { sectorName } : {}),
+      from: "atlas",
+      atlasGalaxyId: String(selectedGalaxyId.value || ""),
+      ...(returnTo ? { returnTo } : {}),
+    },
+  });
+}
+
+function openSubsectorSurvey() {
+  const sector = resolveInspectorSector();
+  if (!sector) return;
+
+  const targetGalaxyId =
+    selectedGalaxyId.value === ALL_GALAXIES_VALUE
+      ? sector.galaxyId || inspectorStar.value?.galaxyId
+      : selectedGalaxyId.value || sector.galaxyId || inspectorStar.value?.galaxyId;
+  if (!targetGalaxyId) return;
+
+  const gridX = Number(sector?.coordinates?.x ?? sector?.metadata?.gridX);
+  const gridY = Number(sector?.coordinates?.y ?? sector?.metadata?.gridY);
+  const currentDisplayName = String(sector?.metadata?.displayName || "").trim();
+  const fallbackSeed =
+    Number.isFinite(gridX) && Number.isFinite(gridY)
+      ? `atlas:${targetGalaxyId}:${gridX}:${gridY}:sector`
+      : `${String(sector?.sectorId || "sector")}:sector`;
+  const sectorName =
+    currentDisplayName && !isAtlasPlaceholderSectorName(currentDisplayName)
+      ? currentDisplayName
+      : buildAtlasSeededSectorName(fallbackSeed);
+  const sectorId = String(sector?.sectorId || "").startsWith("grid:") ? "" : String(sector?.sectorId || "");
+  const returnTo = serializeReturnRoute({
+    name: "TravellerAtlas",
+    query: selectedGalaxyId.value ? { galaxyId: String(selectedGalaxyId.value) } : {},
+  });
+  const starX = inspectorStar.value?.hexCoordinates?.x ?? inspectorStar.value?.x;
+  const starY = inspectorStar.value?.hexCoordinates?.y ?? inspectorStar.value?.y;
+  const subsectorLetter = inspectorMode.value === "star" ? getSubsectorLetterForHex(starX, starY) : undefined;
+  const subsectorName = subsectorLetter
+    ? String(sector?.metadata?.subsectorNames?.[subsectorLetter] || "").trim() || undefined
+    : undefined;
+
+  router.push({
+    name: "SubsectorSurvey",
+    params: { galaxyId: targetGalaxyId },
+    query: {
+      ...(sectorId ? { sectorId } : {}),
+      ...(Number.isFinite(gridX) ? { gridX: String(gridX) } : {}),
+      ...(Number.isFinite(gridY) ? { gridY: String(gridY) } : {}),
+      ...(sectorName ? { sectorName } : {}),
+      ...(subsectorLetter ? { subsector: subsectorLetter } : {}),
+      ...(subsectorName ? { subsectorName } : {}),
+      viewScope: "subsector",
       from: "atlas",
       atlasGalaxyId: String(selectedGalaxyId.value || ""),
       ...(returnTo ? { returnTo } : {}),

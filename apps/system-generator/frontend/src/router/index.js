@@ -23,8 +23,15 @@ const routes = [
     path: "/sector/:galaxyId",
     name: "SectorSurvey",
     component: () => import("../pages/surveys/SectorSurvey.vue"),
-    props: true,
+    props: (route) => ({ ...route.params, viewMode: "sector" }),
     meta: { title: "Sector Survey" },
+  },
+  {
+    path: "/subsector/:galaxyId",
+    name: "SubsectorSurvey",
+    component: () => import("../pages/surveys/SectorSurvey.vue"),
+    props: (route) => ({ ...route.params, viewMode: "subsector" }),
+    meta: { title: "Subsector Survey" },
   },
   {
     path: "/sector/:galaxyId/star-system/:sectorId?",

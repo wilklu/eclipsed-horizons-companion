@@ -420,6 +420,7 @@
         <!-- Action Buttons -->
         <div class="action-buttons">
           <button @click="proceedToClass0" class="btn btn-primary">🔍 Sector Survey →</button>
+          <button @click="proceedToSubsectorSurvey" class="btn btn-secondary">🧭 Subsector Survey →</button>
           <select
             v-model="galaxySurveyGenerationMode"
             class="generation-mode-select"
@@ -831,6 +832,7 @@ import {
   iterateGalaxySectorLayout,
   iterateGalaxySectorLayoutByRing,
 } from "../../utils/sectorLayoutGenerator.js";
+import { SUBSECTOR_LETTERS } from "../../utils/subsector.js";
 import { generateClusteredUniverseCoordinates } from "../../../../backend/generators/utils/universePlacement.js";
 
 const router = useRouter();
@@ -2106,6 +2108,22 @@ function proceedToClass0() {
   });
 }
 
+function proceedToSubsectorSurvey() {
+  const galaxyId = currentGalaxy.value?.galaxyId;
+  if (!galaxyId) {
+    toastService.error("Please select a valid galaxy before opening Subsector Survey.");
+    return;
+  }
+
+  router.push({
+    name: "SubsectorSurvey",
+    params: { galaxyId },
+    query: {
+      viewScope: "subsector",
+    },
+  });
+}
+
 function openUniverseMap() {
   const galaxyId = currentGalaxy.value?.galaxyId;
   if (galaxyId) {
@@ -2228,25 +2246,6 @@ const SECTOR_NAMES = Object.freeze([
   "Veiled Passage",
   "Iron Shore",
 ]);
-const SUBSECTOR_LETTERS = Object.freeze([
-  "A",
-  "B",
-  "C",
-  "D",
-  "E",
-  "F",
-  "G",
-  "H",
-  "I",
-  "J",
-  "K",
-  "L",
-  "M",
-  "N",
-  "O",
-  "P",
-]);
-
 function randomSectorName() {
   const mode = preferencesStore.sectorNameMode;
   if (mode === "list") {

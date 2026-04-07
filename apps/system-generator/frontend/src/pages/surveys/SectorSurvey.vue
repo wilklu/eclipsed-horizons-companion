@@ -1,25 +1,69 @@
 <template>
-  <div class="sector-survey">
+  <div class="sector-survey" :class="{ 'sector-survey--subsector': currentViewMode === 'subsector' }">
     <LoadingSpinner :isVisible="isLoading" context="sector" tone="sync" :message="loadingMessage" />
     <LoadingSpinner v-bind="sectorExportOverlayProps" />
     <SurveyNavigation
-      currentClass="Sector Survey"
+      :currentClass="surveyPageLabel"
       :back-route="backRoute"
-      :regenerate-label="generationAction.label"
+      :regenerate-label="generationAction?.label || 'Generate'"
       @regenerate="runSurveyAction"
       @export="exportSector"
     />
 
     <div class="survey-content">
-      <div class="survey-workspace">
+      <div class="survey-workspace" :class="{ 'survey-workspace--subsector': currentViewMode === 'subsector' }">
         <aside class="control-panel">
-          <section v-if="generatedSector" class="control-group control-card sector-summary-card">
-            <label>Current Sector</label>
+          <section
+            v-if="generatedSector && currentViewMode === 'subsector'"
+            class="control-card subsector-context-card"
+          >
+            <div class="subsector-context-stack">
+              <div class="subsector-context-item">
+                <span class="subsector-context-label">Sector</span>
+                <span class="subsector-context-value">{{ generatedSector.name }}</span>
+              </div>
+              <div class="subsector-context-item">
+                <span class="subsector-context-label">Subsector</span>
+                <span class="subsector-context-value">{{ currentSubsectorSummary || selectedSubsector }}</span>
+              </div>
+            </div>
+          </section>
+
+          <section v-if="generatedSector && currentViewMode === 'subsector'" class="control-card subsector-stats-card">
+            <div class="subsector-stats-grid">
+              <div class="subsector-stat-item">
+                <span class="subsector-stat-label">Systems</span>
+                <span class="subsector-stat-value">{{ displayedSector?.systemCount?.toLocaleString() || "0" }}</span>
+              </div>
+              <div class="subsector-stat-item">
+                <span class="subsector-stat-label">Empty</span>
+                <span class="subsector-stat-value">{{ displayedSector?.emptyCount?.toLocaleString() || "0" }}</span>
+              </div>
+              <div class="subsector-stat-item">
+                <span class="subsector-stat-label">Percent Surveyed</span>
+                <span class="subsector-stat-value">{{ subsectorSurveyPercentLabel }}</span>
+              </div>
+              <div class="subsector-stat-item">
+                <span class="subsector-stat-label">Native Lifeforms</span>
+                <span class="subsector-stat-value">{{ subsectorNativeLifeformCount.toLocaleString() }}</span>
+              </div>
+            </div>
+          </section>
+
+          <section
+            v-if="generatedSector && currentViewMode !== 'subsector'"
+            class="control-group control-card sector-summary-card"
+          >
+            <label>{{ currentViewMode === "subsector" ? "Current Subsector" : "Current Sector" }}</label>
             <div class="sector-summary sector-summary--panel">
               <div class="sector-summary-row">
                 <span class="summary-pill summary-pill--title">
                   <span class="summary-pill-label">Sector Name</span>
                   <span class="summary-pill-value summary-pill-value--title">{{ generatedSector.name }}</span>
+                </span>
+                <span v-if="currentSubsectorSummary" class="summary-pill">
+                  <span class="summary-pill-label">Subsector</span>
+                  <span class="summary-pill-value">{{ currentSubsectorSummary }}</span>
                 </span>
               </div>
               <div class="sector-summary-row sector-summary-row--secondary">
@@ -53,20 +97,45 @@
 
           <section class="control-card control-card--survey">
             <div class="control-group">
-              <label>Survey Scope:</label>
-              <select v-model="scope" class="select-input">
-                <option value="sector">Sector (4 × 4 subsectors, 32 × 40 hexes)</option>
-                <option value="subsector">Subsector (8 × 10 hexes)</option>
-              </select>
+              <div class="view-toggle" role="tablist" aria-label="Survey view toggle">
+                <button
+                  type="button"
+                  class="btn btn-secondary view-toggle-btn"
+                  :class="{ active: currentViewMode === 'sector' }"
+                  :aria-pressed="currentViewMode === 'sector'"
+                  @click="switchSurveyPage('sector')"
+                >
+                  Sector
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-secondary view-toggle-btn"
+                  :class="{ active: currentViewMode === 'subsector' }"
+                  :aria-pressed="currentViewMode === 'subsector'"
+                  @click="switchSurveyPage('subsector')"
+                >
+                  Subsector
+                </button>
+              </div>
+            </div>
+
+            <div
+              v-if="currentViewMode === 'subsector'"
+              class="control-group control-group--span-2 subsector-focus-copy"
+            >
+              <label>Subsector</label>
+              <div class="control-help control-help--multiline">
+                Focused 8 × 10 survey with shared parent-sector save and load context.
+              </div>
             </div>
 
             <div class="control-group control-group--span-2">
-              <label>Load Existing Sector:</label>
+              <label>{{ currentViewMode === "subsector" ? "Load Parent Sector:" : "Load Existing Sector:" }}</label>
               <div class="control-inline-row control-inline-row--load">
                 <select v-model="selectedSectorId" class="select-input control-inline-select">
                   <option value="">Select a saved sector...</option>
                   <option v-for="sector in sectorOptions" :key="sector.sectorId" :value="sector.sectorId">
-                    {{ sector.label }}
+                    {{ sector?.label || sector?.sectorId || "Unnamed sector" }}
                   </option>
                 </select>
                 <button
@@ -90,7 +159,10 @@
               </div>
             </div>
 
-            <div v-if="scope === 'subsector'" class="control-group control-group--span-2">
+            <div
+              v-if="scope === 'subsector' && currentViewMode !== 'subsector'"
+              class="control-group control-group--span-2"
+            >
               <label>Select Subsector:</label>
               <div class="subsector-grid">
                 <button
@@ -104,7 +176,7 @@
               </div>
             </div>
 
-            <div v-if="scope === 'subsector'" class="control-group">
+            <div v-if="scope === 'subsector' && currentViewMode !== 'subsector'" class="control-group">
               <label>Subsector Name:</label>
               <div class="name-row">
                 <input
@@ -158,16 +230,19 @@
             </div>
 
             <div class="control-group control-group--span-2">
-              <label>Sector Name:</label>
-              <div class="name-row">
+              <label>{{ currentViewMode === "subsector" ? "Parent Sector Name:" : "Sector Name:" }}</label>
+              <div class="name-row" :class="{ 'name-row--locked': currentViewMode === 'subsector' }">
                 <input
                   v-model="sectorName"
                   placeholder="Enter sector name…"
                   class="text-input"
+                  :class="{ 'text-input--locked': currentViewMode === 'subsector' }"
+                  :readonly="currentViewMode === 'subsector'"
                   @blur="persistSectorName()"
                   @keydown.enter.prevent="persistSectorName({ showToast: true })"
                 />
                 <button
+                  v-if="currentViewMode !== 'subsector'"
                   class="btn btn-secondary"
                   @click="randomizeSectorName"
                   title="Random sector name"
@@ -176,6 +251,7 @@
                   🎲
                 </button>
                 <button
+                  v-if="currentViewMode !== 'subsector'"
                   class="btn btn-secondary"
                   type="button"
                   :disabled="!supportsSpeechSynthesis"
@@ -199,6 +275,7 @@
                   {{ isSpeakingSectorName ? "■" : "🔊" }}
                 </button>
                 <button
+                  v-if="currentViewMode !== 'subsector'"
                   class="btn btn-secondary"
                   @click="persistSectorName({ showToast: true })"
                   :disabled="!canPersistSectorName"
@@ -212,7 +289,7 @@
 
             <div class="control-group">
               <label>Star Density:</label>
-              <select v-model="density" class="select-input">
+              <select v-model="density" class="select-input" :disabled="currentViewMode === 'subsector'">
                 <option value="core">Core (dense — 60–80 %)</option>
                 <option value="dense">Dense (spiral arm — 40–60 %)</option>
                 <option value="average">Average (disk — 20–40 %)</option>
@@ -229,24 +306,7 @@
               </div>
             </div>
 
-            <div class="control-group control-group--generation-options control-group--span-2">
-              <label>Initial Survey Mode:</label>
-              <div class="control-inline-row control-inline-row--generation">
-                <select v-model="generationMode" class="select-input control-inline-select">
-                  <option v-for="option in generationModeOptions" :key="option.id" :value="option.id">
-                    {{ option.label }}
-                  </option>
-                </select>
-                <button class="btn btn-primary" :disabled="isLoading" @click="runSurveyAction">
-                  {{ generationAction.label }}
-                </button>
-              </div>
-              <div class="control-help">
-                {{ generationAction.description }}
-              </div>
-            </div>
-
-            <div v-if="generatedSector" class="control-group control-group--span-2">
+            <div v-if="generatedSector && currentViewMode !== 'subsector'" class="control-group control-group--span-2">
               <label>Stellar Survey</label>
               <div v-if="selectedHexData?.hasSystem" class="stellar-inline-card">
                 <div class="stellar-inline-copy">
@@ -349,7 +409,7 @@
         </aside>
 
         <section class="sector-pane">
-          <div v-if="props.galaxyId && !hasSavedSectors && !generatedSector" class="context-hint">
+          <div v-if="hasGalaxyContext && !hasSavedSectors && !generatedSector" class="context-hint">
             No saved sectors found for this galaxy yet. Generate your first sector to begin.
             <button class="btn btn-secondary" :disabled="isMappingSectors" @click="mapGalaxySectors">
               {{ isMappingSectors ? "Mapping..." : "Map Galaxy Sectors" }}
@@ -385,6 +445,183 @@
             </div>
           </div>
         </section>
+
+        <aside v-if="currentViewMode === 'subsector'" class="subsector-sidebar">
+          <section
+            v-if="scope === 'subsector'"
+            class="control-card subsector-sidebar-card subsector-sidebar-card--naming"
+          >
+            <label>Subsector Name</label>
+            <div class="name-row name-row--sidebar">
+              <input
+                v-model="subsectorName"
+                placeholder="Enter subsector name…"
+                class="text-input"
+                @blur="persistSectorName()"
+                @keydown.enter.prevent="persistSectorName({ showToast: true })"
+              />
+              <button
+                class="btn btn-secondary"
+                @click="randomizeSubsectorName"
+                title="Random subsector name"
+                aria-label="Random subsector name"
+              >
+                🎲
+              </button>
+              <button
+                class="btn btn-secondary"
+                type="button"
+                :disabled="!supportsSpeechSynthesis"
+                :title="
+                  supportsSpeechSynthesis
+                    ? isSpeakingSubsectorName
+                      ? 'Stop subsector name audio'
+                      : 'Speak subsector name'
+                    : 'Text to speech not supported in this browser'
+                "
+                :aria-label="
+                  supportsSpeechSynthesis
+                    ? isSpeakingSubsectorName
+                      ? 'Stop subsector name audio'
+                      : 'Speak subsector name'
+                    : 'Text to speech not supported in this browser'
+                "
+                @mousedown.prevent
+                @click="toggleSubsectorNameSpeech"
+              >
+                {{ isSpeakingSubsectorName ? "■" : "🔊" }}
+              </button>
+              <button
+                class="btn btn-secondary"
+                @click="persistSectorName({ showToast: true })"
+                :disabled="!canPersistSectorName"
+                title="Save subsector name"
+                aria-label="Save subsector name"
+              >
+                💾
+              </button>
+            </div>
+          </section>
+
+          <section
+            v-if="scope === 'subsector'"
+            class="control-card subsector-sidebar-card subsector-sidebar-card--selector"
+          >
+            <label>Select Subsector</label>
+            <div class="subsector-grid subsector-grid--sidebar">
+              <button
+                v-for="letter in SUBSECTOR_LETTERS"
+                :key="letter"
+                :class="['subsector-btn', { active: selectedSubsector === letter }]"
+                @click="selectedSubsector = letter"
+              >
+                {{ letter }}
+              </button>
+            </div>
+          </section>
+
+          <section
+            v-if="scope === 'subsector'"
+            class="control-card subsector-sidebar-card subsector-sidebar-card--actions"
+          >
+            <label>Subsector Survey</label>
+            <div class="subsector-sidebar-copy">
+              Generate full stellar survey data for every occupied hex in the current subsector viewport.
+            </div>
+            <button
+              class="btn btn-primary subsector-sidebar-btn"
+              :disabled="isLoading"
+              @click="generateSubsectorStellarSurvey"
+            >
+              {{ isLoading ? "Generating..." : "⭐ Generate Stellar Survey" }}
+            </button>
+          </section>
+
+          <section class="control-card subsector-sidebar-card subsector-sidebar-card--orbital">
+            <label>Orbital Preview</label>
+            <div v-if="orbitalPreview.metaItems?.length" class="orbital-preview-meta">
+              <span
+                v-for="item in orbitalPreview.metaItems"
+                :key="`${item?.label || 'meta'}-${item?.value || 'value'}`"
+                class="orbital-preview-meta-pill"
+                :class="item.tone ? `orbital-preview-meta-pill--${item.tone}` : null"
+              >
+                <span class="orbital-preview-meta-label">{{ item?.label || "Status" }}</span>
+                <span class="orbital-preview-meta-value">{{ item?.value || "Pending" }}</span>
+              </span>
+            </div>
+
+            <div
+              v-if="orbitalPreview.state === 'ready'"
+              class="orbital-preview"
+              :class="`orbital-preview--${orbitalPreview.theme}`"
+            >
+              <svg
+                class="orbital-preview-svg"
+                viewBox="0 0 220 220"
+                xmlns="http://www.w3.org/2000/svg"
+                @mouseleave="clearOrbitalTarget"
+              >
+                <defs>
+                  <radialGradient id="orbitalPreviewStarGlow" cx="50%" cy="50%" r="50%">
+                    <stop offset="0%" :stop-color="orbitalPreview.starColor" stop-opacity="0.95" />
+                    <stop offset="100%" :stop-color="orbitalPreview.starColor" stop-opacity="0" />
+                  </radialGradient>
+                </defs>
+                <circle cx="110" cy="110" r="30" fill="url(#orbitalPreviewStarGlow)" />
+                <ellipse
+                  v-for="ring in orbitalPreview.rings"
+                  :key="`ring-${ring.id}`"
+                  cx="110"
+                  cy="110"
+                  :rx="ring.rx"
+                  :ry="ring.ry"
+                  :title="ring.tooltip"
+                  class="orbital-preview-ring"
+                  :class="ring.className"
+                  tabindex="0"
+                  @mouseenter="focusOrbitalTarget({ kind: 'ring', id: ring.id })"
+                  @focus="focusOrbitalTarget({ kind: 'ring', id: ring.id })"
+                  @blur="clearOrbitalTarget"
+                />
+                <circle cx="110" cy="110" r="14" :fill="orbitalPreview.starColor" class="orbital-preview-star" />
+                <circle
+                  v-for="body in orbitalPreview.bodies"
+                  :key="body.id"
+                  :cx="body.cx"
+                  :cy="body.cy"
+                  :r="body.r"
+                  :fill="body.color"
+                  :title="body.tooltip"
+                  class="orbital-preview-body"
+                  :class="body.className"
+                  tabindex="0"
+                  @mouseenter="focusOrbitalTarget({ kind: 'body', id: body.id })"
+                  @focus="focusOrbitalTarget({ kind: 'body', id: body.id })"
+                  @blur="clearOrbitalTarget"
+                />
+              </svg>
+              <div class="orbital-preview-copy">
+                <span class="orbital-preview-title">Hex {{ orbitalPreview.coord }}</span>
+                <span class="orbital-preview-detail">Primary {{ orbitalPreview.primary }}</span>
+                <span v-if="orbitalPreview.statusLabel" class="orbital-preview-detail">{{
+                  orbitalPreview.statusLabel
+                }}</span>
+                <span v-if="orbitalPreview.secondaryLabel" class="orbital-preview-detail">{{
+                  orbitalPreview.secondaryLabel
+                }}</span>
+              </div>
+              <button class="btn btn-primary" @click="proceedToStarSystem">🔭 Stellar Survey →</button>
+            </div>
+            <div v-else class="orbital-preview orbital-preview--placeholder">
+              <div class="orbital-preview-empty-icon">◌</div>
+              <div class="orbital-preview-copy">
+                <span class="orbital-preview-title">{{ orbitalPreview.title }}</span>
+                <span class="orbital-preview-detail">{{ orbitalPreview.message }}</span>
+              </div>
+            </div>
+          </section>
+        </aside>
       </div>
     </div>
   </div>
@@ -406,8 +643,13 @@ import { generatePhonotacticName } from "../../utils/nameGenerator.js";
 import { generateGalaxySectorLayout } from "../../utils/sectorLayoutGenerator.js";
 import { usePreferencesStore } from "../../stores/preferencesStore.js";
 import { useArchiveTransfer } from "../../composables/useArchiveTransfer.js";
+import { getRequestedSurveyViewport, useSectorSurveyViewMode } from "../../composables/useSectorSurveyViewMode.js";
+import { SUBSECTOR_LETTERS, getSubsectorViewportBounds } from "../../utils/subsector.js";
 
-const props = defineProps({ galaxyId: { type: String, default: null } });
+const props = defineProps({
+  galaxyId: { type: String, default: null },
+  viewMode: { type: String, default: "sector" },
+});
 const router = useRouter();
 const route = useRoute();
 const sectorStore = useSectorStore();
@@ -415,7 +657,7 @@ const systemStore = useSystemStore();
 const preferencesStore = usePreferencesStore();
 
 // ── State ────────────────────────────────────────────────────────────────────
-const scope = ref("sector");
+const scope = ref(props.viewMode === "subsector" ? "subsector" : "sector");
 const selectedSubsector = ref("A");
 const subsectorName = ref("");
 const selectedSectorId = ref("");
@@ -434,25 +676,33 @@ const isSpeakingSubsectorName = ref(false);
 const generationMode = ref("");
 const gridWrapperRef = ref(null);
 const gridWrapperBounds = ref({ width: 0, height: 0 });
-// Subsector letters in 4x4 grid (A-P)
-const SUBSECTOR_LETTERS = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P"];
+const focusedOrbitalTarget = ref(null);
 const supportsSpeechSynthesis = typeof window !== "undefined" && "speechSynthesis" in window;
 let gridWrapperResizeObserver = null;
+const { currentViewMode, currentSurveyRouteName, surveyPageLabel, switchSurveyPage } = useSectorSurveyViewMode({
+  props,
+  route,
+  router,
+  selectedSectorId,
+  selectedSubsector,
+  subsectorName,
+});
 
 // Update page title dynamically
 watchEffect(() => {
   if (sectorName.value) {
-    document.title = `Sector Survey: ${sectorName.value} | Eclipsed Horizons`;
+    document.title = `${surveyPageLabel.value}: ${sectorName.value} | Eclipsed Horizons`;
   } else {
-    document.title = "Sector Survey | Eclipsed Horizons";
+    document.title = `${surveyPageLabel.value} | Eclipsed Horizons`;
   }
 });
 
 watch(
-  () => props.galaxyId,
-  async (galaxyId) => {
+  [() => props.galaxyId, () => props.viewMode],
+  async ([galaxyId]) => {
     stopSectorNameSpeech();
-    await initializeSectorSelection(galaxyId);
+    scope.value = currentViewMode.value;
+    await initializeSectorSelectionSafely(galaxyId);
   },
   { immediate: true },
 );
@@ -471,7 +721,7 @@ watch(
       return;
     }
     stopSectorNameSpeech();
-    await initializeSectorSelection(props.galaxyId);
+    await initializeSectorSelectionSafely(props.galaxyId);
   },
 );
 
@@ -502,6 +752,52 @@ const densityTargetRangeLabel = computed(() => {
   };
   return ranges[density.value] ?? "20-40%";
 });
+
+function isCoordInSubsector(coord, letter) {
+  const rawCoord = String(coord || "").trim();
+  if (!/^\d{4}$/.test(rawCoord)) {
+    return false;
+  }
+
+  const bounds = getSubsectorViewportBounds(letter);
+  const col = Number(rawCoord.slice(0, 2));
+  const row = Number(rawCoord.slice(2, 4));
+  return col >= bounds.colStart && col <= bounds.colEnd && row >= bounds.rowStart && row <= bounds.rowEnd;
+}
+
+const displayedSector = computed(() => {
+  const sector = generatedSector.value;
+  if (!sector) {
+    return null;
+  }
+
+  const gridCols = Number(sector.gridCols ?? 0);
+  const gridRows = Number(sector.gridRows ?? 0);
+  if (scope.value !== "subsector" || gridCols !== 32 || gridRows !== 40) {
+    return {
+      ...sector,
+      viewportLabel: scope.value === "subsector" ? `Subsector ${selectedSubsector.value}` : null,
+    };
+  }
+
+  const visibleHexes = (Array.isArray(sector.hexes) ? sector.hexes : []).filter((hex) =>
+    isCoordInSubsector(hex?.coord, selectedSubsector.value),
+  );
+  const systemCount = visibleHexes.filter((hex) => hex.hasSystem).length;
+
+  return {
+    ...sector,
+    scope: "subsector",
+    gridCols: 8,
+    gridRows: 10,
+    hexes: visibleHexes,
+    systemCount,
+    emptyCount: Math.max(0, 80 - systemCount),
+    presenceOnlyCount: visibleHexes.filter((hex) => hex.presenceOnly).length,
+    viewportLabel: `Subsector ${selectedSubsector.value}`,
+  };
+});
+
 const rolledOccupancyLabel = computed(() => {
   const systemCount = Number(displayedSector.value?.systemCount ?? 0);
   const cols = Number(displayedSector.value?.gridCols ?? 0);
@@ -647,9 +943,164 @@ const showHexCoords = computed(() => {
   return gridSizeMode.value !== "fit";
 });
 
-const selectedHexData = computed(() => displayedSector.value?.hexes.find((h) => h.coord === selectedHex.value) ?? null);
-
+const selectedHexData = computed(
+  () => displayedSector.value?.hexes?.find((h) => h.coord === selectedHex.value) ?? null,
+);
 const hasSystemsInGrid = computed(() => (displayedSector.value?.systemCount ?? 0) > 0);
+
+watch(selectedHexData, () => {
+  clearOrbitalTarget();
+});
+
+const orbitalPreview = computed(() => {
+  const hex = selectedHexData.value;
+  const focusedTarget = focusedOrbitalTarget.value;
+  if (!hasSystemsInGrid.value) {
+    return {
+      state: "empty",
+      title: "No surveyed system yet",
+      message: "Run system generation for this subsector to create systems that can be inspected.",
+      metaItems: [],
+    };
+  }
+
+  if (!hex?.hasSystem || hex.presenceOnly || !hex.starType) {
+    const hasHexSelection = Boolean(hex?.coord);
+    return {
+      state: "select",
+      title: "Select a surveyed system",
+      message: "Choose a starred hex in the subsector grid to preview its local orbital structure.",
+      metaItems: hasHexSelection
+        ? [
+            { label: "Hex", value: hex.coord },
+            { label: "State", value: hex.presenceOnly ? "Presence only" : "Unsurveyed", tone: "muted" },
+          ]
+        : [],
+    };
+  }
+
+  const secondaryStars = Array.isArray(hex.secondaryStars)
+    ? hex.secondaryStars.filter((value) => String(value || "").trim())
+    : [];
+  const anomalyType = String(hex.anomalyType || "").trim();
+  const normalizedAnomaly = anomalyType.toLowerCase();
+  const anomalyDescriptor = describeAnomalyType(anomalyType);
+  const primaryCode = String(hex.starType || "")
+    .trim()
+    .charAt(0)
+    .toUpperCase();
+  const isAnomaly = Boolean(anomalyType);
+  const isCompact = ["O", "B", "A"].includes(primaryCode);
+  const isWarm = ["K", "M"].includes(primaryCode);
+  const isBlackHole = normalizedAnomaly.includes("black hole") || normalizedAnomaly.includes("singularity");
+  const isNebula = normalizedAnomaly.includes("nebula");
+  const isPulsar = normalizedAnomaly.includes("pulsar") || normalizedAnomaly.includes("neutron");
+  const theme = isAnomaly ? "anomaly" : isCompact ? "hot" : isWarm ? "warm" : "standard";
+  const bodyCount = Math.max(
+    3,
+    Math.min(isAnomaly ? 7 : 6, 3 + secondaryStars.length + (isCompact ? 1 : 0) + (isNebula ? -1 : 0)),
+  );
+  const ringStep = isBlackHole ? 14 : isNebula ? 20 : isPulsar ? 17 : isAnomaly ? 16 : 18;
+  const ringHeightStep = isBlackHole ? 6 : isPulsar ? 7 : isCompact ? 8 : isNebula ? 11 : 9;
+  const angleStep = isBlackHole ? 0.92 : isNebula ? 0.61 : isPulsar ? 0.66 : isAnomaly ? 0.58 : 0.72;
+  const rings = Array.from({ length: bodyCount }, (_, index) => ({
+    id: index,
+    rx: 36 + index * ringStep,
+    ry: 18 + index * ringHeightStep,
+    className: isBlackHole
+      ? "orbital-preview-ring--black-hole"
+      : isNebula
+        ? "orbital-preview-ring--nebula"
+        : isAnomaly
+          ? "orbital-preview-ring--anomaly"
+          : isCompact
+            ? "orbital-preview-ring--compact"
+            : null,
+    label: `${index + 1}${index === 0 ? "st" : index === 1 ? "nd" : index === 2 ? "rd" : "th"} orbit`,
+    tooltip: `${index + 1}${index === 0 ? "st" : index === 1 ? "nd" : index === 2 ? "rd" : "th"} orbital band`,
+  }));
+  const palette = isBlackHole
+    ? ["#c084fc", "#7dd3fc", "#f472b6", "#f59e0b", "#94a3b8", "#fde68a"]
+    : isNebula
+      ? ["#86efac", "#7dd3fc", "#f9a8d4", "#c4b5fd", "#fde68a", "#fdba74"]
+      : isPulsar
+        ? ["#7dd3fc", "#fde68a", "#c4b5fd", "#f9a8d4", "#86efac", "#fdba74"]
+        : isAnomaly
+          ? ["#f0abfc", "#c084fc", "#fb7185", "#f59e0b", "#7dd3fc", "#fde68a", "#86efac"]
+          : isWarm
+            ? ["#fdba74", "#fde68a", "#f9a8d4", "#86efac", "#7dd3fc", "#c4b5fd"]
+            : ["#7dd3fc", "#f9a8d4", "#fde68a", "#86efac", "#c4b5fd", "#fdba74"];
+  const bodies = rings.map((ring, index) => {
+    const angle = -1.05 + index * angleStep;
+    return {
+      id: index,
+      cx: 110 + Math.cos(angle) * ring.rx,
+      cy: 110 + Math.sin(angle) * ring.ry,
+      r:
+        index === 0
+          ? isBlackHole
+            ? 3.8
+            : isCompact
+              ? 5.2
+              : 4.8
+          : Math.max(2.8, 4.8 - index * (isAnomaly ? 0.25 : 0.35) + (isNebula ? 0.35 : 0)),
+      color: palette[index % palette.length],
+      className: isBlackHole
+        ? "orbital-preview-body--compressed"
+        : isNebula
+          ? "orbital-preview-body--diffuse"
+          : isAnomaly && index % 2 === 0
+            ? "orbital-preview-body--energized"
+            : null,
+      label: index === 0 ? "Inner world" : `Body ${index + 1}`,
+      tooltip: index === 0 ? "Inner orbit body" : `Orbital body ${index + 1}`,
+    };
+  });
+
+  const focusMeta =
+    focusedTarget?.kind === "ring"
+      ? rings.find((ring) => ring.id === focusedTarget.id)
+      : focusedTarget?.kind === "body"
+        ? bodies.find((body) => body.id === focusedTarget.id)
+        : null;
+
+  const metaItems = [
+    { label: "Hex", value: hex.coord },
+    { label: "Type", value: hex.starType, tone: isAnomaly ? "anomaly" : "accent" },
+    {
+      label: "Status",
+      value: anomalyDescriptor ? `${anomalyDescriptor.icon} ${anomalyDescriptor.label || anomalyType}` : "Surveyed",
+      tone: anomalyDescriptor ? "anomaly" : "ok",
+    },
+  ];
+
+  if (focusMeta) {
+    metaItems.push({
+      label: focusedTarget.kind === "ring" ? "Orbit" : "Focus",
+      value: focusMeta?.label || (focusedTarget.kind === "ring" ? "Orbit" : "Focus"),
+      tone: "focus",
+    });
+  }
+
+  return {
+    state: "ready",
+    theme,
+    coord: hex.coord,
+    primary: hex.starType,
+    starColor: starColorForDesignation(hex.starType),
+    rings,
+    bodies,
+    statusLabel: anomalyType
+      ? `${anomalyDescriptor?.icon || "✧"} ${anomalyDescriptor?.label || anomalyType}`
+      : isCompact
+        ? "High-energy primary"
+        : isWarm
+          ? "Warm primary"
+          : "Stable primary",
+    secondaryLabel: secondaryStars.length ? `Companions ${secondaryStars.join(", ")}` : null,
+    metaItems,
+  };
+});
 const showSelectHexHint = computed(() => hasSystemsInGrid.value && !selectedHexData.value?.hasSystem);
 const isAtlasEntry = computed(() => String(route.query.from || "").trim() === "atlas");
 const backRoute = computed(() => {
@@ -789,6 +1240,68 @@ const canPersistSectorName = computed(() => {
   return false;
 });
 
+const displayedOccupiedHexCount = computed(() => Number(displayedSector.value?.systemCount ?? 0));
+const displayedPresenceOnlyCount = computed(() => Number(displayedSector.value?.presenceOnlyCount ?? 0));
+const displayedTypedHexCount = computed(() =>
+  Math.max(0, displayedOccupiedHexCount.value - displayedPresenceOnlyCount.value),
+);
+const displayedTotalHexCount = computed(() => {
+  const cols = Number(displayedSector.value?.gridCols ?? 0);
+  const rows = Number(displayedSector.value?.gridRows ?? 0);
+  return cols * rows;
+});
+const subsectorSurveyPercentLabel = computed(() => {
+  const totalHexes = displayedTotalHexCount.value;
+  if (!totalHexes) {
+    return "0%";
+  }
+
+  const highestCompletedCount =
+    displayedOccupiedHexCount.value > 0 && displayedTypedHexCount.value === displayedOccupiedHexCount.value
+      ? displayedTypedHexCount.value
+      : displayedOccupiedHexCount.value;
+
+  return `${Math.round((highestCompletedCount / totalHexes) * 100)}%`;
+});
+const subsectorNativeLifeformCount = computed(() => {
+  const visibleSystemCoords = new Set(
+    (Array.isArray(displayedSector.value?.hexes) ? displayedSector.value.hexes : [])
+      .filter((hex) => hex?.hasSystem && typeof hex?.coord === "string")
+      .map((hex) => String(hex.coord).trim())
+      .filter(Boolean),
+  );
+
+  if (!visibleSystemCoords.size) {
+    return 0;
+  }
+
+  return systemStore.systems.reduce((count, system) => {
+    const x = Number(system?.hexCoordinates?.x ?? 0);
+    const y = Number(system?.hexCoordinates?.y ?? 0);
+    const coord = `${String(x).padStart(2, "0")}${String(y).padStart(2, "0")}`;
+    if (!visibleSystemCoords.has(coord)) {
+      return count;
+    }
+
+    const planets = Array.isArray(system?.planets)
+      ? system.planets
+      : Array.isArray(system?.metadata?.systemRecord?.planets)
+        ? system.metadata.systemRecord.planets
+        : [];
+
+    return (
+      count +
+      planets.filter((planet) => {
+        if (planet?.nativeSophontLife) {
+          return true;
+        }
+        const nativeLifeform = String(planet?.nativeLifeform || system?.nativeLifeform || "").trim();
+        return Boolean(nativeLifeform);
+      }).length
+    );
+  }, 0);
+});
+
 const sectorOptions = computed(() =>
   sectorStore.sectors.map((sector) => ({
     sectorId: sector.sectorId,
@@ -796,6 +1309,7 @@ const sectorOptions = computed(() =>
   })),
 );
 
+const hasGalaxyContext = computed(() => Boolean(props?.galaxyId));
 const hasSavedSectors = computed(() => sectorOptions.value.length > 0);
 
 // ── Galaxy Position Minimap ──────────────────────────────────────────────────
@@ -985,6 +1499,59 @@ function spectralClassToCssClass(spectralClass) {
   );
 }
 
+function starColorForDesignation(designation) {
+  const code = String(designation || "G")
+    .charAt(0)
+    .toUpperCase();
+
+  return (
+    {
+      O: "#9bb0ff",
+      B: "#aabfff",
+      A: "#cad7ff",
+      F: "#f8f7ff",
+      G: "#fff4ea",
+      K: "#ffd2a1",
+      M: "#ff8c69",
+    }[code] || "#8fe9ff"
+  );
+}
+
+function describeAnomalyType(anomalyType) {
+  const normalized = String(anomalyType || "").trim();
+  const safe = normalized.toLowerCase();
+
+  if (!safe) {
+    return null;
+  }
+
+  if (safe.includes("black hole")) {
+    return { icon: "●", label: "Black Hole" };
+  }
+  if (safe.includes("nebula")) {
+    return { icon: "☁", label: "Nebula" };
+  }
+  if (safe.includes("pulsar")) {
+    return { icon: "✦", label: "Pulsar" };
+  }
+  if (safe.includes("neutron")) {
+    return { icon: "◆", label: "Neutron Star" };
+  }
+  if (safe.includes("rift") || safe.includes("singularity")) {
+    return { icon: "◉", label: normalized };
+  }
+
+  return { icon: "✧", label: normalized };
+}
+
+function focusOrbitalTarget(target) {
+  focusedOrbitalTarget.value = target;
+}
+
+function clearOrbitalTarget() {
+  focusedOrbitalTarget.value = null;
+}
+
 function densityFromClass(densityClass) {
   return (
     {
@@ -1131,81 +1698,22 @@ function generateRandomSectorBaseName() {
 }
 
 function buildGeneratedSectorName(baseName) {
-  const safeBaseName = String(baseName || "").trim();
-  if (scope.value !== "subsector") {
-    return safeBaseName;
+  return String(baseName || "").trim();
+}
+
+const currentSubsectorSummary = computed(() => {
+  const activeScope = String(scope.value || generatedSector.value?.scope || "")
+    .trim()
+    .toLowerCase();
+  if (activeScope !== "subsector") {
+    return "";
   }
 
   const safeLetter = String(selectedSubsector.value || "A")
     .charAt(0)
     .toUpperCase();
   const safeSubsectorName = String(subsectorName.value || "").trim();
-  if (!safeSubsectorName) {
-    return `${safeBaseName} / ${safeLetter}`;
-  }
-
-  return `${safeBaseName} / ${safeLetter} - ${safeSubsectorName}`;
-}
-
-function getSubsectorViewportBounds(letter) {
-  const safeLetter = String(letter || "A")
-    .charAt(0)
-    .toUpperCase();
-  const index = Math.max(0, SUBSECTOR_LETTERS.indexOf(safeLetter));
-  const gridColumn = index % 4;
-  const gridRow = Math.floor(index / 4);
-
-  return {
-    colStart: gridColumn * 8 + 1,
-    colEnd: gridColumn * 8 + 8,
-    rowStart: gridRow * 10 + 1,
-    rowEnd: gridRow * 10 + 10,
-  };
-}
-
-function isCoordInSubsector(coord, letter) {
-  const rawCoord = String(coord || "").trim();
-  if (!/^\d{4}$/.test(rawCoord)) {
-    return false;
-  }
-
-  const bounds = getSubsectorViewportBounds(letter);
-  const col = Number(rawCoord.slice(0, 2));
-  const row = Number(rawCoord.slice(2, 4));
-  return col >= bounds.colStart && col <= bounds.colEnd && row >= bounds.rowStart && row <= bounds.rowEnd;
-}
-
-const displayedSector = computed(() => {
-  const sector = generatedSector.value;
-  if (!sector) {
-    return null;
-  }
-
-  const gridCols = Number(sector.gridCols ?? 0);
-  const gridRows = Number(sector.gridRows ?? 0);
-  if (scope.value !== "subsector" || gridCols !== 32 || gridRows !== 40) {
-    return {
-      ...sector,
-      viewportLabel: scope.value === "subsector" ? `Subsector ${selectedSubsector.value}` : null,
-    };
-  }
-
-  const visibleHexes = (Array.isArray(sector.hexes) ? sector.hexes : []).filter((hex) =>
-    isCoordInSubsector(hex?.coord, selectedSubsector.value),
-  );
-  const systemCount = visibleHexes.filter((hex) => hex.hasSystem).length;
-
-  return {
-    ...sector,
-    scope: "subsector",
-    gridCols: 8,
-    gridRows: 10,
-    hexes: visibleHexes,
-    systemCount,
-    emptyCount: Math.max(0, 80 - systemCount),
-    presenceOnlyCount: visibleHexes.filter((hex) => hex.presenceOnly).length,
-    viewportLabel: `Subsector ${selectedSubsector.value}`,
-  };
+  return safeSubsectorName ? `${safeLetter} - ${safeSubsectorName}` : safeLetter;
 });
 
 function getRequestedGridCoordinates() {
@@ -1221,30 +1729,13 @@ function getRequestedGridCoordinates() {
   };
 }
 
-function getRequestedViewportState() {
-  const requestedScope = String(route.query.viewScope || "")
-    .trim()
-    .toLowerCase();
-  const requestedSubsector = String(route.query.subsector || "")
-    .trim()
-    .charAt(0)
-    .toUpperCase();
-  const requestedSubsectorName = String(route.query.subsectorName || "").trim();
-
-  return {
-    scope: requestedScope === "subsector" ? "subsector" : requestedScope === "sector" ? "sector" : null,
-    subsector: SUBSECTOR_LETTERS.includes(requestedSubsector) ? requestedSubsector : null,
-    subsectorName: requestedSubsectorName || null,
-  };
-}
-
 function initializeAtlasRequestedSector() {
   const requestedGrid = getRequestedGridCoordinates();
   if (!requestedGrid) {
     return false;
   }
 
-  scope.value = "sector";
+  scope.value = currentViewMode.value;
   selectedSectorId.value = "";
   generatedSector.value = null;
   selectedHex.value = null;
@@ -1803,7 +2294,7 @@ async function loadPersistedSector(sectorId, showToast = false) {
     });
     const systemCount = hexes.filter((h) => h.hasSystem).length;
 
-    scope.value = loadedScope;
+    scope.value = loadedScope === "subsector" ? "subsector" : currentViewMode.value;
     density.value = densityFromClass(sector.densityClass);
     occupancyRealism.value = Math.min(2, Math.max(0, Number(sector?.metadata?.occupancyRealism ?? 1)));
     selectedSubsector.value =
@@ -1927,12 +2418,25 @@ async function persistSectorName({ showToast = false } = {}) {
   }
 }
 
+async function initializeSectorSelectionSafely(galaxyId) {
+  try {
+    await initializeSectorSelection(galaxyId);
+  } catch (err) {
+    generatedSector.value = null;
+    selectedHex.value = null;
+    isLoading.value = false;
+    loadingMode.value = "generate";
+    const message = err instanceof Error ? err.message : String(err || "Unknown error");
+    toastService.error(`Failed to initialize sector survey: ${message}`);
+  }
+}
+
 async function initializeSectorSelection(galaxyId) {
   generatedSector.value = null;
   selectedHex.value = null;
   selectedSectorId.value = "";
   generationMode.value = "";
-  const requestedViewport = getRequestedViewportState();
+  const requestedViewport = getRequestedSurveyViewport(route);
 
   if (!galaxyId) {
     galaxyProfile.value = null;
@@ -1953,7 +2457,13 @@ async function initializeSectorSelection(galaxyId) {
     return;
   }
 
-  await sectorStore.loadSectors(galaxyId);
+  try {
+    await sectorStore.loadSectors(galaxyId);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err || "Unknown error");
+    toastService.error(`Failed to load sectors: ${message}`);
+    return;
+  }
 
   if (sectorStore.error) {
     toastService.error(`Failed to load sectors: ${sectorStore.error}`);
@@ -2314,6 +2824,16 @@ function regenerateSector() {
   runSurveyAction();
 }
 
+async function generateSubsectorStellarSurvey() {
+  const previousMode = generationMode.value;
+  generationMode.value = "name-systems";
+  try {
+    await runSurveyAction();
+  } finally {
+    generationMode.value = previousMode;
+  }
+}
+
 async function exportSector() {
   if (!generatedSector.value) return;
 
@@ -2353,7 +2873,7 @@ function proceedToStarSystem() {
     anomalyMass: anomalyTypeMatchesGalaxy ? galaxyAnomaly?.massSolarMasses : undefined,
     anomalyActivity: anomalyTypeMatchesGalaxy ? galaxyAnomaly?.activityIndex : undefined,
     returnTo: serializeReturnRoute({
-      name: "SectorSurvey",
+      name: currentSurveyRouteName.value,
       params: { galaxyId: props.galaxyId ?? "000" },
       query: {
         ...route.query,
@@ -2399,6 +2919,10 @@ function proceedToStarSystem() {
   height: 100%;
 }
 
+.survey-workspace--subsector {
+  grid-template-columns: minmax(13rem, 0.82fr) minmax(0, 3fr) minmax(15rem, 1.02fr);
+}
+
 .sector-pane {
   min-width: 0;
   min-height: 0;
@@ -2422,6 +2946,45 @@ function proceedToStarSystem() {
   max-height: calc(100vh - 7.5rem);
   overflow-y: auto;
   padding-right: 0.2rem;
+}
+
+.subsector-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  position: sticky;
+  top: 0.9rem;
+  height: calc(100vh - 7.5rem);
+  max-height: calc(100vh - 7.5rem);
+  min-width: 0;
+  overflow-y: auto;
+}
+
+.subsector-sidebar-card {
+  min-width: 0;
+}
+
+.subsector-sidebar-card--naming {
+  gap: 0.75rem;
+}
+
+.subsector-sidebar-card--actions {
+  gap: 0.8rem;
+}
+
+.subsector-sidebar-copy {
+  color: #a8b8c8;
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.subsector-sidebar-btn {
+  width: 100%;
+  justify-content: center;
+}
+
+.subsector-sidebar-card--orbital {
+  margin-top: auto;
 }
 
 .control-card {
@@ -2479,6 +3042,43 @@ function proceedToStarSystem() {
   font-size: 0.9rem;
 }
 
+.view-toggle {
+  display: flex;
+  gap: 0.35rem;
+  width: 100%;
+  padding: 0.25rem;
+  border-radius: 999px;
+  background: rgba(8, 24, 38, 0.9);
+  border: 1px solid rgba(0, 217, 255, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+}
+
+.view-toggle-btn {
+  flex: 1 1 0;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: transparent;
+  color: #9ad9e4;
+  border: none;
+  box-shadow: none;
+}
+
+.view-toggle-btn.active {
+  background: linear-gradient(180deg, #aaf7ff 0%, #39dfff 100%);
+  color: #041018;
+  box-shadow:
+    0 0 0 1px rgba(170, 247, 255, 0.18),
+    0 6px 16px rgba(0, 217, 255, 0.2);
+}
+
+.view-toggle-btn:not(.active):hover {
+  background: rgba(0, 217, 255, 0.08);
+  color: #d7fbff;
+}
+
 .control-help {
   font-size: 0.78rem;
   line-height: 1.4;
@@ -2503,12 +3103,6 @@ function proceedToStarSystem() {
   justify-content: flex-end;
 }
 
-.control-group--generation-options {
-  border-top: 1px solid rgba(0, 217, 255, 0.12);
-  padding-top: 0.75rem;
-}
-
-.control-group--generation-options .btn,
 .control-inline-row--load .btn {
   white-space: nowrap;
 }
@@ -2617,6 +3211,181 @@ function proceedToStarSystem() {
   font-size: 0.75rem;
   color: rgba(255 200 80 / 0.86);
   font-weight: 600;
+}
+
+.orbital-preview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.9rem;
+}
+
+.orbital-preview-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.orbital-preview-meta-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.32rem 0.58rem;
+  border-radius: 999px;
+  border: 1px solid rgba(0, 217, 255, 0.18);
+  background: rgba(0, 217, 255, 0.08);
+}
+
+.orbital-preview-meta-pill--accent {
+  border-color: rgba(125, 211, 252, 0.35);
+  background: rgba(125, 211, 252, 0.12);
+}
+
+.orbital-preview-meta-pill--ok {
+  border-color: rgba(134, 239, 172, 0.32);
+  background: rgba(134, 239, 172, 0.11);
+}
+
+.orbital-preview-meta-pill--anomaly {
+  border-color: rgba(240, 171, 252, 0.34);
+  background: rgba(240, 171, 252, 0.12);
+}
+
+.orbital-preview-meta-pill--muted {
+  border-color: rgba(143, 179, 201, 0.24);
+  background: rgba(143, 179, 201, 0.08);
+}
+
+.orbital-preview-meta-pill--focus {
+  border-color: rgba(250, 204, 21, 0.34);
+  background: rgba(250, 204, 21, 0.12);
+  box-shadow: 0 0 0 1px rgba(250, 204, 21, 0.18);
+}
+
+.orbital-preview-meta-label {
+  color: rgba(183, 247, 255, 0.68);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.orbital-preview-meta-value {
+  color: #e7fbff;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.orbital-preview--placeholder {
+  min-height: 18rem;
+  justify-content: center;
+  padding: 1rem 0.6rem;
+  border: 1px dashed rgba(0, 217, 255, 0.24);
+  border-radius: 0.6rem;
+  background: rgba(9, 18, 29, 0.52);
+}
+
+.orbital-preview-svg {
+  width: min(100%, 15rem);
+  height: auto;
+  display: block;
+}
+
+.orbital-preview--anomaly .orbital-preview-svg {
+  filter: saturate(1.08);
+}
+
+.orbital-preview-ring {
+  fill: none;
+  stroke: rgba(133, 192, 255, 0.34);
+  stroke-width: 1.15;
+  stroke-dasharray: 4 4;
+}
+
+.orbital-preview-ring--compact {
+  stroke: rgba(155, 176, 255, 0.42);
+}
+
+.orbital-preview-ring--anomaly {
+  stroke: rgba(240, 171, 252, 0.5);
+  stroke-dasharray: 2.5 3.5;
+}
+
+.orbital-preview-ring--black-hole {
+  stroke: rgba(192, 132, 252, 0.62);
+  stroke-dasharray: 1.5 2.25;
+}
+
+.orbital-preview-ring--nebula {
+  stroke: rgba(134, 239, 172, 0.42);
+  stroke-dasharray: 6 5;
+}
+
+.orbital-preview-ring:focus,
+.orbital-preview-body:focus {
+  outline: none;
+}
+
+.orbital-preview-ring:hover,
+.orbital-preview-ring:focus {
+  stroke: rgba(250, 204, 21, 0.78);
+  stroke-width: 1.5;
+}
+
+.orbital-preview-star {
+  filter: drop-shadow(0 0 8px rgba(255, 237, 160, 0.45));
+}
+
+.orbital-preview--anomaly .orbital-preview-star {
+  filter: drop-shadow(0 0 10px rgba(240, 171, 252, 0.58));
+}
+
+.orbital-preview-body {
+  filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.18));
+}
+
+.orbital-preview-body--energized {
+  filter: drop-shadow(0 0 7px rgba(240, 171, 252, 0.5));
+}
+
+.orbital-preview-body--compressed {
+  filter: drop-shadow(0 0 8px rgba(192, 132, 252, 0.58));
+}
+
+.orbital-preview-body--diffuse {
+  opacity: 0.8;
+  filter: drop-shadow(0 0 6px rgba(134, 239, 172, 0.4));
+}
+
+.orbital-preview-body:hover,
+.orbital-preview-body:focus {
+  filter: drop-shadow(0 0 9px rgba(250, 204, 21, 0.52));
+  stroke: rgba(255, 255, 255, 0.65);
+  stroke-width: 0.9;
+}
+
+.orbital-preview-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.28rem;
+  text-align: center;
+}
+
+.orbital-preview-title {
+  color: #e7fbff;
+  font-weight: 700;
+}
+
+.orbital-preview-detail {
+  color: #8fb3c9;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.orbital-preview-empty-icon {
+  color: rgba(0, 217, 255, 0.42);
+  font-size: 3.4rem;
+  line-height: 1;
 }
 
 .sector-summary {
@@ -2733,6 +3502,10 @@ function proceedToStarSystem() {
   margin-top: 0.5rem;
 }
 
+.subsector-grid--sidebar {
+  margin-top: 0;
+}
+
 .subsector-btn {
   padding: 0.75rem;
   background: #2a2a3e;
@@ -2758,9 +3531,97 @@ function proceedToStarSystem() {
   box-shadow: 0 0 12px rgba(0, 255, 255, 0.5);
 }
 
+.subsector-grid--sidebar .subsector-btn {
+  position: relative;
+}
+
+.subsector-grid--sidebar .subsector-btn.active {
+  transform: translateY(-2px) scale(1.03);
+  border-color: #b9ffff;
+  background: linear-gradient(180deg, #9ffcff 0%, #00ffff 100%);
+  box-shadow:
+    0 0 0 2px rgba(185, 255, 255, 0.22),
+    0 0 18px rgba(0, 255, 255, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+.subsector-grid--sidebar .subsector-btn.active::after {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  border-radius: 2px;
+  pointer-events: none;
+}
+
 .subsector-btn.active:hover {
   background: #33ffff;
   transform: translateY(-2px);
+}
+
+.subsector-context-stack {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.subsector-context-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid rgba(0, 217, 255, 0.16);
+  border-radius: 0.55rem;
+  background: rgba(0, 217, 255, 0.06);
+}
+
+.subsector-context-label {
+  color: rgba(183, 247, 255, 0.68);
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.subsector-context-value {
+  color: #e7fbff;
+  font-size: 0.98rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.subsector-stats-card {
+  gap: 0.8rem;
+}
+
+.subsector-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
+.subsector-stat-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.22rem;
+  padding: 0.68rem 0.75rem;
+  border: 1px solid rgba(0, 217, 255, 0.14);
+  border-radius: 0.55rem;
+  background: rgba(0, 217, 255, 0.05);
+}
+
+.subsector-stat-label {
+  color: rgba(183, 247, 255, 0.66);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.subsector-stat-value {
+  color: #ecfcff;
+  font-size: 0.94rem;
+  font-weight: 700;
+  line-height: 1.3;
 }
 
 .select-input,
@@ -2782,8 +3643,30 @@ function proceedToStarSystem() {
   gap: 0.5rem;
 }
 
+.name-row--locked {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.name-row--sidebar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  align-items: center;
+}
+
 .name-row .text-input {
   flex: 1;
+}
+
+.text-input--locked {
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #d9f7ff;
+  background: rgba(42, 42, 62, 0.72);
+  border-color: rgba(0, 217, 255, 0.38);
 }
 
 .btn {
@@ -3031,8 +3914,16 @@ function proceedToStarSystem() {
     grid-template-columns: minmax(16rem, 1fr) minmax(0, 2.35fr);
   }
 
+  .survey-workspace--subsector {
+    grid-template-columns: minmax(10.5rem, 0.64fr) minmax(0, 2.35fr) minmax(12.5rem, 1fr);
+  }
+
   .control-inline-row--load,
   .control-inline-row--generation {
+    grid-template-columns: 1fr;
+  }
+
+  .name-row--sidebar {
     grid-template-columns: 1fr;
   }
 
@@ -3085,6 +3976,13 @@ function proceedToStarSystem() {
     max-height: none;
     overflow: visible;
     padding-right: 0;
+  }
+
+  .subsector-sidebar {
+    position: static;
+    height: auto;
+    max-height: none;
+    overflow: visible;
   }
 
   .control-help {

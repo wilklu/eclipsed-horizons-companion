@@ -20,7 +20,7 @@
           </div>
 
           <div class="loading-diagnostics">
-            <div v-for="line in resolvedDiagnostics" :key="line.label" class="diagnostic-row">
+            <div v-for="line in resolvedDiagnostics" :key="line.key" class="diagnostic-row">
               <span class="diagnostic-label">{{ line.label }}</span>
               <span class="diagnostic-value">{{ line.value }}</span>
             </div>
@@ -238,17 +238,29 @@ const resolvedTitle = computed(() => props.title || loadingProfile.value.title);
 const resolvedBarLabel = computed(() => props.barLabel || loadingProfile.value.barLabel);
 const resolvedKicker = computed(() => props.kicker || loadingProfile.value.kicker);
 const resolvedState = computed(() => props.stateLabel || loadingProfile.value.state);
-const resolvedDiagnostics = computed(() => {
-  if (Array.isArray(props.diagnostics) && props.diagnostics.length > 0) {
-    return props.diagnostics;
+function normalizeDiagnosticLine(line, index) {
+  if (!line || typeof line !== "object") {
+    return null;
   }
-  return loadingProfile.value.diagnostics;
+
+  return {
+    key: `${String(line.label || "diagnostic")}-${index}`,
+    label: String(line.label || "Status"),
+    value: String(line.value || "Pending"),
+  };
+}
+
+const resolvedDiagnostics = computed(() => {
+  const source =
+    Array.isArray(props.diagnostics) && props.diagnostics.length > 0
+      ? props.diagnostics
+      : loadingProfile.value.diagnostics;
+
+  return source.map((line, index) => normalizeDiagnosticLine(line, index)).filter(Boolean);
 });
 const resolvedLedger = computed(() => {
-  if (Array.isArray(props.ledger) && props.ledger.length > 0) {
-    return props.ledger;
-  }
-  return loadingProfile.value.ledger;
+  const source = Array.isArray(props.ledger) && props.ledger.length > 0 ? props.ledger : loadingProfile.value.ledger;
+  return source.filter((entry) => entry !== undefined && entry !== null).map((entry) => String(entry));
 });
 const hasProgress = computed(() => Number.isFinite(props.progressPercent));
 const normalizedProgressPercent = computed(() => {
