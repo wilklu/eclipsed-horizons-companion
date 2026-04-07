@@ -963,11 +963,11 @@ const galaxyGenerationDiagnostics = computed(() => {
 
 const galaxyGenerationLedger = computed(() => {
   const progress = generationProgress.value;
-  return [
-    "Galaxy Registry",
-    `${progress.current.toLocaleString()} of ${progress.total.toLocaleString()} sectors queued`,
-    progress.label || "Awaiting generation directive",
-  ];
+  const countLabel =
+    progress.total > 0
+      ? `${progress.current.toLocaleString()} of ${progress.total.toLocaleString()} sectors processed`
+      : "Estimating sector count";
+  return ["Galaxy Registry", countLabel, progress.label || "Awaiting generation directive"];
 });
 
 const currentGalaxySectorStats = ref({
@@ -1907,6 +1907,9 @@ async function createNewGalaxy() {
   showNewGalaxyForm.value = false;
   isCreating.value = true;
   try {
+    startGenerationProgress("Creating galaxy record", 0);
+    await flushGenerationProgressUi();
+
     const universeCoordinates =
       newGalaxyForm.value.placementMode === "manual"
         ? {
@@ -1953,6 +1956,8 @@ async function createNewGalaxy() {
     };
 
     const createdGalaxy = await galaxyStore.createGalaxy(newGalaxy);
+    updateGenerationProgress(0, 1, "Seeding center sector");
+    await flushGenerationProgressUi();
 
     const targetGalaxy = createdGalaxy ?? newGalaxy;
     let sectorCount = 0;
@@ -1962,6 +1967,8 @@ async function createNewGalaxy() {
       if (seededCenter && sectorCount === 0) {
         sectorCount = 1;
       }
+      updateGenerationProgress(seededCenter ? 1 : 0, 1, "Galaxy creation complete");
+      await flushGenerationProgressUi();
     } catch (seedErr) {
       toastService.warning(`Galaxy created but center anomaly seeding failed: ${seedErr.message}`);
     }
@@ -2001,6 +2008,7 @@ async function createNewGalaxy() {
     toastService.error(`Failed to create galaxy: ${err.message}`);
   } finally {
     isCreating.value = false;
+    resetGenerationProgress();
   }
 }
 
@@ -2196,6 +2204,8 @@ function showSectorGenerateConfirm() {
 async function confirmGenerateSectors() {
   sectorGenerateDialog.value.isOpen = false;
   await nextTick();
+  startGenerationProgress(`${currentGalaxyGenerateLabel.value.replace(/^[^A-Za-z]+\s*/, "")}... preparing layout`, 0);
+  await flushGenerationProgressUi();
   await runGalaxySurveyGenerationMode();
 }
 
@@ -2332,7 +2342,7 @@ function ensureSectorNamingMetadata(sector, metadata = {}) {
   const baseMetadata = metadata && typeof metadata === "object" ? { ...metadata } : {};
   const currentDisplayName = String(baseMetadata.displayName || "").trim();
   const displayName =
-    isPlaceholderSectorName(currentDisplayName) || isLegacySeededSectorName(currentDisplayName)
+    !currentDisplayName || isPlaceholderSectorName(currentDisplayName) || isLegacySeededSectorName(currentDisplayName)
       ? buildSeededSectorName(`${sector.sectorId}:sector`)
       : currentDisplayName;
   const existingSubsectorNames =
@@ -2581,8 +2591,13 @@ function buildPersistedSystemRecordsForSector(sector, hexStarTypes) {
 }
 
 async function seedGalacticCenterSector(galaxy) {
-  const layout = generateGalaxySectorLayout(galaxy, { scale: "true" });
-  const centerSector = layout.find((sector) => isGalacticCenterSectorRecord(sector));
+  let centerSector = null;
+  for (const sector of iterateGalaxySectorLayoutByRing(galaxy, { scale: "true" })) {
+    if (isGalacticCenterSectorRecord(sector)) {
+      centerSector = sector;
+      break;
+    }
+  }
   if (!centerSector) return false;
 
   const seeded = ensureCenterAnomalyPresence({
@@ -2640,6 +2655,9 @@ async function createTrueScaleSectorsInChunks(galaxy, { chunkSize = 1000 } = {})
 }
 
 async function generateNamedSectorsForGalaxy(galaxy, { progressLabel = "Naming sectors", chunkSize = 1000 } = {}) {
+  startGenerationProgress(`${progressLabel}... preparing layout`, 0);
+  await flushGenerationProgressUi();
+
   const estimatedLayoutCount = estimateGalaxySectorLayoutCount(galaxy, { scale: "true" });
   if (!estimatedLayoutCount) {
     return { estimatedLayoutCount: 0, namedSectorCount: 0, populatedSectorCount: 0, totalSystems: 0 };
@@ -2650,15 +2668,33 @@ async function generateNamedSectorsForGalaxy(galaxy, { progressLabel = "Naming s
 
   let created = 0;
   let chunk = [];
+  let scanned = 0;
   for (const sector of iterateGalaxySectorLayout(galaxy, { scale: "true" })) {
+    scanned += 1;
     chunk.push({
       ...sector,
       metadata: ensureSectorNamingMetadata(sector, sector.metadata ?? {}),
     });
 
+    if (scanned % GENERATION_PROGRESS_STEP === 0 || scanned === estimatedLayoutCount) {
+      updateGenerationProgress(
+        Math.min(created + chunk.length, estimatedLayoutCount),
+        estimatedLayoutCount,
+        `${progressLabel}... staging sectors`,
+      );
+      await flushGenerationProgressUi();
+    }
+
     if (chunk.length < chunkSize) {
       continue;
     }
+
+    updateGenerationProgress(
+      Math.min(created + chunk.length, estimatedLayoutCount),
+      estimatedLayoutCount,
+      `${progressLabel}... writing batch`,
+    );
+    await flushGenerationProgressUi();
 
     const result = await createSectorsBatch(chunk);
     if (Array.isArray(result)) {
@@ -2673,6 +2709,13 @@ async function generateNamedSectorsForGalaxy(galaxy, { progressLabel = "Naming s
   }
 
   if (chunk.length > 0) {
+    updateGenerationProgress(
+      Math.min(created + chunk.length, estimatedLayoutCount),
+      estimatedLayoutCount,
+      `${progressLabel}... writing final batch`,
+    );
+    await flushGenerationProgressUi();
+
     const result = await createSectorsBatch(chunk);
     if (Array.isArray(result)) {
       created += result.length;
@@ -2704,6 +2747,9 @@ async function generateNamedSectorsForGalaxy(galaxy, { progressLabel = "Naming s
 }
 
 async function generateSectorPresenceForGalaxy(galaxy) {
+  startGenerationProgress("Generating sector presence... preparing layout", 0);
+  await flushGenerationProgressUi();
+
   return generateSectorPresenceForSectors(galaxy, iterateGalaxySectorLayout(galaxy, { scale: "true" }), {
     progressLabel: "Generating sector presence",
     totalCount: estimateGalaxySectorLayoutCount(galaxy, { scale: "true" }),
@@ -2943,6 +2989,8 @@ function showFullGalaxyConfirm() {
 
 async function confirmFullGalaxy() {
   fullGalaxyDialog.value.isOpen = false;
+  startGenerationProgress("Generating sectors and systems... preparing layout", 0);
+  await flushGenerationProgressUi();
   await doGenerateFullGalaxy();
 }
 
@@ -2951,6 +2999,9 @@ function cancelFullGalaxy() {
 }
 
 async function generateFullGalaxyForGalaxy(galaxy, { progressLabel = "Generating sectors and systems" } = {}) {
+  startGenerationProgress(`${progressLabel}... preparing layout`, 0);
+  await flushGenerationProgressUi();
+
   return generateSectorSystemsForSectors(galaxy, iterateGalaxySectorLayout(galaxy, { scale: "true" }), {
     progressLabel,
     totalCount: estimateGalaxySectorLayoutCount(galaxy, { scale: "true" }),
@@ -3079,7 +3130,13 @@ async function generateSectorSystemsForSectors(
 }
 
 async function generateCenterSectorSystemsForGalaxy(galaxy, { progressLabel = "Generating center sector" } = {}) {
-  const centerSector = getGalaxyLayoutSectors(galaxy).find((sector) => isGalacticCenterSectorRecord(sector));
+  let centerSector = null;
+  for (const sector of iterateGalaxySectorLayoutByRing(galaxy, { scale: "true" })) {
+    if (isGalacticCenterSectorRecord(sector)) {
+      centerSector = sector;
+      break;
+    }
+  }
   return generateSectorSystemsForSectors(galaxy, centerSector ? [centerSector] : [], { progressLabel });
 }
 
@@ -3087,11 +3144,15 @@ async function generateCenterSurroundingPresenceForGalaxy(
   galaxy,
   { progressLabel = "Generating center and surrounding sectors" } = {},
 ) {
-  return generateSectorPresenceForSectors(
-    galaxy,
-    getGalaxyLayoutSectors(galaxy).filter((sector) => sectorRingDistance(sector) <= 1),
-    { progressLabel },
-  );
+  const sectors = [];
+  for (const sector of iterateGalaxySectorLayoutByRing(galaxy, { scale: "true" })) {
+    if (sectorRingDistance(sector) > 1) {
+      break;
+    }
+    sectors.push(sector);
+  }
+
+  return generateSectorPresenceForSectors(galaxy, sectors, { progressLabel });
 }
 
 async function generateExpandingCenterSectorsForGalaxy(galaxy, { progressLabel = "Expanding from center" } = {}) {

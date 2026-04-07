@@ -1,59 +1,61 @@
 <template>
-  <div v-if="isVisible" class="loading-spinner-overlay">
-    <div
-      class="loading-spinner-content"
-      :class="[`mode-${mode}`, `context-${resolvedContext}`, `tone-${resolvedTone}`]"
-    >
-      <div class="loading-screen-grid"></div>
-      <div class="loading-screen-noise"></div>
+  <Teleport to="body" v-if="isVisible">
+    <div class="loading-spinner-overlay">
+      <div
+        class="loading-spinner-content"
+        :class="[`mode-${mode}`, `context-${resolvedContext}`, `tone-${resolvedTone}`]"
+      >
+        <div class="loading-screen-grid"></div>
+        <div class="loading-screen-noise"></div>
 
-      <div class="loading-shell">
-        <div class="loading-shell-header">
-          <span class="loading-kicker">{{ resolvedKicker }}</span>
-          <span class="loading-state">{{ resolvedState }}</span>
-        </div>
+        <div class="loading-shell">
+          <div class="loading-shell-header">
+            <span class="loading-kicker">{{ resolvedKicker }}</span>
+            <span class="loading-state">{{ resolvedState }}</span>
+          </div>
 
-        <div class="loading-title-block">
-          <div class="loading-title">{{ resolvedTitle }}</div>
-          <p v-if="message" class="spinner-message">{{ message }}</p>
-        </div>
+          <div class="loading-title-block">
+            <div class="loading-title">{{ resolvedTitle }}</div>
+            <p v-if="message" class="spinner-message">{{ message }}</p>
+          </div>
 
-        <div class="loading-diagnostics">
-          <div v-for="line in resolvedDiagnostics" :key="line.label" class="diagnostic-row">
-            <span class="diagnostic-label">{{ line.label }}</span>
-            <span class="diagnostic-value">{{ line.value }}</span>
+          <div class="loading-diagnostics">
+            <div v-for="line in resolvedDiagnostics" :key="line.label" class="diagnostic-row">
+              <span class="diagnostic-label">{{ line.label }}</span>
+              <span class="diagnostic-value">{{ line.value }}</span>
+            </div>
           </div>
-        </div>
 
-        <div class="loading-bar-block">
-          <div v-if="hasProgress" class="loading-progress-summary">
-            <span>{{ progressCountLabel }}</span>
-            <span>{{ progressSummaryLabel }}</span>
+          <div class="loading-bar-block">
+            <div v-if="hasProgress" class="loading-progress-summary">
+              <span>{{ progressCountLabel }}</span>
+              <span>{{ progressSummaryLabel }}</span>
+            </div>
+            <div class="loading-bar-track">
+              <div class="loading-bar-fill" :class="{ determinate: hasProgress }" :style="progressFillStyle"></div>
+            </div>
+            <div class="loading-bar-meta">
+              <span>{{ resolvedBarLabel }}</span>
+              <span class="loading-percent">{{ progressCodeLabel }}</span>
+            </div>
           </div>
-          <div class="loading-bar-track">
-            <div class="loading-bar-fill" :class="{ determinate: hasProgress }" :style="progressFillStyle"></div>
-          </div>
-          <div class="loading-bar-meta">
-            <span>{{ resolvedBarLabel }}</span>
-            <span class="loading-percent">{{ progressCodeLabel }}</span>
-          </div>
-        </div>
 
-        <div class="loading-orbit-panel">
-          <div class="loading-radar">
-            <div class="loading-radar-ring ring-1"></div>
-            <div class="loading-radar-ring ring-2"></div>
-            <div class="loading-radar-ring ring-3"></div>
-            <div class="loading-radar-sweep"></div>
-            <div class="loading-radar-core"></div>
-          </div>
-          <div class="loading-ledger">
-            <div v-for="entry in resolvedLedger" :key="entry" class="ledger-line">{{ entry }}</div>
+          <div class="loading-orbit-panel">
+            <div class="loading-radar">
+              <div class="loading-radar-ring ring-1"></div>
+              <div class="loading-radar-ring ring-2"></div>
+              <div class="loading-radar-ring ring-3"></div>
+              <div class="loading-radar-sweep"></div>
+              <div class="loading-radar-core"></div>
+            </div>
+            <div class="loading-ledger">
+              <div v-for="entry in resolvedLedger" :key="entry" class="ledger-line">{{ entry }}</div>
+            </div>
           </div>
         </div>
       </div>
     </div>
-  </div>
+  </Teleport>
 </template>
 
 <script setup>

@@ -972,15 +972,18 @@ function toAtlasSectorRecord(sector) {
   const metadata = sector?.metadata && typeof sector.metadata === "object" ? sector.metadata : {};
   const x = Number(sector?.coordinates?.x ?? metadata.gridX ?? sector?.x ?? sector?.sectorX ?? 0);
   const y = Number(sector?.coordinates?.y ?? metadata.gridY ?? sector?.y ?? sector?.sectorY ?? 0);
-  return {
+  const normalizedSector = {
     ...sector,
     galaxyId: String(sector?.galaxyId ?? metadata.galaxyId ?? ""),
     sectorId: String(sector?.sectorId || `${sector?.galaxyId || metadata.galaxyId || "galaxy"}:${x},${y}`),
     coordinates: { x, y },
     densityClass: Number(sector?.densityClass ?? 0),
     densityVariation: Number(sector?.densityVariation ?? 0),
+  };
+  return {
+    ...normalizedSector,
     metadata: {
-      ...metadata,
+      ...ensureAtlasSectorNamingMetadata(normalizedSector, metadata),
       gridX: x,
       gridY: y,
     },
@@ -2056,7 +2059,9 @@ function ensureAtlasSectorNamingMetadata(sector, metadata = {}) {
   const baseMetadata = metadata && typeof metadata === "object" ? { ...metadata } : {};
   const currentDisplayName = String(baseMetadata.displayName || "").trim();
   const displayName =
-    isAtlasPlaceholderSectorName(currentDisplayName) || isAtlasLegacySeededSectorName(currentDisplayName)
+    !currentDisplayName ||
+    isAtlasPlaceholderSectorName(currentDisplayName) ||
+    isAtlasLegacySeededSectorName(currentDisplayName)
       ? buildAtlasSeededSectorName(`${sector.sectorId}:sector`)
       : currentDisplayName;
   const existingSubsectorNames =
