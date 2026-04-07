@@ -80,12 +80,22 @@ function mergeCachedSystems(nextSystems) {
   return merged;
 }
 
+function replaceCachedSystemsForSector(sectorId, nextSystems) {
+  const retained = loadSystems()
+    .map(normalizeSystem)
+    .filter((system) => String(system?.sectorId) !== String(sectorId));
+  const normalized = (Array.isArray(nextSystems) ? nextSystems : [])
+    .map(normalizeSystem)
+    .filter((system) => system.systemId);
+  const merged = retained.concat(normalized);
+  saveSystems(merged);
+  return normalized;
+}
+
 export async function getSystemsBySector(sectorId) {
   try {
     const systems = await request(`/sectors/${encodeURIComponent(sectorId)}/systems`);
-    return mergeCachedSystems(Array.isArray(systems) ? systems : []).filter(
-      (system) => String(system?.sectorId) === String(sectorId),
-    );
+    return replaceCachedSystemsForSector(sectorId, Array.isArray(systems) ? systems : []);
   } catch {
     return loadSystems()
       .map(normalizeSystem)
@@ -130,9 +140,7 @@ export async function replaceSystemsForSector(sectorId, systems) {
       method: "POST",
       body: JSON.stringify(payload),
     });
-    return mergeCachedSystems(Array.isArray(updated) ? updated : []).filter(
-      (system) => String(system?.sectorId) === String(sectorId),
-    );
+    return replaceCachedSystemsForSector(sectorId, Array.isArray(updated) ? updated : []);
   } catch {
     const existing = loadSystems()
       .map(normalizeSystem)

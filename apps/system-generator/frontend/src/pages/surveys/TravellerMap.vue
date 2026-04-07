@@ -705,7 +705,6 @@ const sectorStore = useSectorStore();
 const systemStore = useSystemStore();
 const ALL_GALAXIES_VALUE = "__ALL_GALAXIES__";
 const PREFERENCES_STORAGE_KEY = "eclipsed-horizons-preferences";
-const SYSTEMS_STORAGE_KEY = "eclipsed-horizons-systems";
 const STARPORT_LABELS = Object.freeze({
   A: "Excellent",
   B: "Good",
@@ -1630,17 +1629,6 @@ const travelZoneHexes = computed(() => []);
 // ── Inspector computed ─────────────────────────────────────────────────────
 const inspectorVisible = computed(() => inspectorMode.value !== null);
 
-function loadPersistedSystemsSnapshot() {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = localStorage.getItem(SYSTEMS_STORAGE_KEY);
-    const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
 function firstNonEmptyString(...values) {
   for (const value of values) {
     const text = String(value ?? "").trim();
@@ -1763,11 +1751,6 @@ function countGasGiantsFromBodies(bodies) {
 
 const atlasSystemRecords = computed(() => {
   const merged = new Map();
-  for (const system of loadPersistedSystemsSnapshot()) {
-    if (system?.systemId) {
-      merged.set(String(system.systemId), system);
-    }
-  }
   for (const system of Array.isArray(systemStore.systems) ? systemStore.systems : []) {
     if (system?.systemId) {
       merged.set(String(system.systemId), system);

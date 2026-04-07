@@ -85,6 +85,49 @@ function mergeCachedSectors(nextSectors) {
   return merged;
 }
 
+function replaceCachedSectorsForGalaxy(galaxyId, nextSectors) {
+  const retained = loadSectors()
+    .map(normalizeSector)
+    .filter((sector) => String(sector?.galaxyId) !== String(galaxyId));
+  const normalized = (Array.isArray(nextSectors) ? nextSectors : []).map(normalizeSector);
+  const merged = retained.concat(normalized);
+  saveSectors(merged);
+  return normalized;
+}
+
+function replaceCachedSectorsInWindow(galaxyId, nextSectors, { xMin, xMax, yMin, yMax }) {
+  const retained = loadSectors()
+    .map(normalizeSector)
+    .filter((sector) => {
+      if (String(sector?.galaxyId) !== String(galaxyId)) return true;
+      const x = Number(sector?.coordinates?.x);
+      const y = Number(sector?.coordinates?.y);
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return true;
+      return x < xMin || x > xMax || y < yMin || y > yMax;
+    });
+  const normalized = (Array.isArray(nextSectors) ? nextSectors : []).map(normalizeSector);
+  const merged = retained.concat(normalized);
+  saveSectors(merged);
+  return normalized;
+}
+
+function replaceCachedSector(nextSector) {
+  const normalized = normalizeSector(nextSector);
+  const retained = loadSectors()
+    .map(normalizeSector)
+    .filter((sector) => normalizeSectorId(sector) !== normalized.sectorId);
+  const merged = retained.concat(normalized);
+  saveSectors(merged);
+  return normalized;
+}
+
+function removeCachedSector(sectorId) {
+  const retained = loadSectors()
+    .map(normalizeSector)
+    .filter((sector) => normalizeSectorId(sector) !== String(sectorId));
+  saveSectors(retained);
+}
+
 function normalizeSectorId(sector) {
   if (sector?.sectorId) return String(sector.sectorId);
   const galaxyId = String(sector?.galaxyId ?? sector?.metadata?.galaxyId ?? "galaxy");
@@ -134,8 +177,7 @@ function normalizeSectorPayload(sector) {
 export async function getSectors(galaxyId) {
   try {
     const sectors = await request(`/galaxies/${encodeURIComponent(galaxyId)}/sectors?limit=10000`);
-    const merged = mergeCachedSectors(Array.isArray(sectors) ? sectors : []);
-    return sectorsForGalaxy(merged, galaxyId).map(normalizeSector);
+    return replaceCachedSectorsForGalaxy(galaxyId, Array.isArray(sectors) ? sectors : []);
   } catch {
     return sectorsForGalaxy(loadSectors(), galaxyId).map(normalizeSector);
   }
@@ -152,8 +194,7 @@ export async function getSectorsWindow(galaxyId, { xMin, xMax, yMin, yMax, limit
 
   try {
     const sectors = await request(`/galaxies/${encodeURIComponent(galaxyId)}/sectors?${params.toString()}`);
-    const merged = mergeCachedSectors(Array.isArray(sectors) ? sectors : []);
-    return sectorsForGalaxy(merged, galaxyId)
+    return replaceCachedSectorsInWindow(galaxyId, Array.isArray(sectors) ? sectors : [], { xMin, xMax, yMin, yMax })
       .map(normalizeSector)
       .filter((sector) => {
         const x = Number(sector?.coordinates?.x);
@@ -195,9 +236,12 @@ export async function getSectorStats(galaxyId) {
 export async function getSector(sectorId) {
   try {
     const sector = await request(`/sectors/${encodeURIComponent(sectorId)}`);
-    mergeCachedSectors([sector]);
-    return normalizeSector(sector);
-  } catch {
+    return replaceCachedSector(sector);
+  } catch (err) {
+    if (/not found|404/i.test(String(err?.message || ""))) {
+      removeCachedSector(sectorId);
+      throw err;
+    }
     const cached = loadSectors().find((sector) => normalizeSectorId(sector) === String(sectorId));
     if (!cached) {
       throw new Error(`Sector not found: ${sectorId}`);
