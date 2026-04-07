@@ -9,6 +9,8 @@ export const PREFERENCE_DEFAULTS = Object.freeze({
   galaxyNameMode: "normalized",
   galaxyMythicTheme: "all",
   sectorNameMode: "normalized",
+  worldNameMode: "list",
+  asteroidBeltNameMode: "phonotactic",
   ttsRate: 1,
   ttsPitch: 1,
   ttsVoiceURI: "",

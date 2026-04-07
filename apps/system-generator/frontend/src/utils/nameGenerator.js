@@ -35,6 +35,32 @@ const NORMALIZED_NOUNS = Object.freeze([
   "Shroud",
 ]);
 
+const NORMALIZED_OBJECT_NOUNS = Object.freeze({
+  generic: NORMALIZED_NOUNS,
+  "asteroid-belt": Object.freeze([
+    "Belt",
+    "Cluster",
+    "Field",
+    "Zone",
+    "Corridor",
+    "Band",
+    "Ring",
+    "Strip",
+    "Reach",
+    "Drift",
+    "Shroud",
+    "Chain",
+    "Arc",
+    "Trail",
+    "Swarm",
+    "Tangle",
+    "Stream",
+    "Shelf",
+    "Spur",
+    "Tract",
+  ]),
+});
+
 const MYTHIC_THEMES = Object.freeze({
   "greco-roman": Object.freeze([
     "Astraeus",
@@ -210,8 +236,44 @@ function titleCase(value) {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
+function ensureObjectSuffix(value, objectType = "generic") {
+  const normalizedValue = String(value || "").trim();
+  if (!normalizedValue) {
+    return "";
+  }
+
+  const nouns = NORMALIZED_OBJECT_NOUNS[objectType] || NORMALIZED_OBJECT_NOUNS.generic;
+  const lowerValue = normalizedValue.toLowerCase();
+  const hasKnownSuffix = nouns.some((noun) => lowerValue.endsWith(` ${String(noun).toLowerCase()}`));
+  if (hasKnownSuffix) {
+    return normalizedValue;
+  }
+
+  return `${normalizedValue} ${sample(nouns)}`;
+}
+
 function buildNormalizedGalaxyName() {
   return `${sample(NORMALIZED_ADJECTIVES)} ${sample(NORMALIZED_NOUNS)}`;
+}
+
+function buildNormalizedObjectName(objectType = "generic") {
+  const nouns = NORMALIZED_OBJECT_NOUNS[objectType] || NORMALIZED_OBJECT_NOUNS.generic;
+  return ensureObjectSuffix(`${sample(NORMALIZED_ADJECTIVES)} ${sample(nouns)}`, objectType);
+}
+
+function buildPhonotacticObjectName(objectType = "generic", style = "phonotactic") {
+  const nouns = NORMALIZED_OBJECT_NOUNS[objectType] || NORMALIZED_OBJECT_NOUNS.generic;
+  const stem = generatePhonotacticName({ style, syllablesMin: 2, syllablesMax: 3 });
+  return ensureObjectSuffix(`${stem} ${sample(nouns)}`, objectType);
+}
+
+function buildMythicObjectName(objectType = "generic", theme = "all") {
+  const nouns = NORMALIZED_OBJECT_NOUNS[objectType] || NORMALIZED_OBJECT_NOUNS.generic;
+  const pool = theme && theme !== "all" ? MYTHIC_THEMES[theme] : Object.values(MYTHIC_THEMES).flat();
+  return ensureObjectSuffix(
+    `${sample(pool && pool.length ? pool : Object.values(MYTHIC_THEMES).flat())} ${sample(nouns)}`,
+    objectType,
+  );
 }
 
 function buildMythicGalaxyName(theme) {
@@ -240,6 +302,72 @@ export function generateGalaxyName({ mode = "normalized", mythicTheme = "all", a
   }
 
   return blocked ? `${titleCase(blocked)} Nova` : buildNormalizedGalaxyName();
+}
+
+export function generateNormalizedObjectName({ objectType = "generic", avoid = "" } = {}) {
+  const blocked = String(avoid || "")
+    .trim()
+    .toLowerCase();
+
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const nextName = ensureObjectSuffix(buildNormalizedObjectName(objectType), objectType);
+    if (nextName && nextName.toLowerCase() !== blocked) {
+      return titleCase(nextName);
+    }
+  }
+
+  return blocked
+    ? titleCase(ensureObjectSuffix(titleCase(blocked), objectType))
+    : titleCase(ensureObjectSuffix(buildNormalizedObjectName(objectType), objectType));
+}
+
+export function generatePhonotacticObjectName({ objectType = "generic", style = "phonotactic", avoid = "" } = {}) {
+  const blocked = String(avoid || "")
+    .trim()
+    .toLowerCase();
+
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const nextName = ensureObjectSuffix(buildPhonotacticObjectName(objectType, style), objectType);
+    if (nextName && nextName.toLowerCase() !== blocked) {
+      return titleCase(nextName);
+    }
+  }
+
+  return blocked
+    ? titleCase(ensureObjectSuffix(titleCase(blocked), objectType))
+    : titleCase(ensureObjectSuffix(buildPhonotacticObjectName(objectType, style), objectType));
+}
+
+export function generateMythicObjectName({ objectType = "generic", theme = "all", avoid = "" } = {}) {
+  const blocked = String(avoid || "")
+    .trim()
+    .toLowerCase();
+
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const nextName = ensureObjectSuffix(buildMythicObjectName(objectType, theme), objectType);
+    if (nextName && nextName.toLowerCase() !== blocked) {
+      return titleCase(nextName);
+    }
+  }
+
+  return blocked
+    ? titleCase(ensureObjectSuffix(titleCase(blocked), objectType))
+    : titleCase(ensureObjectSuffix(buildMythicObjectName(objectType, theme), objectType));
+}
+
+export function generateObjectName({
+  mode = "normalized",
+  objectType = "generic",
+  mythicTheme = "all",
+  avoid = "",
+} = {}) {
+  if (mode === "phonotactic") {
+    return generatePhonotacticObjectName({ objectType, avoid });
+  }
+  if (mode === "mythic") {
+    return generateMythicObjectName({ objectType, theme: mythicTheme, avoid });
+  }
+  return generateNormalizedObjectName({ objectType, avoid });
 }
 
 export function generatePhonotacticName({ style = "normalized", syllablesMin = 2, syllablesMax = 4 } = {}) {

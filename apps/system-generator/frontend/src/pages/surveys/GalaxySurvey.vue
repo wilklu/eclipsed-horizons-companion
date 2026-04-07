@@ -815,6 +815,7 @@ import { ref, computed, onMounted, watchEffect, watch, nextTick } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import { useGalaxyStore } from "../../stores/galaxyStore.js";
 import { useSectorStore } from "../../stores/sectorStore.js";
+import { useSystemStore } from "../../stores/systemStore.js";
 import { createSectorsBatch, getSectorStats, upsertSector } from "../../api/sectorApi.js";
 import { calculateHexOccupancyProbability } from "../../utils/sectorGeneration.js";
 import { generatePrimaryStar } from "../../utils/primaryStarGenerator.js";
@@ -835,6 +836,7 @@ const router = useRouter();
 const route = useRoute();
 const galaxyStore = useGalaxyStore();
 const sectorStore = useSectorStore();
+const systemStore = useSystemStore();
 const preferencesStore = usePreferencesStore();
 
 const galaxies = computed(() => galaxyStore.getAllGalaxies);
@@ -2521,6 +2523,62 @@ function ensureCenterAnomalyPresence({ galaxy, sector, occupiedHexes, hexStarTyp
   };
 }
 
+function buildPersistedSystemRecordsForSector(sector, hexStarTypes) {
+  const sectorId = String(sector?.sectorId || "").trim();
+  const galaxyId = String(sector?.galaxyId || "").trim();
+  if (!sectorId || !hexStarTypes || typeof hexStarTypes !== "object") {
+    return [];
+  }
+
+  return Object.entries(hexStarTypes)
+    .map(([coord, info]) => {
+      const rawCoord = String(coord || "").trim();
+      if (!/^\d{4}$/.test(rawCoord)) return null;
+
+      const primaryType = String(info?.starType || "G2V").trim() || "G2V";
+      const secondaryStarTypes = Array.isArray(info?.secondaryStars)
+        ? info.secondaryStars.map((star) => String(star || "").trim()).filter(Boolean)
+        : [];
+      const generatedStars = [
+        {
+          designation: primaryType,
+          spectralType: primaryType,
+          spectralClass: primaryType,
+          isAnomaly: Boolean(info?.anomalyType),
+        },
+        ...secondaryStarTypes.map((spectralType) => ({
+          designation: spectralType,
+          spectralType,
+          spectralClass: spectralType,
+        })),
+      ];
+
+      return {
+        systemId: `${sectorId}:${rawCoord}`,
+        galaxyId,
+        sectorId,
+        hexCoordinates: {
+          x: Number(rawCoord.slice(0, 2)) || 0,
+          y: Number(rawCoord.slice(2, 4)) || 0,
+        },
+        starCount: Math.max(1, Math.min(4, generatedStars.length || 1)),
+        primaryStar: {
+          spectralClass: primaryType,
+        },
+        companionStars: secondaryStarTypes.map((spectralClass) => ({ spectralClass })),
+        metadata: {
+          generatedSurvey: {
+            stars: generatedStars,
+          },
+          source: "galaxy-survey",
+          anomalyType: info?.anomalyType || null,
+          ...(info?.anomalyDetails ? { anomalyDetails: info.anomalyDetails } : {}),
+        },
+      };
+    })
+    .filter(Boolean);
+}
+
 async function seedGalacticCenterSector(galaxy) {
   const layout = generateGalaxySectorLayout(galaxy, { scale: "true" });
   const centerSector = layout.find((sector) => isGalacticCenterSectorRecord(sector));
@@ -2533,7 +2591,7 @@ async function seedGalacticCenterSector(galaxy) {
     hexStarTypes: {},
   });
 
-  await upsertSector({
+  const persistedSector = await upsertSector({
     ...centerSector,
     metadata: ensureSectorNamingMetadata(centerSector, {
       ...(centerSector.metadata ?? {}),
@@ -2548,6 +2606,11 @@ async function seedGalacticCenterSector(galaxy) {
       centralAnomalyHex: seeded.centerAnomaly?.coord,
     }),
   });
+
+  await systemStore.replaceSectorSystems(
+    persistedSector.sectorId,
+    buildPersistedSystemRecordsForSector(persistedSector, seeded.hexStarTypes),
+  );
 
   return true;
 }
@@ -2674,7 +2737,7 @@ async function generateSectorPresenceForSectors(
       ringPopulatedCount += 1;
     }
 
-    await upsertSector({
+    const persistedSector = await upsertSector({
       ...sector,
       metadata: ensureSectorNamingMetadata(sector, {
         ...(sector.metadata ?? {}),
@@ -2688,6 +2751,11 @@ async function generateSectorPresenceForSectors(
         centralAnomalyHex: seeded.centerAnomaly?.coord,
       }),
     });
+
+    await systemStore.replaceSectorSystems(
+      persistedSector.sectorId,
+      buildPersistedSystemRecordsForSector(persistedSector, seeded.hexStarTypes),
+    );
 
     processed += 1;
     if (processed % GENERATION_PROGRESS_STEP === 0 || processed === targetSectors.length) {

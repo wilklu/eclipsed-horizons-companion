@@ -127,37 +127,39 @@
         <div class="planets-section">
           <h3>🪐 Planetary Catalog</h3>
           <div v-if="!system.planets.length" class="empty-state">No major bodies catalogued.</div>
-          <table v-else class="planet-table">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Name</th>
-                <th>Type</th>
-                <th>Orbit (AU)</th>
-                <th>Zone</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr
-                v-for="(planet, i) in system.planets"
-                :key="i"
-                :class="{
-                  habitable: planet.zone === 'habitable',
-                  selectable: isWorldBuilderCandidate(planet),
-                  selected: selectedWorldIndex === i,
-                }"
-                @click="selectWorldCandidate(i)"
-              >
-                <td>{{ i + 1 }}</td>
-                <td>{{ planet.name }}</td>
-                <td>{{ planet.type }}</td>
-                <td>{{ planet.orbitAU }}</td>
-                <td>
-                  <span class="zone-badge" :class="planet.zone">{{ planet.zone }}</span>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+          <div v-else class="planet-table-scroll">
+            <table class="planet-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Name</th>
+                  <th>Type</th>
+                  <th>Orbit (AU)</th>
+                  <th>Zone</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="(planet, i) in system.planets"
+                  :key="i"
+                  :class="{
+                    habitable: planet.zone === 'habitable',
+                    selectable: isWorldBuilderCandidate(planet),
+                    selected: selectedWorldIndex === i,
+                  }"
+                  @click="selectWorldCandidate(i)"
+                >
+                  <td>{{ i + 1 }}</td>
+                  <td>{{ planet.name }}</td>
+                  <td>{{ planet.type }}</td>
+                  <td>{{ planet.orbitAU }}</td>
+                  <td>
+                    <span class="zone-badge" :class="planet.zone">{{ planet.zone }}</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
 
         <!-- Actions -->
@@ -189,10 +191,12 @@ import { useRoute, useRouter } from "vue-router";
 import LoadingSpinner from "../../components/common/LoadingSpinner.vue";
 import SurveyNavigation from "../../components/common/SurveyNavigation.vue";
 import * as sectorApi from "../../api/sectorApi.js";
-import { deserializeReturnRoute } from "../../utils/returnRoute.js";
+import { deserializeReturnRoute, serializeReturnRoute } from "../../utils/returnRoute.js";
+import { usePreferencesStore } from "../../stores/preferencesStore.js";
 import { useSectorStore } from "../../stores/sectorStore.js";
 import { useSystemStore } from "../../stores/systemStore.js";
 import { useArchiveTransfer } from "../../composables/useArchiveTransfer.js";
+import { generateObjectName } from "../../utils/nameGenerator.js";
 
 const props = defineProps({
   galaxyId: { type: String, default: null },
@@ -200,6 +204,7 @@ const props = defineProps({
 });
 const router = useRouter();
 const route = useRoute();
+const preferencesStore = usePreferencesStore();
 const sectorStore = useSectorStore();
 const systemStore = useSystemStore();
 const backRoute = computed(() => {
@@ -621,7 +626,7 @@ async function hydrateSystem() {
           ...existing,
           systemId: normalizeHex(hexCoord.value),
         };
-        selectedWorldIndex.value = findDefaultWorldIndex(existing.planets);
+        selectedWorldIndex.value = resolveSelectedWorldIndex(existing.planets);
         systemStore.setCurrentSystem(existing.systemId);
         await syncSectorSurveyState(existing);
         return;
@@ -693,8 +698,20 @@ function buildPlanets(hz) {
   for (let i = 0; i < count; i++) {
     const type = PLANET_TYPES[Math.floor(Math.random() * PLANET_TYPES.length)];
     const orbitAU = +au.toFixed(2);
+    const name =
+      type === "Asteroid Belt"
+        ? generateObjectName({
+            mode: String(preferencesStore.asteroidBeltNameMode || "phonotactic")
+              .trim()
+              .toLowerCase(),
+            objectType: "asteroid-belt",
+            mythicTheme: String(preferencesStore.galaxyMythicTheme || "all")
+              .trim()
+              .toLowerCase(),
+          })
+        : `World-${i + 1}`;
     orbits.push({
-      name: `World-${i + 1}`,
+      name,
       type,
       orbitAU,
       zone: planetZone(orbitAU, hz),
@@ -715,6 +732,19 @@ function findDefaultWorldIndex(planets) {
   if (habitableIndex >= 0) return habitableIndex;
 
   return 0;
+}
+
+function resolveSelectedWorldIndex(planets) {
+  if (!Array.isArray(planets) || !planets.length) {
+    return null;
+  }
+
+  const requestedIndex = Number.parseInt(String(route.query.worldIndex ?? ""), 10);
+  if (Number.isInteger(requestedIndex) && requestedIndex >= 0 && requestedIndex < planets.length) {
+    return requestedIndex;
+  }
+
+  return findDefaultWorldIndex(planets);
 }
 
 function selectWorldCandidate(index) {
@@ -767,7 +797,7 @@ async function buildSystem() {
   };
 
   system.value = nextSystem;
-  selectedWorldIndex.value = findDefaultWorldIndex(planets);
+  selectedWorldIndex.value = resolveSelectedWorldIndex(planets);
 
   if (props.galaxyId && props.sectorId) {
     await runWithStellarLoading(
@@ -818,10 +848,23 @@ async function exportSystem() {
 function proceedToWorldBuilder() {
   if (!selectedWorldCandidate.value) return;
 
+  const returnTo = serializeReturnRoute({
+    name: String(route.name || "StarSystemBuilder"),
+    params: { ...route.params },
+    query: {
+      ...route.query,
+      hex: normalizeHex(system.value?.systemId || hexCoord.value),
+      star: String(system.value?.stars?.[0]?.designation || route.query.star || "").trim(),
+      worldIndex: String(selectedWorldIndex.value ?? ""),
+    },
+  });
+
   router.push({
     name: "WorldBuilder",
     params: { systemId: system.value.systemId },
     query: {
+      returnTo,
+      systemRecordId: String(systemStore.currentSystemId || ""),
       star: system.value.stars[0].designation,
       worldName: selectedWorldCandidate.value.name,
       worldType: selectedWorldCandidate.value.type,
@@ -845,6 +888,23 @@ watch(
   () => route.query.star,
   (value) => {
     primarySpectral.value = normalizePrimarySelection(value);
+  },
+);
+
+watch(
+  () => route.query.worldIndex,
+  (value) => {
+    if (!Array.isArray(system.value?.planets) || !system.value.planets.length) {
+      return;
+    }
+
+    const requestedIndex = Number.parseInt(String(value ?? ""), 10);
+    if (Number.isInteger(requestedIndex) && requestedIndex >= 0 && requestedIndex < system.value.planets.length) {
+      selectedWorldIndex.value = requestedIndex;
+      return;
+    }
+
+    selectedWorldIndex.value = findDefaultWorldIndex(system.value.planets);
   },
 );
 
@@ -1096,6 +1156,13 @@ onMounted(async () => {
 }
 
 /* Planet table */
+.planet-table-scroll {
+  max-height: min(26rem, 52vh);
+  overflow-y: auto;
+  border: 1px solid #1a1a3a;
+  border-radius: 0.5rem;
+}
+
 .planet-table {
   width: 100%;
   border-collapse: collapse;
@@ -1108,6 +1175,9 @@ onMounted(async () => {
   padding: 0.6rem 1rem;
   text-align: left;
   border-bottom: 2px solid #333;
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }
 
 .planet-table td {

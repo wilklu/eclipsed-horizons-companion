@@ -1824,11 +1824,7 @@ function randomizeSectorName() {
     return;
   }
 
-  if (mode === "list") {
-    sectorName.value = randomName;
-  } else {
-    sectorName.value = randomName;
-  }
+  sectorName.value = randomName;
 }
 
 async function generateSector() {
