@@ -229,7 +229,13 @@ import LoadingSpinner from "../../components/common/LoadingSpinner.vue";
 import SurveyNavigation from "../../components/common/SurveyNavigation.vue";
 import { useArchiveTransfer } from "../../composables/useArchiveTransfer.js";
 import { deserializeReturnRoute } from "../../utils/returnRoute.js";
-import { generatePhonotacticName } from "../../utils/nameGenerator.js";
+import {
+  applyWorldProfileToPlanet,
+  extractStoredWorldProfile,
+  generateAutomaticWorldName,
+  generateWorldProfile,
+  normalizeWorldStarClass,
+} from "../../utils/worldProfileGenerator.js";
 import { usePreferencesStore } from "../../stores/preferencesStore.js";
 import { useSystemStore } from "../../stores/systemStore.js";
 import * as toastService from "../../utils/toast.js";
@@ -323,24 +329,6 @@ const STARPORT_TABLE = {
   E: "Frontier — No facilities",
   X: "No starport",
 };
-
-const WORLD_NAMES = [
-  "Arrakis",
-  "Hestia",
-  "Lycan",
-  "Varna",
-  "Oxtus",
-  "Theron",
-  "Velan",
-  "Korreth",
-  "Solvaris",
-  "Durath",
-  "Mirela",
-  "Ashford",
-  "Phaedra",
-  "Calyx",
-  "Numeria",
-];
 
 // ── State ─────────────────────────────────────────────────────────────────────
 const worldName = ref("");
@@ -483,34 +471,8 @@ function formatPop(pop) {
   return pop.toLocaleString();
 }
 
-const STAR_TEMP_MOD = { O: +4, B: +3, A: +2, F: +1, G: 0, K: -1, M: -2 };
-
 function normalizeIncomingStarClass(value) {
-  const firstChar = String(value || "")
-    .trim()
-    .charAt(0)
-    .toUpperCase();
-  return STAR_TEMP_MOD[firstChar] !== undefined ? firstChar : "random";
-}
-
-function rollNativeSophontLife({ size, atmosphereCode, hydrographics, avgTempC }) {
-  if (size <= 0) return false;
-
-  let habitabilityScore = 0;
-  if (atmosphereCode >= 4 && atmosphereCode <= 9) habitabilityScore += 2;
-  else if (atmosphereCode >= 2 && atmosphereCode <= 3) habitabilityScore += 1;
-
-  if (hydrographics >= 1 && hydrographics <= 9) habitabilityScore += 2;
-  else if (hydrographics === 10) habitabilityScore += 1;
-
-  if (avgTempC >= -10 && avgTempC <= 38) habitabilityScore += 2;
-  else if (avgTempC >= -30 && avgTempC <= 60) habitabilityScore += 1;
-
-  if (size >= 4) habitabilityScore += 1;
-  if (habitabilityScore < 3) return false;
-
-  const threshold = habitabilityScore >= 6 ? 8 : habitabilityScore >= 4 ? 10 : 12;
-  return d6() >= threshold;
+  return normalizeWorldStarClass(value);
 }
 
 function applyRouteWorldContext() {
@@ -572,14 +534,32 @@ function resolveBoundSystemRecord() {
   );
 }
 
-function generateRandomWorldName() {
-  const mode = String(preferencesStore.worldNameMode || "list")
-    .trim()
-    .toLowerCase();
-  if (mode === "phonotactic" || mode === "normalized") {
-    return generatePhonotacticName({ style: mode, syllablesMin: 2, syllablesMax: 4 });
+function getSelectedPlanetRecord() {
+  const worldIndex = getSelectedWorldIndex();
+  const persistedSystem = resolveBoundSystemRecord();
+  if (worldIndex === null || !persistedSystem || !Array.isArray(persistedSystem.planets)) {
+    return null;
   }
-  return WORLD_NAMES[Math.floor(Math.random() * WORLD_NAMES.length)];
+
+  return persistedSystem.planets[worldIndex] ?? null;
+}
+
+function hydrateStoredWorldProfile() {
+  const storedProfile = extractStoredWorldProfile(getSelectedPlanetRecord());
+  if (!storedProfile) {
+    world.value = null;
+    return false;
+  }
+
+  world.value = storedProfile;
+  if (String(storedProfile.name || "").trim()) {
+    worldName.value = String(storedProfile.name).trim();
+  }
+  return true;
+}
+
+function generateRandomWorldName() {
+  return generateAutomaticWorldName({ mode: preferencesStore.worldNameMode });
 }
 
 function applyGeneratedWorldName() {
@@ -606,22 +586,63 @@ async function syncWorldNameToPlanetaryCatalog(nextName = worldName.value) {
     return true;
   }
 
-  const nextPlanets = persistedSystem.planets.map((planet, index) =>
-    index === worldIndex
-      ? {
-          ...planet,
-          name: normalizedName,
-        }
-      : planet,
-  );
+  const nextPlanets = persistedSystem.planets.map((planet, index) => {
+    if (index !== worldIndex) {
+      return planet;
+    }
 
-  await systemStore.updateSystem(persistedSystem.systemId, {
+    const renamedPlanet = {
+      ...planet,
+      name: normalizedName,
+    };
+
+    if (!world.value) {
+      return renamedPlanet;
+    }
+
+    return applyWorldProfileToPlanet(renamedPlanet, {
+      ...world.value,
+      name: normalizedName,
+    });
+  });
+
+  const updatedSystem = await systemStore.updateSystem(persistedSystem.systemId, {
     planets: nextPlanets,
     metadata: {
       ...(persistedSystem.metadata && typeof persistedSystem.metadata === "object" ? persistedSystem.metadata : {}),
       lastModified: new Date().toISOString(),
     },
   });
+
+  if (updatedSystem?.systemId) {
+    systemStore.setCurrentSystem(updatedSystem.systemId);
+  }
+  return true;
+}
+
+async function persistWorldProfileToPlanetaryCatalog(nextWorld = world.value) {
+  const worldIndex = getSelectedWorldIndex();
+  const persistedSystem = resolveBoundSystemRecord();
+  if (worldIndex === null || !nextWorld || !persistedSystem || !Array.isArray(persistedSystem.planets)) {
+    return false;
+  }
+
+  const nextPlanets = persistedSystem.planets.map((planet, index) =>
+    index === worldIndex ? applyWorldProfileToPlanet(planet, nextWorld) : planet,
+  );
+
+  const updatedSystem = await systemStore.updateSystem(persistedSystem.systemId, {
+    planets: nextPlanets,
+    metadata: {
+      ...(persistedSystem.metadata && typeof persistedSystem.metadata === "object" ? persistedSystem.metadata : {}),
+      generatedWorldProfilesAt: new Date().toISOString(),
+      lastModified: new Date().toISOString(),
+    },
+  });
+
+  if (updatedSystem?.systemId) {
+    systemStore.setCurrentSystem(updatedSystem.systemId);
+  }
   return true;
 }
 
@@ -710,113 +731,13 @@ async function randomizeName() {
 }
 
 function buildGeneratedWorld() {
-  const star =
-    starClass.value === "random"
-      ? ["O", "B", "A", "F", "G", "G", "G", "K", "K", "M", "M", "M"][Math.floor(Math.random() * 12)]
-      : starClass.value;
-
-  const tempMod = STAR_TEMP_MOD[star] ?? 0;
-
-  const size = clamp(d6() - 2, 0, 10);
-  const atmoRaw = clamp(d6() - 7 + size, 0, 15);
-  const atmosphereCode = atmoRaw;
-  const atmosphereDesc = ATMOSPHERE_TABLE[atmoRaw] ?? "Unusual";
-  const hydrographics = atmoRaw === 0 || atmoRaw === 1 ? 0 : clamp(d6() - 7 + atmoRaw, 0, 10);
-
-  const baseTemp = 15 + tempMod * 15 + (atmoRaw >= 6 ? 20 : 0) - hydrographics * 2;
-  const avgTempC = Math.round(baseTemp);
-  const tempCategory =
-    avgTempC < -50
-      ? "Frozen"
-      : avgTempC < 0
-        ? "Cold"
-        : avgTempC < 30
-          ? "Temperate"
-          : avgTempC < 60
-            ? "Hot"
-            : "Scorching";
-
-  const nativeSophontLife = rollNativeSophontLife({
-    size,
-    atmosphereCode,
-    hydrographics,
-    avgTempC,
-  });
-
-  const popCode = 0;
-  const population = 0;
-  const governmentCode = 0;
-  const governmentDesc = GOVERNMENT_TABLE[governmentCode] ?? "Unknown";
-  const lawLevel = 0;
-  const lawDesc = LAW_TABLE[lawLevel] ?? "Unknown";
-  const starportCode = "X";
-
-  let techBase = d6(1);
-  techBase = techBase - techBase;
-  const techLevel = 0;
-
-  // Trade codes
-  const tradeCodes = [];
-  if (atmoRaw >= 4 && atmoRaw <= 9 && hydrographics >= 4 && hydrographics <= 8 && popCode >= 5 && popCode <= 7)
-    tradeCodes.push("Ag");
-  if (size === 0 && atmoRaw === 0 && hydrographics === 0) tradeCodes.push("As");
-  if (popCode === 0 && governmentCode === 0 && lawLevel === 0) tradeCodes.push("Ba");
-  if (atmoRaw >= 2 && hydrographics === 0) tradeCodes.push("De");
-  if (atmoRaw >= 10 && hydrographics >= 1) tradeCodes.push("Fl");
-  if (size >= 6 && (atmoRaw === 5 || atmoRaw === 6 || atmoRaw === 8) && hydrographics >= 5) tradeCodes.push("Ga");
-  if (popCode >= 9) tradeCodes.push("Hi");
-  if (techLevel >= 12) tradeCodes.push("Ht");
-  if (hydrographics >= 1 && hydrographics <= 5 && atmoRaw <= 3) tradeCodes.push("Ic");
-  if ((atmoRaw <= 2 || atmoRaw === 4 || atmoRaw === 7 || atmoRaw === 9) && popCode >= 9) tradeCodes.push("In");
-  if (popCode >= 1 && popCode <= 3) tradeCodes.push("Lo");
-  if (techLevel <= 5) tradeCodes.push("Lt");
-  if (atmoRaw <= 3 && hydrographics <= 3 && popCode >= 6) tradeCodes.push("Na");
-  if (popCode >= 4 && popCode <= 6) tradeCodes.push("Ni");
-  if (atmoRaw >= 2 && atmoRaw <= 5 && hydrographics <= 3) tradeCodes.push("Po");
-  if ((atmoRaw === 6 || atmoRaw === 8) && popCode >= 6 && governmentCode >= 4 && governmentCode <= 9)
-    tradeCodes.push("Ri");
-  if (hydrographics >= 10) tradeCodes.push("Wa");
-  if (atmoRaw === 0) tradeCodes.push("Va");
-
-  const diameterKm = size === 0 ? 800 : size * 1600;
-  const gravity = +(size * 0.1 + 0.05).toFixed(2);
-
-  const uwp = `${starportCode}${toHex(size)}${toHex(atmosphereCode)}${toHex(hydrographics)}${toHex(popCode)}${toHex(governmentCode)}${toHex(lawLevel)}-${toHex(techLevel)}`;
   const resolvedWorldName = String(worldName.value || "").trim() || generateRandomWorldName();
 
-  world.value = {
-    name: resolvedWorldName,
-    uwp,
-    // Physical
-    size,
-    diameterKm,
-    gravity,
-    atmosphereCode,
-    atmosphereDesc,
-    hydrographics,
-    avgTempC,
-    tempCategory,
-    // System
-    orbitalPeriodDays: Math.round(200 + Math.random() * 1200),
-    dayLengthHours: +(15 + Math.random() * 50).toFixed(1),
-    axialTilt: Math.round(Math.random() * 40),
-    moons: Math.floor(Math.random() * 4),
-    magnetosphere: Math.random() < 0.5 ? "Present" : "Absent",
-    // Census
-    nativeSophontLife,
-    populationCode: popCode,
-    population,
-    governmentCode,
-    governmentDesc,
-    lawLevel,
-    lawDesc,
-    techLevel,
-    techDesc: TECH_TABLE[techLevel] ?? "Unknown",
-    starport: starportCode,
-    starportDesc: STARPORT_TABLE[starportCode] ?? "Unknown",
-    // Trade
-    tradeCodes,
-  };
+  world.value = generateWorldProfile({
+    worldName: resolvedWorldName,
+    starClass: starClass.value,
+    randomWorldName: generateRandomWorldName,
+  });
 }
 
 async function generateWorld() {
@@ -836,7 +757,7 @@ async function generateWorld() {
         ledger: ["World Survey", `Target world: ${worldLabel}`, "Climate and census rules engaged"],
       };
       buildGeneratedWorld();
-      await syncWorldNameToPlanetaryCatalog(world.value?.name || worldName.value);
+      await persistWorldProfileToPlanetaryCatalog(world.value);
       worldLoadingState.value = {
         ...worldLoadingState.value,
         tone: "ready",
@@ -895,12 +816,18 @@ watch(
   () => {
     stopWorldNameSpeech();
     applyRouteWorldContext();
-    if (!hasRouteWorldName() && !String(worldName.value || "").trim()) {
+    const restored = hydrateStoredWorldProfile();
+    if (!restored && !hasRouteWorldName() && !String(worldName.value || "").trim()) {
       applyGeneratedWorldName();
     }
-    if (hasRouteWorldName() || starClass.value !== "random" || world.value) {
-      void generateWorld();
+    if (restored) {
+      return;
     }
+    if (hasRouteWorldName() || starClass.value !== "random") {
+      void generateWorld();
+      return;
+    }
+    world.value = null;
   },
   { deep: true },
 );
@@ -931,8 +858,7 @@ watch(
     }
 
     const currentName = String(worldName.value || "").trim();
-    const isLegacyListName = WORLD_NAMES.includes(currentName);
-    if (!currentName || worldNameWasAutoGenerated.value || isLegacyListName) {
+    if (!currentName || worldNameWasAutoGenerated.value) {
       applyGeneratedWorldName();
     }
   },
@@ -940,10 +866,11 @@ watch(
 
 onMounted(() => {
   applyRouteWorldContext();
-  if (!hasRouteWorldName() && !String(worldName.value || "").trim()) {
+  const restored = hydrateStoredWorldProfile();
+  if (!restored && !hasRouteWorldName() && !String(worldName.value || "").trim()) {
     applyGeneratedWorldName();
   }
-  if (hasRouteWorldName() || starClass.value !== "random") {
+  if (!restored && (hasRouteWorldName() || starClass.value !== "random")) {
     void generateWorld();
   }
 });

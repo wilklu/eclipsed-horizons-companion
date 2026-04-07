@@ -51,7 +51,7 @@
           </select>
         </div>
         <div class="control-group control-action">
-          <button class="btn btn-primary" @click="buildSystem">⚡ Generate System</button>
+          <button class="btn btn-primary" @click="buildSystem">⚡ Generate System + Worlds</button>
         </div>
       </div>
 
@@ -177,8 +177,8 @@
       <div v-else class="system-placeholder">
         <h2>No Stellar Survey Yet</h2>
         <p>
-          Hex {{ hexCoord }} has not been generated in Stellar Survey yet. Click Generate System to create and save the
-          survey for this location.
+          Hex {{ hexCoord }} has not been generated in Stellar Survey yet. Click Generate System + Worlds to create and
+          save the stellar survey and world profiles for this location.
         </p>
       </div>
     </div>
@@ -197,6 +197,11 @@ import { useSectorStore } from "../../stores/sectorStore.js";
 import { useSystemStore } from "../../stores/systemStore.js";
 import { useArchiveTransfer } from "../../composables/useArchiveTransfer.js";
 import { generateObjectName } from "../../utils/nameGenerator.js";
+import {
+  applyWorldProfileToPlanet,
+  generateAutomaticWorldName,
+  generateWorldProfile,
+} from "../../utils/worldProfileGenerator.js";
 
 const props = defineProps({
   galaxyId: { type: String, default: null },
@@ -707,6 +712,7 @@ function planetZone(orbitAU, hz) {
 function buildPlanets(hz) {
   const count = 2 + Math.floor(Math.random() * 7);
   const orbits = [];
+  const usedNames = new Set();
   let au = 0.3 + Math.random() * 0.4;
   for (let i = 0; i < count; i++) {
     const type = PLANET_TYPES[Math.floor(Math.random() * PLANET_TYPES.length)];
@@ -722,7 +728,11 @@ function buildPlanets(hz) {
               .trim()
               .toLowerCase(),
           })
-        : `World-${i + 1}`;
+        : generateAutomaticWorldName({
+            mode: preferencesStore.worldNameMode,
+            usedNames,
+          });
+    usedNames.add(name);
     orbits.push({
       name,
       type,
@@ -800,7 +810,17 @@ async function buildSystem() {
   }
 
   const hz = calcHabitableZone(stars[0].luminosity);
-  const planets = buildPlanets(hz);
+  const primaryWorldStarClass = stars[0]?.designation || stars[0]?.spectralClass || primarySpectral.value;
+  const planets = buildPlanets(hz).map((planet) =>
+    applyWorldProfileToPlanet(
+      planet,
+      generateWorldProfile({
+        worldName: planet.name,
+        starClass: primaryWorldStarClass,
+        randomWorldName: () => planet.name,
+      }),
+    ),
+  );
 
   const nextSystem = {
     systemId: hexCoord.value || "0000",

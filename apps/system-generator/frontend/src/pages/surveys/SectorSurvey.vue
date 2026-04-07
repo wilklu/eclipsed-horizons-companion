@@ -526,14 +526,14 @@
           >
             <label>Subsector Survey</label>
             <div class="subsector-sidebar-copy">
-              Generate full stellar survey data for every occupied hex in the current subsector viewport.
+              Generate stellar systems and world profiles for every occupied hex in the current subsector viewport.
             </div>
             <button
               class="btn btn-primary subsector-sidebar-btn"
               :disabled="isLoading"
               @click="generateSubsectorStellarSurvey"
             >
-              {{ isLoading ? "Generating..." : "⭐ Generate Stellar Survey" }}
+              {{ isLoading ? "Generating..." : "⭐ Generate Stellar + Worlds" }}
             </button>
           </section>
 
@@ -641,6 +641,7 @@ import * as sectorApi from "../../api/sectorApi.js";
 import { calculateHexOccupancyProbability, pickCentralAnomalyType } from "../../utils/sectorGeneration.js";
 import { generatePhonotacticName } from "../../utils/nameGenerator.js";
 import { generateGalaxySectorLayout } from "../../utils/sectorLayoutGenerator.js";
+import { buildPersistedSurveySystemFromHex } from "../../utils/stellarSurveySystemGenerator.js";
 import { usePreferencesStore } from "../../stores/preferencesStore.js";
 import { useArchiveTransfer } from "../../composables/useArchiveTransfer.js";
 import { getRequestedSurveyViewport, useSectorSurveyViewMode } from "../../composables/useSectorSurveyViewMode.js";
@@ -1146,7 +1147,7 @@ const generationModeOptions = computed(() => [
   { id: "name", label: "Name Only" },
   { id: "name-presence", label: "Name + Presence" },
   { id: "presence", label: "Presence Only" },
-  { id: "name-systems", label: "Name + Systems" },
+  { id: "name-systems", label: "Name + Systems + Worlds" },
 ]);
 const generationAction = computed(() => {
   const scopeLabel = scope.value === "subsector" ? "Subsector" : "Sector";
@@ -1176,15 +1177,15 @@ const generationAction = computed(() => {
   if (sectorPresenceCount.value > 0 && sectorTypedHexCount.value < sectorPresenceCount.value) {
     return {
       id: "name-systems",
-      label: "⭐ Name + Systems",
+      label: "⭐ Name + Systems + Worlds",
       description:
-        "Preserve the current sector name and convert existing occupied hexes into fully typed stellar systems.",
+        "Preserve the current sector name and convert existing occupied hexes into persisted stellar systems with generated world profiles.",
     };
   }
   return {
     id: "name-systems",
-    label: `⭐ Name + Systems`,
-    description: `Generate a full ${scopeLabel.toLowerCase()} survey in one step, including occupied hexes and stellar system data.`,
+    label: `⭐ Name + Systems + Worlds`,
+    description: `Generate a full ${scopeLabel.toLowerCase()} survey in one step, including occupied hexes, stellar systems, and world profiles.`,
   };
 });
 
@@ -1844,6 +1845,53 @@ function buildSharedSectorMetadata({ hexes, systemCount, isGalacticCenterSector,
   return nextMetadata;
 }
 
+function systemCoordFromRecord(system) {
+  const x = Number(system?.hexCoordinates?.x ?? 0);
+  const y = Number(system?.hexCoordinates?.y ?? 0);
+  if (!Number.isFinite(x) || !Number.isFinite(y) || x <= 0 || y <= 0) {
+    return "";
+  }
+  return hexCoord(Math.trunc(x), Math.trunc(y));
+}
+
+async function replaceGeneratedSystemsForScope(sectorId, scopeHexes) {
+  if (!props.galaxyId || !sectorId) {
+    return { systemCount: 0, worldCount: 0 };
+  }
+
+  await systemStore.loadSystems(props.galaxyId, sectorId);
+
+  const scopeCoords = new Set(
+    (Array.isArray(scopeHexes) ? scopeHexes : []).map((hex) => String(hex?.coord || "").trim()).filter(Boolean),
+  );
+
+  const retainedSystems = systemStore.systems.filter((system) => !scopeCoords.has(systemCoordFromRecord(system)));
+  const generatedSystems = (Array.isArray(scopeHexes) ? scopeHexes : [])
+    .filter((hex) => hex?.hasSystem && !hex?.presenceOnly && hex?.starType)
+    .map((hex) =>
+      buildPersistedSurveySystemFromHex({
+        galaxyId: props.galaxyId,
+        sectorId,
+        hex,
+        namingOptions: {
+          worldNameMode: preferencesStore.worldNameMode,
+          asteroidBeltNameMode: preferencesStore.asteroidBeltNameMode,
+          galaxyMythicTheme: preferencesStore.galaxyMythicTheme,
+        },
+      }),
+    );
+
+  await systemStore.replaceSectorSystems(sectorId, retainedSystems.concat(generatedSystems));
+
+  return {
+    systemCount: generatedSystems.length,
+    worldCount: generatedSystems.reduce(
+      (total, system) => total + (Array.isArray(system?.planets) ? system.planets.length : 0),
+      0,
+    ),
+  };
+}
+
 function buildSectorPreviewState({ sectorId, name, cols, rows, hexes }) {
   return {
     sectorId,
@@ -2119,6 +2167,8 @@ async function generateSystemsFromPresence() {
       metadata: nextMetadata,
     });
 
+    const persistedSurveyTotals = await replaceGeneratedSystemsForScope(currentSector.sectorId, hexes);
+
     generatedSector.value = buildSectorPreviewState({
       sectorId: currentSector.sectorId,
       name: String(nextMetadata.displayName || currentSector.sectorId),
@@ -2128,7 +2178,7 @@ async function generateSystemsFromPresence() {
     });
     selectedHex.value = null;
     toastService.success(
-      `Systems generated — ${occupiedHexes.length.toLocaleString()} occupied hex${occupiedHexes.length !== 1 ? "es" : ""} converted into full stellar systems.`,
+      `Systems generated — ${persistedSurveyTotals.systemCount.toLocaleString()} stellar system${persistedSurveyTotals.systemCount !== 1 ? "s" : ""} and ${persistedSurveyTotals.worldCount.toLocaleString()} world profile${persistedSurveyTotals.worldCount !== 1 ? "s" : ""} created.`,
     );
   } catch (err) {
     toastService.error(`Failed to generate systems: ${err.message}`);
@@ -2645,6 +2695,7 @@ async function generateSector() {
     const sharedMetadata = {
       lastModified: new Date().toISOString(),
       systemCount,
+      explorationStatus: systemCount <= 0 ? "unexplored" : "surveyed",
       displayName: generatedName,
       scope: scope.value,
       gridCols: cols,
@@ -2654,6 +2705,8 @@ async function generateSector() {
       isGalacticCenterSector,
       occupancyRealism: occupancyRealism.value,
       occupiedHexes: hexes.filter((h) => h.hasSystem).map((h) => h.coord),
+      hexPresenceGenerated: true,
+      hexPresenceGeneratedAt: new Date().toISOString(),
       hexStarTypes: Object.fromEntries(
         hexes
           .filter((h) => h.hasSystem)
@@ -2711,7 +2764,10 @@ async function generateSector() {
       const persistedSector = await sectorStore.createSector(sectorPayload);
       finalSectorId = persistedSector.sectorId;
       selectedSectorId.value = finalSectorId;
+      sectorStore.setCurrentSector(finalSectorId);
     }
+
+    const persistedSurveyTotals = await replaceGeneratedSystemsForScope(finalSectorId, hexes);
 
     generatedSector.value = {
       sectorId: finalSectorId,
@@ -2730,10 +2786,12 @@ async function generateSector() {
 
     if (existingSectorId) {
       toastService.success(
-        `Sector regenerated — ${systemCount.toLocaleString()} stellar object${systemCount !== 1 ? "s" : ""} rolled.`,
+        `Sector regenerated — ${persistedSurveyTotals.systemCount.toLocaleString()} stellar system${persistedSurveyTotals.systemCount !== 1 ? "s" : ""} and ${persistedSurveyTotals.worldCount.toLocaleString()} world profile${persistedSurveyTotals.worldCount !== 1 ? "s" : ""} created.`,
       );
     } else {
-      toastService.success(`Sector "${generatedName}" generated and saved.`);
+      toastService.success(
+        `Sector "${generatedName}" generated with ${persistedSurveyTotals.systemCount.toLocaleString()} stellar system${persistedSurveyTotals.systemCount !== 1 ? "s" : ""} and ${persistedSurveyTotals.worldCount.toLocaleString()} world profile${persistedSurveyTotals.worldCount !== 1 ? "s" : ""}.`,
+      );
     }
   } catch (err) {
     toastService.error(`Failed to generate/save sector: ${err.message}`);
