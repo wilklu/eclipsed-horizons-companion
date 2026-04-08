@@ -572,6 +572,12 @@
               <span class="dl">Mainworld</span><span class="dv">{{ inspectorData.mainworldName || "—" }}</span>
             </div>
             <div class="dr">
+              <span class="dl">Mainworld Type</span><span class="dv">{{ inspectorData.mainworldType || "—" }}</span>
+            </div>
+            <div class="dr">
+              <span class="dl">Parent World</span><span class="dv">{{ inspectorData.mainworldParent || "—" }}</span>
+            </div>
+            <div class="dr">
               <span class="dl">Habitability</span><span class="dv">{{ inspectorData.habitability }}</span>
             </div>
             <div class="dr">
@@ -1878,6 +1884,7 @@ function summarizeSystemRecord(system) {
     travelZone: travelZone || "—",
     mainworldName: firstNonEmptyString(mainworld?.name, metadata?.mainworld?.name) || "—",
     mainworldType: firstNonEmptyString(mainworld?.type, mainworld?.parentWorldName ? "Moon" : "") || "—",
+    mainworldParent: firstNonEmptyString(mainworld?.parentWorldName, system?.mainworldParentWorldName) || "—",
     habitability: habitability || "—",
     resourceRating: resourceRating || "—",
     tradeCodes,
@@ -1931,6 +1938,9 @@ const inspectorData = computed(() => {
       gasGiants: systemSummary.gasGiants,
       importance: systemSummary.importance,
       travelZone: systemSummary.travelZone,
+      mainworldName: systemSummary.mainworldName,
+      mainworldType: systemSummary.mainworldType,
+      mainworldParent: systemSummary.mainworldParent,
       tradeCodes: systemSummary.tradeCodes,
       surveyStatus: systemSummary.surveyStatus,
       hasSavedSystem: systemSummary.hasSavedSystem,

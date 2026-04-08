@@ -84,4 +84,18 @@ describe("starGenerationWbh", () => {
     expect(companion?.continuationOf).toBe(companion?.parentStarKey);
     expect(companion?.hierarchyLevel).toBe(2);
   });
+
+  it("can build deeper nested companion chains when more companion slots are available", () => {
+    const rollDie = (sides) => sides;
+    const stars = generateMultipleStarSystemWbh({ spectralType: "G", rollDie, maxStars: 6 });
+    const nestedCompanions = stars.filter((star) => star.orbitType === "Companion");
+    const deepestCompanion = nestedCompanions.reduce(
+      (deepest, star) => (Number(star?.hierarchyLevel || 0) > Number(deepest?.hierarchyLevel || 0) ? star : deepest),
+      null,
+    );
+
+    expect(nestedCompanions.length).toBeGreaterThan(1);
+    expect(deepestCompanion?.hierarchyLevel).toBeGreaterThanOrEqual(3);
+    expect(deepestCompanion?.continuationOf).toBe(deepestCompanion?.parentStarKey);
+  });
 });

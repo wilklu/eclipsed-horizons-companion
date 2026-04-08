@@ -1,20 +1,7 @@
 import { generateObjectName } from "./nameGenerator.js";
 import { resolveStarDescriptorToken } from "./starDisplay.js";
-import {
-  applyWorldProfileToPlanet,
-  applySystemWorldSocialProfiles,
-  generateAutomaticWorldName,
-  generateWorldProfile,
-} from "./worldProfileGenerator.js";
-import {
-  calculateHabitableZoneCenterAu,
-  calculateHabitableZoneCenterOrbit,
-  determineWbhSystemBodyPlan,
-  calculatePlanetaryOrbitalPeriod,
-  fractionalOrbitToAu,
-  getWbhBodyTypes,
-} from "./wbh/systemGenerationWbh.js";
-import { generateWorldPhysicalCharacteristicsWbh } from "./wbh/worldPhysicalCharacteristicsWbh.js";
+import { generateAutomaticWorldName } from "./worldProfileGenerator.js";
+import { buildProfiledWbhSystemPlanets, calculateSystemHabitableZone } from "./systemWorldGeneration.js";
 
 const SPECTRAL_TYPES = {
   O: { mass: 40, lum: 100000, temp: 40000 },
@@ -34,7 +21,6 @@ const ANOMALY_TYPES = [
   { code: "Dense Cluster", designation: "CL", mass: 250, lum: 15000, temp: 12000, orbitRole: "Cluster core" },
 ];
 
-const PLANET_TYPES = getWbhBodyTypes();
 const NON_STELLAR_TYPES = Object.freeze({
   D: { designation: "D", spectralClass: "D", massInSolarMasses: 0.6, luminosity: 0.01, temperatureK: 9000 },
   BD: { designation: "BD", spectralClass: "BD", massInSolarMasses: 0.05, luminosity: 0.0005, temperatureK: 1800 },
@@ -73,28 +59,6 @@ const NON_STELLAR_TYPES = Object.freeze({
     isAnomaly: true,
   },
 });
-
-function pickPlanetComposition(type, zone) {
-  if (type === "Gas Giant") {
-    return zone === "cold" || zone === "warm"
-      ? "Hydrogen-helium envelope with volatile ices"
-      : "Hydrogen-helium envelope";
-  }
-
-  if (type === "Planetoid Belt") {
-    return zone === "hot" ? "Rocky-metallic debris" : "Rocky-icy debris";
-  }
-
-  const terrestrialOptionsByZone = {
-    hot: ["Rocky silicates", "Metal-rich rocky body"],
-    habitable: ["Rocky silicates", "Rocky with surface volatiles"],
-    warm: ["Rocky with volatile deposits", "Rocky-icy crust"],
-    cold: ["Icy-rocky body", "Rocky core with ice mantle"],
-  };
-
-  const options = terrestrialOptionsByZone[zone] || terrestrialOptionsByZone.habitable;
-  return options[Math.floor(Math.random() * options.length)];
-}
 
 function resolveAnomalyEntry(value) {
   const normalized = String(value || "")
@@ -149,39 +113,17 @@ function resolveStarRecord(starType, orbitType = null) {
   };
 }
 
-function calcHabitableZone(stars) {
-  const luminosity = (Array.isArray(stars) ? stars : []).reduce((sum, star) => sum + Number(star?.luminosity || 0), 0);
-  const centerAU = calculateHabitableZoneCenterAu(luminosity);
-  const centerOrbit = calculateHabitableZoneCenterOrbit(luminosity);
-  const innerAU = fractionalOrbitToAu(Math.max(0, centerOrbit - 1));
-  const outerAU = fractionalOrbitToAu(centerOrbit + 1);
-  const legacyFrost = Math.sqrt(Math.max(luminosity, 0) / 0.04) * 0.5;
-  const frost = Math.max(outerAU + Math.max(outerAU - innerAU, 0.1), legacyFrost);
-
-  return {
-    centerAU: +centerAU.toFixed(2),
-    centerOrbit: +centerOrbit.toFixed(2),
-    innerAU: +innerAU.toFixed(2),
-    outerAU: +outerAU.toFixed(2),
-    frostLineAU: +frost.toFixed(2),
-  };
-}
-
-function planetZone(orbitAU, habitableZone) {
-  if (orbitAU < habitableZone.innerAU) return "hot";
-  if (orbitAU <= habitableZone.outerAU) return "habitable";
-  if (orbitAU <= habitableZone.frostLineAU) return "warm";
-  return "cold";
-}
-
-function buildPlanets(habitableZone, stars, namingOptions = {}) {
-  const plan = determineWbhSystemBodyPlan({ stars });
-  const usedNames = new Set();
-  return plan.planets.map((body) => {
-    const type = body.type;
-    const roundedOrbit = Number(body.orbitAU ?? fractionalOrbitToAu(body.orbitNumber).toFixed(2));
-    const zone = body.zone || planetZone(roundedOrbit, habitableZone);
-    const name =
+export function buildPersistedSurveySystemFromHex({ galaxyId, sectorId, hex, namingOptions = {} }) {
+  const primary = resolveStarRecord(hex?.anomalyType || hex?.starType || "G2V");
+  const companionStars = Array.isArray(hex?.secondaryStars)
+    ? hex.secondaryStars.map((starType, index) => resolveStarRecord(starType, index === 0 ? "Near" : "Far"))
+    : [];
+  const stars = [primary, ...companionStars];
+  const habitableZone = calculateSystemHabitableZone(stars);
+  const planets = buildProfiledWbhSystemPlanets({
+    stars,
+    habitableZone,
+    createPlanetName: ({ type, usedNames }) =>
       type === "Planetoid Belt"
         ? generateObjectName({
             mode: String(namingOptions.asteroidBeltNameMode || "phonotactic")
@@ -195,64 +137,8 @@ function buildPlanets(habitableZone, stars, namingOptions = {}) {
         : generateAutomaticWorldName({
             mode: namingOptions.worldNameMode,
             usedNames,
-          });
-
-    usedNames.add(name);
-    const period = calculatePlanetaryOrbitalPeriod({
-      orbitNumber: body.orbitNumber,
-      stellarMasses: body.stellarMasses,
-    });
-
-    return {
-      name,
-      type,
-      composition: pickPlanetComposition(type, zone),
-      orbitNumber: body.orbitNumber,
-      orbitAU: roundedOrbit,
-      orbitalPeriodDays: Math.round(period.days),
-      zone,
-      hzco: body.hzco,
-      orbitGroup: body.groupLabel,
-      isAnomalousOrbit: Boolean(body.isAnomalous),
-    };
+          }),
   });
-}
-
-export function buildPersistedSurveySystemFromHex({ galaxyId, sectorId, hex, namingOptions = {} }) {
-  const primary = resolveStarRecord(hex?.anomalyType || hex?.starType || "G2V");
-  const companionStars = Array.isArray(hex?.secondaryStars)
-    ? hex.secondaryStars.map((starType, index) => resolveStarRecord(starType, index === 0 ? "Near" : "Far"))
-    : [];
-  const stars = [primary, ...companionStars];
-  const habitableZone = calcHabitableZone(stars);
-  const primaryWorldStarClass = primary.designation || primary.spectralClass;
-  const profiledPlanets = buildPlanets(habitableZone, stars, namingOptions).map((planet) => {
-    const baseProfile = generateWorldProfile({
-      worldName: planet.name,
-      starClass: primaryWorldStarClass,
-      randomWorldName: () => planet.name,
-      isGasGiant: planet.type === "Gas Giant",
-      orbitNumber: planet.orbitNumber,
-      hzco: planet.hzco,
-    });
-    const enrichedProfile =
-      planet.type === "Gas Giant"
-        ? baseProfile
-        : generateWorldPhysicalCharacteristicsWbh({
-            ...baseProfile,
-            baseWorld: baseProfile,
-            worldName: planet.name,
-            starClass: primaryWorldStarClass,
-            sizeCode: planet.type === "Planetoid Belt" ? "0" : baseProfile.size,
-            orbitNumber: planet.orbitNumber,
-            hzco: habitableZone.centerOrbit,
-            systemAgeGyr: Number(primary.systemAge ?? 5),
-            stellarMasses: stars.map((star) => Number(star?.massInSolarMasses ?? 0)),
-          });
-
-    return applyWorldProfileToPlanet(planet, enrichedProfile);
-  });
-  const planets = applySystemWorldSocialProfiles(profiledPlanets);
   const mainworld = planets.find((world) => world?.isMainworld) ?? null;
   const nowIso = new Date().toISOString();
 

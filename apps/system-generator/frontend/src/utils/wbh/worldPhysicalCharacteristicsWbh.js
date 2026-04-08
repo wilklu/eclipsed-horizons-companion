@@ -122,7 +122,155 @@ const ATMOSPHERE_TABLE = Object.freeze({
   10: "Exotic",
   11: "Corrosive",
   12: "Insidious",
-  15: "Dense, High",
+  13: "Very Dense",
+  14: "Low",
+  15: "Unusual",
+  16: "Gas, Helium",
+  17: "Gas, Hydrogen",
+});
+const ATMOSPHERE_PROFILE_TABLE = Object.freeze({
+  0: {
+    composition: "None",
+    minimumPressureBar: 0,
+    maximumPressureBar: 0.0009,
+    spanBar: null,
+    survivalGear: "Vacc Suit",
+  },
+  1: {
+    composition: "Trace",
+    minimumPressureBar: 0.001,
+    maximumPressureBar: 0.09,
+    spanBar: 0.089,
+    survivalGear: "Vacc Suit",
+  },
+  2: {
+    composition: "Very Thin, Tainted",
+    minimumPressureBar: 0.1,
+    maximumPressureBar: 0.42,
+    spanBar: 0.32,
+    survivalGear: "Respirator and Filter",
+  },
+  3: {
+    composition: "Very Thin",
+    minimumPressureBar: 0.1,
+    maximumPressureBar: 0.42,
+    spanBar: 0.32,
+    survivalGear: "Respirator",
+  },
+  4: {
+    composition: "Thin, Tainted",
+    minimumPressureBar: 0.43,
+    maximumPressureBar: 0.7,
+    spanBar: 0.27,
+    survivalGear: "Filter",
+  },
+  5: { composition: "Thin", minimumPressureBar: 0.43, maximumPressureBar: 0.7, spanBar: 0.27, survivalGear: "None" },
+  6: {
+    composition: "Standard",
+    minimumPressureBar: 0.7,
+    maximumPressureBar: 1.49,
+    spanBar: 0.79,
+    survivalGear: "None",
+  },
+  7: {
+    composition: "Standard, Tainted",
+    minimumPressureBar: 0.7,
+    maximumPressureBar: 1.49,
+    spanBar: 0.79,
+    survivalGear: "Filter",
+  },
+  8: {
+    composition: "Dense",
+    minimumPressureBar: 1.5,
+    maximumPressureBar: 2.49,
+    spanBar: 0.99,
+    survivalGear: "None",
+  },
+  9: {
+    composition: "Dense, Tainted",
+    minimumPressureBar: 1.5,
+    maximumPressureBar: 2.49,
+    spanBar: 0.99,
+    survivalGear: "Filter",
+  },
+  10: {
+    composition: "Exotic",
+    minimumPressureBar: null,
+    maximumPressureBar: null,
+    spanBar: null,
+    survivalGear: "Air Supply",
+  },
+  11: {
+    composition: "Corrosive",
+    minimumPressureBar: null,
+    maximumPressureBar: null,
+    spanBar: null,
+    survivalGear: "Vacc Suit",
+  },
+  12: {
+    composition: "Insidious",
+    minimumPressureBar: null,
+    maximumPressureBar: null,
+    spanBar: null,
+    survivalGear: "Vacc Suit",
+  },
+  13: {
+    composition: "Very Dense",
+    minimumPressureBar: 2.5,
+    maximumPressureBar: 10,
+    spanBar: 7.5,
+    survivalGear: "Varies by altitude",
+  },
+  14: {
+    composition: "Low",
+    minimumPressureBar: 0.1,
+    maximumPressureBar: 0.42,
+    spanBar: 0.32,
+    survivalGear: "Varies by altitude",
+  },
+  15: {
+    composition: "Unusual",
+    minimumPressureBar: null,
+    maximumPressureBar: null,
+    spanBar: null,
+    survivalGear: "Varies",
+  },
+  16: {
+    composition: "Gas, Helium",
+    minimumPressureBar: 100,
+    maximumPressureBar: null,
+    spanBar: null,
+    survivalGear: "HEV Suit",
+  },
+  17: {
+    composition: "Gas, Hydrogen",
+    minimumPressureBar: 1000,
+    maximumPressureBar: null,
+    spanBar: null,
+    survivalGear: "Not Survivable",
+  },
+});
+const TAINT_SUBTYPE_TABLE = Object.freeze([
+  { min: -Infinity, max: 2, code: "L", label: "Low Oxygen" },
+  { min: 3, max: 3, code: "R", label: "Radioactivity" },
+  { min: 4, max: 4, code: "B", label: "Biologic" },
+  { min: 5, max: 5, code: "G", label: "Gas Mix" },
+  { min: 6, max: 6, code: "P", label: "Particulates" },
+  { min: 7, max: 7, code: "G", label: "Gas Mix" },
+  { min: 8, max: 8, code: "S", label: "Sulphur Compounds" },
+  { min: 9, max: 9, code: "B", label: "Biologic" },
+  { min: 10, max: 10, code: "P*", label: "Particulates" },
+  { min: 11, max: 11, code: "R", label: "Radioactivity" },
+  { min: 12, max: Infinity, code: "H", label: "High Oxygen" },
+]);
+const TAINT_LABELS = Object.freeze({
+  B: "Biologic",
+  G: "Gas Mix",
+  H: "High Oxygen",
+  L: "Low Oxygen",
+  P: "Particulates",
+  R: "Radioactivity",
+  S: "Sulphur Compounds",
 });
 const STAR_TEMP_MOD = Object.freeze({
   O: 4,
@@ -139,6 +287,32 @@ const STAR_TEMP_MOD = Object.freeze({
   Y: -6,
   PROTO: 1,
 });
+const HYDROGRAPHICS_RANGE_TABLE = Object.freeze({
+  0: { min: 0, max: 5 },
+  1: { min: 6, max: 15 },
+  2: { min: 16, max: 25 },
+  3: { min: 26, max: 35 },
+  4: { min: 36, max: 45 },
+  5: { min: 46, max: 55 },
+  6: { min: 56, max: 65 },
+  7: { min: 66, max: 75 },
+  8: { min: 76, max: 85 },
+  9: { min: 86, max: 95 },
+  10: { min: 96, max: 100 },
+});
+const SURFACE_DISTRIBUTION_TABLE = Object.freeze([
+  { code: 0, label: "Extremely Dispersed", majorShare: "0%" },
+  { code: 1, label: "Very Dispersed", majorShare: "5-10%" },
+  { code: 2, label: "Dispersed", majorShare: "10-20%" },
+  { code: 3, label: "Scattered", majorShare: "20-30%" },
+  { code: 4, label: "Slightly Scattered", majorShare: "30-40%" },
+  { code: 5, label: "Mixed", majorShare: "40-60%" },
+  { code: 6, label: "Slightly Skewed", majorShare: "60-70%" },
+  { code: 7, label: "Skewed", majorShare: "70-80%" },
+  { code: 8, label: "Concentrated", majorShare: "80-90%" },
+  { code: 9, label: "Very Concentrated", majorShare: "90-95%" },
+  { code: 10, label: "Extremely Concentrated", majorShare: "95%+" },
+]);
 const GAS_GIANT_SIZE_CLASS_CODES = Object.freeze(["GS", "GM", "GL"]);
 const MOON_SUFFIXES = Object.freeze("abcdefghijklmnopqrstuvwxyz".split(""));
 
@@ -409,7 +583,26 @@ export function getWbhAtmosphereDescription(code) {
   return ATMOSPHERE_TABLE[Number(code)] ?? "Unusual";
 }
 
+export function getWbhAtmosphereProfile(code) {
+  const numericCode = Number(code);
+  const description = getWbhAtmosphereDescription(numericCode);
+  const profile = ATMOSPHERE_PROFILE_TABLE[numericCode] ?? {};
+
+  return {
+    code: numericCode,
+    description,
+    composition: profile.composition ?? description,
+    minimumPressureBar: profile.minimumPressureBar ?? null,
+    maximumPressureBar: profile.maximumPressureBar ?? null,
+    spanBar: profile.spanBar ?? null,
+    survivalGear: profile.survivalGear ?? "Varies",
+  };
+}
+
 export function determineAtmosphereCode({ sizeCode, rollTotal } = {}) {
+  if (sizeCodeToNumeric(sizeCode) <= 1) {
+    return 0;
+  }
   return clamp(Number(rollTotal) - 7 + sizeCodeToNumeric(sizeCode), 0, 15);
 }
 
@@ -420,6 +613,238 @@ export function determineHydrographics({ atmosphereCode, rollTotal } = {}) {
   return clamp(Number(rollTotal) - 7 + Number(atmosphereCode), 0, 10);
 }
 
+export function determineRunawayGreenhouse({
+  sizeCode,
+  atmosphereCode,
+  systemAgeGyr = 0,
+  temperatureAdjustedRoll = 7,
+  greenhouseCheckRoll = 7,
+  greenhouseAtmosphereRoll = 4,
+} = {}) {
+  const numericAtmosphereCode = Number(atmosphereCode);
+  const numericTemperatureRoll = Number(temperatureAdjustedRoll);
+  if (!(numericAtmosphereCode >= 2 && numericAtmosphereCode <= 15)) {
+    return {
+      occurred: false,
+      hydrographicsDm: numericTemperatureRoll >= 12 ? -6 : numericTemperatureRoll >= 10 ? -2 : 0,
+      temperatureAdjustedRoll: numericTemperatureRoll,
+      convertedAtmosphereCode: numericAtmosphereCode,
+    };
+  }
+
+  const isHotOrBoiling = numericTemperatureRoll >= 10;
+  const greenhouseDm = Math.max(0, Math.ceil(Number(systemAgeGyr) || 0)) + (numericTemperatureRoll >= 12 ? 4 : 0);
+  const occurred = isHotOrBoiling && Number(greenhouseCheckRoll) + greenhouseDm >= 12;
+  if (!occurred) {
+    return {
+      occurred: false,
+      hydrographicsDm: numericTemperatureRoll >= 12 ? -6 : numericTemperatureRoll >= 10 ? -2 : 0,
+      temperatureAdjustedRoll: numericTemperatureRoll,
+      convertedAtmosphereCode: numericAtmosphereCode,
+    };
+  }
+
+  const atmosphereRollDm =
+    ([2, 3, 4, 5].includes(sizeCodeToNumeric(sizeCode)) ? -2 : 0) +
+    ([2, 4, 7, 9].includes(numericAtmosphereCode) ? 1 : 0);
+  const adjustedAtmosphereRoll = Number(greenhouseAtmosphereRoll) + atmosphereRollDm;
+  let convertedAtmosphereCode = numericAtmosphereCode;
+  if (
+    numericAtmosphereCode < 10 ||
+    numericAtmosphereCode === 13 ||
+    numericAtmosphereCode === 14 ||
+    numericAtmosphereCode === 15
+  ) {
+    if (adjustedAtmosphereRoll <= 1) convertedAtmosphereCode = 10;
+    else if (adjustedAtmosphereRoll <= 4) convertedAtmosphereCode = 11;
+    else convertedAtmosphereCode = 12;
+  }
+
+  return {
+    occurred: true,
+    hydrographicsDm: -6,
+    temperatureAdjustedRoll: Math.max(12, numericTemperatureRoll),
+    convertedAtmosphereCode,
+  };
+}
+
+function ignoresHydroTemperatureDm(atmosphereCode) {
+  return Number(atmosphereCode) === 13;
+}
+
+export function determineHydrographicsDetailed({
+  sizeCode,
+  atmosphereCode,
+  rollTotal,
+  temperatureAdjustedRoll = 7,
+  runawayGreenhouse = null,
+} = {}) {
+  const numericSize = sizeCodeToNumeric(sizeCode);
+  const numericAtmosphereCode = Number(atmosphereCode);
+  if (numericSize <= 1) {
+    return 0;
+  }
+
+  let modifier = 0;
+  if ([0, 1].includes(numericAtmosphereCode) || numericAtmosphereCode >= 10) {
+    modifier -= 4;
+  }
+
+  if (!ignoresHydroTemperatureDm(numericAtmosphereCode)) {
+    if (runawayGreenhouse?.occurred) {
+      modifier += Number(runawayGreenhouse.hydrographicsDm || 0);
+    } else if (Number(temperatureAdjustedRoll) >= 12) {
+      modifier -= 6;
+    } else if (Number(temperatureAdjustedRoll) >= 10) {
+      modifier -= 2;
+    }
+  }
+
+  return clamp(Number(rollTotal) - 7 + numericAtmosphereCode + modifier, 0, 10);
+}
+
+export function determineHydrographicsPercent({ hydrographics, sizeCode, coverageRoll = 5 } = {}) {
+  const numericHydrographics = clamp(Number(hydrographics) || 0, 0, 10);
+  const range = HYDROGRAPHICS_RANGE_TABLE[numericHydrographics] ?? HYDROGRAPHICS_RANGE_TABLE[0];
+
+  if (numericHydrographics === 0) {
+    return clamp(-4 + Number(coverageRoll), 0, 5);
+  }
+  if (numericHydrographics === 10) {
+    if (sizeCodeToNumeric(sizeCode) > 9) {
+      return 100;
+    }
+    return clamp(96 + Number(coverageRoll), 96, 100);
+  }
+
+  return clamp(range.min + Number(coverageRoll), range.min, range.max);
+}
+
+export function determineSurfaceDistribution({
+  hydrographics,
+  hydrographicsPercent,
+  distributionRoll = 5,
+  worldRoll = 4,
+} = {}) {
+  const numericHydrographics = clamp(Number(hydrographics) || 0, 0, 10);
+  const numericPercent = clamp(Number(hydrographicsPercent) || 0, 0, 100);
+  let dominantSurface = "land";
+  if (numericHydrographics >= 6) dominantSurface = "ocean";
+  else if (numericHydrographics === 5 || numericPercent === 50)
+    dominantSurface = Number(worldRoll) <= 3 ? "ocean" : "land";
+
+  const entry =
+    SURFACE_DISTRIBUTION_TABLE[clamp(Number(distributionRoll) || 5, 0, 10)] ?? SURFACE_DISTRIBUTION_TABLE[5];
+  const bodyType = dominantSurface === "ocean" ? "continents" : "oceans";
+  return {
+    dominantSurface,
+    distribution: entry.label,
+    majorBodyCoverage: entry.majorShare,
+    bodyType,
+    summary:
+      dominantSurface === "ocean"
+        ? `${entry.label} continents in a world ocean`
+        : `${entry.label} oceans across a dominant landmass`,
+  };
+}
+
+function normalizeRunawayGreenhouseProfile({
+  runawayGreenhouse,
+  temperatureAdjustedRoll,
+  greenhouseAtmosphereCode,
+  fallbackProfile,
+  atmosphereCode,
+} = {}) {
+  if (runawayGreenhouse && typeof runawayGreenhouse === "object") {
+    return {
+      ...fallbackProfile,
+      ...runawayGreenhouse,
+    };
+  }
+
+  if (typeof runawayGreenhouse === "boolean") {
+    return {
+      ...fallbackProfile,
+      occurred: runawayGreenhouse,
+      temperatureAdjustedRoll:
+        temperatureAdjustedRoll ?? runawayGreenhouse.temperatureAdjustedRoll ?? fallbackProfile.temperatureAdjustedRoll,
+      convertedAtmosphereCode: runawayGreenhouse
+        ? (greenhouseAtmosphereCode ?? fallbackProfile.convertedAtmosphereCode ?? Number(atmosphereCode))
+        : null,
+    };
+  }
+
+  return fallbackProfile;
+}
+
+function normalizeSurfaceDistributionProfile({
+  surfaceDistribution,
+  surfaceDistributionSummary,
+  dominantSurface,
+  fallbackProfile,
+} = {}) {
+  if (surfaceDistribution && typeof surfaceDistribution === "object") {
+    return {
+      ...fallbackProfile,
+      ...surfaceDistribution,
+    };
+  }
+
+  if (typeof surfaceDistribution === "string") {
+    return {
+      ...fallbackProfile,
+      distribution: surfaceDistribution,
+      summary: surfaceDistributionSummary ?? fallbackProfile.summary,
+      dominantSurface: dominantSurface ?? fallbackProfile.dominantSurface,
+    };
+  }
+
+  return fallbackProfile;
+}
+
+export function describeHydrosphere({ hydrographics, hydrographicsPercent, avgTempC, atmosphereCode } = {}) {
+  const numericHydrographics = Number(hydrographics) || 0;
+  const numericPercent = Number(hydrographicsPercent) || 0;
+  const numericTemp = Number(avgTempC) || 0;
+  const numericAtmosphereCode = Number(atmosphereCode) || 0;
+
+  if (numericHydrographics <= 0 || numericPercent <= 0) {
+    return {
+      liquid: "None",
+      description: "Dry surface with negligible stable liquids",
+    };
+  }
+
+  if (numericTemp >= 1000) {
+    return {
+      liquid: "Magma",
+      description: `${numericPercent}% surface fluid coverage, likely magma or molten rock`,
+    };
+  }
+  if (numericTemp >= 60) {
+    return {
+      liquid: numericAtmosphereCode >= 10 ? "Exotic Superheated Liquids" : "Superheated Water",
+      description: `${numericPercent}% fluid coverage with extreme evaporation pressure`,
+    };
+  }
+  if (numericTemp >= 30) {
+    return {
+      liquid: numericAtmosphereCode >= 10 ? "Exotic Warm Liquids" : "Warm Surface Water",
+      description: `${numericPercent}% fluid coverage with reduced stable open water`,
+    };
+  }
+  if (numericTemp >= 0) {
+    return {
+      liquid: numericAtmosphereCode >= 10 ? "Exotic Temperate Liquids" : "Liquid Water",
+      description: `${numericPercent}% surface coverage by stable liquids`,
+    };
+  }
+  return {
+    liquid: numericAtmosphereCode >= 10 ? "Cryogenic Fluids" : "Ice-Covered Water",
+    description: `${numericPercent}% hydrosphere with extensive permanent ice`,
+  };
+}
+
 export function categorizeWorldTemperature(avgTempC) {
   if (avgTempC < -50) return "Frozen";
   if (avgTempC < 0) return "Cold";
@@ -428,10 +853,240 @@ export function categorizeWorldTemperature(avgTempC) {
   return "Scorching";
 }
 
-export function calculateAverageSurfaceTemperature({ starClass, atmosphereCode, hydrographics } = {}) {
-  const tempMod = resolveStarTemperatureModifier(starClass);
-  const baseTemp = 15 + tempMod * 15 + (Number(atmosphereCode) >= 6 ? 20 : 0) - Number(hydrographics) * 2;
-  return Math.round(baseTemp);
+export function calculateAtmosphereTemperatureDm(atmosphereCode) {
+  const numericCode = Number(atmosphereCode);
+  if (numericCode === 2 || numericCode === 3) return -2;
+  if (numericCode === 4 || numericCode === 5 || numericCode === 14) return -1;
+  if (numericCode === 8 || numericCode === 9) return 1;
+  if (numericCode === 10 || numericCode === 13 || numericCode === 15) return 2;
+  if (numericCode === 11 || numericCode === 12) return 6;
+  return 0;
+}
+
+export function calculateOrbitTemperatureRawRoll({ orbitNumber, hzco } = {}) {
+  if (hzco === null || hzco === undefined) {
+    return 7;
+  }
+
+  const numericOrbit = Number(orbitNumber);
+  const numericHzco = Number(hzco);
+
+  if (!Number.isFinite(numericOrbit) || !Number.isFinite(numericHzco)) {
+    return 7;
+  }
+
+  let deviation = numericOrbit - numericHzco;
+  if (numericOrbit < 1 || numericHzco < 1) {
+    deviation *= 10;
+  }
+  deviation = Number(deviation.toFixed(2));
+
+  if (deviation >= 1.1) return 2;
+  if (deviation >= 1.0) return 3;
+  if (deviation >= 0.5) return 4;
+  if (deviation >= 0.2) return 5;
+  if (deviation >= 0.1) return 6;
+  if (deviation > -0.1) return 7;
+  if (deviation > -0.2) return 8;
+  if (deviation > -0.5) return 9;
+  if (deviation > -1.0) return 10;
+  if (deviation > -1.1) return 11;
+  return 12;
+}
+
+export function determineAtmosphericPressureBar({
+  atmosphereCode,
+  pressureRoll = null,
+  majorRoll = null,
+  minorRoll = null,
+} = {}) {
+  const profile = getWbhAtmosphereProfile(atmosphereCode);
+  if (!(profile.spanBar > 0) || !(profile.minimumPressureBar >= 0)) {
+    return profile.minimumPressureBar;
+  }
+
+  let normalizedRoll = null;
+  if (pressureRoll !== null && pressureRoll !== undefined && Number.isFinite(Number(pressureRoll))) {
+    normalizedRoll = clamp(Number(pressureRoll) / 100, 0, 1);
+  } else if (Number.isFinite(Number(majorRoll)) && Number.isFinite(Number(minorRoll))) {
+    normalizedRoll = clamp(((Number(majorRoll) - 1) * 5 + (Number(minorRoll) - 1)) / 30, 0, 1);
+  } else {
+    normalizedRoll = 0.5;
+  }
+
+  const pressureBar = profile.minimumPressureBar + profile.spanBar * normalizedRoll;
+  return Number(pressureBar.toFixed(3));
+}
+
+export function determineOxygenFraction({
+  atmosphereCode,
+  systemAgeGyr = 0,
+  oxygenPrimaryRoll = null,
+  oxygen2dRoll = null,
+  oxygenVariance = 0,
+  rollDie = createRandomRoller(),
+} = {}) {
+  const numericCode = Number(atmosphereCode);
+  if (![2, 3, 4, 5, 6, 7, 8, 9, 13, 14].includes(numericCode)) {
+    return null;
+  }
+
+  const primaryRoll = oxygenPrimaryRoll ?? rollSingleDie(rollDie, 6);
+  const secondaryRoll = oxygen2dRoll ?? rollDice(rollDie, 2, 6);
+  const ageDm = Number(systemAgeGyr) > 4 ? 1 : 0;
+  let oxygenFraction =
+    Number(primaryRoll + ageDm) / 20 + (Number(secondaryRoll) - 7) / 100 + Number(oxygenVariance || 0);
+
+  if (!(oxygenFraction > 0)) {
+    oxygenFraction = rollSingleDie(rollDie, 6) * 0.01 + Number(oxygenVariance || 0);
+  }
+
+  return Number(clamp(oxygenFraction, 0.01, 0.4).toFixed(3));
+}
+
+export function calculateOxygenPartialPressureBar({ atmospherePressureBar = null, oxygenFraction = null } = {}) {
+  if (!Number.isFinite(Number(atmospherePressureBar)) || !Number.isFinite(Number(oxygenFraction))) {
+    return null;
+  }
+  return Number((Number(atmospherePressureBar) * Number(oxygenFraction)).toFixed(3));
+}
+
+export function calculateAtmosphereScaleHeightKm({ gravity = 0, avgTempC = 15 } = {}) {
+  if (!(Number(gravity) > 0)) {
+    return null;
+  }
+
+  const meanTemperatureK = Number(avgTempC) + 273.15;
+  return Number(((8.5 * meanTemperatureK) / 288 / Number(gravity)).toFixed(2));
+}
+
+function resolveAtmosphereTaintDm(atmosphereCode) {
+  const numericCode = Number(atmosphereCode);
+  if (numericCode === 4) return -2;
+  if (numericCode === 9) return 2;
+  return 0;
+}
+
+function findAtmosphereTaintSubtype(adjustedRoll) {
+  return TAINT_SUBTYPE_TABLE.find((entry) => adjustedRoll >= entry.min && adjustedRoll <= entry.max) ?? null;
+}
+
+function normalizeAtmosphereTaintCode(code, avgTempC, allowOxygenSubtype = true) {
+  const normalized = String(code || "")
+    .replace(/\*/g, "")
+    .trim()
+    .toUpperCase();
+  if (!allowOxygenSubtype && (normalized === "L" || normalized === "H")) {
+    return "G";
+  }
+  if (normalized === "S" && Number(avgTempC) < 0) {
+    return "P";
+  }
+  return normalized;
+}
+
+function buildAtmosphereTaintEntry(code) {
+  return {
+    code,
+    label: TAINT_LABELS[code] ?? code,
+  };
+}
+
+export function determineAtmosphereTaints({
+  atmosphereCode,
+  oxygenPartialPressureBar = null,
+  avgTempC = 15,
+  taintRollTotal = null,
+  secondaryTaintRollTotal = null,
+  tertiaryTaintRollTotal = null,
+  rollDie = createRandomRoller(),
+} = {}) {
+  const numericCode = Number(atmosphereCode);
+  if (![2, 4, 7, 9].includes(numericCode)) {
+    return [];
+  }
+
+  const taints = [];
+  let hasAutomaticOxygenTaint = false;
+  if (Number.isFinite(Number(oxygenPartialPressureBar))) {
+    if (Number(oxygenPartialPressureBar) < 0.1) {
+      taints.push(buildAtmosphereTaintEntry("L"));
+      hasAutomaticOxygenTaint = true;
+    } else if (Number(oxygenPartialPressureBar) > 0.5) {
+      taints.push(buildAtmosphereTaintEntry("H"));
+      hasAutomaticOxygenTaint = true;
+    }
+  } else if (numericCode === 2) {
+    taints.push(buildAtmosphereTaintEntry("L"));
+    hasAutomaticOxygenTaint = true;
+  }
+
+  const dm = resolveAtmosphereTaintDm(numericCode);
+  const appendFromRoll = (rollTotal, allowOxygenSubtype = true) => {
+    const subtype = findAtmosphereTaintSubtype(Number(rollTotal) + dm);
+    if (!subtype) {
+      return false;
+    }
+
+    const resolvedCode = normalizeAtmosphereTaintCode(subtype.code, avgTempC, allowOxygenSubtype);
+    if (!taints.some((entry) => entry.code === resolvedCode)) {
+      taints.push(buildAtmosphereTaintEntry(resolvedCode));
+    }
+
+    return subtype.code === "P*";
+  };
+
+  const firstRoll = taintRollTotal ?? rollDice(rollDie, 2, 6);
+  const firstSubtype = findAtmosphereTaintSubtype(Number(firstRoll) + dm);
+
+  if (hasAutomaticOxygenTaint) {
+    if (firstSubtype?.code === "P*") {
+      if (!taints.some((entry) => entry.code === "P")) {
+        taints.push(buildAtmosphereTaintEntry("P"));
+      }
+      const secondRoll = secondaryTaintRollTotal ?? rollDice(rollDie, 2, 6);
+      const needsThirdRoll = appendFromRoll(secondRoll, false);
+      if (needsThirdRoll) {
+        appendFromRoll(tertiaryTaintRollTotal ?? rollDice(rollDie, 2, 6), false);
+      }
+    }
+    return taints.slice(0, 3);
+  }
+
+  if (firstSubtype?.code === "P*") {
+    taints.push(buildAtmosphereTaintEntry("P"));
+    const secondRoll = secondaryTaintRollTotal ?? rollDice(rollDie, 2, 6);
+    const needsThirdRoll = appendFromRoll(secondRoll, false);
+    if (needsThirdRoll) {
+      appendFromRoll(tertiaryTaintRollTotal ?? rollDice(rollDie, 2, 6), false);
+    }
+    return taints.slice(0, 3);
+  }
+
+  if (firstSubtype) {
+    taints.push(buildAtmosphereTaintEntry(normalizeAtmosphereTaintCode(firstSubtype.code, avgTempC, true)));
+  }
+
+  return taints.slice(0, 3);
+}
+
+export function calculateAverageSurfaceTemperature({
+  orbitNumber,
+  hzco,
+  atmosphereCode,
+  rawTemperatureRoll = null,
+} = {}) {
+  const resolvedRawRoll =
+    rawTemperatureRoll !== null && rawTemperatureRoll !== undefined && Number.isFinite(Number(rawTemperatureRoll))
+      ? Number(rawTemperatureRoll)
+      : calculateOrbitTemperatureRawRoll({ orbitNumber, hzco });
+  const adjustedRoll = clamp(resolvedRawRoll + calculateAtmosphereTemperatureDm(atmosphereCode), 2, 12);
+  let averageTemperatureK = 380;
+  if (adjustedRoll <= 2) averageTemperatureK = 200;
+  else if (adjustedRoll <= 4) averageTemperatureK = 248;
+  else if (adjustedRoll <= 9) averageTemperatureK = 288;
+  else if (adjustedRoll <= 11) averageTemperatureK = 329;
+  return Math.round(averageTemperatureK - 273.15);
 }
 
 export function determineMagnetosphere({ density = 0, gravity = 0, atmosphereCode = 0, rollTotal } = {}) {
@@ -461,6 +1116,87 @@ export function determineOrbitalPeriodDays({ orbitNumber, stellarMasses = [] } =
     return Math.round(calculatePlanetaryOrbitalPeriod({ orbitNumber, stellarMasses }).days);
   }
   return null;
+}
+
+export function calculateStarTidalEffectMeters({
+  starMassSolar = 0,
+  worldSize = 0,
+  orbitNumber = null,
+  orbitAu = null,
+} = {}) {
+  const resolvedOrbitAu =
+    orbitAu !== null && orbitAu !== undefined && Number.isFinite(Number(orbitAu))
+      ? Number(orbitAu)
+      : orbitNumber !== null && orbitNumber !== undefined && Number.isFinite(Number(orbitNumber))
+        ? fractionalOrbitToAu(orbitNumber)
+        : 0;
+  if (!(Number(starMassSolar) > 0) || !(Number(worldSize) > 0) || !(resolvedOrbitAu > 0)) {
+    return 0;
+  }
+  return Number(((Number(starMassSolar) * Number(worldSize)) / (32 * resolvedOrbitAu ** 3)).toFixed(3));
+}
+
+export function calculateMoonTidalEffectMeters({ moonMassEarth = 0, worldSize = 0, distanceMillionKm = 0 } = {}) {
+  if (!(Number(moonMassEarth) > 0) || !(Number(worldSize) > 0) || !(Number(distanceMillionKm) > 0)) {
+    return 0;
+  }
+  return Number(((Number(moonMassEarth) * Number(worldSize)) / (3.2 * Number(distanceMillionKm) ** 3)).toFixed(3));
+}
+
+export function calculatePlanetTidalEffectMeters({ planetMassEarth = 0, moonSize = 0, distanceMillionKm = 0 } = {}) {
+  if (!(Number(planetMassEarth) > 0) || !(Number(moonSize) > 0) || !(Number(distanceMillionKm) > 0)) {
+    return 0;
+  }
+  return Number(((Number(planetMassEarth) * Number(moonSize)) / (3.2 * Number(distanceMillionKm) ** 3)).toFixed(3));
+}
+
+export function determineTidalLockPressure({
+  size,
+  eccentricity = 0,
+  axialTilt = 0,
+  atmospherePressureBar = 0,
+  systemAgeGyr = 0,
+  orbitNumber = null,
+  stellarMasses = [],
+  totalMoonSize = 0,
+} = {}) {
+  const numericOrbit = Number(orbitNumber);
+  const totalStarMass = (Array.isArray(stellarMasses) ? stellarMasses : []).reduce(
+    (sum, mass) => sum + Number(mass || 0),
+    0,
+  );
+  let dm = Math.ceil(Math.max(0, Number(size) || 0) / 3);
+
+  if (Number(eccentricity) > 0.1) dm -= Math.floor(Number(eccentricity) * 10);
+  if (Number(axialTilt) > 30) dm -= 2;
+  if (Number(axialTilt) >= 60 && Number(axialTilt) <= 120) dm -= 4;
+  if (Number(axialTilt) >= 80 && Number(axialTilt) <= 100) dm -= 4;
+  if (Number(atmospherePressureBar) > 2.5) dm -= 2;
+  if (Number(systemAgeGyr) < 1) dm -= 2;
+  else if (Number(systemAgeGyr) > 10) dm += 4;
+  else if (Number(systemAgeGyr) >= 5) dm += 2;
+
+  dm -= 4;
+  if (Number.isFinite(numericOrbit) && numericOrbit > 0) {
+    if (numericOrbit < 1) dm += 4 + Math.floor((1 - numericOrbit) * 10);
+    else if (numericOrbit < 2) dm += 4;
+    else if (numericOrbit < 3) dm += 1;
+    else dm -= Math.floor(numericOrbit) * 2;
+  }
+
+  if (totalStarMass < 0.5) dm -= 2;
+  else if (totalStarMass < 1) dm -= 1;
+  else if (totalStarMass > 5) dm += 2;
+  else if (totalStarMass >= 2) dm += 1;
+
+  if ((Array.isArray(stellarMasses) ? stellarMasses : []).length > 1) {
+    dm -= (Array.isArray(stellarMasses) ? stellarMasses : []).length;
+  }
+  dm -= Number(totalMoonSize) || 0;
+
+  const risk =
+    dm >= 10 ? "automatic-lock-likely" : dm >= 6 ? "high" : dm >= 1 ? "moderate" : dm <= -10 ? "none" : "low";
+  return { dm, risk };
 }
 
 export function rollNativeSophontLife({ size, atmosphereCode, hydrographics, avgTempC }) {
@@ -714,6 +1450,29 @@ export function buildWbhSeismologyProfile({
       : Number.isFinite(Number(orbitNumber)) && Array.isArray(stellarMasses) && stellarMasses.length
         ? calculatePlanetaryOrbitalPeriod({ orbitNumber, stellarMasses }).days
         : 0;
+  const derivedTidalEffects =
+    Array.isArray(tidalEffects) && tidalEffects.length
+      ? tidalEffects.map((effect) => Number(effect || 0)).filter((effect) => effect > 0)
+      : [
+          isMoon
+            ? calculatePlanetTidalEffectMeters({
+                planetMassEarth: resolvedPrimaryMassEarth,
+                moonSize: size,
+                distanceMillionKm: resolvedDistanceMillionKm,
+              })
+            : calculateStarTidalEffectMeters({
+                starMassSolar: (Array.isArray(stellarMasses) ? stellarMasses : []).reduce(
+                  (sum, mass) => sum + Number(mass || 0),
+                  0,
+                ),
+                worldSize: size,
+                orbitNumber,
+              }),
+        ].filter((effect) => effect > 0);
+  const resolvedTotalTidalEffect =
+    totalTidalEffect !== null
+      ? Number(totalTidalEffect)
+      : derivedTidalEffects.reduce((sum, effect) => sum + Number(effect || 0), 0);
 
   const residualSeismicStress = calculateResidualSeismicStress({
     size,
@@ -722,7 +1481,10 @@ export function buildWbhSeismologyProfile({
     majorMoonCount,
     density,
   });
-  const tidalStressFactor = calculateTidalStressFactor({ tidalEffects, totalTidalEffect });
+  const tidalStressFactor = calculateTidalStressFactor({
+    tidalEffects: derivedTidalEffects,
+    totalTidalEffect: resolvedTotalTidalEffect,
+  });
   const tidalHeatingFactor = calculateTidalHeatingFactor({
     primaryMassEarth: resolvedPrimaryMassEarth,
     worldSize: size,
@@ -749,6 +1511,8 @@ export function buildWbhSeismologyProfile({
 
   return {
     residualSeismicStress,
+    tidalEffects: derivedTidalEffects,
+    totalTidalEffectMeters: Number(resolvedTotalTidalEffect.toFixed(3)),
     tidalStressFactor,
     tidalHeatingFactor,
     totalSeismicStress,
@@ -850,12 +1614,102 @@ export function buildWbhEnvironmentalProfile(params = {}) {
   const atmosphereCode =
     params.atmosphereCode ??
     determineAtmosphereCode({ sizeCode, rollTotal: params.atmosphereRoll ?? rollDice(rollDie, 2, 6) });
+  const temperatureRawRoll =
+    params.temperatureRawRoll ??
+    calculateOrbitTemperatureRawRoll({ orbitNumber: params.orbitNumber, hzco: params.hzco });
+  const initialTemperatureAdjustedRoll = clamp(
+    temperatureRawRoll + calculateAtmosphereTemperatureDm(atmosphereCode),
+    2,
+    12,
+  );
+  const fallbackRunawayGreenhouse = determineRunawayGreenhouse({
+    sizeCode,
+    atmosphereCode,
+    systemAgeGyr: params.systemAgeGyr,
+    temperatureAdjustedRoll: initialTemperatureAdjustedRoll,
+    greenhouseCheckRoll: params.greenhouseCheckRoll,
+    greenhouseAtmosphereRoll: params.greenhouseAtmosphereRoll,
+  });
+  const runawayGreenhouse = normalizeRunawayGreenhouseProfile({
+    runawayGreenhouse: params.runawayGreenhouse,
+    temperatureAdjustedRoll: params.temperatureAdjustedRoll,
+    greenhouseAtmosphereCode: params.greenhouseAtmosphereCode,
+    fallbackProfile: fallbackRunawayGreenhouse,
+    atmosphereCode,
+  });
   const hydrographics =
     params.hydrographics ??
-    determineHydrographics({ atmosphereCode, rollTotal: params.hydrographicsRoll ?? rollDice(rollDie, 2, 6) });
+    determineHydrographicsDetailed({
+      sizeCode,
+      atmosphereCode,
+      rollTotal: params.hydrographicsRoll ?? rollDice(rollDie, 2, 6),
+      temperatureAdjustedRoll: runawayGreenhouse.temperatureAdjustedRoll,
+      runawayGreenhouse,
+    });
   const avgTempC =
     params.avgTempC ??
-    calculateAverageSurfaceTemperature({ starClass: params.starClass, atmosphereCode, hydrographics });
+    calculateAverageSurfaceTemperature({
+      orbitNumber: params.orbitNumber,
+      hzco: params.hzco,
+      atmosphereCode,
+      rawTemperatureRoll: temperatureRawRoll,
+    });
+  const atmosphereProfile = getWbhAtmosphereProfile(atmosphereCode);
+  const temperatureAdjustedRoll = runawayGreenhouse.temperatureAdjustedRoll;
+  const hydrographicsPercent =
+    params.hydrographicsPercent ??
+    determineHydrographicsPercent({ hydrographics, sizeCode, coverageRoll: params.hydrographicsCoverageRoll ?? 5 });
+  const fallbackSurfaceDistribution = determineSurfaceDistribution({
+    hydrographics,
+    hydrographicsPercent,
+    distributionRoll: params.surfaceDistributionRoll ?? 5,
+    worldRoll: params.surfaceWorldRoll ?? 4,
+  });
+  const surfaceDistribution = normalizeSurfaceDistributionProfile({
+    surfaceDistribution: params.surfaceDistribution,
+    surfaceDistributionSummary: params.surfaceDistributionSummary,
+    dominantSurface: params.dominantSurface,
+    fallbackProfile: fallbackSurfaceDistribution,
+  });
+  const hydrosphere =
+    params.hydrosphere ?? describeHydrosphere({ hydrographics, hydrographicsPercent, avgTempC, atmosphereCode });
+  const atmospherePressureBar =
+    params.atmospherePressureBar ??
+    determineAtmosphericPressureBar({
+      atmosphereCode,
+      pressureRoll: params.atmospherePressureRoll,
+      majorRoll: params.atmospherePressureMajorRoll,
+      minorRoll: params.atmospherePressureMinorRoll,
+    });
+  const oxygenFraction = params.isGasGiant
+    ? null
+    : (params.oxygenFraction ??
+      determineOxygenFraction({
+        atmosphereCode,
+        systemAgeGyr: params.systemAgeGyr,
+        oxygenPrimaryRoll: params.oxygenPrimaryRoll,
+        oxygen2dRoll: params.oxygen2dRoll,
+        oxygenVariance: params.oxygenVariance,
+        rollDie,
+      }));
+  const oxygenPartialPressureBar = params.isGasGiant
+    ? null
+    : (params.oxygenPartialPressureBar ?? calculateOxygenPartialPressureBar({ atmospherePressureBar, oxygenFraction }));
+  const atmosphereScaleHeightKm = params.isGasGiant
+    ? null
+    : (params.atmosphereScaleHeightKm ?? calculateAtmosphereScaleHeightKm({ gravity: params.gravity, avgTempC }));
+  const atmosphereTaints = params.isGasGiant
+    ? []
+    : (params.atmosphereTaints ??
+      determineAtmosphereTaints({
+        atmosphereCode,
+        oxygenPartialPressureBar,
+        avgTempC,
+        taintRollTotal: params.taintRollTotal,
+        secondaryTaintRollTotal: params.secondaryTaintRollTotal,
+        tertiaryTaintRollTotal: params.tertiaryTaintRollTotal,
+        rollDie,
+      }));
   const moonsData = determineWorldMoons({
     sizeCode,
     atmosphereCode,
@@ -873,16 +1727,68 @@ export function buildWbhEnvironmentalProfile(params = {}) {
     params.orbitalPeriodDays ??
     determineOrbitalPeriodDays({ orbitNumber: params.orbitNumber, stellarMasses: params.stellarMasses }) ??
     Math.round(200 + rollSingleDie(rollDie, 12) * 100);
+  const totalMoonSize = moonsData.reduce(
+    (sum, moon) => sum + Math.max(0, sizeCodeToNumeric(moon?.sizeCode ?? moon?.size ?? 0)),
+    0,
+  );
+  const tidalLockPressure =
+    params.tidalLockPressure ??
+    determineTidalLockPressure({
+      size: sizeCodeToNumeric(sizeCode),
+      eccentricity: params.eccentricity,
+      axialTilt: params.axialTilt ?? 0,
+      atmospherePressureBar,
+      systemAgeGyr: params.systemAgeGyr,
+      orbitNumber: params.orbitNumber,
+      stellarMasses: params.stellarMasses,
+      totalMoonSize,
+    });
+  const surfaceTidalEffectMeters =
+    params.surfaceTidalEffectMeters ??
+    calculateStarTidalEffectMeters({
+      starMassSolar: (Array.isArray(params.stellarMasses) ? params.stellarMasses : []).reduce(
+        (sum, massValue) => sum + Number(massValue || 0),
+        0,
+      ),
+      worldSize: sizeCodeToNumeric(sizeCode),
+      orbitNumber: params.orbitNumber,
+    });
+  const resolvedAxialTilt = params.axialTilt ?? determineAxialTilt({ rollDie });
+  const resolvedDayLengthHours = params.dayLengthHours ?? determineDayLengthHours({ sizeCode, rollDie });
 
   return {
     atmosphereCode,
     atmosphereDesc: getWbhAtmosphereDescription(atmosphereCode),
+    atmosphereComposition: atmosphereProfile.composition,
+    atmospherePressureBar,
+    atmospherePressureRangeBar:
+      atmosphereProfile.minimumPressureBar !== null && atmosphereProfile.maximumPressureBar !== null
+        ? `${atmosphereProfile.minimumPressureBar}-${atmosphereProfile.maximumPressureBar}`
+        : "Varies",
+    atmosphereSurvivalGear: atmosphereProfile.survivalGear,
+    oxygenFraction,
+    oxygenPartialPressureBar,
+    atmosphereScaleHeightKm,
+    atmosphereTaints,
+    atmosphereTaintProfile: atmosphereTaints.map((entry) => entry.label).join(", "),
     hydrographics,
+    hydrographicsPercent,
+    hydrosphereLiquid: hydrosphere.liquid,
+    hydrosphereDescription: hydrosphere.description,
+    surfaceDistribution: surfaceDistribution.distribution,
+    surfaceDistributionSummary: surfaceDistribution.summary,
+    dominantSurface: surfaceDistribution.dominantSurface,
     avgTempC,
     tempCategory: categorizeWorldTemperature(avgTempC),
+    temperatureRawRoll,
+    temperatureAdjustedRoll,
+    runawayGreenhouse: runawayGreenhouse.occurred,
+    greenhouseAtmosphereCode: runawayGreenhouse.occurred ? runawayGreenhouse.convertedAtmosphereCode : null,
     orbitalPeriodDays,
-    dayLengthHours: params.dayLengthHours ?? determineDayLengthHours({ sizeCode, rollDie }),
-    axialTilt: params.axialTilt ?? determineAxialTilt({ rollDie }),
+    dayLengthHours: resolvedDayLengthHours,
+    axialTilt: resolvedAxialTilt,
+    surfaceTidalEffectMeters,
+    tidalLockPressure,
     moons: moonsData.length,
     moonsData,
     magnetosphere:
@@ -1162,6 +2068,8 @@ export function generateWorldPhysicalCharacteristicsWbh(params = {}) {
     sizeProfile,
     seismology,
     majorTectonicPlates: seismology.majorTectonicPlates,
+    surfaceTidalEffectMeters: environment.surfaceTidalEffectMeters,
+    tidalLockPressure: environment.tidalLockPressure,
     ...(gasGiantProfile ? { gasGiantProfile, gasGiantCode: gasGiantProfile.gasGiantCode } : {}),
     generatorModel: "wbh-world-physics",
     wbhStatus:

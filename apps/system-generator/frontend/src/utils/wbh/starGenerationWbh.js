@@ -582,9 +582,7 @@ function buildStarKey(index) {
 }
 
 function resolveCompanionParent(stars = [], rollDie = createRandomRoller()) {
-  const nonPrimaryHosts = stars.filter(
-    (star, index) => index > 0 && String(star?.orbitType || "").toLowerCase() !== "companion",
-  );
+  const nonPrimaryHosts = stars.filter((star, index) => index > 0);
   if (!nonPrimaryHosts.length) {
     return stars[0] ?? null;
   }
@@ -599,7 +597,7 @@ export function generateMultipleStarSystemWbh(params = {}) {
   const primary = generatePrimaryStarWbh(params);
   const presenceDm = getPrimaryPresenceDm(primary);
   const maxStars = clamp(Number(params.maxStars || 3), 1, 8);
-  const orbitChecks = ["Close", "Near", "Far", "Companion"];
+  const orbitChecks = ["Close", "Near", "Far", ...Array.from({ length: Math.max(1, maxStars - 3) }, () => "Companion")];
   const stars = [
     {
       ...primary,
@@ -633,13 +631,15 @@ export function generateMultipleStarSystemWbh(params = {}) {
     const hostStar = orbitType === "Companion" ? resolveCompanionParent(stars, rollDie) : primary;
     const derived = createNonPrimaryStar({ parentStar: hostStar, orbitType, relation, rollDie });
     const parentStarKey = hostStar?.starKey ?? stars[0]?.starKey ?? null;
+    const primaryStarKey = stars[0]?.starKey ?? null;
+    const isNestedCompanion = orbitType === "Companion" && parentStarKey !== primaryStarKey;
+    const parentHierarchyLevel = Number(hostStar?.hierarchyLevel || 0);
     stars.push({
       ...derived,
       starKey: buildStarKey(stars.length),
       parentStarKey,
-      hierarchyLevel:
-        orbitType === "Companion" && parentStarKey !== stars[0]?.starKey ? 2 : orbitType === "Companion" ? 1 : 1,
-      continuationOf: orbitType === "Companion" && parentStarKey !== stars[0]?.starKey ? parentStarKey : null,
+      hierarchyLevel: orbitType === "Companion" ? parentHierarchyLevel + 1 : 1,
+      continuationOf: isNestedCompanion ? parentStarKey : null,
       orbitType,
       orbitNumber: rollStellarOrbitNumber(orbitType, hostStar, rollDie),
       eccentricity: rollStellarEccentricity(rollDie),

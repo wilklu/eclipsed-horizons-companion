@@ -253,33 +253,33 @@
           />
         </div>
         <div class="form-cell grow-2">
-          <label class="cell-label">Composition</label>
+          <label class="cell-label">Stable Liquids</label>
           <input
             v-model="surveyData.hydrographics.composition"
             type="text"
             class="cell-input"
-            placeholder="Water, Ice, Magma, etc."
+            placeholder="Liquid Water, Superheated Water, None"
           />
         </div>
         <div class="form-cell grow-3">
-          <label class="cell-label">Distribution</label>
+          <label class="cell-label">Surface Pattern</label>
           <input
             v-model="surveyData.hydrographics.distribution"
             type="text"
             class="cell-input"
-            placeholder="Oceans, Seas, Polar caps, etc."
+            placeholder="Mixed, Scattered, Global ocean, etc."
           />
         </div>
       </div>
 
       <div class="form-row">
         <div class="form-cell grow-2">
-          <label class="cell-label">Major Bodies</label>
+          <label class="cell-label">Distribution Summary</label>
           <input
             v-model="surveyData.hydrographics.majorBodies"
             type="text"
             class="cell-input"
-            placeholder="Pacific, Atlantic, etc."
+            placeholder="Mixed continents in a world ocean"
           />
         </div>
         <div class="form-cell grow-2">
@@ -292,12 +292,12 @@
           />
         </div>
         <div class="form-cell grow-2">
-          <label class="cell-label">Other</label>
+          <label class="cell-label">Dominant Surface</label>
           <input
             v-model="surveyData.hydrographics.other"
             type="text"
             class="cell-input"
-            placeholder="Glaciers, Springs, etc."
+            placeholder="Dominant surface: Ocean"
           />
         </div>
       </div>
@@ -308,7 +308,7 @@
           <textarea
             v-model="surveyData.hydrographics.notes"
             class="notes-textarea"
-            placeholder="Hydrographic details..."
+            placeholder="Hydrosphere and surface notes..."
             rows="2"
           ></textarea>
         </div>
@@ -373,7 +373,7 @@
             v-model="surveyData.rotation.tides"
             type="text"
             class="cell-input"
-            placeholder="Minor, Moderate, etc."
+            placeholder="Minimal, 0.188 m, etc."
           />
         </div>
       </div>
@@ -384,7 +384,7 @@
           <textarea
             v-model="surveyData.rotation.notes"
             class="notes-textarea"
-            placeholder="Rotational characteristics..."
+            placeholder="Rotational and tidal-lock notes..."
             rows="2"
           ></textarea>
         </div>
@@ -454,7 +454,7 @@
             v-model="surveyData.temperature.greenhouse"
             type="text"
             class="cell-input"
-            placeholder="No, Weak, etc."
+            placeholder="No, Runaway, Runaway (Atm 11)"
           />
         </div>
         <div class="form-cell grow-4">
@@ -724,6 +724,11 @@
 import { computed, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import { useSystemStore } from "../../stores/systemStore.js";
+import {
+  buildSurveyDataFromWorld,
+  buildUpdatedPlanetFromSurvey,
+  createEmptySurveyData,
+} from "./worldPhysicalSurveyFormModel.js";
 
 const props = defineProps({
   systemRecord: {
@@ -767,94 +772,6 @@ function createEmptySubordinateRow() {
   };
 }
 
-function createEmptySurveyData() {
-  const today = new Date().toISOString().split("T")[0];
-  return {
-    worldName: "",
-    sah_uwp: "",
-    sectorLocation: "",
-    initialSurvey: today,
-    lastUpdated: today,
-    primaryObjects: "",
-    systemAge: null,
-    travelZone: "",
-    orbit: {
-      number: null,
-      au: null,
-      eccentricity: null,
-      period: "",
-      notes: "",
-    },
-    size: {
-      diameter: null,
-      composition: "",
-      density: null,
-      gravity: null,
-      mass: null,
-      escapeVelocity: null,
-      notes: "",
-    },
-    atmosphere: {
-      pressure: null,
-      composition: "",
-      o2Partial: null,
-      taints: "",
-      scaleHeight: null,
-      notes: "",
-    },
-    hydrographics: {
-      coverage: null,
-      composition: "",
-      distribution: "",
-      majorBodies: "",
-      minorBodies: "",
-      other: "",
-      notes: "",
-    },
-    rotation: {
-      sidereal: null,
-      solar: null,
-      solarDaysPerYear: null,
-      axialTilt: null,
-      tidalLock: "no",
-      tides: "",
-      notes: "",
-    },
-    temperature: {
-      high: null,
-      mean: null,
-      low: null,
-      luminosity: null,
-      albedo: null,
-      greenhouse: "",
-      seismicStress: "",
-      residualStress: "",
-      tidalStress: "",
-      tidalHeating: "",
-      majorTectonicPlates: null,
-      notes: "",
-    },
-    life: {
-      biomass: "",
-      biocomplexity: "",
-      sophonts: "none",
-      biodiversity: "",
-      compatibility: "",
-      notes: "",
-    },
-    resources: {
-      rating: "",
-      notes: "",
-    },
-    habitability: {
-      rating: "",
-      notes: "",
-    },
-    subordinates: Array.from({ length: 5 }, () => createEmptySubordinateRow()),
-    comments: "",
-  };
-}
-
 function normalizeHexCoordinates(value) {
   return String(value || "")
     .replace(/\D/g, "")
@@ -870,60 +787,6 @@ function parseNumericString(value) {
   return Number.isFinite(numericValue) ? numericValue : null;
 }
 
-function formatSectorLocation(systemRecord) {
-  if (!systemRecord || typeof systemRecord !== "object") {
-    return "";
-  }
-  if (String(systemRecord?.sectorHex || "").trim()) {
-    return String(systemRecord.sectorHex).trim();
-  }
-  const x = String(systemRecord?.hexCoordinates?.x ?? "").padStart(2, "0");
-  const y = String(systemRecord?.hexCoordinates?.y ?? "").padStart(2, "0");
-  return [String(systemRecord?.sectorId || "").trim(), `${x}${y}`.trim()].filter(Boolean).join(" ");
-}
-
-function normalizeResourceRatingForSurvey(value) {
-  switch (
-    String(value || "")
-      .trim()
-      .toLowerCase()
-  ) {
-    case "abundant":
-      return "abundant";
-    case "good":
-      return "good";
-    case "moderate":
-      return "moderate";
-    case "sparse":
-      return "sparse";
-    case "none":
-      return "none";
-    default:
-      return "";
-  }
-}
-
-function normalizeHabitabilityForSurvey(value) {
-  switch (
-    String(value || "")
-      .trim()
-      .toLowerCase()
-  ) {
-    case "excellent":
-      return "excellent";
-    case "good":
-      return "good";
-    case "marginal":
-      return "marginal";
-    case "poor":
-      return "poor";
-    case "hostile":
-      return "hostile";
-    default:
-      return "";
-  }
-}
-
 function titleCase(value) {
   const normalized = String(value || "")
     .trim()
@@ -931,163 +794,40 @@ function titleCase(value) {
   return normalized ? normalized.charAt(0).toUpperCase() + normalized.slice(1) : "";
 }
 
-function buildLifeSurvey(nativeLifeform, nativeSophontLife) {
-  const digits = String(nativeLifeform || "").trim();
-  return {
-    biomass: digits.charAt(0) || "",
-    biocomplexity: digits.charAt(1) || "",
-    biodiversity: digits.charAt(2) || "",
-    compatibility: digits.charAt(3) || "",
-    sophonts: nativeSophontLife ? "native" : "none",
-    notes: "",
-  };
+function extractDominantSurface(value) {
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase();
+  if (!normalized) {
+    return "";
+  }
+  const directMatch = normalized.match(/\b(ocean|land)\b/);
+  return directMatch?.[1] || "";
 }
 
-function buildSubordinates(worldRecord) {
-  const moons = Array.isArray(worldRecord?.moonsData) ? worldRecord.moonsData : [];
-  const significantMoons = moons.filter((moon) => moon?.type === "significant" && !moon?.ring);
-  const rows = significantMoons.map((moon) => ({
-    name: String(moon?.name || ""),
-    sah_uwp: String(moon?.worldProfile?.uwp || ""),
-    orbitPD: moon?.orbitalSlot ?? null,
-    orbitKm: null,
-    eccentricity: null,
-    diameter: moon?.worldProfile?.diameterKm ?? null,
-    density: moon?.worldProfile?.density ?? null,
-    mass: moon?.worldProfile?.mass ?? null,
-    periodHours: moon?.worldProfile?.dayLengthHours ?? null,
-    sizeAngle: null,
-    notes: String(moon?.description || ""),
-  }));
-
-  while (rows.length < 5) {
-    rows.push(createEmptySubordinateRow());
+function parseGreenhouseLabel(value, fallback = null) {
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase();
+  if (!normalized) {
+    return fallback;
   }
-
-  return rows;
+  if (normalized.includes("runaway")) {
+    return true;
+  }
+  if (["no", "none", "weak"].includes(normalized)) {
+    return false;
+  }
+  return fallback;
 }
 
-function buildSurveyDataFromWorld(systemRecord, worldRecord) {
-  const base = createEmptySurveyData();
-  if (!worldRecord || typeof worldRecord !== "object") {
-    return base;
+function parseGreenhouseAtmosphereCode(value, fallback = null) {
+  const match = String(value || "").match(/atm\s*(\d+)/i);
+  if (!match) {
+    return fallback;
   }
-
-  const physicalSurvey =
-    worldRecord?.physicalSurvey && typeof worldRecord.physicalSurvey === "object" ? worldRecord.physicalSurvey : null;
-  if (physicalSurvey) {
-    return {
-      ...base,
-      ...physicalSurvey,
-      orbit: { ...base.orbit, ...(physicalSurvey.orbit || {}) },
-      size: { ...base.size, ...(physicalSurvey.size || {}) },
-      atmosphere: { ...base.atmosphere, ...(physicalSurvey.atmosphere || {}) },
-      hydrographics: { ...base.hydrographics, ...(physicalSurvey.hydrographics || {}) },
-      rotation: { ...base.rotation, ...(physicalSurvey.rotation || {}) },
-      temperature: { ...base.temperature, ...(physicalSurvey.temperature || {}) },
-      life: { ...base.life, ...(physicalSurvey.life || {}) },
-      resources: { ...base.resources, ...(physicalSurvey.resources || {}) },
-      habitability: { ...base.habitability, ...(physicalSurvey.habitability || {}) },
-      subordinates:
-        Array.isArray(physicalSurvey.subordinates) && physicalSurvey.subordinates.length
-          ? physicalSurvey.subordinates.map((row) => ({ ...createEmptySubordinateRow(), ...row }))
-          : base.subordinates,
-    };
-  }
-
-  const meanTemperatureK = Number.isFinite(Number(worldRecord?.avgTempC))
-    ? Number(worldRecord.avgTempC) + 273.15
-    : null;
-  const orbitalPeriodDays = Number(worldRecord?.orbitalPeriodDays ?? 0) || null;
-  const dayLengthHours = Number(worldRecord?.dayLengthHours ?? 0) || null;
-  const solarDaysPerYear =
-    orbitalPeriodDays && dayLengthHours ? Number((orbitalPeriodDays * 24) / dayLengthHours).toFixed(2) : null;
-  const seismology =
-    worldRecord?.seismology && typeof worldRecord.seismology === "object" ? worldRecord.seismology : {};
-  const stars = Array.isArray(systemRecord?.stars) ? systemRecord.stars : [];
-
-  return {
-    ...base,
-    worldName: String(worldRecord?.name || ""),
-    sah_uwp: String(worldRecord?.uwp || worldRecord?.sah_uwp || ""),
-    sectorLocation: formatSectorLocation(systemRecord),
-    primaryObjects: stars
-      .map((star) => String(star?.designation || star?.spectralClass || "").trim())
-      .filter(Boolean)
-      .join(", "),
-    systemAge: Number(systemRecord?.stars?.[0]?.systemAge ?? systemRecord?.systemAge ?? 0) || null,
-    travelZone: String(systemRecord?.travelZone || ""),
-    orbit: {
-      number: worldRecord?.orbitNumber ?? null,
-      au: worldRecord?.orbitAU ?? worldRecord?.orbitAu ?? null,
-      eccentricity: worldRecord?.eccentricity ?? null,
-      period: orbitalPeriodDays ? `${orbitalPeriodDays} days` : "",
-      notes: String(worldRecord?.orbitGroup || worldRecord?.zone || ""),
-    },
-    size: {
-      diameter: worldRecord?.diameterKm ?? null,
-      composition: String(worldRecord?.composition || ""),
-      density: worldRecord?.density ?? null,
-      gravity: worldRecord?.gravity ?? null,
-      mass: worldRecord?.mass ?? null,
-      escapeVelocity: Number(worldRecord?.escapeVelocityMps ?? 0) ? Number(worldRecord.escapeVelocityMps) / 1000 : null,
-      notes: String(worldRecord?.sizeProfile || ""),
-    },
-    atmosphere: {
-      pressure: null,
-      composition: String(worldRecord?.atmosphereDesc || ""),
-      o2Partial: null,
-      taints: String(worldRecord?.atmosphereDesc || "").includes("Tainted") ? "Tainted" : "",
-      scaleHeight: null,
-      notes: `Code ${String(worldRecord?.atmosphereCode ?? "")}`.trim(),
-    },
-    hydrographics: {
-      coverage: Number(worldRecord?.hydrographics ?? 0) * 10,
-      composition: Number(worldRecord?.hydrographics ?? 0) > 0 ? "Water-based surface volatiles" : "Dry world",
-      distribution:
-        String(worldRecord?.hydrographics ?? 0) > 0
-          ? "Survey-derived global distribution"
-          : "Minimal free-standing liquids",
-      majorBodies: "",
-      minorBodies: "",
-      other: "",
-      notes: "",
-    },
-    rotation: {
-      sidereal: dayLengthHours,
-      solar: dayLengthHours,
-      solarDaysPerYear,
-      axialTilt: worldRecord?.axialTilt ?? null,
-      tidalLock: Number(dayLengthHours) >= Number(orbitalPeriodDays) * 24 && orbitalPeriodDays ? "yes" : "no",
-      tides: Number(seismology?.tidalStressFactor ?? 0) > 0 ? "Present" : "Minimal",
-      notes: "",
-    },
-    temperature: {
-      high: null,
-      mean: meanTemperatureK ? Number(meanTemperatureK.toFixed(1)) : null,
-      low: null,
-      luminosity: stars.reduce((sum, star) => sum + Number(star?.luminosity || 0), 0) || null,
-      albedo: null,
-      greenhouse: "",
-      seismicStress: String(seismology?.totalSeismicStress ?? ""),
-      residualStress: String(seismology?.residualSeismicStress ?? ""),
-      tidalStress: String(seismology?.tidalStressFactor ?? ""),
-      tidalHeating: String(seismology?.tidalHeatingFactor ?? ""),
-      majorTectonicPlates: worldRecord?.majorTectonicPlates ?? seismology?.majorTectonicPlates ?? null,
-      notes: worldRecord?.tempCategory ? `${worldRecord.tempCategory} climate regime` : "",
-    },
-    life: buildLifeSurvey(worldRecord?.nativeLifeform, worldRecord?.nativeSophontLife),
-    resources: {
-      rating: normalizeResourceRatingForSurvey(worldRecord?.resourceRating),
-      notes: "",
-    },
-    habitability: {
-      rating: normalizeHabitabilityForSurvey(worldRecord?.habitability),
-      notes: "",
-    },
-    subordinates: buildSubordinates(worldRecord),
-    comments: Array.isArray(worldRecord?.remarks) ? worldRecord.remarks.join(", ") : "",
-  };
+  const parsed = Number.parseInt(match[1], 10);
+  return Number.isFinite(parsed) ? parsed : fallback;
 }
 
 const resolvedSystemRecord = computed(() => {
@@ -1205,56 +945,7 @@ const saveSurvey = async () => {
       currentSystem.planets[worldIndex]
     ) {
       const currentPlanet = currentSystem.planets[worldIndex];
-      const nextPlanet = {
-        ...currentPlanet,
-        name: String(payload.worldName || currentPlanet.name || "").trim() || currentPlanet.name,
-        uwp: String(payload.sah_uwp || currentPlanet.uwp || "").trim() || currentPlanet.uwp,
-        diameterKm: payload.size.diameter ?? currentPlanet.diameterKm,
-        composition: String(payload.size.composition || currentPlanet.composition || ""),
-        density: payload.size.density ?? currentPlanet.density,
-        gravity: payload.size.gravity ?? currentPlanet.gravity,
-        mass: payload.size.mass ?? currentPlanet.mass,
-        escapeVelocityMps:
-          payload.size.escapeVelocity !== null && payload.size.escapeVelocity !== undefined
-            ? Number(payload.size.escapeVelocity) * 1000
-            : currentPlanet.escapeVelocityMps,
-        orbitalPeriodDays: parseNumericString(payload.orbit.period) ?? currentPlanet.orbitalPeriodDays,
-        dayLengthHours: payload.rotation.sidereal ?? currentPlanet.dayLengthHours,
-        axialTilt: payload.rotation.axialTilt ?? currentPlanet.axialTilt,
-        avgTempC:
-          payload.temperature.mean !== null && payload.temperature.mean !== undefined
-            ? Number(payload.temperature.mean) - 273.15
-            : currentPlanet.avgTempC,
-        majorTectonicPlates: payload.temperature.majorTectonicPlates ?? currentPlanet.majorTectonicPlates,
-        resourceRating: titleCase(payload.resources.rating) || currentPlanet.resourceRating,
-        habitability: titleCase(payload.habitability.rating) || currentPlanet.habitability,
-        nativeSophontLife:
-          payload.life.sophonts === "native" || payload.life.sophonts === "mixed"
-            ? true
-            : currentPlanet.nativeSophontLife,
-        nativeLifeform:
-          `${payload.life.biomass}${payload.life.biocomplexity}${payload.life.biodiversity}${payload.life.compatibility}`.replace(
-            /\s+/g,
-            "",
-          ) || currentPlanet.nativeLifeform,
-        seismology: {
-          ...(currentPlanet?.seismology && typeof currentPlanet.seismology === "object"
-            ? currentPlanet.seismology
-            : {}),
-          residualSeismicStress:
-            parseNumericString(payload.temperature.residualStress) ?? currentPlanet?.seismology?.residualSeismicStress,
-          tidalStressFactor:
-            parseNumericString(payload.temperature.tidalStress) ?? currentPlanet?.seismology?.tidalStressFactor,
-          tidalHeatingFactor:
-            parseNumericString(payload.temperature.tidalHeating) ?? currentPlanet?.seismology?.tidalHeatingFactor,
-          totalSeismicStress:
-            parseNumericString(payload.temperature.seismicStress) ?? currentPlanet?.seismology?.totalSeismicStress,
-          majorTectonicPlates:
-            payload.temperature.majorTectonicPlates ?? currentPlanet?.seismology?.majorTectonicPlates,
-        },
-        moonsData: updateMoonData(currentPlanet?.moonsData, payload.subordinates),
-        physicalSurvey: payload,
-      };
+      const nextPlanet = buildUpdatedPlanetFromSurvey(currentPlanet, payload);
 
       const nextPlanets = currentSystem.planets.map((planet, index) => (index === worldIndex ? nextPlanet : planet));
       const updatedSystem = await systemStore.updateSystem(currentSystem.systemId, {

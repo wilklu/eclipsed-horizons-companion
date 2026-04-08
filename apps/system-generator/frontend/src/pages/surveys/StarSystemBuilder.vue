@@ -102,12 +102,14 @@
 
         <!-- Habitable Zone -->
         <div class="hz-section">
-          <h3>🌍 Habitable Zone</h3>
+          <h3>🌍 {{ system.habitableZone.hasRadiantHabitableZone ? "Habitable Zone" : "System Layout Anchor" }}</h3>
           <div class="hz-bar-wrapper">
             <div class="hz-labels">
-              <span>Too Hot</span>
-              <span class="hz-label">Habitable Zone</span>
-              <span>Too Cold</span>
+              <span>{{ system.habitableZone.hasRadiantHabitableZone ? "Too Hot" : "Inner System" }}</span>
+              <span class="hz-label">{{
+                system.habitableZone.hasRadiantHabitableZone ? "Habitable Zone" : "Layout Anchor"
+              }}</span>
+              <span>{{ system.habitableZone.hasRadiantHabitableZone ? "Too Cold" : "Outer System" }}</span>
             </div>
             <div class="hz-bar">
               <div class="hz-region hz-hot" :style="{ width: '30%' }"></div>
@@ -120,6 +122,10 @@
               <span>{{ system.habitableZone.outerAU }} AU</span>
               <span>{{ system.habitableZone.frostLineAU }} AU</span>
             </div>
+            <p v-if="!system.habitableZone.hasRadiantHabitableZone" class="hz-note">
+              Compact remnants and other non-radiant primaries use a layout anchor for orbit placement instead of a true
+              radiative habitable zone.
+            </p>
           </div>
         </div>
 
@@ -151,8 +157,15 @@
                   @click="selectWorldCandidate(i)"
                 >
                   <td>{{ i + 1 }}</td>
-                  <td>{{ planet.name }}</td>
-                  <td>{{ planet.type }}</td>
+                  <td>
+                    <div class="planet-name-cell">
+                      <span>{{ planet.name }}</span>
+                      <span v-if="planet.isMainworld" class="catalog-chip catalog-chip--mainworld">Mainworld</span>
+                      <span v-if="planet.isMoon" class="catalog-chip catalog-chip--moon">Moon</span>
+                    </div>
+                    <div v-if="planet.parentWorldName" class="planet-parent">of {{ planet.parentWorldName }}</div>
+                  </td>
+                  <td>{{ describePlanetType(planet) }}</td>
                   <td>{{ planet.composition || "Unknown" }}</td>
                   <td>{{ planet.orbitAU }}</td>
                   <td>
@@ -167,8 +180,7 @@
         <!-- Actions -->
         <div class="action-buttons">
           <div v-if="selectedWorldCandidate" class="selected-world-chip">
-            Selected world: {{ selectedWorldCandidate.name }} · {{ selectedWorldCandidate.type }} ·
-            {{ selectedWorldCandidate.zone }}
+            Selected world: {{ summarizeSelectedWorld(selectedWorldCandidate) }}
           </div>
           <button v-if="system" class="btn btn-secondary" @click="openSystemSurvey">📡 Open System Survey</button>
           <button v-if="selectedWorldCandidate" class="btn btn-primary" @click="proceedToWorldBuilder">
@@ -201,22 +213,10 @@ import { useSystemStore } from "../../stores/systemStore.js";
 import { useArchiveTransfer } from "../../composables/useArchiveTransfer.js";
 import { generateObjectName } from "../../utils/nameGenerator.js";
 import { generatePrimaryStar } from "../../utils/primaryStarGenerator.js";
+import { buildProfiledWbhSystemPlanets, calculateSystemHabitableZone } from "../../utils/systemWorldGeneration.js";
 import { starDescriptorToCssClass } from "../../utils/starDisplay.js";
-import {
-  applyWorldProfileToPlanet,
-  applySystemWorldSocialProfiles,
-  generateAutomaticWorldName,
-  generateWorldProfile,
-} from "../../utils/worldProfileGenerator.js";
-import {
-  calculateHabitableZoneCenterAu,
-  calculateHabitableZoneCenterOrbit,
-  determineWbhSystemBodyPlan,
-  fractionalOrbitToAu,
-  getWbhBodyTypes,
-} from "../../utils/wbh/systemGenerationWbh.js";
+import { generateAutomaticWorldName } from "../../utils/worldProfileGenerator.js";
 import { generateMultipleStarSystemWbh } from "../../utils/wbh/starGenerationWbh.js";
-import { generateWorldPhysicalCharacteristicsWbh } from "../../utils/wbh/worldPhysicalCharacteristicsWbh.js";
 
 const props = defineProps({
   galaxyId: { type: String, default: null },
@@ -286,30 +286,7 @@ const ANOMALY_TYPES = [
 ];
 const PRIMARY_TYPE_OPTIONS = [...SPECTRAL_TYPES, ...ANOMALY_TYPES];
 
-const PLANET_TYPES = getWbhBodyTypes();
 const ORBIT_TYPES = ["Close", "Near", "Far", "Distant"];
-
-function pickPlanetComposition(type, zone) {
-  if (type === "Gas Giant") {
-    return zone === "cold" || zone === "warm"
-      ? "Hydrogen-helium envelope with volatile ices"
-      : "Hydrogen-helium envelope";
-  }
-
-  if (type === "Planetoid Belt") {
-    return zone === "hot" ? "Rocky-metallic debris" : "Rocky-icy debris";
-  }
-
-  const terrestrialOptionsByZone = {
-    hot: ["Rocky silicates", "Metal-rich rocky body"],
-    habitable: ["Rocky silicates", "Rocky with surface volatiles"],
-    warm: ["Rocky with volatile deposits", "Rocky-icy crust"],
-    cold: ["Icy-rocky body", "Rocky core with ice mantle"],
-  };
-
-  const options = terrestrialOptionsByZone[zone] || terrestrialOptionsByZone.habitable;
-  return options[Math.floor(Math.random() * options.length)];
-}
 
 // ── State ─────────────────────────────────────────────────────────────────────
 const hexCoord = ref(route.query.hex ?? "0101");
@@ -723,73 +700,28 @@ function buildStar(requestedType, role) {
   };
 }
 
-function calcHabitableZone(stars) {
-  const luminosity = (Array.isArray(stars) ? stars : []).reduce((sum, star) => sum + Number(star?.luminosity || 0), 0);
-  const centerAU = calculateHabitableZoneCenterAu(luminosity);
-  const centerOrbit = calculateHabitableZoneCenterOrbit(luminosity);
-  const innerAU = fractionalOrbitToAu(Math.max(0, centerOrbit - 1));
-  const outerAU = fractionalOrbitToAu(centerOrbit + 1);
-  const legacyFrost = Math.sqrt(Math.max(luminosity, 0) / 0.04) * 0.5;
-  const frost = Math.max(outerAU + Math.max(outerAU - innerAU, 0.1), legacyFrost);
-
-  return {
-    centerAU: +centerAU.toFixed(2),
-    centerOrbit: +centerOrbit.toFixed(2),
-    innerAU: +innerAU.toFixed(2),
-    outerAU: +outerAU.toFixed(2),
-    frostLineAU: +frost.toFixed(2),
-  };
-}
-
-function planetZone(orbitAU, hz) {
-  if (orbitAU < hz.innerAU) return "hot";
-  if (orbitAU <= hz.outerAU) return "habitable";
-  if (orbitAU <= hz.frostLineAU) return "warm";
-  return "cold";
-}
-
-function buildPlanets(hz, stars) {
-  const plan = determineWbhSystemBodyPlan({ stars });
-  const usedNames = new Set();
-  return plan.planets.map((body) => {
-    const type = body.type;
-    const orbitNumber = body.orbitNumber;
-    const orbitAU = Number(body.orbitAU ?? fractionalOrbitToAu(orbitNumber).toFixed(2));
-    const zone = body.zone || planetZone(orbitAU, hz);
-    const name =
-      type === "Planetoid Belt"
-        ? generateObjectName({
-            mode: String(preferencesStore.asteroidBeltNameMode || "phonotactic")
-              .trim()
-              .toLowerCase(),
-            objectType: "asteroid-belt",
-            mythicTheme: String(preferencesStore.galaxyMythicTheme || "all")
-              .trim()
-              .toLowerCase(),
-          })
-        : generateAutomaticWorldName({
-            mode: preferencesStore.worldNameMode,
-            usedNames,
-          });
-    usedNames.add(name);
-
-    return {
-      name,
-      type,
-      composition: pickPlanetComposition(type, zone),
-      orbitNumber,
-      orbitAU,
-      orbitalPeriodDays: Number(body.orbitalPeriodDays ?? 0),
-      zone,
-      hzco: body.hzco,
-      orbitGroup: body.groupLabel,
-      isAnomalousOrbit: Boolean(body.isAnomalous),
-    };
-  });
-}
-
 function isWorldBuilderCandidate(planet) {
   return Boolean(planet) && String(planet?.type || "") !== "Gas Giant" && String(planet?.sizeCode || "") !== "R";
+}
+
+function describePlanetType(planet) {
+  if (!planet) {
+    return "Unknown";
+  }
+
+  if (planet.isMoon) {
+    return planet.parentWorldName ? `Moon of ${planet.parentWorldName}` : "Significant Moon";
+  }
+
+  return String(planet.type || "Unknown");
+}
+
+function summarizeSelectedWorld(planet) {
+  if (!planet) {
+    return "";
+  }
+
+  return [planet.name, describePlanetType(planet), planet.zone].filter(Boolean).join(" · ");
 }
 
 function findDefaultWorldIndex(planets) {
@@ -851,36 +783,26 @@ async function buildSystem() {
         maxStars: multiplicity.value === "random" ? 3 : starCountLimit,
       }).slice(0, multiplicity.value === "random" ? 3 : starCountLimit);
 
-  const hz = calcHabitableZone(stars);
-  const primaryWorldStarClass = stars[0]?.designation || stars[0]?.spectralClass || primarySpectral.value;
-  const profiledPlanets = buildPlanets(hz, stars).map((planet) => {
-    const baseProfile = generateWorldProfile({
-      worldName: planet.name,
-      starClass: primaryWorldStarClass,
-      randomWorldName: () => planet.name,
-      isGasGiant: planet.type === "Gas Giant",
-      orbitNumber: planet.orbitNumber,
-      hzco: planet.hzco,
-    });
-
-    const enrichedProfile =
-      planet.type === "Gas Giant"
-        ? baseProfile
-        : generateWorldPhysicalCharacteristicsWbh({
-            ...baseProfile,
-            baseWorld: baseProfile,
-            worldName: planet.name,
-            starClass: primaryWorldStarClass,
-            sizeCode: planet.type === "Planetoid Belt" ? "0" : baseProfile.size,
-            orbitNumber: planet.orbitNumber,
-            hzco: hz.centerOrbit,
-            systemAgeGyr: Number(stars[0]?.systemAge ?? 5),
-            stellarMasses: stars.map((star) => Number(star?.massInSolarMasses ?? 0)),
-          });
-
-    return applyWorldProfileToPlanet(planet, enrichedProfile);
+  const hz = calculateSystemHabitableZone(stars);
+  const planets = buildProfiledWbhSystemPlanets({
+    stars,
+    habitableZone: hz,
+    createPlanetName: ({ type, usedNames }) =>
+      type === "Planetoid Belt"
+        ? generateObjectName({
+            mode: String(preferencesStore.asteroidBeltNameMode || "phonotactic")
+              .trim()
+              .toLowerCase(),
+            objectType: "asteroid-belt",
+            mythicTheme: String(preferencesStore.galaxyMythicTheme || "all")
+              .trim()
+              .toLowerCase(),
+          })
+        : generateAutomaticWorldName({
+            mode: preferencesStore.worldNameMode,
+            usedNames,
+          }),
   });
-  const planets = applySystemWorldSocialProfiles(profiledPlanets);
 
   const nextSystem = {
     systemId: hexCoord.value || "0000",
@@ -1275,6 +1197,13 @@ onMounted(async () => {
   color: #555;
 }
 
+.hz-note {
+  margin: 0.75rem 0 0;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: #777;
+}
+
 /* Planet table */
 .planet-table-scroll {
   max-height: min(26rem, 52vh);
@@ -1305,6 +1234,40 @@ onMounted(async () => {
   border-bottom: 1px solid #1a1a3a;
   color: #e0e0e0;
   font-family: monospace;
+}
+
+.planet-name-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.planet-parent {
+  margin-top: 0.15rem;
+  font-size: 0.78rem;
+  color: #6e8090;
+}
+
+.catalog-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.catalog-chip--mainworld {
+  background: rgba(47, 125, 80, 0.18);
+  color: #1f6a40;
+}
+
+.catalog-chip--moon {
+  background: rgba(34, 95, 143, 0.14);
+  color: #215c86;
 }
 
 .planet-table tr.habitable td {

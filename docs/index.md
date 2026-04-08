@@ -37,4 +37,5 @@ New to Eclipsed Horizons? Start here:
 1. Read the [Quick Start Guide](getting-started/quick-start.md)
 2. Review the [Project Vision](project-vision.md)
 3. Run the System Generator frontend: `cd apps/system-generator/frontend && npm install && npm run dev`
-4. Create your first galaxy in the Galaxy Survey
+4. Run the focused WBH regression slice when needed: `cd apps/system-generator/frontend && npm run test:wbh`
+5. Create your first galaxy in the Galaxy Survey

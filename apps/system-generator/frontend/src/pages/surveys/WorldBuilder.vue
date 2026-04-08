@@ -263,7 +263,11 @@ import {
   generateWorldProfile,
   normalizeWorldStarClass,
 } from "../../utils/worldProfileGenerator.js";
-import { auToFractionalOrbit, calculateHabitableZoneCenterOrbit } from "../../utils/wbh/systemGenerationWbh.js";
+import {
+  auToFractionalOrbit,
+  calculateHabitableZoneCenterOrbit,
+  calculateSystemLayoutAnchorOrbit,
+} from "../../utils/wbh/systemGenerationWbh.js";
 import { generateWorldPhysicalCharacteristicsWbh } from "../../utils/wbh/worldPhysicalCharacteristicsWbh.js";
 import { usePreferencesStore } from "../../stores/preferencesStore.js";
 import { useSystemStore } from "../../stores/systemStore.js";
@@ -801,7 +805,12 @@ function buildGeneratedWorld() {
   }
 
   const orbitNumber = auToFractionalOrbit(orbitAu);
-  const hzco = calculateHabitableZoneCenterOrbit(primaryLuminosity);
+  const hzco =
+    selectedPlanet && Object.prototype.hasOwnProperty.call(selectedPlanet, "hzco")
+      ? selectedPlanet.hzco
+      : primaryLuminosity > 0
+        ? calculateHabitableZoneCenterOrbit(primaryLuminosity)
+        : calculateSystemLayoutAnchorOrbit([selectedPrimaryStar].filter(Boolean));
   world.value = generateWorldPhysicalCharacteristicsWbh({
     ...baseProfile,
     baseWorld: baseProfile,

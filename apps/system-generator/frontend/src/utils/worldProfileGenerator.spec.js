@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { applySystemWorldSocialProfiles, generateWorldProfile } from "./worldProfileGenerator.js";
+import { SOCIAL_WBH_RULES, applySystemWorldSocialProfiles, generateWorldProfile } from "./worldProfileGenerator.js";
 
 describe("worldProfileGenerator", () => {
+  it("tracks provisional WBH social coverage", () => {
+    expect(SOCIAL_WBH_RULES.some((rule) => rule.id === "core-uwp-rolls")).toBe(true);
+  });
+
   it("generates non-zero WBH-style social data for standalone worlds", () => {
     const world = generateWorldProfile({ worldName: "Zed Prime", starClass: "G", orbitNumber: 3.1, hzco: 3.3 });
 
@@ -71,5 +75,47 @@ describe("worldProfileGenerator", () => {
     expect(mainworld?.resourceRating).toBeDefined();
     expect(mainworld?.economics?.importance).toBeDefined();
     expect(mainworld?.remarks).toContain("Moon");
+  });
+
+  it("removes environmental TL penalties for native-sophont worlds", () => {
+    const originalRandom = Math.random;
+    const sequence = [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.34, 0.34, 0.5];
+    const useSequence = () => {
+      let index = 0;
+      Math.random = () => sequence[Math.min(index++, sequence.length - 1)];
+    };
+
+    try {
+      useSequence();
+      const [nonNativeWorld] = applySystemWorldSocialProfiles([
+        {
+          name: "Harsh Colony",
+          size: 1,
+          atmosphereCode: 0,
+          hydrographics: 0,
+          avgTempC: -40,
+          orbitNumber: 2.8,
+          hzco: 3.3,
+          nativeSophontLife: false,
+        },
+      ]);
+      useSequence();
+      const [nativeWorld] = applySystemWorldSocialProfiles([
+        {
+          name: "Native Harsh World",
+          size: 1,
+          atmosphereCode: 0,
+          hydrographics: 0,
+          avgTempC: -40,
+          orbitNumber: 2.8,
+          hzco: 3.3,
+          nativeSophontLife: true,
+        },
+      ]);
+
+      expect(nonNativeWorld.techLevel).toBeGreaterThan(nativeWorld.techLevel);
+    } finally {
+      Math.random = originalRandom;
+    }
   });
 });

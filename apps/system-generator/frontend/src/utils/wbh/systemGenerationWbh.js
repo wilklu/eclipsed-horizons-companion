@@ -90,6 +90,24 @@ function sumMass(stars = []) {
   return stars.reduce((total, star) => total + Number(star?.massInSolarMasses ?? star?.mass ?? 0), 0);
 }
 
+function getSystemLayoutAnchorOrbit(stars = []) {
+  const starList = Array.isArray(stars) ? stars : [];
+  const luminosity = sumLuminosity(starList);
+  if (luminosity > 0) {
+    return calculateHabitableZoneCenterOrbit(luminosity);
+  }
+
+  const primary = starList[0] ?? null;
+  const minimumOrbit = calculateMinimumAllowableOrbitWbh(primary);
+  if (isPostStellarObject(primary)) {
+    return roundOrbit(Math.max(0.3, minimumOrbit + 0.2));
+  }
+  if (isBrownDwarfObject(primary)) {
+    return roundOrbit(Math.max(0.2, minimumOrbit + 0.1));
+  }
+  return roundOrbit(Math.max(0.2, minimumOrbit + 0.1));
+}
+
 function getLuminosityClassCode(star) {
   return (
     String(star?.luminosityClass || star?.designation || star?.spectralClass || "")
@@ -411,6 +429,10 @@ export function calculateHabitableZoneCenterOrbit(luminosity) {
   return auToFractionalOrbit(calculateHabitableZoneCenterAu(luminosity));
 }
 
+export function calculateSystemLayoutAnchorOrbit(stars = []) {
+  return getSystemLayoutAnchorOrbit(stars);
+}
+
 export function calculateHzcoDeviation({ orbitNumber, hzco }) {
   return Number(orbitNumber) - Number(hzco);
 }
@@ -634,9 +656,56 @@ export function scoreMainworldCandidateWbh(world = {}, { hzco = null } = {}) {
   else if (avgTempC >= -40 && avgTempC <= 60) score += 1;
   else score -= 2;
 
-  if (Number.isFinite(Number(world?.orbitNumber)) && Number.isFinite(Number(hzco))) {
+  if (
+    world?.orbitNumber !== null &&
+    world?.orbitNumber !== undefined &&
+    hzco !== null &&
+    hzco !== undefined &&
+    Number.isFinite(Number(world?.orbitNumber)) &&
+    Number.isFinite(Number(hzco)) &&
+    Number(hzco) > 0
+  ) {
     const deviation = Math.abs(calculateEffectiveHzcoDeviation({ orbitNumber: world.orbitNumber, hzco }));
     score += Math.max(-4, 4 - deviation * 4);
+  }
+
+  if (world?.nativeSophontLife) {
+    score += 5;
+  }
+
+  switch (
+    String(world?.resourceRating || "")
+      .trim()
+      .toLowerCase()
+  ) {
+    case "abundant":
+      score += 3;
+      break;
+    case "good":
+      score += 2;
+      break;
+    case "moderate":
+      score += 1;
+      break;
+    case "none":
+      score -= 1;
+      break;
+    default:
+      break;
+  }
+
+  if (
+    hydrographics > 0 ||
+    String(world?.hydrosphereLiquid || "")
+      .trim()
+      .toLowerCase()
+      .includes("water") ||
+    String(world?.parentWorldType || "")
+      .trim()
+      .toLowerCase()
+      .includes("gas giant")
+  ) {
+    score += 1;
   }
 
   return Number(score.toFixed(2));
@@ -1034,7 +1103,8 @@ export function determineWbhSystemBodyPlan({ stars = [], rollDie = createRandomR
       return [];
     }
 
-    const hzco = calculateHabitableZoneCenterOrbit(sumLuminosity(group.stars));
+    const groupLuminosity = sumLuminosity(group.stars);
+    const hzco = getSystemLayoutAnchorOrbit(group.stars);
     const baselineNumber = calculateBaselineNumberWbh({
       rollTotal: roll2d(rollDie),
       luminosityClass: getLuminosityClassCode(group.stars[0]),
@@ -1118,7 +1188,10 @@ export function determineWbhSystemBodyPlan({ stars = [], rollDie = createRandomR
       slotIndex: Number.MAX_SAFE_INTEGER - index,
       totalStars: starCount,
       stellarMasses: targetGroup.stars.map((star) => Number(star?.massInSolarMasses ?? star?.mass ?? 0)),
-      hzco: calculateHabitableZoneCenterOrbit(sumLuminosity(targetGroup.stars)),
+      hzco:
+        sumLuminosity(targetGroup.stars) > 0
+          ? calculateHabitableZoneCenterOrbit(sumLuminosity(targetGroup.stars))
+          : null,
       isAnomalous: true,
     };
   });
@@ -1171,8 +1244,13 @@ export function determineWbhSystemBodyPlan({ stars = [], rollDie = createRandomR
       stellarMasses: slot.stellarMasses,
     });
     const hzco = slot.hzco;
-    const deviation = calculateEffectiveHzcoDeviation({ orbitNumber: slot.orbitNumber, hzco });
-    const zone = deviation < -1 ? "hot" : deviation <= 1 ? "habitable" : deviation <= 2 ? "warm" : "cold";
+    const zone =
+      Number.isFinite(Number(hzco)) && Number(hzco) > 0
+        ? (() => {
+            const deviation = calculateEffectiveHzcoDeviation({ orbitNumber: slot.orbitNumber, hzco });
+            return deviation < -1 ? "hot" : deviation <= 1 ? "habitable" : deviation <= 2 ? "warm" : "cold";
+          })()
+        : "cold";
 
     return {
       ...slot,

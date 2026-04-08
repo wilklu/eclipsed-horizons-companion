@@ -66,6 +66,21 @@ const STARPORT_TABLE = {
   X: "No starport",
 };
 
+export const SOCIAL_WBH_RULES = Object.freeze([
+  {
+    id: "core-uwp-rolls",
+    section: "Chapter 7 > Initial UWP Social Characteristics",
+    source: "docs/reference/World Builder's Handbook.md",
+    status: "partial",
+  },
+  {
+    id: "native-sophont-adjustments",
+    section: "Chapter 7 > Government and Law Level / Starport / Tech Level",
+    source: "docs/reference/World Builder's Handbook.md",
+    status: "partial",
+  },
+]);
+
 const RANDOM_WORLD_STARS = ["O", "B", "A", "F", "G", "G", "G", "K", "K", "M", "M", "M"];
 export const WORLD_NAMES = [
   "Arrakis",
@@ -94,12 +109,31 @@ export const WORLD_PROFILE_FIELDS = [
   "gravity",
   "atmosphereCode",
   "atmosphereDesc",
+  "atmosphereComposition",
+  "atmospherePressureBar",
+  "atmospherePressureRangeBar",
+  "atmosphereSurvivalGear",
+  "oxygenFraction",
+  "oxygenPartialPressureBar",
+  "atmosphereScaleHeightKm",
+  "atmosphereTaints",
+  "atmosphereTaintProfile",
   "hydrographics",
+  "hydrographicsPercent",
+  "hydrosphereLiquid",
+  "hydrosphereDescription",
+  "surfaceDistribution",
+  "surfaceDistributionSummary",
+  "dominantSurface",
   "avgTempC",
   "tempCategory",
   "orbitalPeriodDays",
   "dayLengthHours",
   "axialTilt",
+  "runawayGreenhouse",
+  "greenhouseAtmosphereCode",
+  "surfaceTidalEffectMeters",
+  "tidalLockPressure",
   "moons",
   "parentWorldName",
   "isMoon",
@@ -277,12 +311,14 @@ function computePopulationValue(populationCode) {
   return 10 ** populationCode;
 }
 
-function rollStarport(populationCode) {
+function rollStarport(populationCode, { nativeSophontLife = false } = {}) {
   let dm = 0;
   if (populationCode <= 2) dm -= 2;
   else if (populationCode <= 4) dm -= 1;
   else if (populationCode >= 8 && populationCode <= 9) dm += 1;
   else if (populationCode >= 10) dm += 2;
+
+  if (nativeSophontLife) dm -= 2;
 
   const total = d6() + d6() + dm;
   if (total <= 2) return "X";
@@ -305,12 +341,15 @@ function rollTechLevel({
   let dm = 0;
 
   dm += { A: 6, B: 4, C: 2, X: -4 }[starport] || 0;
-  if (size <= 1) dm += 2;
-  else if (size >= 2 && size <= 4) dm += 1;
 
-  if (atmosphereCode <= 3 || atmosphereCode >= 10) dm += 1;
-  if (hydrographics === 9) dm += 1;
-  else if (hydrographics === 10) dm += 2;
+  if (!nativeSophontLife) {
+    if (size <= 1) dm += 2;
+    else if (size >= 2 && size <= 4) dm += 1;
+
+    if (atmosphereCode <= 3 || atmosphereCode >= 10) dm += 1;
+    if (hydrographics === 9) dm += 1;
+    else if (hydrographics === 10) dm += 2;
+  }
 
   if (populationCode >= 1 && populationCode <= 5) dm += 1;
   else if (populationCode === 9) dm += 2;
@@ -318,8 +357,6 @@ function rollTechLevel({
 
   if (governmentCode === 0 || governmentCode === 5) dm += 1;
   else if (governmentCode === 13) dm -= 2;
-
-  if (nativeSophontLife) dm -= 1;
 
   return clamp(d1() + dm, 0, 15);
 }
@@ -330,6 +367,14 @@ function deriveSocialUwp({ world, isMainworld = true, mainworldPopulationCode = 
   const hydrographics = Number(world?.hydrographics ?? 0);
   const candidateScore = scoreMainworldCandidateWbh(world, { hzco: world?.hzco });
   const nativeSophontLife = Boolean(world?.nativeSophontLife);
+  const colonySupportBonus =
+    (nativeSophontLife ? 1 : 0) +
+    (Boolean(world?.isMoon) && candidateScore >= 6 ? 1 : 0) +
+    (String(world?.resourceRating || "")
+      .trim()
+      .toLowerCase() === "abundant"
+      ? 1
+      : 0);
 
   let populationCode;
   if (isMainworld) {
@@ -337,7 +382,11 @@ function deriveSocialUwp({ world, isMainworld = true, mainworldPopulationCode = 
     populationCode = clamp(d6() + d6() - 2 + habitabilityDm, 0, 10);
   } else {
     const base = Number.isInteger(mainworldPopulationCode) ? mainworldPopulationCode : 5;
-    const colonyPenalty = size === 0 ? 4 : atmosphereCode === 0 || hydrographics === 0 ? 3 : 2;
+    const colonyPenalty = clamp(
+      (size === 0 ? 4 : atmosphereCode === 0 || hydrographics === 0 ? 3 : 2) - colonySupportBonus,
+      1,
+      4,
+    );
     populationCode = clamp(base - colonyPenalty - Math.floor(d1() / 2), 0, Math.max(0, base - 1));
     if (candidateScore <= 0 && !nativeSophontLife) {
       populationCode = 0;
@@ -346,7 +395,7 @@ function deriveSocialUwp({ world, isMainworld = true, mainworldPopulationCode = 
 
   const governmentCode = populationCode === 0 ? 0 : clamp(d6() + d6() - 7 + populationCode, 0, 13);
   const lawLevel = populationCode === 0 ? 0 : clamp(d6() + d6() - 7 + governmentCode, 0, 9);
-  const starport = populationCode === 0 ? "X" : rollStarport(populationCode);
+  const starport = populationCode === 0 ? "X" : rollStarport(populationCode, { nativeSophontLife });
   const techLevel =
     populationCode === 0
       ? 0
