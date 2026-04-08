@@ -356,6 +356,13 @@
 import { computed, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import { useSystemStore } from "../../stores/systemStore";
+import {
+  buildSurveyDataFromSystem,
+  createEmptyStarRow,
+  createEmptySurveyData,
+  createEmptyWorldRow,
+  mergeSystemSurveyRecord,
+} from "./systemSurveyFormModel.js";
 
 const props = defineProps({
   systemRecord: {
@@ -375,200 +382,6 @@ const props = defineProps({
 const route = useRoute();
 const systemStore = useSystemStore();
 
-function createEmptyStarRow() {
-  return {
-    designation: "",
-    typeSubtype: "",
-    lumClass: "",
-    mass: null,
-    luminosity: null,
-    temperature: null,
-    diameter: null,
-    stellarProfile: "",
-    notes: "",
-  };
-}
-
-function createEmptyWorldRow() {
-  return {
-    designation: "",
-    type: "",
-    orbitAu: "",
-    sah: "",
-    diameter: null,
-    temperature: null,
-    atmosphere: "",
-    hydrosphere: "",
-    lifeMxdc: "",
-    habitability: "",
-    resources: "",
-    notes: "",
-  };
-}
-
-function createEmptySurveyData() {
-  return {
-    systemDesignation: "",
-    sectorHex: "",
-    surveyDate: new Date().toISOString().split("T")[0],
-    surveyClass: "A",
-    systemAge: null,
-    travelZone: "Green",
-    surveyingVessel: "",
-    previousSurveyDate: "",
-    stars: [createEmptyStarRow()],
-    hzCentre: null,
-    hzInner: null,
-    hzOuter: null,
-    gasGiants: 0,
-    belts: 0,
-    terrestrials: 0,
-    worlds: Array.from({ length: 12 }, () => createEmptyWorldRow()),
-    mainworldName: "",
-    mainworldType: "",
-    mainworldParent: "",
-    mainworldUwp: "",
-    nativeLifeform: "",
-    habitability: "",
-    resourceRating: "",
-    tradeCodes: "",
-    stellarProfile: "",
-    mainworldRemarks: "",
-    secondaryProfiles: "",
-    profileNotes: "",
-    comments: "",
-  };
-}
-
-function stringifyTradeCodes(value) {
-  if (Array.isArray(value)) {
-    return value.filter(Boolean).join(", ");
-  }
-  return String(value || "").trim();
-}
-
-function stringifyRemarks(value) {
-  if (Array.isArray(value)) {
-    return value.filter(Boolean).join(", ");
-  }
-  return String(value || "").trim();
-}
-
-function formatSurveyWorldType(world) {
-  if (world?.isMainworld) return "MW";
-  if (
-    world?.isMoon ||
-    String(world?.type || "")
-      .toLowerCase()
-      .includes("moon")
-  )
-    return "MON";
-  if (String(world?.type || "") === "Gas Giant") return "GG";
-  if (String(world?.type || "") === "Planetoid Belt") return "BLT";
-  return world?.name ? "TER" : "";
-}
-
-function formatSurveyWorldOrbit(world) {
-  const orbitNumber = world?.orbitNumber ?? world?.orbitalSlot ?? "";
-  const orbitAu = world?.orbitAU ?? world?.orbitAu ?? "";
-  if (orbitNumber === "" && orbitAu === "") return "";
-  if (orbitNumber === "") return String(orbitAu);
-  if (orbitAu === "") return String(orbitNumber);
-  return `${orbitNumber}/${orbitAu}`;
-}
-
-function buildSurveyDataFromSystem(systemRecord) {
-  const base = createEmptySurveyData();
-  if (!systemRecord || typeof systemRecord !== "object") {
-    return base;
-  }
-
-  const stars =
-    Array.isArray(systemRecord?.stars) && systemRecord.stars.length
-      ? systemRecord.stars.map((star) => ({
-          designation: String(star?.designation || star?.starKey || ""),
-          typeSubtype: String(star?.spectralClass || star?.designation || star?.objectType || ""),
-          lumClass: String(star?.luminosityClass || ""),
-          mass: Number(star?.massInSolarMasses ?? star?.mass ?? 0) || null,
-          luminosity: Number(star?.luminosity ?? 0) || null,
-          temperature: Number(star?.temperatureK ?? star?.temperature ?? 0) || null,
-          diameter: Number(star?.diameter ?? 0) || null,
-          stellarProfile: String(star?.stellarProfile || star?.orbitType || ""),
-          notes: stringifyRemarks(
-            [
-              star?.orbitType,
-              star?.parentStarKey ? `Parent ${star.parentStarKey}` : "",
-              star?.continuationOf ? `Continuation ${star.continuationOf}` : "",
-            ].filter(Boolean),
-          ),
-        }))
-      : base.stars;
-
-  const worlds =
-    Array.isArray(systemRecord?.planets) && systemRecord.planets.length
-      ? systemRecord.planets.map((world) => ({
-          designation: String(world?.name || ""),
-          type: formatSurveyWorldType(world),
-          orbitAu: formatSurveyWorldOrbit(world),
-          sah: String(world?.uwp || world?.sah_uwp || ""),
-          diameter: Number(world?.diameterKm ?? 0) || null,
-          temperature: Number(world?.avgTempC ?? world?.temperature ?? 0) || null,
-          atmosphere: world?.atmosphereCode ?? "",
-          hydrosphere: world?.hydrographics ?? "",
-          lifeMxdc: String(world?.nativeLifeform || ""),
-          habitability: String(world?.habitability || ""),
-          resources: String(world?.resourceRating || ""),
-          notes: stringifyRemarks(world?.remarks),
-        }))
-      : base.worlds;
-
-  const mainworld =
-    systemRecord?.mainworld && typeof systemRecord.mainworld === "object" ? systemRecord.mainworld : null;
-  const profiles = systemRecord?.profiles && typeof systemRecord.profiles === "object" ? systemRecord.profiles : {};
-
-  return {
-    ...base,
-    systemDesignation: String(systemRecord?.systemDesignation || systemRecord?.name || systemRecord?.systemId || ""),
-    sectorHex:
-      String(systemRecord?.sectorHex || "") ||
-      `${String(systemRecord?.sectorId || "")}${systemRecord?.hexCoordinates ? ` ${String(systemRecord.hexCoordinates.x).padStart(2, "0")}${String(systemRecord.hexCoordinates.y).padStart(2, "0")}` : ""}`.trim(),
-    surveyDate: String(systemRecord?.surveyDate || base.surveyDate),
-    surveyClass: String(systemRecord?.surveyClass || base.surveyClass),
-    systemAge: Number(systemRecord?.systemAge ?? systemRecord?.stars?.[0]?.systemAge ?? 0) || null,
-    travelZone: String(systemRecord?.travelZone || profiles?.travelZone || base.travelZone),
-    surveyingVessel: String(systemRecord?.surveyingVessel || ""),
-    previousSurveyDate: String(systemRecord?.previousSurveyDate || ""),
-    stars,
-    hzCentre: Number(systemRecord?.habitableZone?.centerAU ?? systemRecord?.habitabilityZone?.centre ?? 0) || null,
-    hzInner: Number(systemRecord?.habitableZone?.innerAU ?? systemRecord?.habitabilityZone?.inner ?? 0) || null,
-    hzOuter: Number(systemRecord?.habitableZone?.outerAU ?? systemRecord?.habitabilityZone?.outer ?? 0) || null,
-    gasGiants: Number(systemRecord?.objectCounts?.gasGiants ?? systemRecord?.gasGiants ?? 0) || 0,
-    belts: Number(systemRecord?.objectCounts?.belts ?? systemRecord?.objectCounts?.planetoidBelts ?? 0) || 0,
-    terrestrials:
-      Number(systemRecord?.objectCounts?.terrestrials ?? systemRecord?.objectCounts?.terrestrialPlanets ?? 0) || 0,
-    worlds,
-    mainworldName: String(systemRecord?.mainworldName || profiles?.mainworldName || mainworld?.name || ""),
-    mainworldType: String(
-      systemRecord?.mainworldType || profiles?.mainworldType || (mainworld?.isMoon ? "Moon" : mainworld?.type) || "",
-    ),
-    mainworldParent: String(
-      systemRecord?.mainworldParentWorldName || profiles?.mainworldParent || mainworld?.parentWorldName || "",
-    ),
-    mainworldUwp: String(systemRecord?.mainworldUwp || profiles?.mainworldUwp || mainworld?.uwp || ""),
-    nativeLifeform: String(systemRecord?.nativeLifeform || profiles?.nativeLifeform || mainworld?.nativeLifeform || ""),
-    habitability: String(systemRecord?.habitability || profiles?.habitability || mainworld?.habitability || ""),
-    resourceRating: String(systemRecord?.resourceRating || profiles?.resourceRating || mainworld?.resourceRating || ""),
-    tradeCodes: stringifyTradeCodes(systemRecord?.tradeCodes || profiles?.tradeCodes || mainworld?.tradeCodes),
-    stellarProfile: stringifyRemarks(stars.map((star) => star.typeSubtype).filter(Boolean)),
-    mainworldRemarks: stringifyRemarks(
-      systemRecord?.mainworldRemarks || profiles?.mainworldRemarks || mainworld?.remarks,
-    ),
-    secondaryProfiles: String(profiles?.secondaryProfiles || ""),
-    profileNotes: String(profiles?.profileNotes || ""),
-    comments: String(systemRecord?.comments || ""),
-  };
-}
-
 const resolvedSystemRecord = computed(() => {
   if (props.systemRecord && typeof props.systemRecord === "object") {
     return props.systemRecord;
@@ -581,10 +394,6 @@ const resolvedSystemRecord = computed(() => {
 
   return systemStore.systems.find((system) => String(system?.systemId) === requestedId) ?? systemStore.getCurrentSystem;
 });
-
-function cloneSurveyWorlds(worlds = []) {
-  return (Array.isArray(worlds) ? worlds : []).map((world) => ({ ...world }));
-}
 
 // Form data
 const surveyData = ref(createEmptySurveyData());
@@ -642,79 +451,16 @@ const saveSurvey = async () => {
   }
 
   try {
-    const payload = {
-      systemDesignation: surveyData.value.systemDesignation,
-      sectorHex: surveyData.value.sectorHex,
-      surveyDate: surveyData.value.surveyDate,
-      surveyClass: surveyData.value.surveyClass,
-      systemAge: surveyData.value.systemAge,
-      travelZone: surveyData.value.travelZone,
-      surveyingVessel: surveyData.value.surveyingVessel,
-      previousSurveyDate: surveyData.value.previousSurveyDate,
-      stars: surveyData.value.stars,
-      habitabilityZone: {
-        centre: surveyData.value.hzCentre,
-        inner: surveyData.value.hzInner,
-        outer: surveyData.value.hzOuter,
-      },
-      objectCounts: {
-        gasGiants: surveyData.value.gasGiants,
-        belts: surveyData.value.belts,
-        terrestrials: surveyData.value.terrestrials,
-      },
-      worlds: surveyData.value.worlds,
-      profiles: {
-        mainworldName: surveyData.value.mainworldName,
-        mainworldType: surveyData.value.mainworldType,
-        mainworldParent: surveyData.value.mainworldParent,
-        mainworldUwp: surveyData.value.mainworldUwp,
-        nativeLifeform: surveyData.value.nativeLifeform,
-        habitability: surveyData.value.habitability,
-        resourceRating: surveyData.value.resourceRating,
-        tradeCodes: surveyData.value.tradeCodes,
-        stellarProfile: surveyData.value.stellarProfile,
-        mainworldRemarks: surveyData.value.mainworldRemarks,
-        secondaryProfiles: surveyData.value.secondaryProfiles,
-        profileNotes: surveyData.value.profileNotes,
-      },
-      comments: surveyData.value.comments,
-    };
-
     const currentRecord =
       resolvedSystemRecord.value && typeof resolvedSystemRecord.value === "object" ? resolvedSystemRecord.value : null;
 
     if (currentRecord?.systemId) {
-      const nextRecord = {
-        ...currentRecord,
-        ...payload,
-        worlds: cloneSurveyWorlds(payload.worlds),
-        profiles: {
-          ...(currentRecord?.profiles && typeof currentRecord.profiles === "object" ? currentRecord.profiles : {}),
-          ...payload.profiles,
-        },
-        objectCounts: {
-          ...(currentRecord?.objectCounts && typeof currentRecord.objectCounts === "object"
-            ? currentRecord.objectCounts
-            : {}),
-          ...payload.objectCounts,
-        },
-        habitabilityZone: {
-          ...(currentRecord?.habitabilityZone && typeof currentRecord.habitabilityZone === "object"
-            ? currentRecord.habitabilityZone
-            : {}),
-          ...payload.habitabilityZone,
-        },
-        travelZone: payload.travelZone,
-        metadata: {
-          ...(currentRecord?.metadata && typeof currentRecord.metadata === "object" ? currentRecord.metadata : {}),
-          lastModified: new Date().toISOString(),
-        },
-      };
+      const nextRecord = mergeSystemSurveyRecord(currentRecord, surveyData.value);
 
       await systemStore.updateSystem(currentRecord.systemId, nextRecord);
       systemStore.setCurrentSystem(currentRecord.systemId);
     } else {
-      console.log("✓ System Survey saved:", payload);
+      console.log("✓ System Survey saved:", surveyData.value);
     }
 
     alert("✓ System Survey saved successfully!");

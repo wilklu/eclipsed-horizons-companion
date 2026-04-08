@@ -213,6 +213,7 @@ import { useSystemStore } from "../../stores/systemStore.js";
 import { useArchiveTransfer } from "../../composables/useArchiveTransfer.js";
 import { generateObjectName } from "../../utils/nameGenerator.js";
 import { generatePrimaryStar } from "../../utils/primaryStarGenerator.js";
+import { buildHexStarTypeMetadata } from "../../utils/systemStarMetadata.js";
 import { buildProfiledWbhSystemPlanets, calculateSystemHabitableZone } from "../../utils/systemWorldGeneration.js";
 import { starDescriptorToCssClass } from "../../utils/starDisplay.js";
 import { generateAutomaticWorldName } from "../../utils/worldProfileGenerator.js";
@@ -524,6 +525,15 @@ async function syncSectorSurveyState(systemRecord) {
     : Array.isArray(systemRecord?.companionStars)
       ? systemRecord.companionStars.map((star) => String(star?.spectralClass || "").trim()).filter(Boolean)
       : [];
+  const hexStarMetadata = buildHexStarTypeMetadata({
+    generatedStars: Array.isArray(systemRecord?.stars) ? systemRecord.stars : [],
+    primary: starType,
+    secondaryStars,
+    anomalyType: primary?.isAnomaly ? primary?.spectralClass || primary?.designation || null : null,
+    fallbackStarType: starType,
+    legacyReconstructed: Boolean(systemRecord?.metadata?.generatedSurvey?.legacyReconstructed),
+    legacyHierarchyUnknown: Boolean(systemRecord?.metadata?.generatedSurvey?.legacyHierarchyUnknown),
+  });
 
   const nextSector = {
     ...sector,
@@ -541,10 +551,13 @@ async function syncSectorSurveyState(systemRecord) {
       hexStarTypes: {
         ...(metadata.hexStarTypes && typeof metadata.hexStarTypes === "object" ? metadata.hexStarTypes : {}),
         [normalizedHex]: {
-          starType,
+          starType: hexStarMetadata.starType,
           starClass: sectorStarClassForSystem(systemRecord),
-          secondaryStars,
-          anomalyType: primary?.isAnomaly ? primary?.spectralClass || primary?.designation || null : null,
+          secondaryStars: hexStarMetadata.secondaryStars,
+          generatedStars: hexStarMetadata.generatedStars.map((star) => ({ ...star })),
+          anomalyType: hexStarMetadata.anomalyType,
+          legacyReconstructed: hexStarMetadata.legacyReconstructed,
+          legacyHierarchyUnknown: hexStarMetadata.legacyHierarchyUnknown,
         },
       },
       lastModified: new Date().toISOString(),

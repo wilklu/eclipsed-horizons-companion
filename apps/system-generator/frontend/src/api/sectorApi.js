@@ -1,3 +1,5 @@
+import { normalizeHexStarTypesMap } from "../utils/systemStarMetadata.js";
+
 const STORAGE_KEY = "eclipsed-horizons-sectors-cache";
 const API_BASE_URL = String(import.meta.env.VITE_API_BASE_URL || "http://localhost:3100/api").replace(/\/$/, "");
 
@@ -52,8 +54,12 @@ function mergeSectorRecords(existingSector, nextSector) {
   const incomingMetadata = incoming.metadata ?? {};
   const existingOccupiedHexes = Array.isArray(existingMetadata.occupiedHexes) ? existingMetadata.occupiedHexes : [];
   const incomingOccupiedHexes = Array.isArray(incomingMetadata.occupiedHexes) ? incomingMetadata.occupiedHexes : [];
-  const existingHexStarTypes = hasObjectEntries(existingMetadata.hexStarTypes) ? existingMetadata.hexStarTypes : null;
-  const incomingHexStarTypes = hasObjectEntries(incomingMetadata.hexStarTypes) ? incomingMetadata.hexStarTypes : null;
+  const existingHexStarTypes = hasObjectEntries(existingMetadata.hexStarTypes)
+    ? normalizeHexStarTypesMap(existingMetadata.hexStarTypes)
+    : null;
+  const incomingHexStarTypes = hasObjectEntries(incomingMetadata.hexStarTypes)
+    ? normalizeHexStarTypesMap(incomingMetadata.hexStarTypes)
+    : null;
 
   return {
     ...existing,
@@ -138,6 +144,9 @@ function normalizeSectorId(sector) {
 
 function normalizeSector(sector) {
   const metadata = sector?.metadata && typeof sector.metadata === "object" ? sector.metadata : {};
+  const normalizedHexStarTypes = hasObjectEntries(metadata.hexStarTypes)
+    ? normalizeHexStarTypesMap(metadata.hexStarTypes)
+    : metadata.hexStarTypes;
   return {
     ...sector,
     galaxyId: String(sector?.galaxyId ?? metadata.galaxyId ?? ""),
@@ -150,6 +159,7 @@ function normalizeSector(sector) {
     densityVariation: Number(sector?.densityVariation ?? 0),
     metadata: {
       ...metadata,
+      hexStarTypes: normalizedHexStarTypes,
       gridX: Number(metadata.gridX ?? sector?.x ?? sector?.sectorX ?? 0),
       gridY: Number(metadata.gridY ?? sector?.y ?? sector?.sectorY ?? 0),
       lastUpdated: metadata.lastUpdated ?? new Date().toISOString(),

@@ -569,6 +569,29 @@
               <span class="dl">Travel Zone</span><span class="dv">{{ inspectorData.travelZone }}</span>
             </div>
             <div class="dr">
+              <span class="dl">Minimum TL</span
+              ><span class="dv">{{ inspectorData.minimumSustainableTechLevel || "—" }}</span>
+            </div>
+            <div class="dr">
+              <span class="dl">Settlement</span
+              ><span class="dv">{{ inspectorData.populationConcentration || "—" }}</span>
+            </div>
+            <div class="dr">
+              <span class="dl">Urbanization</span><span class="dv">{{ inspectorData.urbanization || "—" }}</span>
+            </div>
+            <div class="dr">
+              <span class="dl">Major Cities</span><span class="dv">{{ inspectorData.majorCities || "—" }}</span>
+            </div>
+            <div class="dr">
+              <span class="dl">Government</span><span class="dv">{{ inspectorData.governmentProfile || "—" }}</span>
+            </div>
+            <div class="dr">
+              <span class="dl">Justice</span><span class="dv">{{ inspectorData.justiceProfile || "—" }}</span>
+            </div>
+            <div class="dr">
+              <span class="dl">Factions</span><span class="dv">{{ inspectorData.factionsProfile || "—" }}</span>
+            </div>
+            <div class="dr">
               <span class="dl">Mainworld</span><span class="dv">{{ inspectorData.mainworldName || "—" }}</span>
             </div>
             <div class="dr">
@@ -589,12 +612,28 @@
             <span v-for="base in inspectorData.bases" :key="base" class="base-code-chip">{{ base }}</span>
           </div>
 
+          <div
+            v-if="inspectorData.legacyReconstructed || inspectorData.legacyHierarchyUnknown"
+            class="legacy-code-strip"
+          >
+            <span v-if="inspectorData.legacyReconstructed" class="legacy-code-chip">Legacy Star Tree</span>
+            <span v-if="inspectorData.legacyHierarchyUnknown" class="legacy-code-chip">Hierarchy Inferred</span>
+          </div>
+
           <div v-if="inspectorData.tradeCodes?.length" class="trade-code-strip">
             <span v-for="code in inspectorData.tradeCodes" :key="code" class="trade-code-chip">{{ code }}</span>
           </div>
           <p v-else-if="!inspectorData.hasSavedSystem" class="inspector-note">
             Generate or save a system survey to populate UWP, starport, bases, importance, gas giants, and trade codes
             here.
+          </p>
+          <p v-if="inspectorData.legacyReconstructed" class="inspector-note">
+            This system’s star hierarchy was reconstructed from older flat-label metadata. Companion ordering is
+            preserved, but original WBH hierarchy detail was not stored.
+          </p>
+          <p v-if="inspectorData.legacyHierarchyUnknown" class="inspector-note">
+            Legacy import data did not retain explicit hierarchy links, so near/far relationships were inferred during
+            normalization.
           </p>
           <p v-if="inspectorData.presenceOnly" class="inspector-note">
             This marker is a detected stellar presence only. Atlas can show it as a known object, but it is not yet a
@@ -714,6 +753,11 @@ import { starDescriptorToColor, starDescriptorToCssClass } from "../../utils/sta
 import { serializeReturnRoute } from "../../utils/returnRoute.js";
 import { calculateHexOccupancyProbability } from "../../utils/sectorGeneration.js";
 import { generateGalaxySectorLayoutWindow } from "../../utils/sectorLayoutGenerator.js";
+import {
+  buildGeneratedStars,
+  buildHexStarTypeMetadata,
+  resolveGeneratedStarsFromSystem,
+} from "../../utils/systemStarMetadata.js";
 import { SUBSECTOR_LETTERS, getSubsectorLetterForHex } from "../../utils/subsector.js";
 import * as toastService from "../../utils/toast.js";
 
@@ -1386,28 +1430,20 @@ const allStarMarkers = computed(() => {
     const coord = `${String(Math.trunc(x)).padStart(2, "0")}${String(Math.trunc(y)).padStart(2, "0")}`;
     const key = `${tile.sectorId}:${coord}`;
     const { wx, wy } = hexWorldCenter(tile.sx, tile.sy, Math.trunc(x), Math.trunc(y));
-    const generatedStars = Array.isArray(system?.metadata?.generatedSurvey?.stars)
-      ? system.metadata.generatedSurvey.stars
-      : [];
-    const generatedPrimary = generatedStars[0] ?? null;
-    const starType = normalizeGeneratedStarType({
-      designation:
-        generatedPrimary?.designation ||
-        generatedPrimary?.spectralType ||
-        generatedPrimary?.spectralClass ||
-        system?.primaryStar?.spectralClass ||
-        tile.sector?.metadata?.hexStarTypes?.[coord]?.starType ||
-        "G2V",
+    const generatedStars = resolveGeneratedStarsFromSystem(system);
+    const starMetadata = buildHexStarTypeMetadata({
+      generatedStars,
+      primary: system?.primaryStar,
+      secondaryStars: system?.companionStars,
+      anomalyType:
+        system?.metadata?.anomalyType ||
+        system?.metadata?.generatedSurvey?.anomalyType ||
+        tile.sector?.metadata?.hexStarTypes?.[coord]?.anomalyType ||
+        null,
+      fallbackStarType: tile.sector?.metadata?.hexStarTypes?.[coord]?.starType || "G2V",
     });
-    const secondaryStars =
-      generatedStars.length > 1
-        ? generatedStars
-            .slice(1)
-            .map((star) => normalizeGeneratedStarType(star))
-            .filter(Boolean)
-        : Array.isArray(system?.companionStars)
-          ? system.companionStars.map((star) => normalizeGeneratedStarType(star)).filter(Boolean)
-          : [];
+    const starType = normalizeGeneratedStarType(starMetadata.starType);
+    const secondaryStars = starMetadata.secondaryStars.map((star) => normalizeGeneratedStarType(star)).filter(Boolean);
     const starClass =
       String(tile.sector?.metadata?.hexStarTypes?.[coord]?.starClass || "").trim() || starTypeToCssClass(starType);
 
@@ -1424,6 +1460,8 @@ const allStarMarkers = computed(() => {
       color: starTypeToColor(starType, starClass),
       compColor: starTypeToColor(secondaryStars[0] || "M", ""),
       hasSecondary: secondaryStars.length > 0,
+      legacyReconstructed: Boolean(starMetadata.legacyReconstructed),
+      legacyHierarchyUnknown: Boolean(starMetadata.legacyHierarchyUnknown),
       presenceOnly: false,
       name: "",
     };
@@ -1446,7 +1484,14 @@ const allStarMarkers = computed(() => {
       const hrow = parseInt(coord.slice(2, 4), 10);
       if (!Number.isFinite(hcol) || !Number.isFinite(hrow)) continue;
       const { wx, wy } = hexWorldCenter(tile.sx, tile.sy, hcol, hrow);
-      const starType = String(info.starType || "G2");
+      const starMetadata = buildHexStarTypeMetadata({
+        generatedStars: info?.generatedStars,
+        primary: info?.starType,
+        secondaryStars: info?.secondaryStars,
+        anomalyType: info?.anomalyType ?? null,
+        fallbackStarType: String(info?.starType || "G2"),
+      });
+      const starType = normalizeGeneratedStarType(starMetadata.starType);
       typedCoords.add(coord);
       const marker = {
         key,
@@ -1459,8 +1504,10 @@ const allStarMarkers = computed(() => {
         starType,
         starClass: info.starClass || "",
         color: starTypeToColor(starType, info.starClass || ""),
-        compColor: starTypeToColor(info.secondaryStars?.[0] || "M", ""),
-        hasSecondary: (info.secondaryStars?.length ?? 0) > 0,
+        compColor: starTypeToColor(starMetadata.secondaryStars?.[0] || "M", ""),
+        hasSecondary: starMetadata.secondaryStars.length > 0,
+        legacyReconstructed: Boolean(starMetadata.legacyReconstructed),
+        legacyHierarchyUnknown: Boolean(starMetadata.legacyHierarchyUnknown),
         presenceOnly: false,
         name: "",
       };
@@ -1791,6 +1838,13 @@ function summarizeSystemRecord(system) {
       gasGiants: "—",
       importance: "—",
       travelZone: "—",
+      minimumSustainableTechLevel: "—",
+      populationConcentration: "—",
+      urbanization: "—",
+      majorCities: "—",
+      governmentProfile: "—",
+      justiceProfile: "—",
+      factionsProfile: "—",
       tradeCodes: [],
       surveyStatus: "Stellar data only",
     };
@@ -1859,6 +1913,52 @@ function summarizeSystemRecord(system) {
     mainworld?.travelZone,
     metadata?.travelZone,
   );
+  const minimumSustainableTechLevel = firstNonEmptyString(
+    system?.minimumSustainableTechLevel?.summary,
+    profiles?.minimumSustainableTechLevel?.summary,
+    metadata?.minimumSustainableTechLevel?.summary,
+    mainworld?.minimumSustainableTechLevel?.summary,
+  );
+  const populationConcentration = firstNonEmptyString(
+    system?.populationConcentration?.summary,
+    profiles?.populationConcentration?.summary,
+    metadata?.populationConcentration?.summary,
+    mainworld?.populationConcentration?.summary,
+  );
+  const urbanization = firstNonEmptyString(
+    system?.urbanization?.summary,
+    profiles?.urbanization?.summary,
+    metadata?.urbanization?.summary,
+    mainworld?.urbanization?.summary,
+  );
+  const majorCities = firstNonEmptyString(
+    system?.majorCities?.summary,
+    profiles?.majorCities?.summary,
+    metadata?.majorCities?.summary,
+    mainworld?.majorCities?.summary,
+  );
+  const governmentProfile = firstNonEmptyString(
+    system?.governmentProfile?.profileCode,
+    profiles?.governmentProfile?.profileCode,
+    metadata?.governmentProfile?.profileCode,
+    mainworld?.governmentProfile?.profileCode,
+    system?.governmentProfile?.summary,
+    profiles?.governmentProfile?.summary,
+    metadata?.governmentProfile?.summary,
+    mainworld?.governmentProfile?.summary,
+  );
+  const justiceProfile = firstNonEmptyString(
+    system?.justiceProfile?.summary,
+    profiles?.justiceProfile?.summary,
+    metadata?.justiceProfile?.summary,
+    mainworld?.justiceProfile?.summary,
+  );
+  const factionsProfile = firstNonEmptyString(
+    system?.factionsProfile?.summary,
+    profiles?.factionsProfile?.summary,
+    metadata?.factionsProfile?.summary,
+    mainworld?.factionsProfile?.summary,
+  );
   const systemName = firstNonEmptyString(
     system?.name,
     system?.systemDesignation,
@@ -1882,6 +1982,13 @@ function summarizeSystemRecord(system) {
     gasGiants: gasGiantCount === null ? "—" : String(gasGiantCount),
     importance: importance || "—",
     travelZone: travelZone || "—",
+    minimumSustainableTechLevel: minimumSustainableTechLevel || "—",
+    populationConcentration: populationConcentration || "—",
+    urbanization: urbanization || "—",
+    majorCities: majorCities || "—",
+    governmentProfile: governmentProfile || "—",
+    justiceProfile: justiceProfile || "—",
+    factionsProfile: factionsProfile || "—",
     mainworldName: firstNonEmptyString(mainworld?.name, metadata?.mainworld?.name) || "—",
     mainworldType: firstNonEmptyString(mainworld?.type, mainworld?.parentWorldName ? "Moon" : "") || "—",
     mainworldParent: firstNonEmptyString(mainworld?.parentWorldName, system?.mainworldParentWorldName) || "—",
@@ -1938,12 +2045,21 @@ const inspectorData = computed(() => {
       gasGiants: systemSummary.gasGiants,
       importance: systemSummary.importance,
       travelZone: systemSummary.travelZone,
+      minimumSustainableTechLevel: systemSummary.minimumSustainableTechLevel,
+      populationConcentration: systemSummary.populationConcentration,
+      urbanization: systemSummary.urbanization,
+      majorCities: systemSummary.majorCities,
+      governmentProfile: systemSummary.governmentProfile,
+      justiceProfile: systemSummary.justiceProfile,
+      factionsProfile: systemSummary.factionsProfile,
       mainworldName: systemSummary.mainworldName,
       mainworldType: systemSummary.mainworldType,
       mainworldParent: systemSummary.mainworldParent,
       tradeCodes: systemSummary.tradeCodes,
       surveyStatus: systemSummary.surveyStatus,
       hasSavedSystem: systemSummary.hasSavedSystem,
+      legacyReconstructed: Boolean(star.legacyReconstructed),
+      legacyHierarchyUnknown: Boolean(star.legacyHierarchyUnknown),
       presenceOnly: Boolean(star.presenceOnly),
     };
   }
@@ -2693,23 +2809,18 @@ function normalizeGeneratedStarType(star) {
 }
 
 function buildAtlasGeneratedSystem(sector, coord, primaryStar, secondaryStars = [], anomalyType = null) {
-  const primaryType = anomalyType ? String(anomalyType).trim() : normalizeGeneratedStarType(primaryStar);
-  const generatedStars = [
-    {
-      designation: primaryType,
-      spectralType: primaryType,
-      spectralClass: primaryType,
-      isAnomaly: Boolean(anomalyType),
-    },
-    ...secondaryStars
-      .map((star) => normalizeGeneratedStarType(star))
-      .filter(Boolean)
-      .map((spectralType) => ({
-        designation: spectralType,
-        spectralType,
-        spectralClass: spectralType,
-      })),
-  ];
+  const starMetadata = buildHexStarTypeMetadata({
+    generatedStars: buildGeneratedStars({
+      primary: primaryStar,
+      secondaryStars,
+      anomalyType,
+      fallbackStarType: normalizeGeneratedStarType(primaryStar),
+    }),
+    anomalyType,
+    fallbackStarType: anomalyType ? String(anomalyType).trim() : normalizeGeneratedStarType(primaryStar),
+  });
+  const generatedStars = starMetadata.generatedStars;
+  const primaryType = normalizeGeneratedStarType(starMetadata.starType);
 
   return {
     systemId: `${sector.sectorId}:${coord}`,
@@ -2724,6 +2835,7 @@ function buildAtlasGeneratedSystem(sector, coord, primaryStar, secondaryStars = 
     metadata: {
       generatedSurvey: {
         stars: generatedStars,
+        anomalyType: anomalyType || null,
       },
       lastModified: new Date().toISOString(),
       source: "atlas",
@@ -2895,21 +3007,33 @@ async function generateInspectorSectorSystemsInternalWithOptions(sector, { inclu
   const generatedSystems = [];
   for (const coord of occupiedHexes) {
     if (galacticCenter && coord === centerCoord) {
-      hexStarTypes[coord] = {
-        starType: anomalyType,
-        starClass: "anomaly-core",
-        secondaryStars: [],
+      const starMetadata = buildHexStarTypeMetadata({
         anomalyType,
+        generatedStars: buildGeneratedStars({ anomalyType, fallbackStarType: anomalyType || "G2V" }),
+        fallbackStarType: anomalyType || "G2V",
+      });
+      hexStarTypes[coord] = {
+        starType: starMetadata.starType,
+        starClass: "anomaly-core",
+        secondaryStars: starMetadata.secondaryStars,
+        generatedStars: starMetadata.generatedStars.map((star) => ({ ...star })),
+        anomalyType: starMetadata.anomalyType,
       };
       generatedSystems.push(buildAtlasGeneratedSystem(targetSector, coord, null, [], anomalyType));
     } else {
       const primary = generatePrimaryStar();
-      const primaryType = normalizeGeneratedStarType(primary);
+      const starMetadata = buildHexStarTypeMetadata({
+        generatedStars: buildGeneratedStars({ primary, fallbackStarType: normalizeGeneratedStarType(primary) }),
+        primary,
+        fallbackStarType: normalizeGeneratedStarType(primary),
+      });
+      const primaryType = normalizeGeneratedStarType(starMetadata.starType);
       hexStarTypes[coord] = {
         starType: primaryType,
         starClass: starTypeToCssClass(primaryType),
-        secondaryStars: [],
-        anomalyType: null,
+        secondaryStars: starMetadata.secondaryStars,
+        generatedStars: starMetadata.generatedStars.map((star) => ({ ...star })),
+        anomalyType: starMetadata.anomalyType,
       };
       generatedSystems.push(buildAtlasGeneratedSystem(targetSector, coord, primary, [], null));
     }
@@ -3956,6 +4080,13 @@ watch(
   margin-bottom: 0.5rem;
 }
 
+.legacy-code-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.5rem;
+}
+
 .trade-code-chip {
   display: inline-flex;
   align-items: center;
@@ -3979,6 +4110,20 @@ watch(
   background: rgba(214, 155, 66, 0.18);
   border: 1px solid rgba(237, 190, 108, 0.24);
   color: #f0d49a;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.legacy-code-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.45rem;
+  padding: 0.08rem 0.45rem;
+  border-radius: 999px;
+  background: rgba(210, 124, 70, 0.18);
+  border: 1px solid rgba(255, 178, 118, 0.28);
+  color: #ffd4ab;
   font-size: 0.7rem;
   font-weight: 700;
   letter-spacing: 0.04em;

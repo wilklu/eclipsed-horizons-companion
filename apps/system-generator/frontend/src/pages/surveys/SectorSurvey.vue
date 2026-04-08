@@ -360,6 +360,31 @@
                   <span v-if="selectedHexData.secondaryStars?.length" class="stellar-inline-detail"
                     >+ {{ selectedHexData.secondaryStars.join(", ") }}</span
                   >
+                  <span v-if="selectedHexData.mainworldName" class="stellar-inline-detail"
+                    >Mainworld {{ selectedHexData.mainworldName }}</span
+                  >
+                  <span v-if="selectedHexData.mainworldUwp" class="stellar-inline-detail"
+                    >UWP {{ selectedHexData.mainworldUwp }}</span
+                  >
+                  <span v-if="selectedHexData.minimumSustainableTechLevel" class="stellar-inline-detail">{{
+                    selectedHexData.minimumSustainableTechLevel
+                  }}</span>
+                  <span v-if="selectedHexData.majorCities" class="stellar-inline-detail">{{
+                    selectedHexData.majorCities
+                  }}</span>
+                  <span v-if="selectedHexData.governmentProfile" class="stellar-inline-detail"
+                    >Gov {{ selectedHexData.governmentProfile }}</span
+                  >
+                  <span v-if="selectedHexData.justiceProfile" class="stellar-inline-detail"
+                    >Justice {{ selectedHexData.justiceProfile }}</span
+                  >
+                  <span v-if="selectedHexData.factionsProfile" class="stellar-inline-detail">{{
+                    selectedHexData.factionsProfile
+                  }}</span>
+                  <span v-if="selectedHexData.legacyReconstructed" class="stellar-inline-flag">Legacy Star Tree</span>
+                  <span v-if="selectedHexData.legacyHierarchyUnknown" class="stellar-inline-flag"
+                    >Hierarchy Inferred</span
+                  >
                 </div>
                 <div class="detail-actions">
                   <button class="btn btn-primary" @click="proceedToStarSystem">🔭 Stellar Survey →</button>
@@ -704,6 +729,12 @@ import { usePreferencesStore } from "../../stores/preferencesStore.js";
 import { useArchiveTransfer } from "../../composables/useArchiveTransfer.js";
 import { getRequestedSurveyViewport, useSectorSurveyViewMode } from "../../composables/useSectorSurveyViewMode.js";
 import { SUBSECTOR_LETTERS, getSubsectorViewportBounds } from "../../utils/subsector.js";
+import {
+  buildGeneratedStars,
+  buildHexStarTypeMetadata,
+  resolveGeneratedStarsFromSystem,
+  summarizeGeneratedStars,
+} from "../../utils/systemStarMetadata.js";
 
 const props = defineProps({
   galaxyId: { type: String, default: null },
@@ -1722,43 +1753,51 @@ function inferGridDimensions(sector) {
 }
 
 function resolveLoadedSystemStarData(system) {
-  const snapshot =
-    system?.metadata?.systemRecord && typeof system.metadata.systemRecord === "object"
-      ? system.metadata.systemRecord
-      : {};
-  const generatedStars = Array.isArray(system?.metadata?.generatedSurvey?.stars)
-    ? system.metadata.generatedSurvey.stars
-    : Array.isArray(system?.stars)
-      ? system.stars
-      : Array.isArray(snapshot?.stars)
-        ? snapshot.stars
-        : [];
-  const generatedPrimary = generatedStars[0] ?? null;
-  const primaryDesignation = normalizeStarTypeValue(
-    generatedPrimary?.designation ||
-      generatedPrimary?.spectralClass ||
-      system?.primaryStar?.spectralClass ||
-      snapshot?.primaryStar?.spectralClass ||
-      "",
-    "G2V",
+  const { primaryDesignation, primaryCode, secondaryStars } = summarizeGeneratedStars(
+    resolveGeneratedStarsFromSystem(system),
   );
-  const primaryCode = normalizeStarTypeValue(primaryDesignation, "G").trim().toUpperCase();
-  const companionSource =
-    generatedStars.length > 1
-      ? generatedStars.slice(1)
-      : Array.isArray(system?.companionStars)
-        ? system.companionStars
-        : Array.isArray(snapshot?.companionStars)
-          ? snapshot.companionStars
-          : [];
-  const secondaryStars = companionSource
-    .map((star) => String(star?.designation || star?.spectralClass || "").trim())
-    .filter(isValidStarLabel);
 
   return {
     primaryDesignation: normalizeStarTypeValue(primaryDesignation, `${primaryCode}V`),
     primaryCode,
     secondaryStars,
+  };
+}
+
+function firstNonEmptyHexSummary(...values) {
+  for (const value of values) {
+    const normalized = String(value || "").trim();
+    if (normalized) {
+      return normalized;
+    }
+  }
+  return "";
+}
+
+function buildSystemHexSummary(system = {}) {
+  const mainworld = system?.mainworld && typeof system.mainworld === "object" ? system.mainworld : null;
+
+  return {
+    mainworldName: firstNonEmptyHexSummary(system?.mainworldName, mainworld?.name),
+    mainworldUwp: firstNonEmptyHexSummary(system?.mainworldUwp, mainworld?.uwp),
+    minimumSustainableTechLevel: firstNonEmptyHexSummary(
+      system?.minimumSustainableTechLevel?.summary,
+      mainworld?.minimumSustainableTechLevel?.summary,
+    ),
+    populationConcentration: firstNonEmptyHexSummary(
+      system?.populationConcentration?.summary,
+      mainworld?.populationConcentration?.summary,
+    ),
+    urbanization: firstNonEmptyHexSummary(system?.urbanization?.summary, mainworld?.urbanization?.summary),
+    majorCities: firstNonEmptyHexSummary(system?.majorCities?.summary, mainworld?.majorCities?.summary),
+    governmentProfile: firstNonEmptyHexSummary(
+      system?.governmentProfile?.profileCode,
+      mainworld?.governmentProfile?.profileCode,
+      system?.governmentProfile?.summary,
+      mainworld?.governmentProfile?.summary,
+    ),
+    justiceProfile: firstNonEmptyHexSummary(system?.justiceProfile?.summary, mainworld?.justiceProfile?.summary),
+    factionsProfile: firstNonEmptyHexSummary(system?.factionsProfile?.summary, mainworld?.factionsProfile?.summary),
   };
 }
 
@@ -1775,15 +1814,19 @@ function buildHexGridFromSystems(systems, cols, rows) {
     const safeX = Math.min(cols, Math.max(1, Math.trunc(x)));
     const safeY = Math.min(rows, Math.max(1, Math.trunc(y)));
     const coord = hexCoord(safeX, safeY);
-    const { primaryDesignation, primaryCode, secondaryStars } = resolveLoadedSystemStarData(system);
+    const stars = resolveGeneratedStarsFromSystem(system);
+    const { primaryDesignation, primaryCode, secondaryStars } = summarizeGeneratedStars(stars);
 
     occupied.set(coord, {
       coord,
       hasSystem: true,
-      starType: primaryDesignation,
+      starType: normalizeStarTypeValue(primaryDesignation, `${primaryCode}V`),
       starClass: spectralClassToCssClass(primaryCode),
       secondaryStars,
+      generatedStars: stars.map((star) => ({ ...star })),
+      anomalyType: system?.metadata?.anomalyType || system?.metadata?.generatedSurvey?.anomalyType || null,
       systemId: system.systemId,
+      ...buildSystemHexSummary(system),
     });
   }
 
@@ -2042,15 +2085,30 @@ function buildSharedSectorMetadata({ hexes, systemCount, isGalacticCenterSector,
   const newHexStarTypes = Object.fromEntries(
     newHexes
       .filter((h) => h.hasSystem && h.starType)
-      .map((h) => [
-        String(h.coord || "").trim(),
-        {
-          starType: h.starType,
-          starClass: h.starClass,
-          secondaryStars: h.secondaryStars ?? [],
+      .map((h) => {
+        const starMetadata = buildHexStarTypeMetadata({
+          generatedStars: h.generatedStars,
+          primary: h.starType,
+          secondaryStars: h.secondaryStars,
           anomalyType: h.anomalyType ?? null,
-        },
-      ]),
+          fallbackStarType: normalizeStarTypeValue(h.starType, "G2V"),
+          legacyReconstructed: h.legacyReconstructed ?? false,
+          legacyHierarchyUnknown: h.legacyHierarchyUnknown ?? false,
+        });
+
+        return [
+          String(h.coord || "").trim(),
+          {
+            starType: starMetadata.starType,
+            starClass: h.starClass,
+            secondaryStars: starMetadata.secondaryStars,
+            generatedStars: starMetadata.generatedStars.map((star) => ({ ...star })),
+            anomalyType: starMetadata.anomalyType,
+            legacyReconstructed: starMetadata.legacyReconstructed,
+            legacyHierarchyUnknown: starMetadata.legacyHierarchyUnknown,
+          },
+        ];
+      }),
   );
 
   if (scope.value === "subsector" && existingMetadata) {
@@ -2132,6 +2190,15 @@ function buildSharedSectorMetadata({ hexes, systemCount, isGalacticCenterSector,
   return nextMetadata;
 }
 
+function buildGeneratedStarsForHex({ primary = null, anomalyType = null, existingGeneratedStars = [] } = {}) {
+  return buildGeneratedStars({
+    primary,
+    anomalyType,
+    existingGeneratedStars,
+    fallbackStarType: "G2V",
+  }).map((star) => ({ ...star }));
+}
+
 function systemCoordFromRecord(system) {
   const x = Number(system?.hexCoordinates?.x ?? 0);
   const y = Number(system?.hexCoordinates?.y ?? 0);
@@ -2155,8 +2222,8 @@ async function replaceGeneratedSystemsForScope(sectorId, scopeHexes) {
   const retainedSystems = systemStore.systems.filter((system) => !scopeCoords.has(systemCoordFromRecord(system)));
   const generatedSystems = (Array.isArray(scopeHexes) ? scopeHexes : [])
     .filter((hex) => hex?.hasSystem && !hex?.presenceOnly && hex?.starType)
-    .map((hex) =>
-      buildPersistedSurveySystemFromHex({
+    .map((hex) => {
+      const generatedSystem = buildPersistedSurveySystemFromHex({
         galaxyId: props.galaxyId,
         sectorId,
         hex,
@@ -2165,8 +2232,11 @@ async function replaceGeneratedSystemsForScope(sectorId, scopeHexes) {
           asteroidBeltNameMode: preferencesStore.asteroidBeltNameMode,
           galaxyMythicTheme: preferencesStore.galaxyMythicTheme,
         },
-      }),
-    );
+      });
+
+      Object.assign(hex, buildSystemHexSummary(generatedSystem));
+      return generatedSystem;
+    });
 
   await systemStore.replaceSectorSystems(sectorId, retainedSystems.concat(generatedSystems));
 
@@ -2215,14 +2285,27 @@ function buildSectorHexesFromMetadata(metadata, cols = 32, rows = 40) {
       }
 
       const starType = normalizeStarTypeValue(saved?.starType, "");
+      const starMetadata = buildHexStarTypeMetadata({
+        generatedStars: saved?.generatedStars,
+        primary: starType,
+        secondaryStars: saved?.secondaryStars,
+        anomalyType: saved?.anomalyType ?? null,
+        fallbackStarType: normalizeStarTypeValue(saved?.starType, "G2V"),
+        legacyReconstructed: saved?.legacyReconstructed ?? false,
+        legacyHierarchyUnknown: saved?.legacyHierarchyUnknown ?? false,
+      });
+      const resolvedStarType = normalizeStarTypeValue(starMetadata.starType, "");
       hexes.push({
         coord,
         hasSystem: true,
-        presenceOnly: !starType,
-        starType,
-        starClass: saved?.starClass || spectralClassToCssClass(starType),
-        secondaryStars: Array.isArray(saved?.secondaryStars) ? [...saved.secondaryStars] : [],
-        anomalyType: saved?.anomalyType ?? null,
+        presenceOnly: !resolvedStarType,
+        starType: resolvedStarType,
+        starClass: saved?.starClass || spectralClassToCssClass(resolvedStarType),
+        secondaryStars: starMetadata.secondaryStars,
+        generatedStars: starMetadata.generatedStars.map((star) => ({ ...star })),
+        anomalyType: starMetadata.anomalyType,
+        legacyReconstructed: starMetadata.legacyReconstructed,
+        legacyHierarchyUnknown: starMetadata.legacyHierarchyUnknown,
       });
     }
   }
@@ -2392,14 +2475,20 @@ async function generateSectorPresence() {
         });
 
         if (isCenterHex) {
+          const centerStarMetadata = buildHexStarTypeMetadata({
+            anomalyType: centerAnomalyType,
+            generatedStars: buildGeneratedStarsForHex({ anomalyType: centerAnomalyType }),
+            fallbackStarType: centerAnomalyType,
+          });
           hexes.push({
             coord,
             hasSystem: true,
             presenceOnly: false,
-            starType: centerAnomalyType,
+            starType: centerStarMetadata.starType,
             starClass: "anomaly-core",
-            secondaryStars: [],
-            anomalyType: centerAnomalyType,
+            secondaryStars: centerStarMetadata.secondaryStars,
+            generatedStars: centerStarMetadata.generatedStars.map((star) => ({ ...star })),
+            anomalyType: centerStarMetadata.anomalyType,
           });
           continue;
         }
@@ -2525,17 +2614,25 @@ async function generateSystemsFromPresence() {
           primary.designation || primary.spectralType || primary.spectralClass || primary.persistedSpectralClass,
           "G2V",
         );
+        const starMetadata = buildHexStarTypeMetadata({
+          generatedStars: Array.isArray(saved?.generatedStars) ? saved.generatedStars : [],
+          primary,
+          secondaryStars: saved?.secondaryStars,
+          anomalyType: saved?.anomalyType ?? null,
+          fallbackStarType: normalizeStarTypeValue(saved?.starType, primaryType),
+        });
         hexes.push({
           coord,
           hasSystem: true,
           presenceOnly: false,
-          starType: normalizeStarTypeValue(saved?.starType, primaryType),
+          starType: normalizeStarTypeValue(starMetadata.starType, primaryType),
           starClass: String(
             saved?.starClass ||
               spectralClassToCssClass(primary.spectralType || primary.persistedSpectralClass || primaryType),
           ),
-          secondaryStars: Array.isArray(saved?.secondaryStars) ? [...saved.secondaryStars] : [],
-          anomalyType: saved?.anomalyType ?? null,
+          secondaryStars: starMetadata.secondaryStars,
+          generatedStars: starMetadata.generatedStars.map((star) => ({ ...star })),
+          anomalyType: starMetadata.anomalyType,
         });
       }
     }
@@ -2784,6 +2881,7 @@ async function loadPersistedSector(sectorId, showToast = false) {
         starType,
         starClass: saved?.starClass || hex.starClass || spectralClassToCssClass(starType),
         secondaryStars: saved?.secondaryStars ?? hex.secondaryStars ?? [],
+        generatedStars: saved?.generatedStars ?? hex.generatedStars ?? [],
         anomalyType: saved?.anomalyType ?? hex.anomalyType ?? null,
       };
     });
@@ -3147,6 +3245,7 @@ async function generateSector() {
               ? "anomaly-core"
               : spectralClassToCssClass(primary?.spectralType || primary?.persistedSpectralClass || primaryType),
             secondaryStars: [],
+            generatedStars: buildGeneratedStarsForHex({ primary, anomalyType: isCenterHex ? centerAnomalyType : null }),
             anomalyType: isCenterHex ? centerAnomalyType : null,
           });
           systemCount++;
@@ -3444,6 +3543,11 @@ async function generateSystemForSelectedHex({ openAfter = false } = {}) {
         spectralClassToCssClass(primary.spectralType || primary.persistedSpectralClass || primaryType),
     ),
     secondaryStars: Array.isArray(saved?.secondaryStars) ? [...saved.secondaryStars] : [],
+    generatedStars: buildGeneratedStarsForHex({
+      primary,
+      anomalyType: saved?.anomalyType ?? null,
+      existingGeneratedStars: Array.isArray(saved?.generatedStars) ? saved.generatedStars : [],
+    }),
     anomalyType: saved?.anomalyType ?? null,
   };
 
@@ -4138,6 +4242,20 @@ async function generateSystemForSelectedHex({ openAfter = false } = {}) {
   color: #b7d8ea;
   font-family: monospace;
   font-size: 0.88rem;
+}
+
+.stellar-inline-flag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.35rem;
+  padding: 0.08rem 0.45rem;
+  border-radius: 999px;
+  background: rgba(210, 124, 70, 0.18);
+  border: 1px solid rgba(255, 178, 118, 0.28);
+  color: #ffd4ab;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
 }
 
 /* Subsector Selection Grid */

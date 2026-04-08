@@ -1,0 +1,253 @@
+import { describe, expect, it, vi } from "vitest";
+
+import { buildPersistedSurveySystemFromHex } from "../../utils/stellarSurveySystemGenerator.js";
+import {
+  buildMainworldSocialProfileNotes,
+  buildSurveyDataFromSystem,
+  createEmptySurveyData,
+  mergeSystemSurveyRecord,
+} from "./systemSurveyFormModel.js";
+
+function withDeterministicRandom(callback) {
+  const randomSpy = vi.spyOn(Math, "random").mockReturnValue(0.5);
+  try {
+    return callback();
+  } finally {
+    randomSpy.mockRestore();
+  }
+}
+
+describe("systemSurveyFormModel", () => {
+  it("hydrates hierarchy-aware generated stars and moon mainworld summaries into survey data", () => {
+    const system = withDeterministicRandom(() =>
+      buildPersistedSurveySystemFromHex({
+        galaxyId: "gal-1",
+        sectorId: "sector-1",
+        hex: {
+          coord: "0412",
+          generatedStars: [
+            {
+              designation: "G2 V",
+              spectralClass: "G2 V",
+              massInSolarMasses: 1,
+              luminosity: 1,
+              temperatureK: 5800,
+              starKey: "primary",
+              hierarchyLevel: 0,
+            },
+            {
+              designation: "K7 V",
+              spectralClass: "K7 V",
+              massInSolarMasses: 0.7,
+              luminosity: 0.25,
+              temperatureK: 4300,
+              starKey: "star-1",
+              orbitType: "Near",
+              hierarchyLevel: 1,
+            },
+            {
+              designation: "M4 V",
+              spectralClass: "M4 V",
+              massInSolarMasses: 0.2,
+              luminosity: 0.03,
+              temperatureK: 3200,
+              starKey: "star-2",
+              orbitType: "Companion",
+              parentStarKey: "star-1",
+              continuationOf: "star-1",
+              hierarchyLevel: 2,
+            },
+          ],
+        },
+        namingOptions: {
+          worldNameMode: "phonotactic",
+          asteroidBeltNameMode: "phonotactic",
+          galaxyMythicTheme: "all",
+        },
+      }),
+    );
+
+    const representativeWorld = system.planets.find((world) => String(world?.type || "") !== "Gas Giant");
+    const surveyData = buildSurveyDataFromSystem({
+      ...system,
+      mainworldName: "Iona",
+      mainworldType: "Moon",
+      mainworldParentWorldName: "Tethys",
+      mainworldUwp: "A867A99-C",
+      habitability: "Good",
+      resourceRating: "Abundant",
+      tradeCodes: ["Ag", "Ri"],
+      mainworldRemarks: ["Moon", "Orbits Tethys", "Mainworld"],
+      mainworld: {
+        ...(representativeWorld || {}),
+        name: "Iona",
+        parentWorldName: "Tethys",
+        isMoon: true,
+        uwp: "A867A99-C",
+        remarks: ["Moon", "Orbits Tethys", "Mainworld"],
+      },
+    });
+
+    expect(surveyData.stars).toHaveLength(3);
+    expect(surveyData.stars[1].stellarProfile).toBe("Near");
+    expect(surveyData.stars[2].notes).toContain("Parent star-1");
+    expect(surveyData.stars[2].notes).toContain("Continuation star-1");
+    expect(surveyData.mainworldType).toBe("Moon");
+    expect(surveyData.mainworldParent).toBe("Tethys");
+    expect(surveyData.mainworldRemarks).toContain("Moon");
+    expect(surveyData.tradeCodes).toBe("Ag, Ri");
+    expect(surveyData.worlds.some((world) => world.designation)).toBe(true);
+  });
+
+  it("roundtrips saved survey rows back through autofill without losing edited values", () => {
+    const currentRecord = {
+      systemId: "sector-1:0412",
+      metadata: {
+        generatedSurvey: {
+          stars: [{ designation: "G2 V" }],
+        },
+        source: "test",
+      },
+      profiles: {
+        secondaryProfiles: "Legacy note",
+      },
+      habitabilityZone: {
+        centre: 1.1,
+      },
+      objectCounts: {
+        gasGiants: 1,
+      },
+    };
+
+    const surveyData = {
+      ...createEmptySurveyData(),
+      systemDesignation: "Surveyed Alpha",
+      sectorHex: "sector-1 0412",
+      travelZone: "amber",
+      hzCentre: 1.2,
+      hzInner: 0.9,
+      hzOuter: 1.6,
+      gasGiants: 2,
+      belts: 1,
+      terrestrials: 5,
+      stars: [
+        {
+          designation: "Primary",
+          typeSubtype: "G2 V",
+          lumClass: "V",
+          mass: 1,
+          luminosity: 1,
+          temperature: 5800,
+          diameter: 1,
+          stellarProfile: "Primary",
+          notes: "Calibrated",
+        },
+      ],
+      worlds: [
+        {
+          designation: "Iona",
+          type: "MON",
+          orbitAu: "3.2/2.4",
+          sah: "A867A99-C",
+          diameter: 12345,
+          temperature: 19,
+          atmosphere: 6,
+          hydrosphere: 7,
+          lifeMxdc: "1234",
+          habitability: "Good",
+          resources: "Abundant",
+          notes: "Moon, Orbits Tethys, Mainworld",
+        },
+      ],
+      mainworldName: "Iona",
+      mainworldType: "Moon",
+      mainworldParent: "Tethys",
+      mainworldUwp: "A867A99-C",
+      nativeLifeform: "1234",
+      habitability: "Good",
+      resourceRating: "Abundant",
+      tradeCodes: "Ag, Ri",
+      mainworldRemarks: "Moon, Orbits Tethys, Mainworld",
+      secondaryProfiles: "Edited note",
+      comments: "Roundtrip verification",
+    };
+
+    const merged = mergeSystemSurveyRecord(currentRecord, surveyData, "2026-04-07T12:00:00.000Z");
+    const rehydrated = buildSurveyDataFromSystem(merged);
+
+    expect(merged.metadata.generatedSurvey.stars).toEqual(currentRecord.metadata.generatedSurvey.stars);
+    expect(merged.metadata.lastModified).toBe("2026-04-07T12:00:00.000Z");
+    expect(rehydrated.stars[0].typeSubtype).toBe("G2 V");
+    expect(rehydrated.stars[0].notes).toBe("Calibrated");
+    expect(rehydrated.worlds[0].designation).toBe("Iona");
+    expect(rehydrated.worlds[0].type).toBe("MON");
+    expect(rehydrated.worlds[0].notes).toBe("Moon, Orbits Tethys, Mainworld");
+    expect(rehydrated.mainworldType).toBe("Moon");
+    expect(rehydrated.mainworldParent).toBe("Tethys");
+    expect(rehydrated.tradeCodes).toBe("Ag, Ri");
+    expect(rehydrated.secondaryProfiles).toBe("Edited note");
+    expect(rehydrated.hzCentre).toBe(1.2);
+    expect(rehydrated.gasGiants).toBe(2);
+  });
+
+  it("derives profile notes from mainworld social overlays when no explicit notes are stored", () => {
+    const socialNotes = buildMainworldSocialProfileNotes({
+      minimumSustainableTechLevel: { summary: "Minimal sustainable TL 5" },
+      governmentProfile: {
+        profileCode: "4-FES-LM-JS",
+        summary: "Federal / Executive / Single Council",
+        structureSummary: "Executive Single Council, Legislative Multiple Councils, Judicial Single Council",
+      },
+      justiceProfile: { code: "A", label: "Adversarial" },
+      factionsProfile: { eligible: true, summary: "2 significant factions" },
+      civilConflict: { eligible: true, active: true, trigger: "balkanization" },
+      techLevelPockets: { eligible: true, summary: "TL 6-10" },
+    });
+    const surveyData = buildSurveyDataFromSystem({
+      mainworld: {
+        name: "Iona",
+        minimumSustainableTechLevel: { summary: "Minimal sustainable TL 5" },
+        governmentProfile: {
+          profileCode: "4-FES-LM-JS",
+          summary: "Federal / Executive / Single Council",
+          structureSummary: "Executive Single Council, Legislative Multiple Councils, Judicial Single Council",
+        },
+        justiceProfile: { code: "A", label: "Adversarial" },
+        factionsProfile: { eligible: true, summary: "2 significant factions" },
+        civilConflict: { eligible: true, active: true, trigger: "balkanization" },
+        techLevelPockets: { eligible: true, summary: "TL 6-10" },
+      },
+      profiles: {},
+    });
+
+    expect(socialNotes).toContain("Minimal sustainable TL 5");
+    expect(socialNotes).toContain("Government profile 4-FES-LM-JS");
+    expect(socialNotes).toContain("Justice A Adversarial");
+    expect(socialNotes).toContain("Factions 2 significant factions");
+    expect(socialNotes).toContain("Civil conflict active");
+    expect(socialNotes).toContain("Tech pockets TL 6-10");
+    expect(surveyData.profileNotes).toContain("Minimal sustainable TL 5");
+    expect(surveyData.profileNotes).toContain("Government profile 4-FES-LM-JS");
+    expect(surveyData.profileNotes).toContain("Justice A Adversarial");
+    expect(surveyData.profileNotes).toContain("Factions 2 significant factions");
+    expect(surveyData.profileNotes).toContain("Civil conflict active");
+    expect(surveyData.profileNotes).toContain("Tech pockets TL 6-10");
+    expect(surveyData.worlds[0].notes).toContain("Government profile 4-FES-LM-JS");
+    expect(surveyData.worlds[0].notes).toContain("Justice A Adversarial");
+    expect(surveyData.worlds[0].notes).toContain("Civil conflict active");
+    expect(surveyData.worlds[0].notes).toContain("Tech pockets TL 6-10");
+  });
+
+  it("marks reconstructed flat-label star metadata as legacy in survey notes", () => {
+    const surveyData = buildSurveyDataFromSystem({
+      metadata: {
+        generatedSurvey: {
+          legacyReconstructed: true,
+          legacyHierarchyUnknown: true,
+        },
+      },
+    });
+
+    expect(surveyData.profileNotes).toContain("Legacy star hierarchy reconstructed from flat labels.");
+  });
+});

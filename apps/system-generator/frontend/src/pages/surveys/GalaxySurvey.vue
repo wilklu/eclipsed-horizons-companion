@@ -820,6 +820,7 @@ import { useSystemStore } from "../../stores/systemStore.js";
 import { createSectorsBatch, getSectorStats, upsertSector } from "../../api/sectorApi.js";
 import { calculateHexOccupancyProbability } from "../../utils/sectorGeneration.js";
 import { generatePrimaryStar } from "../../utils/primaryStarGenerator.js";
+import { buildHexStarTypeMetadata, normalizeHexStarTypeRecord } from "../../utils/systemStarMetadata.js";
 import { starDescriptorToCssClass } from "../../utils/starDisplay.js";
 import LoadingSpinner from "../../components/common/LoadingSpinner.vue";
 import ConfirmDialog from "../../components/common/ConfirmDialog.vue";
@@ -2513,13 +2514,18 @@ function ensureCenterAnomalyPresence({ galaxy, sector, occupiedHexes, hexStarTyp
 
   let nextHexStarTypes = hexStarTypes;
   if (hexStarTypes && typeof hexStarTypes === "object") {
+    const centerStarMetadata = buildHexStarTypeMetadata({
+      anomalyType: centerAnomalyType,
+      fallbackStarType: centerAnomalyType,
+    });
     nextHexStarTypes = {
       ...hexStarTypes,
       [centerCoord]: {
-        starType: centerAnomalyType,
+        starType: centerStarMetadata.starType,
         starClass: "anomaly-core",
-        secondaryStars: [],
-        anomalyType: centerAnomalyType,
+        secondaryStars: centerStarMetadata.secondaryStars,
+        generatedStars: centerStarMetadata.generatedStars.map((star) => ({ ...star })),
+        anomalyType: centerStarMetadata.anomalyType,
         anomalyDetails: centerAnomaly,
       },
     };
@@ -2546,23 +2552,11 @@ function buildPersistedSystemRecordsForSector(sector, hexStarTypes) {
       const rawCoord = String(coord || "").trim();
       if (!/^\d{4}$/.test(rawCoord)) return null;
 
-      const primaryType = normalizeStarTypeValue(info?.starType, "G2V");
-      const secondaryStarTypes = Array.isArray(info?.secondaryStars)
-        ? info.secondaryStars.map((star) => normalizeStarTypeValue(star, "")).filter(Boolean)
+      const normalizedInfo = normalizeHexStarTypeRecord(info, "G2V");
+      const primaryType = normalizeStarTypeValue(normalizedInfo?.starType, "G2V");
+      const generatedStars = Array.isArray(normalizedInfo?.generatedStars)
+        ? normalizedInfo.generatedStars.map((star) => ({ ...star }))
         : [];
-      const generatedStars = [
-        {
-          designation: primaryType,
-          spectralType: primaryType,
-          spectralClass: primaryType,
-          isAnomaly: Boolean(info?.anomalyType),
-        },
-        ...secondaryStarTypes.map((spectralType) => ({
-          designation: spectralType,
-          spectralType,
-          spectralClass: spectralType,
-        })),
-      ];
 
       return {
         systemId: `${sectorId}:${rawCoord}`,
@@ -2576,14 +2570,19 @@ function buildPersistedSystemRecordsForSector(sector, hexStarTypes) {
         primaryStar: {
           spectralClass: primaryType,
         },
-        companionStars: secondaryStarTypes.map((spectralClass) => ({ spectralClass })),
+        companionStars: (normalizedInfo?.secondaryStars ?? []).map((spectralClass) => ({ spectralClass })),
         metadata: {
           generatedSurvey: {
             stars: generatedStars,
+            anomalyType: normalizedInfo?.anomalyType || null,
+            legacyReconstructed: Boolean(normalizedInfo?.legacyReconstructed),
+            legacyHierarchyUnknown: Boolean(normalizedInfo?.legacyHierarchyUnknown),
           },
           source: "galaxy-survey",
-          anomalyType: info?.anomalyType || null,
-          ...(info?.anomalyDetails ? { anomalyDetails: info.anomalyDetails } : {}),
+          anomalyType: normalizedInfo?.anomalyType || null,
+          legacyReconstructed: Boolean(normalizedInfo?.legacyReconstructed),
+          legacyHierarchyUnknown: Boolean(normalizedInfo?.legacyHierarchyUnknown),
+          ...(normalizedInfo?.anomalyDetails ? { anomalyDetails: normalizedInfo.anomalyDetails } : {}),
         },
       };
     })
@@ -3059,12 +3058,18 @@ async function generateSectorSystemsForSectors(
         if (Math.random() < prob) {
           const primary = generatePrimaryStar();
           const primaryType = primary.designation || primary.spectralType || primary.persistedSpectralClass || "G2V";
+          const starMetadata = buildHexStarTypeMetadata({
+            generatedStars: [{ ...primary }],
+            primary,
+            fallbackStarType: primaryType,
+          });
           occupiedHexes.push(coord);
           hexStarTypes[coord] = {
-            starType: primaryType,
+            starType: starMetadata.starType,
             starClass: spectralClassToCssClass(primary.spectralType || primary.persistedSpectralClass || primaryType),
-            secondaryStars: [],
-            anomalyType: null,
+            secondaryStars: starMetadata.secondaryStars,
+            generatedStars: starMetadata.generatedStars.map((star) => ({ ...star })),
+            anomalyType: starMetadata.anomalyType,
           };
         }
       }

@@ -79,6 +79,54 @@ export const SOCIAL_WBH_RULES = Object.freeze([
     source: "docs/reference/World Builder's Handbook.md",
     status: "partial",
   },
+  {
+    id: "documented-social-house-rules",
+    section: "House Rules > Population and Government / Tech Level Variations",
+    source: "docs/house-rules/world-building.md",
+    status: "partial",
+  },
+  {
+    id: "population-concentration-urbanization",
+    section: "Chapter 7 > Population Concentration / Urbanization",
+    source: "docs/reference/World Builder's Handbook.md",
+    status: "partial",
+  },
+  {
+    id: "major-cities",
+    section: "Chapter 7 > Number of Major Cities",
+    source: "docs/reference/World Builder's Handbook.md",
+    status: "partial",
+  },
+  {
+    id: "government-traits",
+    section: "Chapter 7 > Government Traits > Centralization / Authority",
+    source: "docs/reference/World Builder's Handbook.md",
+    status: "partial",
+  },
+  {
+    id: "government-structure",
+    section: "Chapter 7 > Government Traits > Structure / Profile",
+    source: "docs/reference/World Builder's Handbook.md",
+    status: "partial",
+  },
+  {
+    id: "factions",
+    section: "Chapter 7 > Factions / Faction Profile",
+    source: "docs/reference/World Builder's Handbook.md",
+    status: "partial",
+  },
+  {
+    id: "secondary-world-governments",
+    section: "Chapter 7 > Secondary World Governments / Categorization",
+    source: "docs/reference/World Builder's Handbook.md",
+    status: "partial",
+  },
+  {
+    id: "system-of-justice",
+    section: "Chapter 7 > Law Level > Judicial System",
+    source: "docs/reference/World Builder's Handbook.md",
+    status: "partial",
+  },
 ]);
 
 const RANDOM_WORLD_STARS = ["O", "B", "A", "F", "G", "G", "G", "K", "K", "M", "M", "M"];
@@ -141,6 +189,14 @@ export const WORLD_PROFILE_FIELDS = [
   "habitability",
   "resourceRating",
   "importance",
+  "minimumSustainableTechLevel",
+  "populationConcentration",
+  "urbanization",
+  "majorCities",
+  "governmentProfile",
+  "justiceProfile",
+  "factionsProfile",
+  "secondaryWorldContext",
   "nativeLifeform",
   "economics",
   "remarks",
@@ -149,6 +205,9 @@ export const WORLD_PROFILE_FIELDS = [
   "seismology",
   "magnetosphere",
   "nativeSophontLife",
+  "civilConflict",
+  "techLevelPockets",
+  "houseRulesApplied",
   "populationCode",
   "population",
   "governmentCode",
@@ -248,6 +307,75 @@ function deriveImportance({ tradeCodes = [], starport = "X", techLevel = 0, popu
   return importance;
 }
 
+export function deriveCivilConflictProfile({
+  populationCode = 0,
+  governmentCode = 0,
+  lawLevel = 0,
+  rollDie = d1,
+} = {}) {
+  const highLawOpenGovernment = lawLevel >= 8 && [1, 2, 4].includes(Number(governmentCode));
+  const lowLawAuthoritarian = lawLevel <= 1 && [10, 11, 12, 13].includes(Number(governmentCode));
+  const trigger =
+    Number(governmentCode) === 0
+      ? "no-government"
+      : Number(governmentCode) === 7
+        ? "balkanization"
+        : highLawOpenGovernment
+          ? "high-law-open-government-mismatch"
+          : lowLawAuthoritarian
+            ? "low-law-authoritarian-mismatch"
+            : null;
+  const eligible = Number(populationCode) >= 7 && Boolean(trigger);
+
+  if (!eligible) {
+    return {
+      ruleId: "HR-WB-010",
+      eligible: false,
+      active: false,
+      trigger: null,
+      roll: null,
+    };
+  }
+
+  const roll = clamp(Number(rollDie(6)) || 1, 1, 6);
+  return {
+    ruleId: "HR-WB-010",
+    eligible: true,
+    active: roll >= 5,
+    trigger,
+    roll,
+  };
+}
+
+export function deriveTechLevelPocketProfile({ techLevel = 0 } = {}) {
+  const nominalLevel = clamp(Number(techLevel) || 0, 0, 15);
+  const eligible = nominalLevel >= 5;
+
+  if (!eligible) {
+    return {
+      ruleId: "HR-WB-020",
+      eligible: false,
+      optional: true,
+      nominalLevel,
+      lowLevel: nominalLevel,
+      highLevel: nominalLevel,
+      summary: `TL ${nominalLevel}`,
+    };
+  }
+
+  const lowLevel = clamp(nominalLevel - 2, 0, 15);
+  const highLevel = clamp(nominalLevel + 2, 0, 15);
+  return {
+    ruleId: "HR-WB-020",
+    eligible: true,
+    optional: true,
+    nominalLevel,
+    lowLevel,
+    highLevel,
+    summary: `TL ${lowLevel}-${highLevel}`,
+  };
+}
+
 function buildWorldRemarks(world = {}, overlay = {}) {
   const remarks = [];
   if (world?.isMoon) remarks.push("Moon");
@@ -257,6 +385,30 @@ function buildWorldRemarks(world = {}, overlay = {}) {
   if (overlay?.resourceRating === "Abundant") remarks.push("Resource Rich");
   if (world?.nativeSophontLife) remarks.push("Native Life");
   if (overlay?.isMainworld) remarks.push("Mainworld");
+  if (overlay?.populationConcentration?.eligible) {
+    remarks.push(`PCR ${overlay.populationConcentration.rating} ${overlay.populationConcentration.label}`);
+  }
+  if (overlay?.urbanization?.eligible) {
+    remarks.push(`Urban ${overlay.urbanization.percent}%`);
+  }
+  if (overlay?.majorCities?.eligible && overlay.majorCities.count > 0) {
+    remarks.push(`Major Cities ${overlay.majorCities.count}`);
+  }
+  if (overlay?.governmentProfile?.eligible) {
+    remarks.push(`Government ${overlay.governmentProfile.profileCode || overlay.governmentProfile.summary}`);
+  }
+  if (overlay?.justiceProfile?.eligible) {
+    remarks.push(`Justice ${overlay.justiceProfile.code}`);
+  }
+  if (overlay?.factionsProfile?.eligible && overlay.factionsProfile.significantFactionCount > 0) {
+    remarks.push(`Factions ${overlay.factionsProfile.significantFactionCount}`);
+  }
+  if (overlay?.secondaryWorldContext?.eligible && overlay.secondaryWorldContext.classificationCodes?.length) {
+    remarks.push(`Secondary ${overlay.secondaryWorldContext.classificationCodes.join("/")}`);
+  }
+  if (overlay?.civilConflict?.active) remarks.push("Civil Conflict");
+  else if (overlay?.civilConflict?.eligible) remarks.push("Conflict Risk");
+  if (overlay?.techLevelPockets?.eligible) remarks.push(`TL Pockets ${overlay.techLevelPockets.summary}`);
   return remarks;
 }
 
@@ -311,6 +463,1051 @@ function computePopulationValue(populationCode) {
   return 10 ** populationCode;
 }
 
+const POPULATION_CONCENTRATION_LABELS = Object.freeze({
+  0: "Extremely Dispersed",
+  1: "Highly Dispersed",
+  2: "Moderately Dispersed",
+  3: "Partially Dispersed",
+  4: "Slightly Dispersed",
+  5: "Slightly Concentrated",
+  6: "Partially Concentrated",
+  7: "Moderately Concentrated",
+  8: "Highly Concentrated",
+  9: "Extremely Concentrated",
+});
+
+const GOVERNMENT_CENTRALIZATION_TABLE = Object.freeze({
+  C: { code: "C", label: "Confederal", summary: "Sub-states are more powerful than the central government" },
+  F: { code: "F", label: "Federal", summary: "Powers are shared between the central government and sub-states" },
+  U: { code: "U", label: "Unitary", summary: "The central government is dominant" },
+});
+
+const GOVERNMENT_AUTHORITY_TABLE = Object.freeze({
+  L: { code: "L", label: "Legislative", summary: "Law-making institutions dominate the government" },
+  E: { code: "E", label: "Executive", summary: "Executive power dominates the government" },
+  J: { code: "J", label: "Judicial", summary: "Judicial authorities dominate the government" },
+  B: { code: "B", label: "Balance", summary: "Power is balanced between government branches" },
+});
+
+const GOVERNMENT_BRANCH_LABELS = Object.freeze({
+  L: "Legislative",
+  E: "Executive",
+  J: "Judicial",
+});
+
+const GOVERNMENT_STRUCTURE_TABLE = Object.freeze({
+  D: { code: "D", label: "Demos", summary: "The broader citizen body directly operates this function" },
+  S: { code: "S", label: "Single Council", summary: "A single council controls this function" },
+  R: { code: "R", label: "Ruler", summary: "A single ruler dominates this function" },
+  M: { code: "M", label: "Multiple Councils", summary: "Multiple councils divide or balance this function" },
+});
+
+const FACTION_STRENGTH_TABLE = Object.freeze({
+  O: { code: "O", label: "Obscure", summary: "Few people have heard of them" },
+  F: { code: "F", label: "Fringe", summary: "A small faction on the edge of relevance" },
+  M: { code: "M", label: "Minor", summary: "A minor but visible faction" },
+  N: { code: "N", label: "Notable", summary: "A notable faction with clear influence" },
+  S: { code: "S", label: "Significant", summary: "Nearly as powerful as the government" },
+  P: { code: "P", label: "Popular", summary: "More powerful than the government" },
+  G: { code: "G", label: "Government", summary: "The official governing faction" },
+});
+
+const FACTION_RELATIONSHIP_TABLE = Object.freeze({
+  0: { code: 0, label: "Alliance" },
+  1: { code: 1, label: "Cooperation" },
+  2: { code: 2, label: "Truce" },
+  3: { code: 3, label: "Competition" },
+  4: { code: 4, label: "Resistance" },
+  5: { code: 5, label: "Riots" },
+  6: { code: 6, label: "Uprising" },
+  7: { code: 7, label: "Insurgency" },
+  8: { code: 8, label: "War" },
+  9: { code: 9, label: "Total War" },
+});
+
+const JUSTICE_SYSTEM_TABLE = Object.freeze({
+  N: { code: "N", label: "None", summary: "Informal or customary justice with no formal system" },
+  I: { code: "I", label: "Inquisitorial", summary: "Investigation-led justice dominates proceedings" },
+  A: { code: "A", label: "Adversarial", summary: "Opposing advocates contest cases before a judge" },
+  T: { code: "T", label: "Traditional", summary: "Justice rests on custom, doctrine, or traditional practice" },
+});
+
+const SECONDARY_WORLD_CLASSIFICATIONS = Object.freeze({
+  Cy: { code: "Cy", label: "Colony" },
+  Fa: { code: "Fa", label: "Farming" },
+  Fp: { code: "Fp", label: "Freeport" },
+  Mb: { code: "Mb", label: "Military Base" },
+  Mi: { code: "Mi", label: "Mining Facility" },
+  Pe: { code: "Pe", label: "Penal Colony" },
+  Rb: { code: "Rb", label: "Research Base" },
+});
+
+function hasTradeCode(tradeCodes, code) {
+  return Array.isArray(tradeCodes) && tradeCodes.includes(code);
+}
+
+function summarizeGovernmentContext(governmentCode) {
+  return Number(governmentCode) === 7 ? "Nearest sovereign government or faction" : "World government";
+}
+
+function resolveGovernmentCodeToken(governmentCode) {
+  const numericGovernmentCode = Number(governmentCode);
+  return Number.isFinite(numericGovernmentCode) ? toHex(Math.max(0, numericGovernmentCode)) : "0";
+}
+
+function toRomanNumeral(value) {
+  const numerals = [
+    [1000, "M"],
+    [900, "CM"],
+    [500, "D"],
+    [400, "CD"],
+    [100, "C"],
+    [90, "XC"],
+    [50, "L"],
+    [40, "XL"],
+    [10, "X"],
+    [9, "IX"],
+    [5, "V"],
+    [4, "IV"],
+    [1, "I"],
+  ];
+  let remaining = Math.max(1, Math.trunc(Number(value) || 1));
+  let output = "";
+  numerals.forEach(([amount, token]) => {
+    while (remaining >= amount) {
+      output += token;
+      remaining -= amount;
+    }
+  });
+  return output || "I";
+}
+
+function rollGovernmentCodeForPopulation(populationCode = 0, rollTwoDice = () => d6()) {
+  if (!(populationCode > 0)) {
+    return 0;
+  }
+  return clamp(Number(rollTwoDice()) - 7 + Number(populationCode), 0, 13);
+}
+
+function resolveFactionStrengthCode(total) {
+  if (total <= 3) return "O";
+  if (total <= 5) return "F";
+  if (total <= 7) return "M";
+  if (total <= 9) return "N";
+  if (total <= 11) return "S";
+  return "P";
+}
+
+function resolveJusticeSystemCode(total) {
+  if (total <= 5) return "I";
+  if (total <= 8) return "A";
+  return "T";
+}
+
+function resolveSecondaryGovernmentCode(total) {
+  if (total <= 1) return 0;
+  if (total === 2) return 1;
+  if (total === 3) return 2;
+  if (total === 4) return 3;
+  return 6;
+}
+
+function hasHabitableZoneClassification(world = {}) {
+  const zoneToken = String(world?.zone || "")
+    .trim()
+    .toLowerCase();
+  if (zoneToken.includes("habitable")) {
+    return true;
+  }
+  const orbitAU = Number(world?.orbitAU ?? world?.orbitAu ?? NaN);
+  const hzco = Number(world?.hzco ?? NaN);
+  if (Number.isFinite(orbitAU) && Number.isFinite(hzco) && hzco > 0) {
+    return orbitAU >= hzco * 0.75 && orbitAU <= hzco * 1.5;
+  }
+  return false;
+}
+
+function resolveFunctionalStructureCode(total) {
+  if (total <= 3) return "D";
+  if (total === 4) return "S";
+  if (total === 5 || total === 6) return "M";
+  if (total === 7 || total === 8) return "R";
+  if (total === 9) return "M";
+  if (total === 10) return "S";
+  if (total === 11) return "M";
+  return "S";
+}
+
+function createGovernmentStructureProfile(code, details = {}) {
+  return {
+    ...GOVERNMENT_STRUCTURE_TABLE[code],
+    ...details,
+  };
+}
+
+function resolveGovernmentStructureProfile({
+  governmentCode = 0,
+  branchCode = "L",
+  authorityCode = "L",
+  isAuthoritative = false,
+  rollTwoDice = () => d6(),
+  rollDie = () => d6(1),
+} = {}) {
+  const numericGovernmentCode = Number(governmentCode);
+
+  if ([8, 9].includes(numericGovernmentCode)) {
+    return createGovernmentStructureProfile("M", {
+      branchCode,
+      branchLabel: GOVERNMENT_BRANCH_LABELS[branchCode] || branchCode,
+      authoritative: isAuthoritative,
+      source: "government-fixed",
+      total: null,
+      dm: 0,
+    });
+  }
+
+  if (numericGovernmentCode === 2 && (isAuthoritative || (authorityCode === "B" && branchCode === "L"))) {
+    return createGovernmentStructureProfile("D", {
+      branchCode,
+      branchLabel: GOVERNMENT_BRANCH_LABELS[branchCode] || branchCode,
+      authoritative: isAuthoritative,
+      source: "government-fixed",
+      total: null,
+      dm: 0,
+    });
+  }
+
+  if ([3, 12, 15].includes(numericGovernmentCode)) {
+    const total = Number(rollDie());
+    return createGovernmentStructureProfile(total <= 4 ? "S" : "M", {
+      branchCode,
+      branchLabel: GOVERNMENT_BRANCH_LABELS[branchCode] || branchCode,
+      authoritative: isAuthoritative,
+      source: "government-fixed",
+      total,
+      dm: 0,
+    });
+  }
+
+  if ([10, 11, 13, 14].includes(numericGovernmentCode) && isAuthoritative) {
+    const total = Number(rollDie());
+    return createGovernmentStructureProfile(total <= 5 ? "R" : "S", {
+      branchCode,
+      branchLabel: GOVERNMENT_BRANCH_LABELS[branchCode] || branchCode,
+      authoritative: true,
+      source: "authoritative-special",
+      total,
+      dm: 0,
+    });
+  }
+
+  if (authorityCode === "L" && isAuthoritative) {
+    const total = Number(rollTwoDice());
+    const code = total <= 3 ? "D" : total <= 8 ? "M" : "S";
+    return createGovernmentStructureProfile(code, {
+      branchCode,
+      branchLabel: GOVERNMENT_BRANCH_LABELS[branchCode] || branchCode,
+      authoritative: true,
+      source: "legislative-special",
+      total,
+      dm: 0,
+    });
+  }
+
+  const dm = [10, 11, 13, 14].includes(numericGovernmentCode) && !isAuthoritative ? 2 : 0;
+  const total = Number(rollTwoDice()) + dm;
+  return createGovernmentStructureProfile(resolveFunctionalStructureCode(total), {
+    branchCode,
+    branchLabel: GOVERNMENT_BRANCH_LABELS[branchCode] || branchCode,
+    authoritative: isAuthoritative,
+    source: "functional-table",
+    total,
+    dm,
+  });
+}
+
+function summarizeGovernmentStructures({ authorityCode = "L", structures = {} } = {}) {
+  const branchOrder = authorityCode === "B" ? ["L", "E", "J"] : [authorityCode, "L", "E", "J"];
+  const seen = new Set();
+  return branchOrder
+    .filter((branchCode) => !seen.has(branchCode) && seen.add(branchCode))
+    .map((branchCode) => {
+      const structure = structures?.[branchCode];
+      if (!structure) {
+        return null;
+      }
+      return `${GOVERNMENT_BRANCH_LABELS[branchCode]} ${structure.label}`;
+    })
+    .filter(Boolean)
+    .join(", ");
+}
+
+function buildGovernmentProfileCode({
+  governmentCode = 0,
+  centralizationCode = "C",
+  authorityCode = "L",
+  structures = {},
+} = {}) {
+  const governmentToken = resolveGovernmentCodeToken(governmentCode);
+
+  if (authorityCode === "B") {
+    return `${governmentToken}-${centralizationCode}BB-L${structures?.L?.code || "?"}-E${structures?.E?.code || "?"}-J${structures?.J?.code || "?"}`;
+  }
+
+  const authoritativeStructureCode = structures?.[authorityCode]?.code || "?";
+  const secondarySegments = ["L", "E", "J"]
+    .filter((branchCode) => branchCode !== authorityCode && structures?.[branchCode]?.code)
+    .map((branchCode) => `${branchCode}${structures[branchCode].code}`);
+
+  return [
+    `${governmentToken}-${centralizationCode}${authorityCode}${authoritativeStructureCode}`,
+    ...secondarySegments,
+  ].join("-");
+}
+
+function buildFactionProfileCode({ index = 1, governmentCode = 0, strengthCode = "G" } = {}) {
+  return `${toRomanNumeral(index)}-${resolveGovernmentCodeToken(governmentCode)}-${strengthCode}`;
+}
+
+export function deriveFactionsProfile({
+  governmentCode = 0,
+  populationCode = 0,
+  rollFactionCount = d1,
+  rollGovernment = () => d6(),
+  rollStrength = () => d6(),
+  rollRelationship = d1,
+} = {}) {
+  const numericGovernmentCode = Number(governmentCode);
+
+  if (!(populationCode > 0)) {
+    return {
+      eligible: false,
+      factionCount: 0,
+      significantFactionCount: 0,
+      profiles: [],
+      relationships: [],
+      summary: "No meaningful factions",
+    };
+  }
+
+  let factionDm = 0;
+  if ([0, 7].includes(numericGovernmentCode)) factionDm += 1;
+  if (numericGovernmentCode >= 10) factionDm -= 1;
+  const totalFactions = Math.max(1, Number(rollFactionCount(3)) + factionDm);
+
+  const rulingFaction = {
+    index: 1,
+    roman: "I",
+    governmentCode: numericGovernmentCode,
+    strength: FACTION_STRENGTH_TABLE.G,
+    profileCode: buildFactionProfileCode({ index: 1, governmentCode: numericGovernmentCode, strengthCode: "G" }),
+    role: "government",
+  };
+
+  const profiles = [rulingFaction];
+  const relationships = [];
+  for (let index = 2; index <= totalFactions; index += 1) {
+    const factionGovernmentCode = rollGovernmentCodeForPopulation(populationCode, rollGovernment);
+    const strengthTotal = Number(rollStrength());
+    const strengthCode = resolveFactionStrengthCode(strengthTotal);
+    const relationshipDm = factionGovernmentCode === numericGovernmentCode ? -1 : 1;
+    const relationshipTotal = clamp(Number(rollRelationship(6)) + relationshipDm, 0, 9);
+    const faction = {
+      index,
+      roman: toRomanNumeral(index),
+      governmentCode: factionGovernmentCode,
+      strength: {
+        ...FACTION_STRENGTH_TABLE[strengthCode],
+        total: strengthTotal,
+      },
+      profileCode: buildFactionProfileCode({ index, governmentCode: factionGovernmentCode, strengthCode }),
+      role: factionGovernmentCode === numericGovernmentCode ? "splinter" : "external",
+    };
+    profiles.push(faction);
+    relationships.push({
+      from: rulingFaction.roman,
+      to: faction.roman,
+      relationship: FACTION_RELATIONSHIP_TABLE[relationshipTotal],
+      profileCode: `${rulingFaction.roman}+${faction.roman}=${relationshipTotal}`,
+    });
+  }
+
+  const significantFactionCount = Math.max(0, totalFactions - 1);
+  return {
+    eligible: true,
+    factionCount: totalFactions,
+    significantFactionCount,
+    profiles,
+    relationships,
+    summary:
+      significantFactionCount > 0
+        ? `${significantFactionCount} significant ${significantFactionCount === 1 ? "faction" : "factions"}`
+        : "No significant factions",
+  };
+}
+
+export function deriveJusticeProfile({
+  governmentCode = 0,
+  lawLevel = 0,
+  techLevel = 0,
+  governmentProfile = null,
+  rollJustice = () => d6(),
+} = {}) {
+  const numericGovernmentCode = Number(governmentCode);
+  const numericLawLevel = Number(lawLevel);
+  const numericTechLevel = Number(techLevel);
+
+  if (numericGovernmentCode === 0) {
+    return {
+      eligible: false,
+      ...JUSTICE_SYSTEM_TABLE.N,
+      summary: JUSTICE_SYSTEM_TABLE.N.summary,
+      dm: 0,
+      total: null,
+    };
+  }
+
+  let dm = 0;
+  if (numericGovernmentCode === 1) dm -= 2;
+  if (numericGovernmentCode === 8 && ["C", "F"].includes(governmentProfile?.centralization?.code)) dm -= 2;
+  if ([13, 14].includes(numericGovernmentCode)) dm += 4;
+  else if (numericLawLevel >= 10) dm -= 4;
+  if (numericTechLevel === 0) dm += 4;
+  else if (numericTechLevel <= 2) dm += 2;
+  if (governmentProfile?.authority?.code === "J") dm -= 2;
+
+  const total = Number(rollJustice()) + dm;
+  const code = resolveJusticeSystemCode(total);
+  return {
+    eligible: true,
+    ...JUSTICE_SYSTEM_TABLE[code],
+    total,
+    dm,
+    summary: JUSTICE_SYSTEM_TABLE[code].label,
+  };
+}
+
+export function deriveSecondaryWorldContext({
+  world = {},
+  populationCode = 0,
+  governmentCode = 0,
+  lawLevel = 0,
+  techLevel = 0,
+  mainworldOverlay = null,
+  rollDependencyGovernment = d1,
+  rollClassification = () => d6(),
+  useProvidedGovernmentCode = false,
+} = {}) {
+  if (!(populationCode > 0) || !mainworldOverlay || world?.isMainworld) {
+    return {
+      eligible: false,
+      dependent: false,
+      classificationCodes: [],
+      classifications: [],
+      summary: "",
+    };
+  }
+
+  const mainworldGovernmentCode = Number(mainworldOverlay?.governmentCode ?? 0);
+  const dependent = mainworldGovernmentCode !== 7 && Boolean(mainworldOverlay);
+  let derivedGovernmentCode = Number(governmentCode);
+  const governmentSource = dependent ? "dependency" : "independent";
+
+  if (dependent && !useProvidedGovernmentCode) {
+    let dm = 0;
+    if (mainworldGovernmentCode === 0) dm -= 2;
+    if (mainworldGovernmentCode === 6) dm += Number(mainworldOverlay?.populationCode ?? 0);
+    derivedGovernmentCode = resolveSecondaryGovernmentCode(Number(rollDependencyGovernment(6)) + dm);
+  }
+
+  const classifications = [];
+  const addClassification = (code, summary) => {
+    classifications.push({
+      ...SECONDARY_WORLD_CLASSIFICATIONS[code],
+      summary,
+    });
+  };
+
+  if (populationCode >= 5 && derivedGovernmentCode === 6) {
+    addClassification("Cy", "Dependency or captive colony");
+  }
+  if (
+    hasHabitableZoneClassification(world) &&
+    Number(world?.atmosphereCode ?? 0) >= 4 &&
+    Number(world?.atmosphereCode ?? 0) <= 9 &&
+    Number(world?.hydrographics ?? 0) >= 4 &&
+    Number(world?.hydrographics ?? 0) <= 8 &&
+    populationCode >= 2
+  ) {
+    addClassification("Fa", "Agricultural secondary world in the habitable zone");
+  }
+  if (derivedGovernmentCode >= 0 && derivedGovernmentCode <= 5 && techLevel >= 8) {
+    const freeportTotal = Number(rollClassification()) - (["A", "B"].includes(mainworldOverlay?.starport) ? 2 : 0);
+    if (freeportTotal >= 10) {
+      addClassification("Fp", "Open port or trading enclave");
+    }
+  }
+  if (
+    Number(mainworldOverlay?.techLevel ?? 0) >= 8 &&
+    ["A", "B", "C"].includes(mainworldOverlay?.starport) &&
+    (derivedGovernmentCode === 6 || Number(rollClassification()) + (derivedGovernmentCode === 6 ? 2 : 0) >= 12)
+  ) {
+    addClassification("Mb", "Secondary-world military installation");
+  }
+  if (hasTradeCode(mainworldOverlay?.tradeCodes, "In") && populationCode >= 2) {
+    const threshold = String(world?.type || "") === "Planetoid Belt" ? 6 : 10;
+    if (Number(rollClassification()) >= threshold) {
+      addClassification("Mi", "Extraction or heavy industrial support site");
+    }
+  }
+  if (
+    Number(mainworldOverlay?.techLevel ?? 0) >= 9 &&
+    Number(mainworldOverlay?.lawLevel ?? 0) >= 8 &&
+    derivedGovernmentCode === 6 &&
+    Number(rollClassification()) + (lawLevel >= 8 ? 2 : 0) >= 10
+  ) {
+    addClassification("Pe", "Penal or exile settlement");
+  }
+  if (
+    Number(mainworldOverlay?.populationCode ?? 0) >= 6 &&
+    Number(mainworldOverlay?.techLevel ?? 0) >= 8 &&
+    ["A", "B", "C"].includes(mainworldOverlay?.starport) &&
+    Number(rollClassification()) + (Number(mainworldOverlay?.techLevel ?? 0) >= 12 ? 2 : 0) >= 10
+  ) {
+    addClassification("Rb", "Scientific or survey installation");
+  }
+
+  return {
+    eligible: true,
+    dependent,
+    governmentSource,
+    governmentCode: derivedGovernmentCode,
+    classificationCodes: classifications.map((entry) => entry.code),
+    classifications,
+    summary: dependent ? "Dependent secondary world" : "Independent secondary world",
+    classificationSummary: classifications.map((entry) => entry.code).join(", "),
+  };
+}
+
+function summarizeMinimumSustainableTlBand(band) {
+  return (
+    {
+      "0-3": "Minimal sustainable TL 0-3",
+      "3-7": "Minimal sustainable TL 3-7",
+      "8+": "Minimal sustainable TL 8+",
+    }[band] || "Minimal sustainable TL unknown"
+  );
+}
+
+function resolveMinimumSustainableTlBand(minimumTechLevel = 0) {
+  if (Number(minimumTechLevel) >= 8) {
+    return "8+";
+  }
+  if (Number(minimumTechLevel) >= 3) {
+    return "3-7";
+  }
+  return "0-3";
+}
+
+function resolveHabitabilityMinimumTechLevel(habitability) {
+  const normalized = String(habitability || "")
+    .trim()
+    .toLowerCase();
+
+  if (!normalized) {
+    return null;
+  }
+  if (normalized === "hostile") {
+    return 8;
+  }
+  if (normalized === "poor") {
+    return 5;
+  }
+  if (["marginal", "good", "excellent"].includes(normalized)) {
+    return 3;
+  }
+  return null;
+}
+
+export function deriveMinimumSustainableTechLevel(world = {}) {
+  if (world?.minimumSustainableTechLevel && typeof world.minimumSustainableTechLevel === "object") {
+    return world.minimumSustainableTechLevel;
+  }
+
+  if (world?.nativeSophontLife) {
+    return {
+      minimumTechLevel: 0,
+      band: "0-3",
+      summary: "No environmental minimum for native sophonts",
+      factors: [
+        { source: "nativeSophontLife", minimumTechLevel: 0, summary: "Native sophonts ignore environmental minima" },
+      ],
+      conditional: false,
+    };
+  }
+
+  const atmosphereCode = Number(world?.atmosphereCode ?? 0);
+  const habitability = world?.habitability ?? determineHabitabilityRating(world);
+  const factors = [];
+  let conditional = false;
+
+  if ([0, 1, 10].includes(atmosphereCode)) {
+    factors.push({
+      source: "atmosphere",
+      minimumTechLevel: 8,
+      summary: `Atmosphere ${atmosphereCode.toString(16).toUpperCase()} requires TL8`,
+    });
+  } else if ([2, 3, 13, 14].includes(atmosphereCode)) {
+    factors.push({
+      source: "atmosphere",
+      minimumTechLevel: 5,
+      summary: `Atmosphere ${atmosphereCode.toString(16).toUpperCase()} requires TL5`,
+    });
+  } else if ([4, 7, 9].includes(atmosphereCode)) {
+    factors.push({
+      source: "atmosphere",
+      minimumTechLevel: 3,
+      summary: `Atmosphere ${atmosphereCode.toString(16).toUpperCase()} requires TL3`,
+    });
+  } else if (atmosphereCode === 11) {
+    factors.push({ source: "atmosphere", minimumTechLevel: 9, summary: "Atmosphere B requires TL9" });
+  } else if (atmosphereCode === 12) {
+    factors.push({ source: "atmosphere", minimumTechLevel: 10, summary: "Atmosphere C requires TL10" });
+  } else if ([16, 17].includes(atmosphereCode)) {
+    factors.push({
+      source: "atmosphere",
+      minimumTechLevel: 14,
+      summary: `Atmosphere ${atmosphereCode.toString(16).toUpperCase()} requires TL14`,
+    });
+  } else if (atmosphereCode === 15) {
+    conditional = true;
+    factors.push({
+      source: "atmosphere",
+      minimumTechLevel: 8,
+      summary: "Atmosphere F requires TL8+, potentially TL10+ depending on conditions",
+    });
+  }
+
+  const habitabilityMinimumTechLevel = resolveHabitabilityMinimumTechLevel(habitability);
+  if (habitabilityMinimumTechLevel !== null) {
+    factors.push({
+      source: "habitability",
+      minimumTechLevel: habitabilityMinimumTechLevel,
+      summary: `Habitability ${habitability} implies TL${habitabilityMinimumTechLevel}`,
+    });
+  }
+
+  const minimumTechLevel = factors.reduce((highest, factor) => Math.max(highest, factor.minimumTechLevel), 0);
+  const band = resolveMinimumSustainableTlBand(minimumTechLevel);
+
+  return {
+    minimumTechLevel,
+    band,
+    summary:
+      minimumTechLevel > 0
+        ? conditional && minimumTechLevel === 8
+          ? "Minimal sustainable TL 8+"
+          : `Minimal sustainable TL ${minimumTechLevel}`
+        : "Minimal sustainable TL 0",
+    factors,
+    conditional,
+  };
+}
+
+export function derivePopulationConcentrationProfile({
+  world = {},
+  populationCode = 0,
+  governmentCode = 0,
+  techLevel = 0,
+  tradeCodes = [],
+  rollDie = d1,
+} = {}) {
+  const minimumSustainableTechLevel = deriveMinimumSustainableTechLevel(world);
+  const minimumSustainableTlBand = minimumSustainableTechLevel.band;
+
+  if (!(populationCode > 0)) {
+    return {
+      eligible: false,
+      rating: null,
+      label: "Uninhabited",
+      summary: "Uninhabited",
+      settledAreaPercent: 0,
+      minimumSustainableTechLevel,
+      minimumSustainableTlBand,
+      minimumSustainableTlSummary: summarizeMinimumSustainableTlBand(minimumSustainableTlBand),
+    };
+  }
+
+  const size = Number(world?.size ?? 0);
+  let dm = 0;
+
+  if (size === 1) dm += 2;
+  else if (size >= 2 && size <= 3) dm += 1;
+
+  if (minimumSustainableTlBand === "8+") dm += 3;
+  else if (minimumSustainableTlBand === "3-7") dm += 1;
+
+  if (populationCode === 8) dm -= 1;
+  else if (populationCode >= 9) dm -= 2;
+
+  if (governmentCode === 7) dm -= 2;
+
+  if (techLevel <= 1) dm -= 2;
+  else if (techLevel <= 3) dm -= 1;
+  else dm += 1;
+
+  if (hasTradeCode(tradeCodes, "Ag")) dm -= 2;
+  if (hasTradeCode(tradeCodes, "In")) dm += 1;
+  if (hasTradeCode(tradeCodes, "Na")) dm -= 1;
+  if (hasTradeCode(tradeCodes, "Ri")) dm += 1;
+
+  const concentrationRoll = Number(rollDie(6));
+  const minimumRating = populationCode >= 9 ? 1 : 0;
+  const rating = concentrationRoll > populationCode ? 9 : clamp(concentrationRoll + dm, minimumRating, 9);
+  const label = POPULATION_CONCENTRATION_LABELS[rating] ?? "Unknown";
+
+  return {
+    eligible: true,
+    rating,
+    label,
+    settledAreaPercent: clamp(100 - rating * 10, 10, 100),
+    summary: `PCR ${rating} ${label}`,
+    minimumSustainableTechLevel,
+    minimumSustainableTlBand,
+    minimumSustainableTlSummary: summarizeMinimumSustainableTlBand(minimumSustainableTlBand),
+  };
+}
+
+function rollUrbanizationPercent(
+  total,
+  { rollDie = d1, rollBinary = () => rollDie(2), rollTernary = () => rollDie(3) } = {},
+) {
+  if (total <= 0) return 0;
+  if (total === 1) return Number(rollDie(6));
+  if (total === 2) return 6 + Number(rollDie(6));
+  if (total === 3) return 12 + Number(rollDie(6));
+  if (total === 4) return 18 + Number(rollDie(6));
+  if (total === 5) return 22 + Number(rollDie(6)) * 2 + Number(rollBinary());
+  if (total === 6) return 34 + Number(rollDie(6)) * 2 + Number(rollBinary());
+  if (total === 7) return 46 + Number(rollDie(6)) * 2 + Number(rollBinary());
+  if (total === 8) return 58 + Number(rollDie(6)) * 2 + Number(rollBinary());
+  if (total === 9) return 70 + Number(rollDie(6)) * 2 + Number(rollBinary());
+  if (total === 10) return 84 + Number(rollDie(6));
+  if (total === 11) return 90 + Number(rollDie(6));
+  if (total === 12) return 96 + Number(rollTernary());
+  return 100;
+}
+
+export function deriveUrbanizationProfile({
+  world = {},
+  population = 0,
+  populationCode = 0,
+  governmentCode = 0,
+  lawLevel = 0,
+  techLevel = 0,
+  tradeCodes = [],
+  populationConcentration = null,
+  rollTwoDice = () => d6(),
+  rollDie = d1,
+} = {}) {
+  if (!(populationCode > 0) || !(population > 0) || !populationConcentration?.eligible) {
+    return {
+      eligible: false,
+      percent: 0,
+      urbanPopulation: 0,
+      summary: "Uninhabited",
+      virtualCities: false,
+    };
+  }
+
+  const size = Number(world?.size ?? 0);
+  const minimumSustainableTechLevel =
+    populationConcentration.minimumSustainableTechLevel || deriveMinimumSustainableTechLevel(world);
+  const minimumSustainableTlBand = minimumSustainableTechLevel.band;
+  let dm = 0;
+
+  if (populationConcentration.rating >= 0 && populationConcentration.rating <= 2) {
+    dm += -3 + populationConcentration.rating;
+  } else if (populationConcentration.rating >= 7) {
+    dm += -6 + populationConcentration.rating;
+  }
+
+  if (minimumSustainableTlBand === "0-3") dm -= 1;
+  if (size === 0) dm += 2;
+  if (populationCode === 8) dm += 1;
+  else if (populationCode === 9) dm += 2;
+  else if (populationCode >= 10) dm += 4;
+  if (governmentCode === 0) dm -= 2;
+  if (lawLevel >= 9) dm += 1;
+
+  let minimumPercent = null;
+  let maximumPercent = null;
+  if (populationCode === 9) {
+    minimumPercent = 18 + Number(rollDie(6));
+  } else if (populationCode >= 10) {
+    minimumPercent = 50 + Number(rollDie(6));
+  }
+
+  if (techLevel <= 2) {
+    dm -= 2;
+    maximumPercent = 20 + Number(rollDie(6));
+  } else if (techLevel === 3) {
+    dm -= 1;
+    maximumPercent = 30 + Number(rollDie(6));
+  } else if (techLevel === 4) {
+    dm += 1;
+    maximumPercent = 60 + Number(rollDie(6));
+  } else if (techLevel <= 9) {
+    dm += 2;
+    maximumPercent = 90 + Number(rollDie(6));
+  } else {
+    dm += 1;
+  }
+
+  if (hasTradeCode(tradeCodes, "Ag")) {
+    dm -= 2;
+    maximumPercent = Math.min(maximumPercent ?? Number.POSITIVE_INFINITY, 90 + Number(rollDie(6)));
+  }
+  if (hasTradeCode(tradeCodes, "Na")) {
+    dm += 2;
+  }
+
+  let percent = clamp(
+    rollUrbanizationPercent(Number(rollTwoDice()) + dm, {
+      rollDie,
+      rollBinary: () => rollDie(2),
+      rollTernary: () => rollDie(3),
+    }),
+    0,
+    100,
+  );
+
+  if (minimumPercent !== null && percent < minimumPercent) {
+    percent = minimumPercent;
+  } else if (maximumPercent !== null && percent > maximumPercent) {
+    percent = maximumPercent;
+  }
+
+  return {
+    eligible: true,
+    percent,
+    urbanPopulation: Math.round((population * percent) / 100),
+    summary: `${percent}% urbanized`,
+    virtualCities: techLevel > 9 && percent > 0,
+  };
+}
+
+export function deriveMajorCitiesProfile({
+  populationCode = 0,
+  urbanization = null,
+  populationConcentration = null,
+  rollTwoDice = () => d6(),
+} = {}) {
+  const pcr = Number(populationConcentration?.rating);
+  const urbanPopulation = Number(urbanization?.urbanPopulation ?? 0);
+  const urbanizationPercent = Number(urbanization?.percent ?? 0);
+
+  if (!(populationCode > 0) || !populationConcentration?.eligible || !urbanization?.eligible) {
+    return {
+      eligible: false,
+      count: 0,
+      summary: "No major cities",
+      urbanPopulation,
+      caseLabel: "uninhabited",
+    };
+  }
+
+  if (pcr === 0) {
+    return {
+      eligible: true,
+      count: 0,
+      summary: "No major cities",
+      urbanPopulation,
+      caseLabel: "pcr-0",
+    };
+  }
+
+  if (populationCode <= 5 && pcr === 9) {
+    return {
+      eligible: true,
+      count: 1,
+      summary: "1 major city",
+      urbanPopulation,
+      caseLabel: "pop-5-pcr-9",
+    };
+  }
+
+  if (populationCode <= 5 && pcr >= 1 && pcr <= 8) {
+    const count = Math.min(9 - pcr, populationCode);
+    return {
+      eligible: true,
+      count,
+      summary: `${count} major ${count === 1 ? "city" : "cities"}`,
+      urbanPopulation,
+      caseLabel: "pop-5-pcr-1-8",
+    };
+  }
+
+  if (populationCode >= 6 && pcr === 9) {
+    const count = Math.max(9 - populationCode - Number(rollTwoDice()), 1);
+    return {
+      eligible: true,
+      count,
+      summary: `${count} major ${count === 1 ? "city" : "cities"}`,
+      urbanPopulation,
+      caseLabel: "pop-6-pcr-9",
+    };
+  }
+
+  const rawCount = Number(rollTwoDice()) - pcr + (urbanizationPercent / 100) * (20 / pcr);
+  const count = Math.max(1, Math.ceil(populationCode < 6 ? Math.min(rawCount, populationCode) : rawCount));
+
+  return {
+    eligible: true,
+    count,
+    summary: `${count} major ${count === 1 ? "city" : "cities"}`,
+    urbanPopulation,
+    caseLabel: "general",
+  };
+}
+
+export function deriveGovernmentProfile({
+  governmentCode = 0,
+  populationCode = 0,
+  populationConcentration = null,
+  rollCentralization = () => d6(),
+  rollAuthority = () => d6(),
+  rollFunctionalStructure = () => d6(),
+  rollStructureDie = () => d6(1),
+} = {}) {
+  const numericGovernmentCode = Number(governmentCode);
+  const pcr = Number(populationConcentration?.rating);
+
+  if (!(populationCode > 0) || numericGovernmentCode === 0) {
+    return {
+      eligible: false,
+      centralization: null,
+      authority: null,
+      authoritativeStructure: null,
+      structures: null,
+      profileCode: null,
+      structureSummary: null,
+      summary: "No functioning government",
+      scope: summarizeGovernmentContext(numericGovernmentCode),
+    };
+  }
+
+  let centralizationDm = 0;
+  if (numericGovernmentCode >= 2 && numericGovernmentCode <= 5) centralizationDm -= 1;
+  if (numericGovernmentCode === 6 || (numericGovernmentCode >= 8 && numericGovernmentCode <= 11)) centralizationDm += 1;
+  if (numericGovernmentCode === 7) centralizationDm += 1;
+  if (numericGovernmentCode >= 12) centralizationDm += 2;
+
+  if (pcr >= 0 && pcr <= 3) centralizationDm -= 1;
+  else if (pcr >= 7 && pcr <= 8) centralizationDm += 1;
+  else if (pcr === 9) centralizationDm += 3;
+
+  const centralizationTotal = Number(rollCentralization()) + centralizationDm;
+  const centralizationCode = centralizationTotal <= 5 ? "C" : centralizationTotal <= 8 ? "F" : "U";
+  const centralization = {
+    ...GOVERNMENT_CENTRALIZATION_TABLE[centralizationCode],
+    total: centralizationTotal,
+    dm: centralizationDm,
+  };
+
+  let authorityDm = 0;
+  if ([1, 6, 10, 13, 14].includes(numericGovernmentCode)) authorityDm += 6;
+  else if (numericGovernmentCode === 2) authorityDm -= 4;
+  else if ([3, 5, 12].includes(numericGovernmentCode)) authorityDm -= 2;
+  else if ([11, 15].includes(numericGovernmentCode)) authorityDm += 4;
+
+  if (centralization.code === "C") authorityDm -= 2;
+  else if (centralization.code === "U") authorityDm += 2;
+
+  const authorityTotal = Number(rollAuthority()) + authorityDm;
+  let authorityCode = "E";
+  if (authorityTotal <= 4) authorityCode = "L";
+  else if (authorityTotal === 5) authorityCode = "E";
+  else if (authorityTotal === 6) authorityCode = "J";
+  else if (authorityTotal === 7) authorityCode = "B";
+  else if (authorityTotal === 8) authorityCode = "L";
+  else if (authorityTotal === 9) authorityCode = "B";
+  else if (authorityTotal === 10) authorityCode = "E";
+  else if (authorityTotal === 11) authorityCode = "J";
+
+  const authority = {
+    ...GOVERNMENT_AUTHORITY_TABLE[authorityCode],
+    total: authorityTotal,
+    dm: authorityDm,
+  };
+
+  const structures = {};
+  const dominantBranchCode = authority.code === "B" ? null : authority.code;
+
+  if (dominantBranchCode) {
+    structures[dominantBranchCode] = resolveGovernmentStructureProfile({
+      governmentCode: numericGovernmentCode,
+      branchCode: dominantBranchCode,
+      authorityCode: authority.code,
+      isAuthoritative: true,
+      rollTwoDice: rollFunctionalStructure,
+      rollDie: rollStructureDie,
+    });
+
+    if (centralization.code === "U" && ["R", "S"].includes(structures[dominantBranchCode]?.code)) {
+      ["L", "E", "J"]
+        .filter((branchCode) => branchCode !== dominantBranchCode)
+        .forEach((branchCode) => {
+          structures[branchCode] = {
+            ...structures[dominantBranchCode],
+            branchCode,
+            branchLabel: GOVERNMENT_BRANCH_LABELS[branchCode],
+            authoritative: false,
+            source: "shared-unitary-authority",
+          };
+        });
+    }
+  }
+
+  ["L", "E", "J"]
+    .filter((branchCode) => !structures[branchCode])
+    .forEach((branchCode) => {
+      structures[branchCode] = resolveGovernmentStructureProfile({
+        governmentCode: numericGovernmentCode,
+        branchCode,
+        authorityCode: authority.code,
+        isAuthoritative: branchCode === dominantBranchCode,
+        rollTwoDice: rollFunctionalStructure,
+        rollDie: rollStructureDie,
+      });
+    });
+
+  const authoritativeStructure = dominantBranchCode ? structures[dominantBranchCode] : null;
+  const structureSummary = summarizeGovernmentStructures({ authorityCode: authority.code, structures });
+  const profileCode = buildGovernmentProfileCode({
+    governmentCode: numericGovernmentCode,
+    centralizationCode: centralization.code,
+    authorityCode: authority.code,
+    structures,
+  });
+  const summary =
+    authority.code === "B"
+      ? `${centralization.label} / ${authority.label}`
+      : `${centralization.label} / ${authority.label} / ${authoritativeStructure?.label || "Unknown"}`;
+
+  return {
+    eligible: true,
+    scope: summarizeGovernmentContext(numericGovernmentCode),
+    centralization,
+    authority,
+    authoritativeStructure,
+    structures,
+    profileCode,
+    structureSummary,
+    summary,
+  };
+}
+
 function rollStarport(populationCode, { nativeSophontLife = false } = {}) {
   let dm = 0;
   if (populationCode <= 2) dm -= 2;
@@ -361,11 +1558,18 @@ function rollTechLevel({
   return clamp(d1() + dm, 0, 15);
 }
 
-function deriveSocialUwp({ world, isMainworld = true, mainworldPopulationCode = null } = {}) {
+function deriveSocialUwp({ world, isMainworld = true, mainworldPopulationCode = null, mainworldOverlay = null } = {}) {
   const size = Number(world?.size ?? 0);
   const atmosphereCode = Number(world?.atmosphereCode ?? 0);
   const hydrographics = Number(world?.hydrographics ?? 0);
   const candidateScore = scoreMainworldCandidateWbh(world, { hzco: world?.hzco });
+  const habitability = determineHabitabilityRating({
+    candidateScore,
+    size,
+    atmosphereCode,
+    hydrographics,
+    avgTempC: Number(world?.avgTempC ?? 0),
+  });
   const nativeSophontLife = Boolean(world?.nativeSophontLife);
   const colonySupportBonus =
     (nativeSophontLife ? 1 : 0) +
@@ -393,7 +1597,24 @@ function deriveSocialUwp({ world, isMainworld = true, mainworldPopulationCode = 
     }
   }
 
-  const governmentCode = populationCode === 0 ? 0 : clamp(d6() + d6() - 7 + populationCode, 0, 13);
+  const baseGovernmentCode = rollGovernmentCodeForPopulation(populationCode);
+  const secondaryWorldContext =
+    populationCode === 0 || isMainworld
+      ? {
+          eligible: false,
+          dependent: false,
+          classificationCodes: [],
+          classifications: [],
+          summary: "",
+        }
+      : deriveSecondaryWorldContext({
+          world,
+          populationCode,
+          governmentCode: baseGovernmentCode,
+          mainworldOverlay,
+        });
+  const governmentCode =
+    isMainworld || !secondaryWorldContext?.eligible ? baseGovernmentCode : secondaryWorldContext.governmentCode;
   const lawLevel = populationCode === 0 ? 0 : clamp(d6() + d6() - 7 + governmentCode, 0, 9);
   const starport = populationCode === 0 ? "X" : rollStarport(populationCode, { nativeSophontLife });
   const techLevel =
@@ -417,12 +1638,70 @@ function deriveSocialUwp({ world, isMainworld = true, mainworldPopulationCode = 
     lawLevel,
     techLevel,
   });
+  const population = computePopulationValue(populationCode);
+  const minimumSustainableTechLevel = deriveMinimumSustainableTechLevel({
+    ...world,
+    habitability,
+  });
+  const populationConcentration = derivePopulationConcentrationProfile({
+    world: { ...world, minimumSustainableTechLevel },
+    populationCode,
+    governmentCode,
+    techLevel,
+    tradeCodes,
+  });
+  const urbanization = deriveUrbanizationProfile({
+    world: { ...world, minimumSustainableTechLevel },
+    population,
+    populationCode,
+    governmentCode,
+    lawLevel,
+    techLevel,
+    tradeCodes,
+    populationConcentration,
+  });
+  const majorCities = deriveMajorCitiesProfile({
+    populationCode,
+    urbanization,
+    populationConcentration,
+  });
+  const governmentProfile = deriveGovernmentProfile({
+    governmentCode,
+    populationCode,
+    populationConcentration,
+  });
+  const justiceProfile = deriveJusticeProfile({
+    governmentCode,
+    lawLevel,
+    techLevel,
+    governmentProfile,
+  });
+  const factionsProfile = deriveFactionsProfile({
+    governmentCode,
+    populationCode,
+  });
+  const resolvedSecondaryWorldContext = secondaryWorldContext?.eligible
+    ? deriveSecondaryWorldContext({
+        world,
+        populationCode,
+        governmentCode,
+        lawLevel,
+        techLevel,
+        mainworldOverlay,
+        useProvidedGovernmentCode: true,
+      })
+    : secondaryWorldContext;
+  const civilConflict = deriveCivilConflictProfile({ populationCode, governmentCode, lawLevel });
+  const techLevelPockets = deriveTechLevelPocketProfile({ techLevel });
+  const houseRulesApplied = [civilConflict, techLevelPockets]
+    .filter((rule) => rule?.eligible)
+    .map((rule) => rule.ruleId);
 
   return {
     isMainworld,
     mainworldCandidateScore: candidateScore,
     populationCode,
-    population: computePopulationValue(populationCode),
+    population,
     governmentCode,
     governmentDesc: GOVERNMENT_TABLE[governmentCode] ?? "Unknown",
     lawLevel,
@@ -432,13 +1711,18 @@ function deriveSocialUwp({ world, isMainworld = true, mainworldPopulationCode = 
     starport,
     starportDesc: STARPORT_TABLE[starport] ?? "Unknown",
     tradeCodes,
-    habitability: determineHabitabilityRating({
-      candidateScore,
-      size,
-      atmosphereCode,
-      hydrographics,
-      avgTempC: Number(world?.avgTempC ?? 0),
-    }),
+    minimumSustainableTechLevel,
+    populationConcentration,
+    urbanization,
+    majorCities,
+    governmentProfile,
+    justiceProfile,
+    factionsProfile,
+    secondaryWorldContext: resolvedSecondaryWorldContext,
+    civilConflict,
+    techLevelPockets,
+    houseRulesApplied,
+    habitability,
     resourceRating: determineResourceRating(world),
     importance: deriveImportance({ tradeCodes, starport, techLevel, populationCode }),
     nativeLifeform: buildNativeLifeProfile(world),
@@ -467,6 +1751,7 @@ export function applySystemWorldSocialProfiles(worlds = []) {
             world,
             isMainworld: false,
             mainworldPopulationCode: mainworldOverlay.populationCode,
+            mainworldOverlay,
           });
     const uwp = `${overlay.starport}${toHex(Number(world?.size ?? 0))}${toHex(Number(world?.atmosphereCode ?? 0))}${toHex(Number(world?.hydrographics ?? 0))}${toHex(overlay.populationCode)}${toHex(overlay.governmentCode)}${toHex(overlay.lawLevel)}-${toHex(overlay.techLevel)}`;
     const economics = {
@@ -513,35 +1798,6 @@ function resolveWorldStarClass(starClass) {
     return normalized;
   }
   return RANDOM_WORLD_STARS[Math.floor(Math.random() * RANDOM_WORLD_STARS.length)];
-}
-
-function toRomanNumeral(value) {
-  const safeValue = Math.max(1, Math.trunc(Number(value) || 1));
-  const numerals = [
-    [1000, "M"],
-    [900, "CM"],
-    [500, "D"],
-    [400, "CD"],
-    [100, "C"],
-    [90, "XC"],
-    [50, "L"],
-    [40, "XL"],
-    [10, "X"],
-    [9, "IX"],
-    [5, "V"],
-    [4, "IV"],
-    [1, "I"],
-  ];
-
-  let remaining = safeValue;
-  let result = "";
-  for (const [amount, numeral] of numerals) {
-    while (remaining >= amount) {
-      result += numeral;
-      remaining -= amount;
-    }
-  }
-  return result;
 }
 
 function withRomanDuplicateSuffix(baseName, reserved) {

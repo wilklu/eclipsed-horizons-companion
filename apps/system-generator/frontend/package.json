@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:wbh": "vitest run src/components/forms/worldPhysicalSurveyFormModel.spec.js src/utils/wbh/worldPhysicalCharacteristicsWbh.spec.js src/utils/stellarSurveySystemGenerator.spec.js src/utils/wbh/wbhConformance.spec.js src/utils/worldProfileGenerator.spec.js src/utils/wbh/systemGenerationWbh.spec.js"
+    "test:wbh": "vitest run src/components/forms/worldPhysicalSurveyFormModel.spec.js src/components/forms/systemSurveyFormModel.spec.js src/utils/systemStarMetadata.spec.js src/utils/wbh/worldPhysicalCharacteristicsWbh.spec.js src/utils/stellarSurveySystemGenerator.spec.js src/utils/wbh/wbhConformance.spec.js src/utils/worldProfileGenerator.spec.js src/utils/wbh/systemGenerationWbh.spec.js"
   },
   "dependencies": {
     "pinia": "^2.1.7",

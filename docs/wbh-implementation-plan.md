@@ -39,7 +39,7 @@ Target integration points:
 Current status:
 
 - `StarSystemBuilder.vue` now consumes WBH orbit/HZ helpers and applies WBH world-physics enrichment for non-gas-giant bodies.
-- `stellarSurveySystemGenerator.js` now uses the same WBH orbit/HZ helper path as `StarSystemBuilder.vue` while still keeping heuristic body-count and placement rules.
+- `stellarSurveySystemGenerator.js` now uses the same WBH orbit/HZ and profiled planet-builder path as `StarSystemBuilder.vue`, and it preserves richer generated-star metadata when sector hex records carry WBH star arrays.
 
 ## Phase 3: World Physical Characteristics
 
@@ -71,3 +71,7 @@ Current status:
 2. Add deterministic unit tests for every handbook formula and table resolver.
 3. Add adapter-level tests before swapping any existing UI flow to WBH-backed generation.
 4. Preserve heuristic fallbacks only for subsystems that still lack WBH table coverage, not for UI display of valid WBH outputs.
+
+Current status:
+
+- Focused WBH regression coverage now includes the extracted System Survey form model, covering generated-system autofill plus saved-survey round-trips for hierarchy-aware stars and moon mainworld summaries.
