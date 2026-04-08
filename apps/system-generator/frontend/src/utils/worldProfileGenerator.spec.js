@@ -7,6 +7,7 @@ import {
   deriveFactionsProfile,
   deriveGovernmentProfile,
   deriveJusticeProfile,
+  deriveLawProfile,
   deriveMajorCitiesProfile,
   deriveMinimumSustainableTechLevel,
   derivePopulationConcentrationProfile,
@@ -27,6 +28,7 @@ describe("worldProfileGenerator", () => {
     expect(SOCIAL_WBH_RULES.some((rule) => rule.id === "factions")).toBe(true);
     expect(SOCIAL_WBH_RULES.some((rule) => rule.id === "secondary-world-governments")).toBe(true);
     expect(SOCIAL_WBH_RULES.some((rule) => rule.id === "system-of-justice")).toBe(true);
+    expect(SOCIAL_WBH_RULES.some((rule) => rule.id === "law-level-profiles")).toBe(true);
   });
 
   it("generates non-zero WBH-style social data for standalone worlds", () => {
@@ -42,6 +44,7 @@ describe("worldProfileGenerator", () => {
     expect(world.majorCities?.summary).toBeTruthy();
     expect(world.governmentProfile?.summary).toBeTruthy();
     expect(world.justiceProfile?.summary).toBeTruthy();
+    expect(world.lawProfile?.summary).toBeTruthy();
     expect(world.factionsProfile?.summary).toBeTruthy();
     expect(Array.isArray(world.remarks)).toBe(true);
   });
@@ -297,6 +300,38 @@ describe("worldProfileGenerator", () => {
     expect(justiceProfile.eligible).toBe(true);
     expect(justiceProfile.code).toBe("A");
     expect(justiceProfile.summary).toBe("Adversarial");
+  });
+
+  it("derives Chapter 7 law uniformity and subcategory profile codes", () => {
+    const lawProfile = deriveLawProfile({
+      governmentCode: 4,
+      lawLevel: 6,
+      populationCode: 8,
+      techLevel: 8,
+      governmentProfile: {
+        centralization: { code: "F" },
+        authority: { code: "J" },
+      },
+      justiceProfile: { eligible: true, code: "A", label: "Adversarial", summary: "Adversarial" },
+      populationConcentration: { eligible: true, rating: 8 },
+      rollUniformity: () => 6,
+      rollSecondaryJustice: () => 6,
+      rollPresumption: () => 8,
+      rollDeathPenalty: () => 8,
+      rollWeaponsLevel: () => 3,
+      rollEconomicLevel: () => 2,
+      rollCriminalLevel: () => 1,
+      rollPrivateLevel: () => 3,
+      rollPersonalRightsLevel: () => 1,
+    });
+
+    expect(lawProfile.eligible).toBe(true);
+    expect(lawProfile.uniformity.code).toBe("P");
+    expect(lawProfile.secondarySystem.code).toBe("I");
+    expect(lawProfile.presumptionOfInnocence).toBe(true);
+    expect(lawProfile.deathPenalty).toBe(true);
+    expect(lawProfile.judicialProfileCode).toBe("AIP-Y-Y");
+    expect(lawProfile.lawLevelProfileCode).toBe("6-96484");
   });
 
   it("derives secondary-world dependency governments and classifications", () => {

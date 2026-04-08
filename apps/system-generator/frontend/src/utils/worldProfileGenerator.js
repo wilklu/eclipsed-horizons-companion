@@ -127,6 +127,12 @@ export const SOCIAL_WBH_RULES = Object.freeze([
     source: "docs/reference/World Builder's Handbook.md",
     status: "partial",
   },
+  {
+    id: "law-level-profiles",
+    section: "Chapter 7 > Law Level > Uniformity / Presumption / Death Penalty / Law Level Profile",
+    source: "docs/reference/World Builder's Handbook.md",
+    status: "partial",
+  },
 ]);
 
 const RANDOM_WORLD_STARS = ["O", "B", "A", "F", "G", "G", "G", "K", "K", "M", "M", "M"];
@@ -195,6 +201,7 @@ export const WORLD_PROFILE_FIELDS = [
   "majorCities",
   "governmentProfile",
   "justiceProfile",
+  "lawProfile",
   "factionsProfile",
   "secondaryWorldContext",
   "nativeLifeform",
@@ -400,6 +407,9 @@ function buildWorldRemarks(world = {}, overlay = {}) {
   if (overlay?.justiceProfile?.eligible) {
     remarks.push(`Justice ${overlay.justiceProfile.code}`);
   }
+  if (overlay?.lawProfile?.eligible) {
+    remarks.push(`Law ${overlay.lawProfile.lawLevelProfileCode}`);
+  }
   if (overlay?.factionsProfile?.eligible && overlay.factionsProfile.significantFactionCount > 0) {
     remarks.push(`Factions ${overlay.factionsProfile.significantFactionCount}`);
   }
@@ -532,6 +542,20 @@ const JUSTICE_SYSTEM_TABLE = Object.freeze({
   T: { code: "T", label: "Traditional", summary: "Justice rests on custom, doctrine, or traditional practice" },
 });
 
+const LAW_UNIFORMITY_TABLE = Object.freeze({
+  P: { code: "P", label: "Personal", summary: "Law varies by status, caste, profession, or group" },
+  T: { code: "T", label: "Territorial", summary: "Local jurisdictions maintain distinct legal variations" },
+  U: { code: "U", label: "Universal", summary: "The same law applies broadly across the polity" },
+});
+
+const LAW_SUBCATEGORY_TABLE = Object.freeze({
+  weapons: { key: "weapons", label: "Weapons", code: "W" },
+  economic: { key: "economic", label: "Economic", code: "E" },
+  criminal: { key: "criminal", label: "Criminal", code: "C" },
+  private: { key: "private", label: "Private", code: "P" },
+  personalRights: { key: "personalRights", label: "Personal Rights", code: "R" },
+});
+
 const SECONDARY_WORLD_CLASSIFICATIONS = Object.freeze({
   Cy: { code: "Cy", label: "Colony" },
   Fa: { code: "Fa", label: "Farming" },
@@ -602,6 +626,60 @@ function resolveJusticeSystemCode(total) {
   if (total <= 5) return "I";
   if (total <= 8) return "A";
   return "T";
+}
+
+function toExtendedHex(value) {
+  const total = clamp(Math.trunc(Number(value) || 0), 0, 18);
+  if (total < 10) {
+    return String(total);
+  }
+  const extendedDigits = ["A", "B", "C", "D", "E", "F", "G", "H", "J"];
+  return extendedDigits[total - 10] || "J";
+}
+
+function rollTwoD3MinusFour(rollDie = d1) {
+  return Number(rollDie(3)) + Number(rollDie(3)) - 4;
+}
+
+function resolveLawUniformityCode(total) {
+  if (total <= 2) return "P";
+  if (total === 3) return "T";
+  return "U";
+}
+
+function clampLawSubcategoryLevel(value) {
+  return clamp(Math.trunc(Number(value) || 0), 0, 18);
+}
+
+function deriveLawSubcategoryLevel({ lawLevel = 0, dm = 0, rollDie = d1 } = {}) {
+  return clampLawSubcategoryLevel(Number(lawLevel) + rollTwoD3MinusFour(rollDie) + Number(dm || 0));
+}
+
+function buildJudicialProfileCode({
+  primaryCode = "N",
+  secondaryCode = "N",
+  uniformityCode = "U",
+  presumptionOfInnocence = false,
+  deathPenalty = false,
+} = {}) {
+  return `${primaryCode}${secondaryCode}${uniformityCode}-${presumptionOfInnocence ? "Y" : "N"}-${deathPenalty ? "Y" : "N"}`;
+}
+
+function buildLawLevelProfileCode({ lawLevel = 0, subcategories = {} } = {}) {
+  return `${toExtendedHex(lawLevel)}-${[
+    subcategories?.weapons?.code || "0",
+    subcategories?.economic?.code || "0",
+    subcategories?.criminal?.code || "0",
+    subcategories?.private?.code || "0",
+    subcategories?.personalRights?.code || "0",
+  ].join("")}`;
+}
+
+function summarizeLawProfile({ judicialProfileCode = "", lawLevelProfileCode = "", uniformity = null } = {}) {
+  const uniformityLabel = String(uniformity?.label || "").trim();
+  return [judicialProfileCode, lawLevelProfileCode, uniformityLabel ? `${uniformityLabel} law` : ""]
+    .filter(Boolean)
+    .join(" / ");
 }
 
 function resolveSecondaryGovernmentCode(total) {
@@ -884,6 +962,170 @@ export function deriveJusticeProfile({
     total,
     dm,
     summary: JUSTICE_SYSTEM_TABLE[code].label,
+  };
+}
+
+export function deriveLawProfile({
+  governmentCode = 0,
+  lawLevel = 0,
+  populationCode = 0,
+  techLevel = 0,
+  governmentProfile = null,
+  justiceProfile = null,
+  populationConcentration = null,
+  rollUniformity = d1,
+  rollSecondaryJustice = () => d6(),
+  rollPresumption = () => d6(),
+  rollDeathPenalty = () => d6(),
+  rollWeaponsLevel = d1,
+  rollEconomicLevel = d1,
+  rollCriminalLevel = d1,
+  rollPrivateLevel = d1,
+  rollPersonalRightsLevel = d1,
+} = {}) {
+  const numericGovernmentCode = Number(governmentCode);
+  const numericLawLevel = clampLawSubcategoryLevel(lawLevel);
+  const pcr = Number(populationConcentration?.rating ?? -1);
+  const primaryJustice = justiceProfile?.eligible
+    ? justiceProfile
+    : deriveJusticeProfile({
+        governmentCode,
+        lawLevel,
+        techLevel,
+        governmentProfile,
+      });
+
+  if (!(populationCode > 0) || numericGovernmentCode === 0) {
+    const uniformity = LAW_UNIFORMITY_TABLE.U;
+    return {
+      eligible: false,
+      overallLevel: { value: numericLawLevel, code: toExtendedHex(numericLawLevel) },
+      primarySystem: JUSTICE_SYSTEM_TABLE.N,
+      secondarySystem: JUSTICE_SYSTEM_TABLE.N,
+      uniformity,
+      presumptionOfInnocence: false,
+      deathPenalty: false,
+      judicialProfileCode: buildJudicialProfileCode({
+        primaryCode: "N",
+        secondaryCode: "N",
+        uniformityCode: uniformity.code,
+      }),
+      subcategories: null,
+      lawLevelProfileCode: `${toExtendedHex(numericLawLevel)}-00000`,
+      summary: "No formal law profile",
+    };
+  }
+
+  let uniformityCode = "U";
+  let uniformityDm = 0;
+  const centralizationCode = governmentProfile?.centralization?.code;
+  if (centralizationCode === "C") {
+    uniformityCode = "T";
+  } else if (centralizationCode === "F") {
+    uniformityCode = Number(rollUniformity(6)) <= 5 ? "T" : "P";
+  } else {
+    if ([3, 5].includes(numericGovernmentCode) || numericGovernmentCode >= 10) uniformityDm -= 1;
+    if (numericGovernmentCode === 2) uniformityDm += 1;
+    uniformityCode = resolveLawUniformityCode(Number(rollUniformity(6)) + uniformityDm);
+  }
+  const uniformity = {
+    ...LAW_UNIFORMITY_TABLE[uniformityCode],
+    dm: uniformityDm,
+  };
+
+  let secondarySystem = primaryJustice;
+  if (["A", "T"].includes(primaryJustice?.code)) {
+    const secondaryTotal = Number(rollSecondaryJustice()) + numericLawLevel;
+    if (secondaryTotal >= 12) {
+      secondarySystem = {
+        ...JUSTICE_SYSTEM_TABLE.I,
+        total: secondaryTotal,
+        dm: numericLawLevel,
+        summary: JUSTICE_SYSTEM_TABLE.I.label,
+      };
+    }
+  }
+
+  const presumptionRoll = Number(rollPresumption()) - numericLawLevel + (primaryJustice?.code === "A" ? 2 : 0);
+  const presumptionOfInnocence = presumptionRoll >= 0;
+
+  const deathPenaltyRoll =
+    Number(rollDeathPenalty()) + (numericGovernmentCode === 0 ? -4 : 0) + (numericLawLevel >= 9 ? 4 : 0);
+  const deathPenalty = deathPenaltyRoll >= 8;
+
+  const subcategories = {
+    weapons: {
+      ...LAW_SUBCATEGORY_TABLE.weapons,
+      value: deriveLawSubcategoryLevel({
+        lawLevel: numericLawLevel,
+        dm: pcr >= 0 && pcr <= 3 ? -1 : pcr >= 8 ? 1 : 0,
+        rollDie: rollWeaponsLevel,
+      }),
+    },
+    economic: {
+      ...LAW_SUBCATEGORY_TABLE.economic,
+      value: deriveLawSubcategoryLevel({
+        lawLevel: numericLawLevel,
+        dm:
+          (numericGovernmentCode === 0 ? -2 : 0) +
+          (numericGovernmentCode === 1 ? 2 : 0) +
+          (numericGovernmentCode === 2 ? -1 : 0) +
+          (numericGovernmentCode === 9 ? 1 : 0),
+        rollDie: rollEconomicLevel,
+      }),
+    },
+    criminal: {
+      ...LAW_SUBCATEGORY_TABLE.criminal,
+      value: deriveLawSubcategoryLevel({
+        lawLevel: numericLawLevel,
+        dm: primaryJustice?.code === "I" ? 1 : 0,
+        rollDie: rollCriminalLevel,
+      }),
+    },
+    private: {
+      ...LAW_SUBCATEGORY_TABLE.private,
+      value: deriveLawSubcategoryLevel({
+        lawLevel: numericLawLevel,
+        dm: [3, 5, 12].includes(numericGovernmentCode) ? -1 : 0,
+        rollDie: rollPrivateLevel,
+      }),
+    },
+    personalRights: {
+      ...LAW_SUBCATEGORY_TABLE.personalRights,
+      value: deriveLawSubcategoryLevel({
+        lawLevel: numericLawLevel,
+        dm: ([0, 2].includes(numericGovernmentCode) ? -1 : 0) + (numericGovernmentCode === 1 ? 2 : 0),
+        rollDie: rollPersonalRightsLevel,
+      }),
+    },
+  };
+
+  Object.values(subcategories).forEach((subcategory) => {
+    subcategory.code = toExtendedHex(subcategory.value);
+    subcategory.summary = `${subcategory.label} ${subcategory.code}`;
+  });
+
+  const judicialProfileCode = buildJudicialProfileCode({
+    primaryCode: primaryJustice?.code || "N",
+    secondaryCode: secondarySystem?.code || primaryJustice?.code || "N",
+    uniformityCode,
+    presumptionOfInnocence,
+    deathPenalty,
+  });
+  const lawLevelProfileCode = buildLawLevelProfileCode({ lawLevel: numericLawLevel, subcategories });
+
+  return {
+    eligible: true,
+    overallLevel: { value: numericLawLevel, code: toExtendedHex(numericLawLevel) },
+    primarySystem: primaryJustice,
+    secondarySystem,
+    uniformity,
+    presumptionOfInnocence,
+    deathPenalty,
+    judicialProfileCode,
+    subcategories,
+    lawLevelProfileCode,
+    summary: summarizeLawProfile({ judicialProfileCode, lawLevelProfileCode, uniformity }),
   };
 }
 
@@ -1676,6 +1918,15 @@ function deriveSocialUwp({ world, isMainworld = true, mainworldPopulationCode = 
     techLevel,
     governmentProfile,
   });
+  const lawProfile = deriveLawProfile({
+    governmentCode,
+    lawLevel,
+    populationCode,
+    techLevel,
+    governmentProfile,
+    justiceProfile,
+    populationConcentration,
+  });
   const factionsProfile = deriveFactionsProfile({
     governmentCode,
     populationCode,
@@ -1717,6 +1968,7 @@ function deriveSocialUwp({ world, isMainworld = true, mainworldPopulationCode = 
     majorCities,
     governmentProfile,
     justiceProfile,
+    lawProfile,
     factionsProfile,
     secondaryWorldContext: resolvedSecondaryWorldContext,
     civilConflict,

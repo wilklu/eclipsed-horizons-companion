@@ -589,6 +589,9 @@
               <span class="dl">Justice</span><span class="dv">{{ inspectorData.justiceProfile || "—" }}</span>
             </div>
             <div class="dr">
+              <span class="dl">Law</span><span class="dv">{{ inspectorData.lawProfile || "—" }}</span>
+            </div>
+            <div class="dr">
               <span class="dl">Factions</span><span class="dv">{{ inspectorData.factionsProfile || "—" }}</span>
             </div>
             <div class="dr">
@@ -1844,6 +1847,7 @@ function summarizeSystemRecord(system) {
       majorCities: "—",
       governmentProfile: "—",
       justiceProfile: "—",
+      lawProfile: "—",
       factionsProfile: "—",
       tradeCodes: [],
       surveyStatus: "Stellar data only",
@@ -1953,6 +1957,12 @@ function summarizeSystemRecord(system) {
     metadata?.justiceProfile?.summary,
     mainworld?.justiceProfile?.summary,
   );
+  const lawProfile = firstNonEmptyString(
+    system?.lawProfile?.summary,
+    profiles?.lawProfile?.summary,
+    metadata?.lawProfile?.summary,
+    mainworld?.lawProfile?.summary,
+  );
   const factionsProfile = firstNonEmptyString(
     system?.factionsProfile?.summary,
     profiles?.factionsProfile?.summary,
@@ -1988,6 +1998,7 @@ function summarizeSystemRecord(system) {
     majorCities: majorCities || "—",
     governmentProfile: governmentProfile || "—",
     justiceProfile: justiceProfile || "—",
+    lawProfile: lawProfile || "—",
     factionsProfile: factionsProfile || "—",
     mainworldName: firstNonEmptyString(mainworld?.name, metadata?.mainworld?.name) || "—",
     mainworldType: firstNonEmptyString(mainworld?.type, mainworld?.parentWorldName ? "Moon" : "") || "—",
@@ -2051,6 +2062,7 @@ const inspectorData = computed(() => {
       majorCities: systemSummary.majorCities,
       governmentProfile: systemSummary.governmentProfile,
       justiceProfile: systemSummary.justiceProfile,
+      lawProfile: systemSummary.lawProfile,
       factionsProfile: systemSummary.factionsProfile,
       mainworldName: systemSummary.mainworldName,
       mainworldType: systemSummary.mainworldType,

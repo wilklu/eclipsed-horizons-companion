@@ -46,6 +46,7 @@ describe("stellarSurveySystemGenerator", () => {
     expect(system.majorCities).toEqual(system.mainworld?.majorCities ?? null);
     expect(system.governmentProfile).toEqual(system.mainworld?.governmentProfile ?? null);
     expect(system.justiceProfile).toEqual(system.mainworld?.justiceProfile ?? null);
+    expect(system.lawProfile).toEqual(system.mainworld?.lawProfile ?? null);
     expect(system.factionsProfile).toEqual(system.mainworld?.factionsProfile ?? null);
     expect(system.tradeCodes).toEqual(system.mainworld?.tradeCodes ?? []);
     expect(system.mainworldRemarks).toEqual(system.mainworld?.remarks ?? []);

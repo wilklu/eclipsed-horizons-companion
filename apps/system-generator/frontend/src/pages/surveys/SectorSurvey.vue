@@ -378,6 +378,9 @@
                   <span v-if="selectedHexData.justiceProfile" class="stellar-inline-detail"
                     >Justice {{ selectedHexData.justiceProfile }}</span
                   >
+                  <span v-if="selectedHexData.lawProfile" class="stellar-inline-detail"
+                    >Law {{ selectedHexData.lawProfile }}</span
+                  >
                   <span v-if="selectedHexData.factionsProfile" class="stellar-inline-detail">{{
                     selectedHexData.factionsProfile
                   }}</span>
@@ -1797,6 +1800,7 @@ function buildSystemHexSummary(system = {}) {
       mainworld?.governmentProfile?.summary,
     ),
     justiceProfile: firstNonEmptyHexSummary(system?.justiceProfile?.summary, mainworld?.justiceProfile?.summary),
+    lawProfile: firstNonEmptyHexSummary(system?.lawProfile?.summary, mainworld?.lawProfile?.summary),
     factionsProfile: firstNonEmptyHexSummary(system?.factionsProfile?.summary, mainworld?.factionsProfile?.summary),
   };
 }

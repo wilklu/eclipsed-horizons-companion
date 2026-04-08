@@ -199,6 +199,7 @@ describe("systemSurveyFormModel", () => {
         structureSummary: "Executive Single Council, Legislative Multiple Councils, Judicial Single Council",
       },
       justiceProfile: { code: "A", label: "Adversarial" },
+      lawProfile: { eligible: true, summary: "AIP-Y-Y / 6-73853 / Personal law" },
       factionsProfile: { eligible: true, summary: "2 significant factions" },
       civilConflict: { eligible: true, active: true, trigger: "balkanization" },
       techLevelPockets: { eligible: true, summary: "TL 6-10" },
@@ -213,6 +214,7 @@ describe("systemSurveyFormModel", () => {
           structureSummary: "Executive Single Council, Legislative Multiple Councils, Judicial Single Council",
         },
         justiceProfile: { code: "A", label: "Adversarial" },
+        lawProfile: { eligible: true, summary: "AIP-Y-Y / 6-73853 / Personal law" },
         factionsProfile: { eligible: true, summary: "2 significant factions" },
         civilConflict: { eligible: true, active: true, trigger: "balkanization" },
         techLevelPockets: { eligible: true, summary: "TL 6-10" },
@@ -223,17 +225,20 @@ describe("systemSurveyFormModel", () => {
     expect(socialNotes).toContain("Minimal sustainable TL 5");
     expect(socialNotes).toContain("Government profile 4-FES-LM-JS");
     expect(socialNotes).toContain("Justice A Adversarial");
+    expect(socialNotes).toContain("Law profile AIP-Y-Y / 6-73853 / Personal law");
     expect(socialNotes).toContain("Factions 2 significant factions");
     expect(socialNotes).toContain("Civil conflict active");
     expect(socialNotes).toContain("Tech pockets TL 6-10");
     expect(surveyData.profileNotes).toContain("Minimal sustainable TL 5");
     expect(surveyData.profileNotes).toContain("Government profile 4-FES-LM-JS");
     expect(surveyData.profileNotes).toContain("Justice A Adversarial");
+    expect(surveyData.profileNotes).toContain("Law profile AIP-Y-Y / 6-73853 / Personal law");
     expect(surveyData.profileNotes).toContain("Factions 2 significant factions");
     expect(surveyData.profileNotes).toContain("Civil conflict active");
     expect(surveyData.profileNotes).toContain("Tech pockets TL 6-10");
     expect(surveyData.worlds[0].notes).toContain("Government profile 4-FES-LM-JS");
     expect(surveyData.worlds[0].notes).toContain("Justice A Adversarial");
+    expect(surveyData.worlds[0].notes).toContain("Law profile AIP-Y-Y / 6-73853 / Personal law");
     expect(surveyData.worlds[0].notes).toContain("Civil conflict active");
     expect(surveyData.worlds[0].notes).toContain("Tech pockets TL 6-10");
   });

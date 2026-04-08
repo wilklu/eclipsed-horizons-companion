@@ -79,6 +79,7 @@ export function buildPersistedSurveySystemFromHex({ galaxyId, sectorId, hex, nam
       mainworld?.justiceProfile && typeof mainworld.justiceProfile === "object"
         ? { ...mainworld.justiceProfile }
         : null,
+    lawProfile: mainworld?.lawProfile && typeof mainworld.lawProfile === "object" ? { ...mainworld.lawProfile } : null,
     factionsProfile:
       mainworld?.factionsProfile && typeof mainworld.factionsProfile === "object"
         ? { ...mainworld.factionsProfile }

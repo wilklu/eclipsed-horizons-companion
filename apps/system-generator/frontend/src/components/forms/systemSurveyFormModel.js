@@ -98,6 +98,9 @@ function buildWorldSocialOverlayNotes(world) {
       `Justice ${String(world.justiceProfile.code)} ${String(world.justiceProfile.label || "").trim()}`.trim(),
     );
   }
+  if (world?.lawProfile?.eligible && world?.lawProfile?.summary) {
+    notes.push(`Law profile ${String(world.lawProfile.summary)}`);
+  }
   if (world?.factionsProfile?.eligible && world?.factionsProfile?.summary) {
     notes.push(`Factions ${String(world.factionsProfile.summary)}`);
   }
