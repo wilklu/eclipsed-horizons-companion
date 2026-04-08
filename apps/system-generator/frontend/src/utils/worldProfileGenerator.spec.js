@@ -1,17 +1,24 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  deriveDiscretionaryEnforcementProfile,
   SOCIAL_WBH_RULES,
   applySystemWorldSocialProfiles,
   deriveCivilConflictProfile,
   deriveFactionsProfile,
   deriveGovernmentProfile,
   deriveJusticeProfile,
+  deriveConvictionProfile,
   deriveLawProfile,
   deriveMajorCitiesProfile,
+  deriveAppealProfile,
+  derivePenaltyProfile,
+  derivePersonalRightsProfile,
+  derivePrivateLawProfile,
   deriveMinimumSustainableTechLevel,
   derivePopulationConcentrationProfile,
   deriveSecondaryWorldContext,
+  deriveSecondaryWorldLawLevel,
   deriveTechLevelPocketProfile,
   deriveUrbanizationProfile,
   generateWorldProfile,
@@ -28,13 +35,18 @@ describe("worldProfileGenerator", () => {
     expect(SOCIAL_WBH_RULES.some((rule) => rule.id === "factions")).toBe(true);
     expect(SOCIAL_WBH_RULES.some((rule) => rule.id === "secondary-world-governments")).toBe(true);
     expect(SOCIAL_WBH_RULES.some((rule) => rule.id === "system-of-justice")).toBe(true);
+    expect(SOCIAL_WBH_RULES.some((rule) => rule.id === "discretionary-enforcement")).toBe(true);
     expect(SOCIAL_WBH_RULES.some((rule) => rule.id === "law-level-profiles")).toBe(true);
+    expect(SOCIAL_WBH_RULES.some((rule) => rule.id === "secondary-world-law-levels")).toBe(true);
+    expect(SOCIAL_WBH_RULES.some((rule) => rule.id === "criminal-economic-legal-outcomes")).toBe(true);
+    expect(SOCIAL_WBH_RULES.some((rule) => rule.id === "appeals-private-law-outcomes")).toBe(true);
+    expect(SOCIAL_WBH_RULES.some((rule) => rule.id === "personal-rights-outcomes")).toBe(true);
   });
 
   it("generates non-zero WBH-style social data for standalone worlds", () => {
     const world = generateWorldProfile({ worldName: "Zed Prime", starClass: "G", orbitNumber: 3.1, hzco: 3.3 });
 
-    expect(world.uwp).toMatch(/^[A-EX][0-9A-F]{6}-[0-9A-F]$/);
+    expect(world.uwp).toMatch(/^[A-EX][0-9A-HJ]{6}-[0-9A-HJ]$/);
     expect(typeof world.populationCode).toBe("number");
     expect(typeof world.techLevel).toBe("number");
     expect(world.economics?.importance).toBeDefined();
@@ -45,6 +57,9 @@ describe("worldProfileGenerator", () => {
     expect(world.governmentProfile?.summary).toBeTruthy();
     expect(world.justiceProfile?.summary).toBeTruthy();
     expect(world.lawProfile?.summary).toBeTruthy();
+    expect(world.appealProfile?.summary).toBeTruthy();
+    expect(world.privateLawProfile?.summary).toBeTruthy();
+    expect(world.personalRightsProfile?.summary).toBeTruthy();
     expect(world.factionsProfile?.summary).toBeTruthy();
     expect(Array.isArray(world.remarks)).toBe(true);
   });
@@ -334,6 +349,223 @@ describe("worldProfileGenerator", () => {
     expect(lawProfile.lawLevelProfileCode).toBe("6-96484");
   });
 
+  it("supports A+ law levels and extended law-profile codes", () => {
+    const lawProfile = deriveLawProfile({
+      governmentCode: 11,
+      lawLevel: 10,
+      populationCode: 8,
+      techLevel: 10,
+      governmentProfile: {
+        centralization: { code: "U" },
+        authority: { code: "E" },
+      },
+      justiceProfile: { eligible: true, code: "A", label: "Adversarial", summary: "Adversarial" },
+      populationConcentration: { eligible: true, rating: 4 },
+      rollUniformity: () => 4,
+      rollSecondaryJustice: () => 5,
+      rollPresumption: () => 10,
+      rollDeathPenalty: () => 6,
+      rollWeaponsLevel: () => 2,
+      rollEconomicLevel: () => 3,
+      rollCriminalLevel: () => 3,
+      rollPrivateLevel: () => 2,
+      rollPersonalRightsLevel: () => 2,
+    });
+
+    expect(lawProfile.overallLevel.code).toBe("A");
+    expect(lawProfile.lawLevelProfileCode.startsWith("A-")).toBe(true);
+  });
+
+  it("derives conviction and criminal/economic penalty outcomes from law profiles", () => {
+    const lawProfile = {
+      presumptionOfInnocence: true,
+      deathPenalty: true,
+      overallLevel: { value: 10, code: "A" },
+      subcategories: {
+        criminal: { value: 8, code: "8" },
+        economic: { value: 10, code: "A" },
+      },
+    };
+    const conviction = deriveConvictionProfile({
+      lawProfile,
+      justiceProfile: { code: "A" },
+      offenseType: "criminal",
+      defendantActuallyCommittedCrime: true,
+      evidenceLevel: "circumstantial",
+      prosecutionAdvocate: 1,
+      rollTwoDice: () => 8,
+    });
+    const criminalPenalty = derivePenaltyProfile({
+      lawProfile,
+      offenseType: "criminal",
+      severity: "appalling",
+      prohibitedAtLevel: 2,
+      rollTwoDice: () => 7,
+    });
+    const economicPenalty = derivePenaltyProfile({
+      lawProfile,
+      offenseType: "economic",
+      severity: "moderate",
+      prohibitedAtLevel: 2,
+      rollTwoDice: () => 9,
+    });
+
+    expect(conviction.convicted).toBe(true);
+    expect(conviction.applicableLawLevel).toBe(8);
+    expect(criminalPenalty.summary).toBe("Death");
+    expect(criminalPenalty.enforcementProfile?.automaticallyPursued).toBe(true);
+    expect(economicPenalty.summary).toContain("death penalty may be discretionary");
+    expect(economicPenalty.enforcementProfile?.automaticallyPursued).toBe(true);
+  });
+
+  it("derives appeal rights and retries convictions on successful appeals", () => {
+    const lawProfile = {
+      overallLevel: { value: 10, code: "A" },
+      presumptionOfInnocence: true,
+      subcategories: {
+        criminal: { value: 8, code: "8" },
+      },
+      primarySystem: { code: "I" },
+    };
+
+    const rightsProfile = deriveAppealProfile({
+      lawProfile,
+      justiceProfile: { code: "I" },
+    });
+    const defendantAppeal = deriveAppealProfile({
+      lawProfile,
+      justiceProfile: { code: "I" },
+      outcome: "conviction",
+      appellantAdvocate: 2,
+      rollAppellant: () => 8,
+      retrialOptions: {
+        lawProfile,
+        justiceProfile: { code: "I" },
+        offenseType: "criminal",
+        defendantActuallyCommittedCrime: true,
+        evidenceLevel: "circumstantial",
+        rollTwoDice: () => 7,
+      },
+    });
+    const prosecutionAppeal = deriveAppealProfile({
+      lawProfile,
+      justiceProfile: { code: "I" },
+      outcome: "acquittal",
+      appellantAdvocate: 2,
+      respondentAdvocate: 0,
+      rollAppellant: () => 8,
+      rollRespondent: () => 6,
+    });
+
+    expect(rightsProfile.summary).toContain("prosecution may appeal acquittals");
+    expect(defendantAppeal.granted).toBe(true);
+    expect(defendantAppeal.retrialProfile?.eligible).toBe(true);
+    expect(prosecutionAppeal.granted).toBe(true);
+  });
+
+  it("derives private-law posture and contested outcomes", () => {
+    const lawProfile = {
+      overallLevel: { value: 8, code: "8" },
+      subcategories: {
+        private: { value: 10, code: "A" },
+      },
+    };
+
+    const posture = derivePrivateLawProfile({ lawProfile });
+    const contested = derivePrivateLawProfile({
+      lawProfile,
+      plaintiffAdvocate: 2,
+      defendantAdvocate: 0,
+      punitiveDamagesRequested: true,
+      rollPlaintiff: () => 9,
+      rollDefendant: () => 5,
+      rollDamages: () => 8,
+    });
+
+    expect(posture.summary).toContain("Government-adjudicated arbitration required");
+    expect(contested.plaintiffPrevails).toBe(true);
+    expect(contested.punitiveDamagesLimited).toBe(true);
+    expect(contested.summary).toContain("punitive damages guidance");
+  });
+
+  it("derives personal-rights posture and criminal-style outcomes", () => {
+    const lawProfile = {
+      deathPenalty: false,
+      presumptionOfInnocence: true,
+      overallLevel: { value: 10, code: "A" },
+      subcategories: {
+        personalRights: { value: 11, code: "B" },
+      },
+      primarySystem: { code: "A" },
+    };
+
+    const posture = derivePersonalRightsProfile({ lawProfile, justiceProfile: { code: "A" } });
+    const prosecution = derivePersonalRightsProfile({
+      lawProfile,
+      justiceProfile: { code: "A" },
+      severity: "minor",
+      prohibitedAtLevel: 3,
+      defendantActuallyCommittedViolation: true,
+      caughtRedHanded: true,
+      rollConviction: () => 6,
+      rollPenalty: () => 7,
+    });
+
+    expect(posture.summary).toContain("Warrantless searches");
+    expect(posture.alwaysPursued).toBe(true);
+    expect(prosecution.convictionProfile?.convicted).toBe(true);
+    expect(prosecution.penaltyProfile?.summary).toBe("Imprisonment for 2D years or exile");
+  });
+
+  it("derives discretionary enforcement for low-enforcement criminal, economic, and personal-rights violations", () => {
+    const lawProfile = {
+      overallLevel: { value: 6, code: "6" },
+      subcategories: {
+        criminal: { value: 2, code: "2" },
+        economic: { value: 2, code: "2" },
+        personalRights: { value: 2, code: "2" },
+      },
+    };
+
+    const criminalPenalty = derivePenaltyProfile({
+      lawProfile,
+      offenseType: "criminal",
+      severity: "minor",
+      prohibitedAtLevel: 5,
+      rollTwoDice: () => 7,
+    });
+    const economicPenalty = derivePenaltyProfile({
+      lawProfile,
+      offenseType: "economic",
+      severity: "minor",
+      prohibitedAtLevel: 5,
+      rollTwoDice: () => 7,
+    });
+    const posture = deriveDiscretionaryEnforcementProfile({
+      lawProfile,
+      offenseType: "personalRights",
+      severity: "minor",
+    });
+    const warning = deriveDiscretionaryEnforcementProfile({
+      lawProfile,
+      offenseType: "personalRights",
+      severity: "minor",
+      persuadeSkill: 2,
+      rollCheck: () => 7,
+      checkTarget: 8,
+    });
+
+    expect(criminalPenalty.enforcementProfile?.warningPossible).toBe(true);
+    expect(criminalPenalty.enforcementProfile?.automaticallyPursued).toBe(false);
+    expect(economicPenalty.enforcementProfile?.warningPossible).toBe(true);
+    expect(economicPenalty.enforcementProfile?.automaticallyPursued).toBe(false);
+    expect(posture.automaticallyPursued).toBe(false);
+    expect(posture.warningPossible).toBe(true);
+    expect(posture.summary).toContain("May escape with a warning");
+    expect(warning.warningGranted).toBe(true);
+    expect(warning.summary).toContain("Escapes with a warning");
+  });
+
   it("derives secondary-world dependency governments and classifications", () => {
     const secondaryWorldContext = deriveSecondaryWorldContext({
       world: {
@@ -363,6 +595,81 @@ describe("worldProfileGenerator", () => {
     expect(secondaryWorldContext.governmentCode).toBe(6);
     expect(secondaryWorldContext.classificationCodes).toContain("Cy");
     expect(secondaryWorldContext.classificationCodes).toContain("Mi");
+  });
+
+  it("derives secondary-world law levels for captive, dependent, and freeport cases", () => {
+    const dieSequence = [5, 2];
+    const captiveLawLevel = deriveSecondaryWorldLawLevel({
+      populationCode: 5,
+      governmentCode: 6,
+      mainworldOverlay: {
+        governmentCode: 6,
+        lawLevel: 5,
+      },
+      secondaryWorldContext: {
+        eligible: true,
+        dependent: true,
+        classificationCodes: ["Mb"],
+      },
+      rollDie: () => dieSequence.shift() ?? 1,
+      rollTwoDice: () => 7,
+    });
+    const inheritedLawLevel = deriveSecondaryWorldLawLevel({
+      populationCode: 4,
+      governmentCode: 2,
+      mainworldOverlay: {
+        governmentCode: 4,
+        lawLevel: 6,
+      },
+      secondaryWorldContext: {
+        eligible: true,
+        dependent: true,
+        classificationCodes: [],
+      },
+      rollTwoDice: () => 4,
+    });
+    const freeportLawLevel = deriveSecondaryWorldLawLevel({
+      populationCode: 4,
+      governmentCode: 5,
+      mainworldOverlay: {
+        governmentCode: 6,
+        lawLevel: 6,
+      },
+      secondaryWorldContext: {
+        eligible: true,
+        dependent: false,
+        classificationCodes: ["Fp"],
+      },
+      rollTwoDice: () => 7,
+    });
+
+    expect(captiveLawLevel.caseLabel).toBe("captive-mainworld-plus-die");
+    expect(captiveLawLevel.lawLevel).toBe(7);
+    expect(captiveLawLevel.sourceSummary).toContain("owning mainworld");
+    expect(inheritedLawLevel.caseLabel).toBe("dependent-inherits-mainworld");
+    expect(inheritedLawLevel.lawLevel).toBe(6);
+    expect(freeportLawLevel.caseLabel).toBe("independent-freeport");
+    expect(freeportLawLevel.lawLevel).toBe(4);
+  });
+
+  it("allows secondary-world law levels to extend above 9", () => {
+    const highLawSecondaryWorld = deriveSecondaryWorldLawLevel({
+      populationCode: 5,
+      governmentCode: 6,
+      mainworldOverlay: {
+        governmentCode: 6,
+        lawLevel: 10,
+      },
+      secondaryWorldContext: {
+        eligible: true,
+        dependent: true,
+        classificationCodes: ["Mb"],
+      },
+      rollDie: () => 6,
+      rollTwoDice: () => 8,
+    });
+
+    expect(highLawSecondaryWorld.lawLevel).toBe(16);
   });
 
   it("marks government traits unavailable when no functioning government exists", () => {

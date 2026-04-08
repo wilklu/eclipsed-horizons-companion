@@ -57,6 +57,9 @@ export function createEmptySurveyData() {
     tradeCodes: "",
     stellarProfile: "",
     mainworldRemarks: "",
+    appealProfile: "",
+    privateLawProfile: "",
+    personalRightsProfile: "",
     secondaryProfiles: "",
     profileNotes: "",
     comments: "",
@@ -101,11 +104,23 @@ function buildWorldSocialOverlayNotes(world) {
   if (world?.lawProfile?.eligible && world?.lawProfile?.summary) {
     notes.push(`Law profile ${String(world.lawProfile.summary)}`);
   }
+  if (world?.appealProfile?.eligible && world?.appealProfile?.summary) {
+    notes.push(`Appeals ${String(world.appealProfile.summary)}`);
+  }
+  if (world?.privateLawProfile?.summary) {
+    notes.push(`Private law ${String(world.privateLawProfile.summary)}`);
+  }
+  if (world?.personalRightsProfile?.summary) {
+    notes.push(`Personal rights ${String(world.personalRightsProfile.summary)}`);
+  }
   if (world?.factionsProfile?.eligible && world?.factionsProfile?.summary) {
     notes.push(`Factions ${String(world.factionsProfile.summary)}`);
   }
   if (world?.secondaryWorldContext?.eligible && world?.secondaryWorldContext?.classificationCodes?.length) {
     notes.push(`Secondary classifications ${world.secondaryWorldContext.classificationCodes.join(", ")}`);
+  }
+  if (world?.secondaryWorldContext?.eligible && world?.secondaryWorldContext?.lawLevelSourceSummary) {
+    notes.push(`Secondary law source ${String(world.secondaryWorldContext.lawLevelSourceSummary)}`);
   }
   if (world?.civilConflict?.active) {
     notes.push(`Civil conflict active (${String(world.civilConflict.trigger || "instability")})`);
@@ -317,6 +332,21 @@ export function buildSurveyDataFromSystem(systemRecord) {
     mainworldRemarks: stringifyRemarks(
       systemRecord?.mainworldRemarks || profiles?.mainworldRemarks || mainworld?.remarks,
     ),
+    appealProfile: String(
+      profiles?.appealProfile || systemRecord?.appealProfile?.summary || mainworld?.appealProfile?.summary || "",
+    ),
+    privateLawProfile: String(
+      profiles?.privateLawProfile ||
+        systemRecord?.privateLawProfile?.summary ||
+        mainworld?.privateLawProfile?.summary ||
+        "",
+    ),
+    personalRightsProfile: String(
+      profiles?.personalRightsProfile ||
+        systemRecord?.personalRightsProfile?.summary ||
+        mainworld?.personalRightsProfile?.summary ||
+        "",
+    ),
     secondaryProfiles: String(profiles?.secondaryProfiles || ""),
     profileNotes: combineProfileNotes(profiles?.profileNotes, derivedProfileNotes, legacyStarNote),
     comments: String(systemRecord?.comments || ""),
@@ -360,6 +390,9 @@ export function buildSystemSurveyPayload(surveyData) {
       tradeCodes: surveyData.tradeCodes,
       stellarProfile: surveyData.stellarProfile,
       mainworldRemarks: surveyData.mainworldRemarks,
+      appealProfile: surveyData.appealProfile,
+      privateLawProfile: surveyData.privateLawProfile,
+      personalRightsProfile: surveyData.personalRightsProfile,
       secondaryProfiles: surveyData.secondaryProfiles,
       profileNotes: surveyData.profileNotes,
     },

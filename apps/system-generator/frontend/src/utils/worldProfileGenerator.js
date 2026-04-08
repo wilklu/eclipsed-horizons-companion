@@ -36,6 +36,15 @@ const LAW_TABLE = {
   7: "Shotguns prohibited",
   8: "Long bladed weapons controlled",
   9: "All weapons prohibited",
+  10: "Pre-emptive detention allowed",
+  11: "Arbitrary indefinite detention allowed",
+  12: "Arbitrary verdicts without defendant participation",
+  13: "Paramilitary law enforcement, thought crimes prosecuted",
+  14: "Police state with arbitrary executions or disappearances",
+  15: "Rigid control of daily life, gulag state",
+  16: "Thoughts controlled, disproportionate punishments",
+  17: "Legalised oppression",
+  18: "Routine oppression",
 };
 
 const TECH_TABLE = {
@@ -133,6 +142,36 @@ export const SOCIAL_WBH_RULES = Object.freeze([
     source: "docs/reference/World Builder's Handbook.md",
     status: "partial",
   },
+  {
+    id: "secondary-world-law-levels",
+    section: "Chapter 7 > Secondary World Law Levels",
+    source: "docs/reference/World Builder's Handbook.md",
+    status: "partial",
+  },
+  {
+    id: "criminal-economic-legal-outcomes",
+    section: "Chapter 7 > Criminal Conviction / Criminal Penalty / Economic Penalty",
+    source: "docs/reference/World Builder's Handbook.md",
+    status: "partial",
+  },
+  {
+    id: "appeals-private-law-outcomes",
+    section: "Chapter 7 > Appeals / Private Law Penalties",
+    source: "docs/reference/World Builder's Handbook.md",
+    status: "partial",
+  },
+  {
+    id: "personal-rights-outcomes",
+    section: "Chapter 7 > Law Level Effects: Personal Rights",
+    source: "docs/reference/World Builder's Handbook.md",
+    status: "partial",
+  },
+  {
+    id: "discretionary-enforcement",
+    section: "Chapter 7 > Crime Categories / Enforcement",
+    source: "docs/reference/World Builder's Handbook.md",
+    status: "partial",
+  },
 ]);
 
 const RANDOM_WORLD_STARS = ["O", "B", "A", "F", "G", "G", "G", "K", "K", "M", "M", "M"];
@@ -202,6 +241,9 @@ export const WORLD_PROFILE_FIELDS = [
   "governmentProfile",
   "justiceProfile",
   "lawProfile",
+  "appealProfile",
+  "privateLawProfile",
+  "personalRightsProfile",
   "factionsProfile",
   "secondaryWorldContext",
   "nativeLifeform",
@@ -245,10 +287,7 @@ function clamp(value, min, max) {
 }
 
 function toHex(value) {
-  if (value < 10) {
-    return String(value);
-  }
-  return String.fromCharCode(65 + value - 10);
+  return toExtendedHex(value);
 }
 
 function buildTradeCodes({ size, atmosphereCode, hydrographics, populationCode, governmentCode, lawLevel, techLevel }) {
@@ -410,6 +449,9 @@ function buildWorldRemarks(world = {}, overlay = {}) {
   if (overlay?.lawProfile?.eligible) {
     remarks.push(`Law ${overlay.lawProfile.lawLevelProfileCode}`);
   }
+  if (overlay?.personalRightsProfile?.eligible) {
+    remarks.push(`Rights ${toExtendedHex(overlay.personalRightsProfile.personalRightsLevel)}`);
+  }
   if (overlay?.factionsProfile?.eligible && overlay.factionsProfile.significantFactionCount > 0) {
     remarks.push(`Factions ${overlay.factionsProfile.significantFactionCount}`);
   }
@@ -556,6 +598,86 @@ const LAW_SUBCATEGORY_TABLE = Object.freeze({
   personalRights: { key: "personalRights", label: "Personal Rights", code: "R" },
 });
 
+const CRIME_SEVERITY_TABLE = Object.freeze({
+  insignificant: { key: "insignificant", label: "Insignificant", enforcement: 7, dm: -10 },
+  trivial: { key: "trivial", label: "Trivial", enforcement: 5, dm: -8 },
+  petty: { key: "petty", label: "Petty", enforcement: 4, dm: -5 },
+  minor: { key: "minor", label: "Minor", enforcement: 3, dm: -3 },
+  moderate: { key: "moderate", label: "Moderate", enforcement: 2, dm: -2 },
+  serious: { key: "serious", label: "Serious", enforcement: 1, dm: -1 },
+  grave: { key: "grave", label: "Grave", enforcement: 1, dm: 0 },
+  appalling: { key: "appalling", label: "Appalling", enforcement: 0, dm: 2 },
+  horrific: { key: "horrific", label: "Horrific", enforcement: 0, dm: 5 },
+});
+
+const CRIMINAL_PENALTY_TABLE = Object.freeze([
+  { min: Number.NEGATIVE_INFINITY, max: 0, label: "Dismissed or trivial" },
+  { min: 1, max: 2, label: "Fine of 1D x Cr1000" },
+  { min: 3, max: 4, label: "Fine of 2D x Cr5000" },
+  { min: 5, max: 6, label: "Exile or a fine of 1D x Cr10000" },
+  { min: 7, max: 8, label: "Imprisonment for 1D months or exile or a fine of 2D x Cr20000" },
+  { min: 9, max: 10, label: "Imprisonment for 1D years or exile" },
+  { min: 11, max: 12, label: "Imprisonment for 2D years or exile" },
+  { min: 13, max: 14, label: "Life imprisonment" },
+  { min: 15, max: Number.POSITIVE_INFINITY, label: "Death" },
+]);
+
+const ECONOMIC_PENALTY_TABLE = Object.freeze([
+  { min: Number.NEGATIVE_INFINITY, max: 0, label: "Dismissed or trivial" },
+  { min: 1, max: 2, label: "Fine of 1D x Cr1000" },
+  { min: 3, max: 4, label: "Fine of 2D x Cr5000" },
+  { min: 5, max: 6, label: "Fine of 1D x Cr10000" },
+  { min: 7, max: 8, label: "Fine of 2D x Cr20000" },
+  { min: 9, max: 10, label: "Imprisonment for 1D months or exile and a fine of 2D x Cr50000" },
+  { min: 11, max: 12, label: "Imprisonment for 1D years or exile and a fine of 2D x Cr100000" },
+  { min: 13, max: 14, label: "Imprisonment for 2D years or exile and a fine of 2D x Cr500000" },
+  { min: 15, max: Number.POSITIVE_INFINITY, label: "Imprisonment for 4D years or exile and a fine of 2D x MCr1" },
+]);
+
+const PRIVATE_LAW_LEVEL_TABLE = Object.freeze({
+  0: "No formal legal system",
+  1: "Duelling restricted, contract law enforceable",
+  2: "Duelling prohibited",
+  3: "Private settlement of moderate crimes prohibited",
+  4: "Private settlement of all crimes prohibited",
+  5: "Public filing of all disputes and settlements",
+  6: "Government venue required for all settlements",
+  7: "Limits on all tort settlements",
+  8: "Government review of all settlements",
+  9: "Government approval for all settlements",
+  10: "Government-adjudicated arbitration required",
+  11: "Arbitrary government adjudication and approval of all contracts",
+  12: "All civil proceedings transferred to criminal justice system",
+  13: "Private disputes are overwhelmed by the punitive state",
+  14: "Private disputes are absorbed into police-state procedures",
+  15: "Private disputes are subsumed by rigid state control",
+  16: "Private disputes are subordinate to disproportional punishments",
+  17: "Private disputes operate under legalized oppression",
+  18: "Private disputes operate under routine oppression",
+});
+
+const PERSONAL_RIGHTS_LEVEL_TABLE = Object.freeze({
+  0: "No restrictions",
+  1: "Speech risking physical harm is prohibited",
+  2: "Identity registration and libel prohibitions apply",
+  3: "Group-related regulations apply",
+  4: "Hate speech is prohibited",
+  5: "Identification papers are mandatory",
+  6: "Public surveillance is normal",
+  7: "Offensive speech is prohibited",
+  8: "No right to protect personal data",
+  9: "Subversive speech is prohibited",
+  10: "Movement and residency restrictions apply",
+  11: "Warrantless searches and routine private surveillance apply",
+  12: "Unrestricted private surveillance and group punishments apply",
+  13: "Thought crimes are prosecuted",
+  14: "Police-state personal-rights restrictions apply",
+  15: "Daily life is under rigid control",
+  16: "Thoughts are controlled and punishments are disproportionate",
+  17: "Personal rights exist under legalized oppression",
+  18: "Personal rights exist under routine oppression",
+});
+
 const SECONDARY_WORLD_CLASSIFICATIONS = Object.freeze({
   Cy: { code: "Cy", label: "Colony" },
   Fa: { code: "Fa", label: "Farming" },
@@ -655,6 +777,14 @@ function deriveLawSubcategoryLevel({ lawLevel = 0, dm = 0, rollDie = d1 } = {}) 
   return clampLawSubcategoryLevel(Number(lawLevel) + rollTwoD3MinusFour(rollDie) + Number(dm || 0));
 }
 
+function clampWorldLawLevel(value) {
+  return clamp(Math.trunc(Number(value) || 0), 0, 18);
+}
+
+function rollWorldLawLevel({ governmentCode = 0, dm = 0, rollTwoDice = () => d6() } = {}) {
+  return clampWorldLawLevel(Number(rollTwoDice()) - 7 + Number(governmentCode) + Number(dm || 0));
+}
+
 function buildJudicialProfileCode({
   primaryCode = "N",
   secondaryCode = "N",
@@ -680,6 +810,90 @@ function summarizeLawProfile({ judicialProfileCode = "", lawLevelProfileCode = "
   return [judicialProfileCode, lawLevelProfileCode, uniformityLabel ? `${uniformityLabel} law` : ""]
     .filter(Boolean)
     .join(" / ");
+}
+
+function normalizeCrimeSeverityKey(value = "moderate") {
+  const key = String(value || "moderate")
+    .trim()
+    .toLowerCase();
+  return CRIME_SEVERITY_TABLE[key] ? key : "moderate";
+}
+
+function normalizeOffenseType(value = "criminal") {
+  const normalized = String(value || "criminal")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, "");
+
+  if (normalized === "economic") return "economic";
+  if (normalized === "private") return "private";
+  if (normalized === "personalrights") return "personalRights";
+  return "criminal";
+}
+
+function resolvePenaltyBand(total, table) {
+  return table.find((entry) => total >= entry.min && total <= entry.max) || table[0];
+}
+
+function resolveApplicableLawLevel({ offenseType = "criminal", lawProfile = null } = {}) {
+  const categoryKey = normalizeOffenseType(offenseType);
+  return Number(lawProfile?.subcategories?.[categoryKey]?.value ?? lawProfile?.overallLevel?.value ?? 0);
+}
+
+function summarizeSecondaryWorldLawSource(caseLabel) {
+  return (
+    {
+      default: "Law level rolled normally for the secondary world.",
+      "captive-reroll": "Law level rerolled as a captive Government 6 world.",
+      "captive-same-as-mainworld": "Law level inherited directly from the owning mainworld.",
+      "captive-mainworld-plus-one": "Law level set one step stricter than the owning mainworld.",
+      "captive-mainworld-plus-die": "Law level set above the owning mainworld by an additional die roll.",
+      "dependent-inherits-mainworld": "Law level inherited from the supervising mainworld authority.",
+      "dependent-local-low-law": "Law level kept as a local low-government exception under mainworld authority.",
+      "dependent-reroll": "Law level rerolled locally despite mainworld authority.",
+      "independent-default": "Law level rerolled normally for an independent secondary world.",
+      "independent-freeport": "Law level rerolled with freeport leniency.",
+    }[String(caseLabel || "default")] || "Law level resolved from secondary-world authority rules."
+  );
+}
+
+function summarizeAppealRights({ criminalLawLevel = 0, justiceCode = "N" } = {}) {
+  if (!(criminalLawLevel > 0) || justiceCode === "N") {
+    return "No formal appeal process";
+  }
+  if (justiceCode === "I" && criminalLawLevel >= 7) {
+    return "Defendants may appeal convictions; prosecution may appeal acquittals";
+  }
+  return "Defendants may appeal convictions";
+}
+
+function summarizePrivateLawEnvironment(privateLawLevel = 0) {
+  return PRIVATE_LAW_LEVEL_TABLE[clampWorldLawLevel(privateLawLevel)] || "Private-law environment unknown";
+}
+
+function summarizePersonalRightsEnvironment(personalRightsLevel = 0) {
+  return PERSONAL_RIGHTS_LEVEL_TABLE[clampWorldLawLevel(personalRightsLevel)] || "Personal-rights environment unknown";
+}
+
+function summarizeDiscretionaryEnforcement({
+  automaticallyPursued = false,
+  warningPossible = false,
+  warningGranted = null,
+  skillLabel = "Advocate or Persuade",
+} = {}) {
+  if (automaticallyPursued) {
+    return "Punishment is always pursued at this law level";
+  }
+  if (!warningPossible) {
+    return "Enforcement posture unknown";
+  }
+  if (warningGranted === true) {
+    return `Escapes with a warning on a successful ${skillLabel} check`;
+  }
+  if (warningGranted === false) {
+    return `Warning attempt fails; prosecution proceeds despite ${skillLabel} intervention`;
+  }
+  return `May escape with a warning on a successful ${skillLabel} check`;
 }
 
 function resolveSecondaryGovernmentCode(total) {
@@ -1228,6 +1442,543 @@ export function deriveSecondaryWorldContext({
     classifications,
     summary: dependent ? "Dependent secondary world" : "Independent secondary world",
     classificationSummary: classifications.map((entry) => entry.code).join(", "),
+  };
+}
+
+export function deriveSecondaryWorldLawLevel({
+  populationCode = 0,
+  governmentCode = 0,
+  mainworldOverlay = null,
+  secondaryWorldContext = null,
+  rollDie = d1,
+  rollTwoDice = () => d6(),
+} = {}) {
+  if (!(populationCode > 0) || !mainworldOverlay || !secondaryWorldContext?.eligible) {
+    return {
+      eligible: false,
+      lawLevel: rollWorldLawLevel({ governmentCode, rollTwoDice }),
+      caseLabel: "default",
+      summary: "Default law-level roll",
+      sourceSummary: summarizeSecondaryWorldLawSource("default"),
+    };
+  }
+
+  const numericGovernmentCode = Number(governmentCode);
+  const mainworldGovernmentCode = Number(mainworldOverlay?.governmentCode ?? 0);
+  const mainworldLawLevel = clampWorldLawLevel(mainworldOverlay?.lawLevel);
+  const classificationCodes = Array.isArray(secondaryWorldContext?.classificationCodes)
+    ? secondaryWorldContext.classificationCodes
+    : [];
+
+  if (numericGovernmentCode === 6) {
+    const captiveDm = classificationCodes.some((code) => ["Pe", "Mb"].includes(code)) ? 1 : 0;
+    const captiveRoll = Number(rollDie(6)) + captiveDm;
+
+    if (captiveRoll <= 2) {
+      return {
+        eligible: true,
+        lawLevel: rollWorldLawLevel({ governmentCode: 6, rollTwoDice }),
+        caseLabel: "captive-reroll",
+        summary: "Captive secondary world rerolls law level as Government 6",
+        sourceSummary: summarizeSecondaryWorldLawSource("captive-reroll"),
+      };
+    }
+    if (captiveRoll <= 4) {
+      return {
+        eligible: true,
+        lawLevel: mainworldLawLevel,
+        caseLabel: "captive-same-as-mainworld",
+        summary: "Captive secondary world uses the owning mainworld law level",
+        sourceSummary: summarizeSecondaryWorldLawSource("captive-same-as-mainworld"),
+      };
+    }
+    if (captiveRoll === 5) {
+      return {
+        eligible: true,
+        lawLevel: clampWorldLawLevel(mainworldLawLevel + 1),
+        caseLabel: "captive-mainworld-plus-one",
+        summary: "Captive secondary world is slightly stricter than the owning mainworld",
+        sourceSummary: summarizeSecondaryWorldLawSource("captive-mainworld-plus-one"),
+      };
+    }
+
+    return {
+      eligible: true,
+      lawLevel: clampWorldLawLevel(mainworldLawLevel + Number(rollDie(6))),
+      caseLabel: "captive-mainworld-plus-die",
+      summary: "Captive secondary world is significantly stricter than the owning mainworld",
+      sourceSummary: summarizeSecondaryWorldLawSource("captive-mainworld-plus-die"),
+    };
+  }
+
+  if (secondaryWorldContext?.dependent && numericGovernmentCode >= 1 && numericGovernmentCode <= 3) {
+    const authorityRoll = Number(rollTwoDice()) - mainworldGovernmentCode;
+    if (authorityRoll <= 0) {
+      return {
+        eligible: true,
+        lawLevel: mainworldLawLevel,
+        caseLabel: "dependent-inherits-mainworld",
+        summary: "Dependent low-government secondary world inherits the mainworld law level",
+        sourceSummary: summarizeSecondaryWorldLawSource("dependent-inherits-mainworld"),
+      };
+    }
+
+    const localRoll = Number(rollDie(6));
+    if (localRoll <= 3) {
+      return {
+        eligible: true,
+        lawLevel: clampWorldLawLevel(localRoll),
+        caseLabel: "dependent-local-low-law",
+        summary: "Dependent low-government secondary world keeps its own lightly regulated law level",
+        sourceSummary: summarizeSecondaryWorldLawSource("dependent-local-low-law"),
+      };
+    }
+
+    return {
+      eligible: true,
+      lawLevel: rollWorldLawLevel({ governmentCode: numericGovernmentCode, rollTwoDice }),
+      caseLabel: "dependent-reroll",
+      summary: "Dependent low-government secondary world rerolls its own law level",
+      sourceSummary: summarizeSecondaryWorldLawSource("dependent-reroll"),
+    };
+  }
+
+  const freeportDm = classificationCodes.includes("Fp") ? -1 : 0;
+  return {
+    eligible: true,
+    lawLevel: rollWorldLawLevel({ governmentCode: numericGovernmentCode, dm: freeportDm, rollTwoDice }),
+    caseLabel: freeportDm ? "independent-freeport" : "independent-default",
+    summary: freeportDm
+      ? "Secondary-world law level rerolled with a freeport leniency modifier"
+      : "Secondary-world law level rerolled normally",
+    sourceSummary: summarizeSecondaryWorldLawSource(freeportDm ? "independent-freeport" : "independent-default"),
+  };
+}
+
+export function deriveConvictionProfile({
+  lawProfile = null,
+  justiceProfile = null,
+  offenseType = "criminal",
+  defendantActuallyCommittedCrime = true,
+  caughtRedHanded = false,
+  evidenceLevel = "none",
+  prosecutionAdvocate = 0,
+  defenseAdvocate = 0,
+  advocateAllowed = true,
+  extraDm = 0,
+  rollTwoDice = () => d6(),
+} = {}) {
+  const applicableLawLevel = resolveApplicableLawLevel({ offenseType, lawProfile });
+  const justiceCode = String(justiceProfile?.code || lawProfile?.primarySystem?.code || "N");
+  const presumptionOfInnocence = Boolean(lawProfile?.presumptionOfInnocence);
+  const offenseKey = normalizeOffenseType(offenseType);
+  const normalizedEvidenceLevel = String(evidenceLevel || "none")
+    .trim()
+    .toLowerCase();
+  let dm = 0;
+
+  if (justiceCode === "A") dm += 2;
+  if (presumptionOfInnocence) dm += 2;
+  if (caughtRedHanded) dm -= 6;
+  if (normalizedEvidenceLevel === "overwhelming") dm -= 4;
+  else if (normalizedEvidenceLevel === "circumstantial") dm -= 2;
+  if (!defendantActuallyCommittedCrime) dm += 4;
+  dm -= applicableLawLevel;
+  dm -= Number(prosecutionAdvocate || 0);
+  if (advocateAllowed) dm += Number(defenseAdvocate || 0);
+  dm += Number(extraDm || 0);
+
+  const total = Number(rollTwoDice()) + dm;
+  const avoidConviction = total >= 8;
+
+  return {
+    eligible: true,
+    offenseType: offenseKey,
+    applicableLawLevel,
+    justiceCode,
+    presumptionOfInnocence,
+    total,
+    dm,
+    avoidConviction,
+    convicted: !avoidConviction,
+    summary: avoidConviction ? "Avoids conviction" : "Convicted",
+  };
+}
+
+export function derivePenaltyProfile({
+  lawProfile = null,
+  offenseType = "criminal",
+  severity = "moderate",
+  prohibitedAtLevel = null,
+  prosecutionAdvocate = 0,
+  defenseAdvocate = 0,
+  advocateAllowed = true,
+  extraDm = 0,
+  rollTwoDice = () => d6(),
+} = {}) {
+  const offenseKey = normalizeOffenseType(offenseType);
+  const severityKey = normalizeCrimeSeverityKey(severity);
+  const severityProfile = CRIME_SEVERITY_TABLE[severityKey];
+  const applicableLawLevel = resolveApplicableLawLevel({ offenseType: offenseKey, lawProfile });
+  const enforcementProfile = deriveDiscretionaryEnforcementProfile({
+    lawProfile,
+    offenseType: offenseKey,
+    severity,
+  });
+  const proscriptionDm = Number.isFinite(Number(prohibitedAtLevel))
+    ? applicableLawLevel - Number(prohibitedAtLevel)
+    : 0;
+  const dm =
+    severityProfile.dm -
+    Number(prosecutionAdvocate || 0) +
+    (advocateAllowed ? Number(defenseAdvocate || 0) : 0) +
+    proscriptionDm +
+    Number(extraDm || 0);
+  const total = Number(rollTwoDice()) + dm;
+  const band = resolvePenaltyBand(total, offenseKey === "economic" ? ECONOMIC_PENALTY_TABLE : CRIMINAL_PENALTY_TABLE);
+  const deathPenaltyAllowed = Boolean(lawProfile?.deathPenalty);
+  let summary = band.label;
+
+  if (["criminal", "personalRights"].includes(offenseKey) && total >= 15 && !deathPenaltyAllowed) {
+    summary = "Life imprisonment or alternative most-severe punishment";
+  } else if (offenseKey === "economic" && total >= 15 && deathPenaltyAllowed && applicableLawLevel >= 9) {
+    summary = `${band.label}; death penalty may be discretionary at this law level`;
+  }
+
+  return {
+    eligible: true,
+    offenseType: offenseKey,
+    severity: severityProfile,
+    applicableLawLevel,
+    enforcementProfile,
+    proscriptionDm,
+    total,
+    dm,
+    band,
+    deathPenaltyAllowed,
+    summary,
+  };
+}
+
+export function deriveAppealProfile({
+  lawProfile = null,
+  justiceProfile = null,
+  outcome = null,
+  appellantAdvocate = 0,
+  respondentAdvocate = 0,
+  extraDm = 0,
+  rollAppellant = null,
+  rollRespondent = null,
+  retrialOptions = null,
+} = {}) {
+  const criminalLawLevel = resolveApplicableLawLevel({ offenseType: "criminal", lawProfile });
+  const justiceCode = String(justiceProfile?.code || lawProfile?.primarySystem?.code || "N");
+  const eligible = criminalLawLevel > 0 && justiceCode !== "N";
+  const defendantAppealAvailable = eligible;
+  const prosecutionAppealAvailable = eligible && justiceCode === "I" && criminalLawLevel >= 7;
+  const normalizedOutcome = String(outcome || "")
+    .trim()
+    .toLowerCase();
+  const requestedOutcome = ["conviction", "acquittal"].includes(normalizedOutcome) ? normalizedOutcome : null;
+
+  if (!eligible) {
+    return {
+      eligible: false,
+      defendantAppealAvailable: false,
+      prosecutionAppealAvailable: false,
+      actor: null,
+      outcome: requestedOutcome,
+      granted: null,
+      summary: "No formal appeal process",
+    };
+  }
+
+  const summary = summarizeAppealRights({ criminalLawLevel, justiceCode });
+  if (!requestedOutcome || typeof rollAppellant !== "function") {
+    return {
+      eligible: true,
+      defendantAppealAvailable,
+      prosecutionAppealAvailable,
+      actor: null,
+      outcome: requestedOutcome,
+      granted: null,
+      criminalLawLevel,
+      justiceCode,
+      summary,
+    };
+  }
+
+  const actor = requestedOutcome === "conviction" ? "defendant" : "prosecution";
+  if (requestedOutcome === "acquittal" && !prosecutionAppealAvailable) {
+    return {
+      eligible: true,
+      defendantAppealAvailable,
+      prosecutionAppealAvailable,
+      actor,
+      outcome: requestedOutcome,
+      granted: false,
+      criminalLawLevel,
+      justiceCode,
+      summary: "Prosecution appeal unavailable",
+    };
+  }
+
+  const appellantTotal = Number(rollAppellant()) + Number(appellantAdvocate || 0) + Number(extraDm || 0);
+  const respondentTotal =
+    typeof rollRespondent === "function" ? Number(rollRespondent()) + Number(respondentAdvocate || 0) : null;
+  const granted =
+    requestedOutcome === "conviction"
+      ? appellantTotal >= 10
+      : appellantTotal >= 10 && appellantTotal > Number(respondentTotal ?? Number.NEGATIVE_INFINITY);
+  const retrialProfile = granted && retrialOptions ? deriveConvictionProfile(retrialOptions) : null;
+
+  return {
+    eligible: true,
+    defendantAppealAvailable,
+    prosecutionAppealAvailable,
+    actor,
+    outcome: requestedOutcome,
+    criminalLawLevel,
+    justiceCode,
+    appellantTotal,
+    respondentTotal,
+    granted,
+    retrialProfile,
+    summary: granted
+      ? `${actor === "defendant" ? "Defendant" : "Prosecution"} appeal granted`
+      : `${actor === "defendant" ? "Defendant" : "Prosecution"} appeal denied`,
+  };
+}
+
+export function deriveDiscretionaryEnforcementProfile({
+  lawProfile = null,
+  offenseType = "criminal",
+  severity = "minor",
+  advocateSkill = 0,
+  persuadeSkill = 0,
+  extraDm = 0,
+  rollCheck = null,
+  checkTarget = null,
+} = {}) {
+  const offenseKey = normalizeOffenseType(offenseType);
+  const severityProfile = CRIME_SEVERITY_TABLE[normalizeCrimeSeverityKey(severity)];
+  const applicableLawLevel = resolveApplicableLawLevel({ offenseType: offenseKey, lawProfile });
+  const enforcementThreshold = Number(severityProfile?.enforcement ?? 99);
+  const automaticallyPursued = applicableLawLevel >= enforcementThreshold;
+  const warningPossible = !automaticallyPursued;
+  const resolvedCheckTarget = Number.isFinite(Number(checkTarget)) ? Number(checkTarget) : null;
+  const advocateTotal =
+    typeof rollCheck === "function" ? Number(rollCheck()) + Number(advocateSkill || 0) + Number(extraDm || 0) : null;
+  const persuadeTotal =
+    typeof rollCheck === "function" ? Number(rollCheck()) + Number(persuadeSkill || 0) + Number(extraDm || 0) : null;
+  const preferredSkill = Number(advocateSkill || 0) >= Number(persuadeSkill || 0) ? "Advocate" : "Persuade";
+  const preferredTotal = preferredSkill === "Advocate" ? advocateTotal : persuadeTotal;
+  const warningGranted =
+    warningPossible && preferredTotal !== null && resolvedCheckTarget !== null
+      ? preferredTotal >= resolvedCheckTarget
+      : null;
+
+  return {
+    eligible: true,
+    offenseType: offenseKey,
+    severity: severityProfile,
+    applicableLawLevel,
+    enforcementThreshold,
+    automaticallyPursued,
+    warningPossible,
+    preferredSkill,
+    checkTarget: resolvedCheckTarget,
+    advocateTotal,
+    persuadeTotal,
+    preferredTotal,
+    warningGranted,
+    summary: summarizeDiscretionaryEnforcement({
+      automaticallyPursued,
+      warningPossible,
+      warningGranted,
+      skillLabel: "Advocate or Persuade",
+    }),
+  };
+}
+
+export function derivePrivateLawProfile({
+  lawProfile = null,
+  plaintiffAdvocate = 0,
+  defendantAdvocate = 0,
+  plaintiffDm = 0,
+  defendantDm = 0,
+  extraDm = 0,
+  punitiveDamagesRequested = false,
+  punitiveDamagesExtraDm = 0,
+  rollPlaintiff = null,
+  rollDefendant = null,
+  rollDamages = null,
+} = {}) {
+  const privateLawLevel = resolveApplicableLawLevel({ offenseType: "private", lawProfile });
+  const environmentSummary = summarizePrivateLawEnvironment(privateLawLevel);
+  const eligible = privateLawLevel > 0;
+  const transferredToCriminalJustice = privateLawLevel >= 12;
+  const punitiveDamagesLimited = privateLawLevel >= 7;
+
+  if (!eligible) {
+    return {
+      eligible: false,
+      privateLawLevel,
+      transferredToCriminalJustice: false,
+      punitiveDamagesLimited: false,
+      contestResolved: false,
+      summary: environmentSummary,
+    };
+  }
+
+  if (transferredToCriminalJustice || typeof rollPlaintiff !== "function" || typeof rollDefendant !== "function") {
+    return {
+      eligible: true,
+      privateLawLevel,
+      transferredToCriminalJustice,
+      punitiveDamagesLimited,
+      contestResolved: false,
+      summary: environmentSummary,
+    };
+  }
+
+  const plaintiffTotal =
+    Number(rollPlaintiff()) + Number(plaintiffAdvocate || 0) + Number(plaintiffDm || 0) + Number(extraDm || 0);
+  const defendantTotal = Number(rollDefendant()) + Number(defendantAdvocate || 0) + Number(defendantDm || 0);
+  const effect = plaintiffTotal - defendantTotal;
+  const plaintiffMeetsThreshold = plaintiffTotal >= 8;
+  const plaintiffPrevails = plaintiffMeetsThreshold && effect > 0;
+  const countersuitDm = plaintiffPrevails ? effect : Math.abs(effect);
+  const damagesBand =
+    plaintiffPrevails && punitiveDamagesRequested && typeof rollDamages === "function"
+      ? resolvePenaltyBand(Number(rollDamages()) + effect + Number(punitiveDamagesExtraDm || 0), ECONOMIC_PENALTY_TABLE)
+      : null;
+  let summary = plaintiffPrevails ? "Plaintiff prevails" : "Plaintiff fails to prove the case";
+
+  if (transferredToCriminalJustice) {
+    summary = environmentSummary;
+  } else if (damagesBand) {
+    summary = `${summary}; punitive damages guidance ${damagesBand.label.toLowerCase()}`;
+    if (punitiveDamagesLimited) {
+      summary = `${summary}; punitive damages are tightly limited`;
+    }
+  } else if (punitiveDamagesLimited) {
+    summary = `${summary}; punitive damages are tightly limited`;
+  }
+
+  return {
+    eligible: true,
+    privateLawLevel,
+    transferredToCriminalJustice,
+    punitiveDamagesLimited,
+    contestResolved: true,
+    plaintiffTotal,
+    defendantTotal,
+    effect,
+    plaintiffPrevails,
+    countersuitDm,
+    damagesBand,
+    summary,
+  };
+}
+
+export function derivePersonalRightsProfile({
+  lawProfile = null,
+  justiceProfile = null,
+  severity = "minor",
+  prohibitedAtLevel = null,
+  defendantActuallyCommittedViolation = true,
+  caughtRedHanded = false,
+  evidenceLevel = "none",
+  prosecutionAdvocate = 0,
+  defenseAdvocate = 0,
+  advocateAllowed = true,
+  extraDm = 0,
+  rollConviction = null,
+  rollPenalty = null,
+} = {}) {
+  const personalRightsLevel = resolveApplicableLawLevel({ offenseType: "personalRights", lawProfile });
+  const environmentSummary = summarizePersonalRightsEnvironment(personalRightsLevel);
+  const severityProfile = CRIME_SEVERITY_TABLE[normalizeCrimeSeverityKey(severity)];
+  const eligible = personalRightsLevel > 0;
+  const enforcementProfile = deriveDiscretionaryEnforcementProfile({
+    lawProfile,
+    offenseType: "personalRights",
+    severity,
+  });
+  const alwaysPursued = Boolean(enforcementProfile.automaticallyPursued);
+
+  if (!eligible) {
+    return {
+      eligible: false,
+      personalRightsLevel,
+      alwaysPursued: false,
+      enforcementProfile,
+      convictionProfile: null,
+      penaltyProfile: null,
+      summary: environmentSummary,
+    };
+  }
+
+  if (typeof rollConviction !== "function" || typeof rollPenalty !== "function") {
+    return {
+      eligible: true,
+      personalRightsLevel,
+      severity: severityProfile,
+      alwaysPursued,
+      enforcementProfile,
+      convictionProfile: null,
+      penaltyProfile: null,
+      summary: `${environmentSummary}; ${enforcementProfile.summary}`,
+    };
+  }
+
+  const convictionProfile = deriveConvictionProfile({
+    lawProfile,
+    justiceProfile,
+    offenseType: "personalRights",
+    defendantActuallyCommittedCrime: defendantActuallyCommittedViolation,
+    caughtRedHanded,
+    evidenceLevel,
+    prosecutionAdvocate,
+    defenseAdvocate,
+    advocateAllowed,
+    extraDm,
+    rollTwoDice: rollConviction,
+  });
+  const penaltyProfile = convictionProfile.convicted
+    ? derivePenaltyProfile({
+        lawProfile,
+        offenseType: "personalRights",
+        severity,
+        prohibitedAtLevel,
+        prosecutionAdvocate,
+        defenseAdvocate,
+        advocateAllowed,
+        extraDm,
+        rollTwoDice: rollPenalty,
+      })
+    : null;
+
+  return {
+    eligible: true,
+    personalRightsLevel,
+    severity: severityProfile,
+    alwaysPursued,
+    enforcementProfile: deriveDiscretionaryEnforcementProfile({
+      lawProfile,
+      offenseType: "personalRights",
+      severity,
+      advocateSkill: defenseAdvocate,
+      persuadeSkill: defenseAdvocate,
+      extraDm,
+      rollCheck: rollConviction,
+      checkTarget: 8,
+    }),
+    convictionProfile,
+    penaltyProfile,
+    summary: penaltyProfile?.summary || convictionProfile.summary || environmentSummary,
+    environmentSummary,
   };
 }
 
@@ -1857,7 +2608,6 @@ function deriveSocialUwp({ world, isMainworld = true, mainworldPopulationCode = 
         });
   const governmentCode =
     isMainworld || !secondaryWorldContext?.eligible ? baseGovernmentCode : secondaryWorldContext.governmentCode;
-  const lawLevel = populationCode === 0 ? 0 : clamp(d6() + d6() - 7 + governmentCode, 0, 9);
   const starport = populationCode === 0 ? "X" : rollStarport(populationCode, { nativeSophontLife });
   const techLevel =
     populationCode === 0
@@ -1871,6 +2621,31 @@ function deriveSocialUwp({ world, isMainworld = true, mainworldPopulationCode = 
           governmentCode,
           nativeSophontLife,
         });
+  const preLawSecondaryWorldContext = secondaryWorldContext?.eligible
+    ? deriveSecondaryWorldContext({
+        world,
+        populationCode,
+        governmentCode,
+        techLevel,
+        mainworldOverlay,
+        useProvidedGovernmentCode: true,
+      })
+    : secondaryWorldContext;
+  const secondaryWorldLawLevel =
+    populationCode === 0 || isMainworld || !preLawSecondaryWorldContext?.eligible
+      ? null
+      : deriveSecondaryWorldLawLevel({
+          populationCode,
+          governmentCode,
+          mainworldOverlay,
+          secondaryWorldContext: preLawSecondaryWorldContext,
+        });
+  const lawLevel =
+    populationCode === 0
+      ? 0
+      : isMainworld || !preLawSecondaryWorldContext?.eligible
+        ? rollWorldLawLevel({ governmentCode })
+        : secondaryWorldLawLevel.lawLevel;
   const tradeCodes = buildTradeCodes({
     size,
     atmosphereCode,
@@ -1927,11 +2702,14 @@ function deriveSocialUwp({ world, isMainworld = true, mainworldPopulationCode = 
     justiceProfile,
     populationConcentration,
   });
+  const appealProfile = deriveAppealProfile({ lawProfile, justiceProfile });
+  const privateLawProfile = derivePrivateLawProfile({ lawProfile });
+  const personalRightsProfile = derivePersonalRightsProfile({ lawProfile, justiceProfile });
   const factionsProfile = deriveFactionsProfile({
     governmentCode,
     populationCode,
   });
-  const resolvedSecondaryWorldContext = secondaryWorldContext?.eligible
+  const resolvedSecondaryWorldContext = preLawSecondaryWorldContext?.eligible
     ? deriveSecondaryWorldContext({
         world,
         populationCode,
@@ -1942,6 +2720,11 @@ function deriveSocialUwp({ world, isMainworld = true, mainworldPopulationCode = 
         useProvidedGovernmentCode: true,
       })
     : secondaryWorldContext;
+  if (resolvedSecondaryWorldContext?.eligible && secondaryWorldLawLevel) {
+    resolvedSecondaryWorldContext.lawLevel = secondaryWorldLawLevel.lawLevel;
+    resolvedSecondaryWorldContext.lawLevelCase = secondaryWorldLawLevel.caseLabel;
+    resolvedSecondaryWorldContext.lawLevelSourceSummary = secondaryWorldLawLevel.sourceSummary;
+  }
   const civilConflict = deriveCivilConflictProfile({ populationCode, governmentCode, lawLevel });
   const techLevelPockets = deriveTechLevelPocketProfile({ techLevel });
   const houseRulesApplied = [civilConflict, techLevelPockets]
@@ -1969,6 +2752,9 @@ function deriveSocialUwp({ world, isMainworld = true, mainworldPopulationCode = 
     governmentProfile,
     justiceProfile,
     lawProfile,
+    appealProfile,
+    privateLawProfile,
+    personalRightsProfile,
     factionsProfile,
     secondaryWorldContext: resolvedSecondaryWorldContext,
     civilConflict,

@@ -381,6 +381,15 @@
                   <span v-if="selectedHexData.lawProfile" class="stellar-inline-detail"
                     >Law {{ selectedHexData.lawProfile }}</span
                   >
+                  <span v-if="selectedHexData.appealProfile" class="stellar-inline-detail"
+                    >Appeals {{ selectedHexData.appealProfile }}</span
+                  >
+                  <span v-if="selectedHexData.privateLawProfile" class="stellar-inline-detail"
+                    >Private {{ selectedHexData.privateLawProfile }}</span
+                  >
+                  <span v-if="selectedHexData.personalRightsProfile" class="stellar-inline-detail"
+                    >Rights {{ selectedHexData.personalRightsProfile }}</span
+                  >
                   <span v-if="selectedHexData.factionsProfile" class="stellar-inline-detail">{{
                     selectedHexData.factionsProfile
                   }}</span>
@@ -728,6 +737,7 @@ import { calculateHexOccupancyProbability, pickCentralAnomalyType } from "../../
 import { generatePhonotacticName } from "../../utils/nameGenerator.js";
 import { generateGalaxySectorLayout } from "../../utils/sectorLayoutGenerator.js";
 import { buildPersistedSurveySystemFromHex } from "../../utils/stellarSurveySystemGenerator.js";
+import { buildSystemHexSummary as buildSavedSystemHexSummary } from "../../utils/systemSummary.js";
 import { usePreferencesStore } from "../../stores/preferencesStore.js";
 import { useArchiveTransfer } from "../../composables/useArchiveTransfer.js";
 import { getRequestedSurveyViewport, useSectorSurveyViewMode } from "../../composables/useSectorSurveyViewMode.js";
@@ -1778,31 +1788,7 @@ function firstNonEmptyHexSummary(...values) {
 }
 
 function buildSystemHexSummary(system = {}) {
-  const mainworld = system?.mainworld && typeof system.mainworld === "object" ? system.mainworld : null;
-
-  return {
-    mainworldName: firstNonEmptyHexSummary(system?.mainworldName, mainworld?.name),
-    mainworldUwp: firstNonEmptyHexSummary(system?.mainworldUwp, mainworld?.uwp),
-    minimumSustainableTechLevel: firstNonEmptyHexSummary(
-      system?.minimumSustainableTechLevel?.summary,
-      mainworld?.minimumSustainableTechLevel?.summary,
-    ),
-    populationConcentration: firstNonEmptyHexSummary(
-      system?.populationConcentration?.summary,
-      mainworld?.populationConcentration?.summary,
-    ),
-    urbanization: firstNonEmptyHexSummary(system?.urbanization?.summary, mainworld?.urbanization?.summary),
-    majorCities: firstNonEmptyHexSummary(system?.majorCities?.summary, mainworld?.majorCities?.summary),
-    governmentProfile: firstNonEmptyHexSummary(
-      system?.governmentProfile?.profileCode,
-      mainworld?.governmentProfile?.profileCode,
-      system?.governmentProfile?.summary,
-      mainworld?.governmentProfile?.summary,
-    ),
-    justiceProfile: firstNonEmptyHexSummary(system?.justiceProfile?.summary, mainworld?.justiceProfile?.summary),
-    lawProfile: firstNonEmptyHexSummary(system?.lawProfile?.summary, mainworld?.lawProfile?.summary),
-    factionsProfile: firstNonEmptyHexSummary(system?.factionsProfile?.summary, mainworld?.factionsProfile?.summary),
-  };
+  return buildSavedSystemHexSummary(system);
 }
 
 function buildHexGridFromSystems(systems, cols, rows) {

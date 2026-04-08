@@ -168,6 +168,9 @@ describe("systemSurveyFormModel", () => {
       resourceRating: "Abundant",
       tradeCodes: "Ag, Ri",
       mainworldRemarks: "Moon, Orbits Tethys, Mainworld",
+      appealProfile: "Defendants may appeal convictions",
+      privateLawProfile: "Government review of all settlements",
+      personalRightsProfile: "Warrantless searches and routine private surveillance apply",
       secondaryProfiles: "Edited note",
       comments: "Roundtrip verification",
     };
@@ -185,6 +188,9 @@ describe("systemSurveyFormModel", () => {
     expect(rehydrated.mainworldType).toBe("Moon");
     expect(rehydrated.mainworldParent).toBe("Tethys");
     expect(rehydrated.tradeCodes).toBe("Ag, Ri");
+    expect(rehydrated.appealProfile).toBe("Defendants may appeal convictions");
+    expect(rehydrated.privateLawProfile).toBe("Government review of all settlements");
+    expect(rehydrated.personalRightsProfile).toBe("Warrantless searches and routine private surveillance apply");
     expect(rehydrated.secondaryProfiles).toBe("Edited note");
     expect(rehydrated.hzCentre).toBe(1.2);
     expect(rehydrated.gasGiants).toBe(2);
@@ -200,6 +206,12 @@ describe("systemSurveyFormModel", () => {
       },
       justiceProfile: { code: "A", label: "Adversarial" },
       lawProfile: { eligible: true, summary: "AIP-Y-Y / 6-73853 / Personal law" },
+      appealProfile: { eligible: true, summary: "Defendants may appeal convictions" },
+      privateLawProfile: { eligible: true, summary: "Government review of all settlements" },
+      personalRightsProfile: {
+        eligible: true,
+        summary: "Warrantless searches and routine private surveillance apply",
+      },
       factionsProfile: { eligible: true, summary: "2 significant factions" },
       civilConflict: { eligible: true, active: true, trigger: "balkanization" },
       techLevelPockets: { eligible: true, summary: "TL 6-10" },
@@ -215,6 +227,12 @@ describe("systemSurveyFormModel", () => {
         },
         justiceProfile: { code: "A", label: "Adversarial" },
         lawProfile: { eligible: true, summary: "AIP-Y-Y / 6-73853 / Personal law" },
+        appealProfile: { eligible: true, summary: "Defendants may appeal convictions" },
+        privateLawProfile: { eligible: true, summary: "Government review of all settlements" },
+        personalRightsProfile: {
+          eligible: true,
+          summary: "Warrantless searches and routine private surveillance apply",
+        },
         factionsProfile: { eligible: true, summary: "2 significant factions" },
         civilConflict: { eligible: true, active: true, trigger: "balkanization" },
         techLevelPockets: { eligible: true, summary: "TL 6-10" },
@@ -226,6 +244,9 @@ describe("systemSurveyFormModel", () => {
     expect(socialNotes).toContain("Government profile 4-FES-LM-JS");
     expect(socialNotes).toContain("Justice A Adversarial");
     expect(socialNotes).toContain("Law profile AIP-Y-Y / 6-73853 / Personal law");
+    expect(socialNotes).toContain("Appeals Defendants may appeal convictions");
+    expect(socialNotes).toContain("Private law Government review of all settlements");
+    expect(socialNotes).toContain("Personal rights Warrantless searches and routine private surveillance apply");
     expect(socialNotes).toContain("Factions 2 significant factions");
     expect(socialNotes).toContain("Civil conflict active");
     expect(socialNotes).toContain("Tech pockets TL 6-10");
@@ -233,14 +254,59 @@ describe("systemSurveyFormModel", () => {
     expect(surveyData.profileNotes).toContain("Government profile 4-FES-LM-JS");
     expect(surveyData.profileNotes).toContain("Justice A Adversarial");
     expect(surveyData.profileNotes).toContain("Law profile AIP-Y-Y / 6-73853 / Personal law");
+    expect(surveyData.profileNotes).toContain("Appeals Defendants may appeal convictions");
+    expect(surveyData.profileNotes).toContain("Private law Government review of all settlements");
+    expect(surveyData.profileNotes).toContain(
+      "Personal rights Warrantless searches and routine private surveillance apply",
+    );
     expect(surveyData.profileNotes).toContain("Factions 2 significant factions");
     expect(surveyData.profileNotes).toContain("Civil conflict active");
     expect(surveyData.profileNotes).toContain("Tech pockets TL 6-10");
     expect(surveyData.worlds[0].notes).toContain("Government profile 4-FES-LM-JS");
     expect(surveyData.worlds[0].notes).toContain("Justice A Adversarial");
     expect(surveyData.worlds[0].notes).toContain("Law profile AIP-Y-Y / 6-73853 / Personal law");
+    expect(surveyData.worlds[0].notes).toContain("Appeals Defendants may appeal convictions");
+    expect(surveyData.worlds[0].notes).toContain("Private law Government review of all settlements");
+    expect(surveyData.worlds[0].notes).toContain(
+      "Personal rights Warrantless searches and routine private surveillance apply",
+    );
     expect(surveyData.worlds[0].notes).toContain("Civil conflict active");
     expect(surveyData.worlds[0].notes).toContain("Tech pockets TL 6-10");
+  });
+
+  it("adds secondary-world law-source notes to derived survey world notes", () => {
+    const surveyData = buildSurveyDataFromSystem({
+      mainworld: {
+        name: "Iona",
+        uwp: "A867A99-C",
+      },
+      worlds: [
+        {
+          name: "Iona",
+          uwp: "A867A99-C",
+          isMainworld: true,
+          remarks: ["Mainworld"],
+        },
+        {
+          name: "Zed Secundus",
+          uwp: "C75645A-8",
+          governmentProfile: { profileCode: "5-FES-LM-JS", summary: "Federal / Executive / Single Council" },
+          justiceProfile: { code: "A", label: "Adversarial" },
+          lawProfile: { eligible: true, summary: "AIP-Y-N / A-989B9 / Personal law" },
+          secondaryWorldContext: {
+            eligible: true,
+            classificationCodes: ["Fp"],
+            lawLevelSourceSummary: "Law level rerolled with freeport leniency.",
+          },
+        },
+      ],
+    });
+
+    expect(
+      surveyData.worlds.some((world) =>
+        world.notes.includes("Secondary law source Law level rerolled with freeport leniency."),
+      ),
+    ).toBe(true);
   });
 
   it("marks reconstructed flat-label star metadata as legacy in survey notes", () => {

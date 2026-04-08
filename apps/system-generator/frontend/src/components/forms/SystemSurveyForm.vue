@@ -325,6 +325,20 @@
           <label class="cell-label">Secondary World Profiles (UWP string)</label>
           <input v-model="surveyData.secondaryProfiles" type="text" class="cell-input" />
         </div>
+      </div>
+      <div class="form-row">
+        <div class="form-cell grow-3">
+          <label class="cell-label">Appeals</label>
+          <input v-model="surveyData.appealProfile" type="text" class="cell-input" />
+        </div>
+        <div class="form-cell grow-3">
+          <label class="cell-label">Private Law</label>
+          <input v-model="surveyData.privateLawProfile" type="text" class="cell-input" />
+        </div>
+        <div class="form-cell grow-3">
+          <label class="cell-label">Personal Rights</label>
+          <input v-model="surveyData.personalRightsProfile" type="text" class="cell-input" />
+        </div>
         <div class="form-cell grow-5">
           <label class="cell-label">Notes:</label>
           <input v-model="surveyData.profileNotes" type="text" class="cell-input" />

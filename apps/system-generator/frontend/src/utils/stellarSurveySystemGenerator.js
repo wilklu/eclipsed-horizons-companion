@@ -80,6 +80,16 @@ export function buildPersistedSurveySystemFromHex({ galaxyId, sectorId, hex, nam
         ? { ...mainworld.justiceProfile }
         : null,
     lawProfile: mainworld?.lawProfile && typeof mainworld.lawProfile === "object" ? { ...mainworld.lawProfile } : null,
+    appealProfile:
+      mainworld?.appealProfile && typeof mainworld.appealProfile === "object" ? { ...mainworld.appealProfile } : null,
+    privateLawProfile:
+      mainworld?.privateLawProfile && typeof mainworld.privateLawProfile === "object"
+        ? { ...mainworld.privateLawProfile }
+        : null,
+    personalRightsProfile:
+      mainworld?.personalRightsProfile && typeof mainworld.personalRightsProfile === "object"
+        ? { ...mainworld.personalRightsProfile }
+        : null,
     factionsProfile:
       mainworld?.factionsProfile && typeof mainworld.factionsProfile === "object"
         ? { ...mainworld.factionsProfile }

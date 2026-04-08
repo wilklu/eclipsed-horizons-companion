@@ -47,6 +47,9 @@ describe("stellarSurveySystemGenerator", () => {
     expect(system.governmentProfile).toEqual(system.mainworld?.governmentProfile ?? null);
     expect(system.justiceProfile).toEqual(system.mainworld?.justiceProfile ?? null);
     expect(system.lawProfile).toEqual(system.mainworld?.lawProfile ?? null);
+    expect(system.appealProfile).toEqual(system.mainworld?.appealProfile ?? null);
+    expect(system.privateLawProfile).toEqual(system.mainworld?.privateLawProfile ?? null);
+    expect(system.personalRightsProfile).toEqual(system.mainworld?.personalRightsProfile ?? null);
     expect(system.factionsProfile).toEqual(system.mainworld?.factionsProfile ?? null);
     expect(system.tradeCodes).toEqual(system.mainworld?.tradeCodes ?? []);
     expect(system.mainworldRemarks).toEqual(system.mainworld?.remarks ?? []);
@@ -77,7 +80,7 @@ describe("stellarSurveySystemGenerator", () => {
     expect(system.starCount).toBe(2);
     expect(system.companionStars).toHaveLength(1);
     expect(profiledWorld).toBeTruthy();
-    expect(profiledWorld?.uwp).toMatch(/^[A-EX][0-9A-F]{6}-[0-9A-F]$/);
+    expect(profiledWorld?.uwp).toMatch(/^[A-EX][0-9A-HJ]{6}-[0-9A-HJ]$/);
     expect(typeof profiledWorld?.mainworldCandidateScore).toBe("number");
     expect(profiledWorld?.economics?.habitability).toBeDefined();
     expect(profiledWorld?.economics?.resourceRating).toBeDefined();

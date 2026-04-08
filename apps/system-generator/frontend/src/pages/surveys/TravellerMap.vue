@@ -592,6 +592,16 @@
               <span class="dl">Law</span><span class="dv">{{ inspectorData.lawProfile || "—" }}</span>
             </div>
             <div class="dr">
+              <span class="dl">Appeals</span><span class="dv">{{ inspectorData.appealProfile || "—" }}</span>
+            </div>
+            <div class="dr">
+              <span class="dl">Private Law</span><span class="dv">{{ inspectorData.privateLawProfile || "—" }}</span>
+            </div>
+            <div class="dr">
+              <span class="dl">Personal Rights</span
+              ><span class="dv">{{ inspectorData.personalRightsProfile || "—" }}</span>
+            </div>
+            <div class="dr">
               <span class="dl">Factions</span><span class="dv">{{ inspectorData.factionsProfile || "—" }}</span>
             </div>
             <div class="dr">
@@ -756,6 +766,7 @@ import { starDescriptorToColor, starDescriptorToCssClass } from "../../utils/sta
 import { serializeReturnRoute } from "../../utils/returnRoute.js";
 import { calculateHexOccupancyProbability } from "../../utils/sectorGeneration.js";
 import { generateGalaxySectorLayoutWindow } from "../../utils/sectorLayoutGenerator.js";
+import { summarizeSystemRecord as summarizeSavedSystemRecord } from "../../utils/systemSummary.js";
 import {
   buildGeneratedStars,
   buildHexStarTypeMetadata,
@@ -1831,183 +1842,7 @@ function findSystemRecordForStar(star) {
 }
 
 function summarizeSystemRecord(system) {
-  if (!system) {
-    return {
-      hasSavedSystem: false,
-      systemName: "",
-      uwp: "—",
-      starport: "—",
-      bases: [],
-      gasGiants: "—",
-      importance: "—",
-      travelZone: "—",
-      minimumSustainableTechLevel: "—",
-      populationConcentration: "—",
-      urbanization: "—",
-      majorCities: "—",
-      governmentProfile: "—",
-      justiceProfile: "—",
-      lawProfile: "—",
-      factionsProfile: "—",
-      tradeCodes: [],
-      surveyStatus: "Stellar data only",
-    };
-  }
-
-  const profiles = system?.profiles ?? {};
-  const metadata = system?.metadata ?? {};
-  const worlds = Array.isArray(system?.worlds) ? system.worlds : [];
-  const planets = Array.isArray(system?.planets) ? system.planets : [];
-  const mainworld =
-    system?.mainworld ??
-    system?.world ??
-    metadata?.mainworld ??
-    worlds.find((world) => firstNonEmptyString(world?.uwp, world?.starport, world?.name));
-
-  const uwp = firstNonEmptyString(system?.mainworldUwp, profiles?.mainworldUwp, mainworld?.uwp, mainworld?.sah_uwp);
-  const starportCode = extractStarportCode(
-    system?.starport,
-    profiles?.starport,
-    system?.starport?.class,
-    profiles?.starport?.class,
-    mainworld?.starport,
-    mainworld?.starport?.class,
-    inferStarportCode(uwp),
-  );
-  const bases = extractBaseSummary(
-    system?.bases,
-    system?.starport,
-    profiles?.starport,
-    system?.metadata?.bases,
-    mainworld?.starport,
-    mainworld?.bases,
-  );
-  const gasGiantCount =
-    toFiniteNumber(system?.gasGiants) ??
-    toFiniteNumber(system?.objectCounts?.gasGiants) ??
-    toFiniteNumber(metadata?.gasGiants) ??
-    countGasGiantsFromBodies(planets) ??
-    countGasGiantsFromBodies(worlds);
-  const importance = firstNonEmptyString(
-    system?.importance,
-    profiles?.importance,
-    system?.economics?.importance,
-    metadata?.importance,
-    mainworld?.economics?.importance,
-    mainworld?.importance,
-  );
-  const tradeCodes = normalizeTradeCodes(system?.tradeCodes || profiles?.tradeCodes || mainworld?.tradeCodes);
-  const habitability = firstNonEmptyString(
-    system?.habitability,
-    profiles?.habitability,
-    metadata?.habitability,
-    mainworld?.economics?.habitability,
-    mainworld?.habitability,
-  );
-  const resourceRating = firstNonEmptyString(
-    system?.resourceRating,
-    profiles?.resourceRating,
-    metadata?.resourceRating,
-    mainworld?.economics?.resourceRating,
-    mainworld?.resourceRating,
-  );
-  const travelZone = firstNonEmptyString(
-    system?.travelZone,
-    profiles?.travelZone,
-    mainworld?.travelZone,
-    metadata?.travelZone,
-  );
-  const minimumSustainableTechLevel = firstNonEmptyString(
-    system?.minimumSustainableTechLevel?.summary,
-    profiles?.minimumSustainableTechLevel?.summary,
-    metadata?.minimumSustainableTechLevel?.summary,
-    mainworld?.minimumSustainableTechLevel?.summary,
-  );
-  const populationConcentration = firstNonEmptyString(
-    system?.populationConcentration?.summary,
-    profiles?.populationConcentration?.summary,
-    metadata?.populationConcentration?.summary,
-    mainworld?.populationConcentration?.summary,
-  );
-  const urbanization = firstNonEmptyString(
-    system?.urbanization?.summary,
-    profiles?.urbanization?.summary,
-    metadata?.urbanization?.summary,
-    mainworld?.urbanization?.summary,
-  );
-  const majorCities = firstNonEmptyString(
-    system?.majorCities?.summary,
-    profiles?.majorCities?.summary,
-    metadata?.majorCities?.summary,
-    mainworld?.majorCities?.summary,
-  );
-  const governmentProfile = firstNonEmptyString(
-    system?.governmentProfile?.profileCode,
-    profiles?.governmentProfile?.profileCode,
-    metadata?.governmentProfile?.profileCode,
-    mainworld?.governmentProfile?.profileCode,
-    system?.governmentProfile?.summary,
-    profiles?.governmentProfile?.summary,
-    metadata?.governmentProfile?.summary,
-    mainworld?.governmentProfile?.summary,
-  );
-  const justiceProfile = firstNonEmptyString(
-    system?.justiceProfile?.summary,
-    profiles?.justiceProfile?.summary,
-    metadata?.justiceProfile?.summary,
-    mainworld?.justiceProfile?.summary,
-  );
-  const lawProfile = firstNonEmptyString(
-    system?.lawProfile?.summary,
-    profiles?.lawProfile?.summary,
-    metadata?.lawProfile?.summary,
-    mainworld?.lawProfile?.summary,
-  );
-  const factionsProfile = firstNonEmptyString(
-    system?.factionsProfile?.summary,
-    profiles?.factionsProfile?.summary,
-    metadata?.factionsProfile?.summary,
-    mainworld?.factionsProfile?.summary,
-  );
-  const systemName = firstNonEmptyString(
-    system?.name,
-    system?.systemDesignation,
-    profiles?.systemDesignation,
-    mainworld?.name,
-  );
-
-  let surveyStatus = "System record saved";
-  if (uwp || tradeCodes.length || starportCode || travelZone || gasGiantCount !== null || bases.length || importance) {
-    surveyStatus = "Survey summary available";
-  } else if (Array.isArray(system?.stars) && system.stars.length) {
-    surveyStatus = "Stellar layout saved";
-  }
-
-  return {
-    hasSavedSystem: true,
-    systemName,
-    uwp: uwp || "—",
-    starport: formatStarport(starportCode),
-    bases,
-    gasGiants: gasGiantCount === null ? "—" : String(gasGiantCount),
-    importance: importance || "—",
-    travelZone: travelZone || "—",
-    minimumSustainableTechLevel: minimumSustainableTechLevel || "—",
-    populationConcentration: populationConcentration || "—",
-    urbanization: urbanization || "—",
-    majorCities: majorCities || "—",
-    governmentProfile: governmentProfile || "—",
-    justiceProfile: justiceProfile || "—",
-    lawProfile: lawProfile || "—",
-    factionsProfile: factionsProfile || "—",
-    mainworldName: firstNonEmptyString(mainworld?.name, metadata?.mainworld?.name) || "—",
-    mainworldType: firstNonEmptyString(mainworld?.type, mainworld?.parentWorldName ? "Moon" : "") || "—",
-    mainworldParent: firstNonEmptyString(mainworld?.parentWorldName, system?.mainworldParentWorldName) || "—",
-    habitability: habitability || "—",
-    resourceRating: resourceRating || "—",
-    tradeCodes,
-    surveyStatus,
-  };
+  return summarizeSavedSystemRecord(system);
 }
 
 const inspectorSystemSummary = computed(() => summarizeSystemRecord(findSystemRecordForStar(inspectorStar.value)));
@@ -2063,6 +1898,9 @@ const inspectorData = computed(() => {
       governmentProfile: systemSummary.governmentProfile,
       justiceProfile: systemSummary.justiceProfile,
       lawProfile: systemSummary.lawProfile,
+      appealProfile: systemSummary.appealProfile,
+      privateLawProfile: systemSummary.privateLawProfile,
+      personalRightsProfile: systemSummary.personalRightsProfile,
       factionsProfile: systemSummary.factionsProfile,
       mainworldName: systemSummary.mainworldName,
       mainworldType: systemSummary.mainworldType,
