@@ -246,6 +246,70 @@ export function normalizeHexStarTypesMap(hexStarTypes = {}) {
   );
 }
 
+function formatSystemCoord(system = {}) {
+  const x = Number(system?.hexCoordinates?.x);
+  const y = Number(system?.hexCoordinates?.y);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    return "";
+  }
+  return `${String(Math.trunc(x)).padStart(2, "0")}${String(Math.trunc(y)).padStart(2, "0")}`;
+}
+
+export function summarizeLegacyStarMetadata({ hexStarTypes = {}, hexes = [], systems = [] } = {}) {
+  const byCoord = new Map();
+
+  const register = (coord, legacyReconstructed, legacyHierarchyUnknown) => {
+    const normalizedCoord = String(coord || "").trim();
+    if (!normalizedCoord) return;
+    const current = byCoord.get(normalizedCoord) || {
+      coord: normalizedCoord,
+      legacyReconstructed: false,
+      legacyHierarchyUnknown: false,
+    };
+    current.legacyReconstructed = current.legacyReconstructed || Boolean(legacyReconstructed);
+    current.legacyHierarchyUnknown = current.legacyHierarchyUnknown || Boolean(legacyHierarchyUnknown);
+    byCoord.set(normalizedCoord, current);
+  };
+
+  Object.entries(hexStarTypes || {}).forEach(([coord, info]) => {
+    register(coord, info?.legacyReconstructed, info?.legacyHierarchyUnknown);
+  });
+
+  (Array.isArray(hexes) ? hexes : []).forEach((hex) => {
+    if (!hex?.hasSystem) return;
+    register(hex?.coord, hex?.legacyReconstructed, hex?.legacyHierarchyUnknown);
+  });
+
+  (Array.isArray(systems) ? systems : []).forEach((system) => {
+    const generatedSurvey =
+      system?.metadata?.generatedSurvey && typeof system.metadata.generatedSurvey === "object"
+        ? system.metadata.generatedSurvey
+        : {};
+    register(
+      formatSystemCoord(system),
+      generatedSurvey?.legacyReconstructed ?? system?.metadata?.legacyReconstructed,
+      generatedSurvey?.legacyHierarchyUnknown ?? system?.metadata?.legacyHierarchyUnknown,
+    );
+  });
+
+  const entries = Array.from(byCoord.values());
+  const legacyReconstructedCount = entries.filter((entry) => entry.legacyReconstructed).length;
+  const legacyHierarchyUnknownCount = entries.filter((entry) => entry.legacyHierarchyUnknown).length;
+  const hasLegacyData = legacyReconstructedCount > 0 || legacyHierarchyUnknownCount > 0;
+
+  return {
+    trackedHexCount: entries.length,
+    legacyReconstructedCount,
+    legacyHierarchyUnknownCount,
+    hasLegacyData,
+    reconstructedCoords: entries.filter((entry) => entry.legacyReconstructed).map((entry) => entry.coord),
+    hierarchyUnknownCoords: entries.filter((entry) => entry.legacyHierarchyUnknown).map((entry) => entry.coord),
+    summary: hasLegacyData
+      ? `${legacyReconstructedCount} reconstructed star ${legacyReconstructedCount === 1 ? "tree" : "trees"}; ${legacyHierarchyUnknownCount} inferred ${legacyHierarchyUnknownCount === 1 ? "hierarchy" : "hierarchies"}`
+      : "No legacy star metadata flags",
+  };
+}
+
 export function resolveGeneratedStarsFromHex(hex = {}) {
   const normalized = normalizeHexStarTypeRecord(hex, "G2V");
   return buildGeneratedStars({

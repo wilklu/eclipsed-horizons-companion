@@ -6,6 +6,7 @@ import {
   normalizeHexStarTypesMap,
   resolveGeneratedStarsFromHex,
   resolveGeneratedStarsFromSystem,
+  summarizeLegacyStarMetadata,
   summarizeGeneratedStars,
 } from "./systemStarMetadata.js";
 
@@ -95,5 +96,32 @@ describe("systemStarMetadata", () => {
     expect(normalizedMap["0102"].starType).toBe("M3 V");
     expect(normalizedMap["0102"].generatedStars).toHaveLength(1);
     expect(normalizedMap["0102"].legacyReconstructed).toBe(false);
+  });
+
+  it("summarizes legacy reconstruction markers across hex metadata and saved systems", () => {
+    const summary = summarizeLegacyStarMetadata({
+      hexStarTypes: {
+        "0101": { legacyReconstructed: true, legacyHierarchyUnknown: true },
+        "0102": { legacyReconstructed: true, legacyHierarchyUnknown: false },
+      },
+      systems: [
+        {
+          hexCoordinates: { x: 1, y: 3 },
+          metadata: {
+            generatedSurvey: {
+              legacyReconstructed: false,
+              legacyHierarchyUnknown: true,
+            },
+          },
+        },
+      ],
+    });
+
+    expect(summary.hasLegacyData).toBe(true);
+    expect(summary.trackedHexCount).toBe(3);
+    expect(summary.legacyReconstructedCount).toBe(2);
+    expect(summary.legacyHierarchyUnknownCount).toBe(2);
+    expect(summary.reconstructedCoords).toEqual(["0101", "0102"]);
+    expect(summary.hierarchyUnknownCoords).toEqual(["0101", "0103"]);
   });
 });

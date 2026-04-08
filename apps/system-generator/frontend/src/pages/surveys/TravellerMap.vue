@@ -469,6 +469,13 @@
             <div class="dr">
               <span class="dl">Status</span><span class="dv">{{ inspectorData.status }}</span>
             </div>
+            <div v-if="inspectorData.legacyReconstructedCount" class="dr">
+              <span class="dl">Legacy Trees</span><span class="dv">{{ inspectorData.legacyReconstructedCount }}</span>
+            </div>
+            <div v-if="inspectorData.legacyHierarchyUnknownCount" class="dr">
+              <span class="dl">Inferred Links</span
+              ><span class="dv">{{ inspectorData.legacyHierarchyUnknownCount }}</span>
+            </div>
           </div>
         </div>
 
@@ -771,6 +778,7 @@ import {
   buildGeneratedStars,
   buildHexStarTypeMetadata,
   resolveGeneratedStarsFromSystem,
+  summarizeLegacyStarMetadata,
 } from "../../utils/systemStarMetadata.js";
 import { SUBSECTOR_LETTERS, getSubsectorLetterForHex } from "../../utils/subsector.js";
 import * as toastService from "../../utils/toast.js";
@@ -926,6 +934,8 @@ const atlasGenerationProgress = ref({
   label: "",
   current: 0,
   total: 0,
+  legacyReconstructedCount: 0,
+  legacyHierarchyUnknownCount: 0,
 });
 
 const atlasGenerationProgressPercent = computed(() => {
@@ -936,21 +946,43 @@ const atlasGenerationProgressPercent = computed(() => {
 
 const atlasGenerationDiagnostics = computed(() => {
   const progress = atlasGenerationProgress.value;
-  return [
+  const diagnostics = [
     { label: "Stage", value: progress.label || "Queued" },
     { label: "Coverage", value: `${progress.current.toLocaleString()} / ${progress.total.toLocaleString()}` },
     { label: "Completion", value: `${atlasGenerationProgressPercent.value}%` },
   ];
+  if (progress.legacyReconstructedCount) {
+    diagnostics.push({ label: "Legacy Trees Seen", value: progress.legacyReconstructedCount.toLocaleString() });
+  }
+  if (progress.legacyHierarchyUnknownCount) {
+    diagnostics.push({
+      label: "Inferred Links Seen",
+      value: progress.legacyHierarchyUnknownCount.toLocaleString(),
+    });
+  }
+  return diagnostics;
 });
 
 const atlasGenerationLedger = computed(() => {
   const progress = atlasGenerationProgress.value;
-  return [
+  const ledger = [
     "Traveller Atlas",
     `${progress.current.toLocaleString()} sectors processed`,
     progress.label || "Awaiting atlas directive",
   ];
+  if (progress.legacyReconstructedCount || progress.legacyHierarchyUnknownCount) {
+    ledger.push(
+      `${progress.legacyReconstructedCount.toLocaleString()} legacy trees, ${progress.legacyHierarchyUnknownCount.toLocaleString()} inferred links encountered`,
+    );
+  }
+  return ledger;
 });
+
+function summarizeSectorLegacyProgress(sector) {
+  return summarizeLegacyStarMetadata({
+    hexStarTypes: sector?.metadata?.hexStarTypes,
+  });
+}
 
 const SECTOR_HEX_PRESENCE_RATE = Object.freeze([0.03, 0.03, 0.15, 0.3, 0.5, 0.7]);
 const HEX_PRESENCE_COLS = 32;
@@ -1455,6 +1487,16 @@ const allStarMarkers = computed(() => {
         tile.sector?.metadata?.hexStarTypes?.[coord]?.anomalyType ||
         null,
       fallbackStarType: tile.sector?.metadata?.hexStarTypes?.[coord]?.starType || "G2V",
+      legacyReconstructed:
+        system?.metadata?.generatedSurvey?.legacyReconstructed ??
+        system?.metadata?.legacyReconstructed ??
+        tile.sector?.metadata?.hexStarTypes?.[coord]?.legacyReconstructed ??
+        false,
+      legacyHierarchyUnknown:
+        system?.metadata?.generatedSurvey?.legacyHierarchyUnknown ??
+        system?.metadata?.legacyHierarchyUnknown ??
+        tile.sector?.metadata?.hexStarTypes?.[coord]?.legacyHierarchyUnknown ??
+        false,
     });
     const starType = normalizeGeneratedStarType(starMetadata.starType);
     const secondaryStars = starMetadata.secondaryStars.map((star) => normalizeGeneratedStarType(star)).filter(Boolean);
@@ -1504,6 +1546,8 @@ const allStarMarkers = computed(() => {
         secondaryStars: info?.secondaryStars,
         anomalyType: info?.anomalyType ?? null,
         fallbackStarType: String(info?.starType || "G2"),
+        legacyReconstructed: info?.legacyReconstructed ?? false,
+        legacyHierarchyUnknown: info?.legacyHierarchyUnknown ?? false,
       });
       const starType = normalizeGeneratedStarType(starMetadata.starType);
       typedCoords.add(coord);
@@ -1853,6 +1897,7 @@ const inspectorData = computed(() => {
     const sx = Number(s?.coordinates?.x);
     const sy = Number(s?.coordinates?.y);
     const sectorGalaxy = galaxies.value.find((galaxy) => String(galaxy?.galaxyId) === String(s?.galaxyId)) || null;
+    const legacySummary = summarizeLegacyStarMetadata({ hexStarTypes: s?.metadata?.hexStarTypes ?? {} });
     return {
       name: String(
         s?.metadata?.displayName || `Sector ${Number.isFinite(sx) ? sx : "?"},${Number.isFinite(sy) ? sy : "?"}`,
@@ -1862,6 +1907,8 @@ const inspectorData = computed(() => {
       densityLabel: DENSITY_SCALE[Math.min(5, Math.max(0, Number(s.densityClass) || 0))].label,
       systemCount: s?.metadata?.systemCount ?? "—",
       status: String(s?.metadata?.explorationStatus || "Unexplored"),
+      legacyReconstructedCount: legacySummary.legacyReconstructedCount,
+      legacyHierarchyUnknownCount: legacySummary.legacyHierarchyUnknownCount,
     };
   }
   if (inspectorMode.value === "hierarchy" && inspectorHierarchy.value) {
@@ -2588,6 +2635,8 @@ function startAtlasGenerationProgress(label, total) {
     label,
     current: 0,
     total: Math.max(1, Number(total) || 1),
+    legacyReconstructedCount: 0,
+    legacyHierarchyUnknownCount: 0,
   };
 }
 
@@ -2595,12 +2644,15 @@ function updateAtlasGenerationProgress(
   current,
   label = atlasGenerationProgress.value.label,
   total = atlasGenerationProgress.value.total,
+  legacySummary = atlasGenerationProgress.value,
 ) {
   atlasGenerationProgress.value = {
     active: true,
     label,
     current: Math.max(0, Number(current) || 0),
     total: Math.max(1, Number(total) || 1),
+    legacyReconstructedCount: Math.max(0, Number(legacySummary?.legacyReconstructedCount) || 0),
+    legacyHierarchyUnknownCount: Math.max(0, Number(legacySummary?.legacyHierarchyUnknownCount) || 0),
   };
 }
 
@@ -2610,6 +2662,8 @@ function resetAtlasGenerationProgress() {
     label: "",
     current: 0,
     total: 0,
+    legacyReconstructedCount: 0,
+    legacyHierarchyUnknownCount: 0,
   };
 }
 
@@ -2757,8 +2811,9 @@ async function generateInspectorSectorName() {
   isGeneratingInspectorSector.value = true;
   startAtlasGenerationProgress("Generating sector name", 1);
   try {
+    const legacySummary = summarizeSectorLegacyProgress(sector);
     const updated = await generateSectorNameOnlyInternal(sector);
-    updateAtlasGenerationProgress(1);
+    updateAtlasGenerationProgress(1, undefined, undefined, legacySummary);
     toastService.success(
       `Generated a sector name for ${String(updated?.metadata?.displayName || updated?.sectorId || "sector")}.`,
     );
@@ -2814,8 +2869,9 @@ async function generateInspectorSector() {
   isGeneratingInspectorSector.value = true;
   startAtlasGenerationProgress("Generating sector presence", 1);
   try {
+    const legacySummary = summarizeSectorLegacyProgress(sector);
     const { updated, occupiedHexes } = await generateInspectorSectorPresenceInternal(sector);
-    updateAtlasGenerationProgress(1);
+    updateAtlasGenerationProgress(1, undefined, undefined, legacySummary);
     toastService.success(
       `Generated sector presence for ${occupiedHexes.length.toLocaleString()} occupied hexes in ${String(updated.metadata?.displayName || updated.sectorId)}.`,
     );
@@ -2927,8 +2983,9 @@ async function generateInspectorSectorSystems() {
   isGeneratingInspectorSector.value = true;
   startAtlasGenerationProgress("Generating sector systems", 1);
   try {
+    const legacySummary = summarizeSectorLegacyProgress(sector);
     const { updated, occupiedHexes } = await generateInspectorSectorSystemsInternal(sector);
-    updateAtlasGenerationProgress(1);
+    updateAtlasGenerationProgress(1, undefined, undefined, legacySummary);
     toastService.success(
       `Generated systems for ${occupiedHexes.length.toLocaleString()} hexes in ${String(updated.metadata?.displayName || updated.sectorId)}.`,
     );
@@ -2949,10 +3006,18 @@ async function generateInspectorSectorAndSurroundingSystems() {
     const targets = getNeighborSectors(sector, 1);
     startAtlasGenerationProgress("Generating sector and surrounding sectors", targets.length);
     let generatedCount = 0;
+    let legacyReconstructedCount = 0;
+    let legacyHierarchyUnknownCount = 0;
     for (const target of targets) {
+      const legacySummary = summarizeSectorLegacyProgress(target);
+      legacyReconstructedCount += legacySummary.legacyReconstructedCount;
+      legacyHierarchyUnknownCount += legacySummary.legacyHierarchyUnknownCount;
       await generateInspectorSectorSystemsInternal(target);
       generatedCount += 1;
-      updateAtlasGenerationProgress(generatedCount);
+      updateAtlasGenerationProgress(generatedCount, undefined, undefined, {
+        legacyReconstructedCount,
+        legacyHierarchyUnknownCount,
+      });
     }
     toastService.success(
       `Generated names and systems for ${generatedCount.toLocaleString()} sectors in the selected area.`,
@@ -3022,10 +3087,18 @@ async function runInspectorGenerationAction() {
   try {
     startAtlasGenerationProgress(modeMeta.progressLabel, Math.max(1, targets.length));
     let generatedCount = 0;
+    let legacyReconstructedCount = 0;
+    let legacyHierarchyUnknownCount = 0;
     for (const target of targets) {
+      const legacySummary = summarizeSectorLegacyProgress(target);
+      legacyReconstructedCount += legacySummary.legacyReconstructedCount;
+      legacyHierarchyUnknownCount += legacySummary.legacyHierarchyUnknownCount;
       await applyAtlasGenerationModeToSector(target, atlasGenerationMode.value);
       generatedCount += 1;
-      updateAtlasGenerationProgress(generatedCount, modeMeta.progressLabel, Math.max(1, targets.length));
+      updateAtlasGenerationProgress(generatedCount, modeMeta.progressLabel, Math.max(1, targets.length), {
+        legacyReconstructedCount,
+        legacyHierarchyUnknownCount,
+      });
     }
     toastService.success(
       `${modeMeta.shortLabel} completed for ${generatedCount.toLocaleString()} sector${generatedCount !== 1 ? "s" : ""} in the selected ${areaLabel}.`,
@@ -3062,10 +3135,18 @@ async function runHierarchyGenerationAction() {
   try {
     startAtlasGenerationProgress(modeMeta.progressLabel, Math.max(1, targets.length));
     let generatedCount = 0;
+    let legacyReconstructedCount = 0;
+    let legacyHierarchyUnknownCount = 0;
     for (const target of targets) {
+      const legacySummary = summarizeSectorLegacyProgress(target);
+      legacyReconstructedCount += legacySummary.legacyReconstructedCount;
+      legacyHierarchyUnknownCount += legacySummary.legacyHierarchyUnknownCount;
       await applyAtlasGenerationModeToSector(target, atlasGenerationMode.value);
       generatedCount += 1;
-      updateAtlasGenerationProgress(generatedCount, modeMeta.progressLabel, Math.max(1, targets.length));
+      updateAtlasGenerationProgress(generatedCount, modeMeta.progressLabel, Math.max(1, targets.length), {
+        legacyReconstructedCount,
+        legacyHierarchyUnknownCount,
+      });
     }
     toastService.success(
       `${modeMeta.shortLabel} completed for ${generatedCount.toLocaleString()} sectors in the selected ${areaType}.`,

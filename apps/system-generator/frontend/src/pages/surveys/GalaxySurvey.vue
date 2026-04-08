@@ -283,6 +283,14 @@
                 <span class="label">Avg Objects / Sector:</span>
                 <span class="value">{{ currentGalaxySectorStats.avgObjectsPerSector.toFixed(1) }}</span>
               </div>
+              <div v-if="currentGalaxySectorStats.legacyReconstructedCount" class="property">
+                <span class="label">Legacy Trees:</span>
+                <span class="value">{{ formatNumber(currentGalaxySectorStats.legacyReconstructedCount) }}</span>
+              </div>
+              <div v-if="currentGalaxySectorStats.legacyHierarchyUnknownCount" class="property">
+                <span class="label">Inferred Links:</span>
+                <span class="value">{{ formatNumber(currentGalaxySectorStats.legacyHierarchyUnknownCount) }}</span>
+              </div>
               <div class="property property-link-row">
                 <span class="label">Stats Status:</span>
                 <button
@@ -821,6 +829,16 @@ import { createSectorsBatch, getSectorStats, upsertSector } from "../../api/sect
 import { calculateHexOccupancyProbability } from "../../utils/sectorGeneration.js";
 import { generatePrimaryStar } from "../../utils/primaryStarGenerator.js";
 import { buildHexStarTypeMetadata, normalizeHexStarTypeRecord } from "../../utils/systemStarMetadata.js";
+import {
+  buildGalaxyExportPayload,
+  normalizeSectorStats as normalizeGalaxySectorStats,
+} from "../../utils/galaxySectorStats.js";
+import {
+  buildGalaxyImportRequest,
+  canDismissGalaxyImportModal,
+  createDefaultGalaxyImportForm,
+  resolveGalaxySectorStatsRefresh,
+} from "../../utils/galaxySurveyPersistence.js";
 import { starDescriptorToCssClass } from "../../utils/starDisplay.js";
 import LoadingSpinner from "../../components/common/LoadingSpinner.vue";
 import ConfirmDialog from "../../components/common/ConfirmDialog.vue";
@@ -846,6 +864,11 @@ const preferencesStore = usePreferencesStore();
 
 const galaxies = computed(() => galaxyStore.getAllGalaxies);
 const currentGalaxy = computed(() => galaxyStore.getCurrentGalaxy);
+const currentGalaxySectors = computed(() =>
+  sectorStore.sectors.filter(
+    (sector) => String(sector?.galaxyId || "") === String(currentGalaxy.value?.galaxyId || ""),
+  ),
+);
 const importInProgress = computed(() => galaxyStore.importInProgress);
 const importProgress = computed(() => galaxyStore.importProgress);
 const isLoading = computed(() => galaxyStore.isLoading);
@@ -974,15 +997,7 @@ const galaxyGenerationLedger = computed(() => {
   return ["Galaxy Registry", countLabel, progress.label || "Awaiting generation directive"];
 });
 
-const currentGalaxySectorStats = ref({
-  totalSectors: 0,
-  populatedSectors: 0,
-  generatedPresenceSectors: 0,
-  emptySectors: 0,
-  totalObjects: 0,
-  avgObjectsPerSector: 0,
-  lastUpdated: null,
-});
+const currentGalaxySectorStats = ref(normalizeGalaxySectorStats());
 
 const currentGalaxyGenerateLabel = computed(
   () =>
@@ -1089,17 +1104,7 @@ const newGalaxyForm = ref({
   centralAnomalyActivity: 0.2,
 });
 
-const importForm = ref({
-  fileData: null,
-  placementMode: "clustered",
-  placementSeed: "",
-  coordinatesX: 0,
-  coordinatesY: 0,
-  clusterMinSeparation: 12,
-  clusterMaxSeparation: 29,
-  clusterClearance: 10,
-  clusterSlotsPerRing: 16,
-});
+const importForm = ref(createDefaultGalaxyImportForm());
 
 const galaxyEditForm = ref({
   name: "",
@@ -1410,15 +1415,7 @@ const mapChipTitle = computed(() =>
 );
 
 function normalizeSectorStats(stats) {
-  return {
-    totalSectors: Number(stats?.totalSectors) || 0,
-    populatedSectors: Number(stats?.populatedSectors) || 0,
-    generatedPresenceSectors: Number(stats?.generatedPresenceSectors) || 0,
-    emptySectors: Number(stats?.emptySectors) || 0,
-    totalObjects: Number(stats?.totalObjects) || 0,
-    avgObjectsPerSector: Number(stats?.avgObjectsPerSector) || 0,
-    lastUpdated: stats?.lastUpdated || new Date().toISOString(),
-  };
+  return normalizeGalaxySectorStats(stats, { sectors: currentGalaxySectors.value });
 }
 
 function getGalaxyById(galaxyId) {
@@ -1451,15 +1448,7 @@ async function loadCurrentGalaxySectorStats({
   force = false,
 } = {}) {
   if (!galaxyId) {
-    currentGalaxySectorStats.value = {
-      totalSectors: 0,
-      populatedSectors: 0,
-      generatedPresenceSectors: 0,
-      emptySectors: 0,
-      totalObjects: 0,
-      avgObjectsPerSector: 0,
-      lastUpdated: new Date().toISOString(),
-    };
+    currentGalaxySectorStats.value = normalizeSectorStats();
     return;
   }
 
@@ -1468,26 +1457,22 @@ async function loadCurrentGalaxySectorStats({
   }
 
   try {
-    const cached = getCachedSectorStats(galaxyId);
-    if (!force && cached) {
-      currentGalaxySectorStats.value = normalizeSectorStats(cached);
-      return;
-    }
-
-    if (!force && !cached) {
-      // For uncached large galaxies avoid blocking initial page loads.
-      currentGalaxySectorStats.value = normalizeSectorStats(currentGalaxySectorStats.value);
-      return;
-    }
-
-    const stats = await getSectorStats(galaxyId);
-    const normalized = normalizeSectorStats(stats);
-    currentGalaxySectorStats.value = normalized;
-
-    const galaxy = getGalaxyById(galaxyId);
-    if (galaxy) {
-      await persistCachedSectorStats(galaxy, normalized);
-    }
+    const result = await resolveGalaxySectorStatsRefresh({
+      galaxyId,
+      force,
+      cachedStats: getCachedSectorStats(galaxyId),
+      currentStats: currentGalaxySectorStats.value,
+      currentSectors: currentGalaxySectors.value,
+      loadSectors: (targetGalaxyId) => sectorStore.loadSectors(targetGalaxyId),
+      fetchSectorStats: (targetGalaxyId) => getSectorStats(targetGalaxyId),
+      normalizeStats: (stats, { sectors } = {}) =>
+        normalizeGalaxySectorStats(stats, {
+          sectors: Array.isArray(sectors) ? sectors : currentGalaxySectors.value,
+        }),
+      getGalaxyById,
+      persistStats: persistCachedSectorStats,
+    });
+    currentGalaxySectorStats.value = result.stats;
   } catch (err) {
     if (!silent) {
       toastService.error(`Failed to load sector statistics: ${err.message}`);
@@ -2033,7 +2018,7 @@ function handleFileSelect(event) {
 }
 
 function handleImportModalDismiss() {
-  if (importInProgress.value) {
+  if (!canDismissGalaxyImportModal(importInProgress.value)) {
     return;
   }
   showImportForm.value = false;
@@ -2046,42 +2031,17 @@ async function importGalaxyData() {
   }
 
   try {
-    const mode = String(importForm.value.placementMode || "clustered");
-    const coordinates =
-      mode === "manual"
-        ? {
-            x: clampUniverseCoordinate(
-              importForm.value.coordinatesX,
-              universeBoundsRange.value.minX,
-              universeBoundsRange.value.maxX,
-            ),
-            y: clampUniverseCoordinate(
-              importForm.value.coordinatesY,
-              universeBoundsRange.value.minY,
-              universeBoundsRange.value.maxY,
-            ),
-          }
-        : null;
-
-    await galaxyStore.importGalaxy(importForm.value.fileData, {
-      mode,
-      coordinates,
-      seed: importForm.value.placementSeed || undefined,
-      tuning: readPlacementTuning(importForm.value),
+    const request = buildGalaxyImportRequest({
+      importForm: importForm.value,
+      universeBoundsRange: universeBoundsRange.value,
+      clampUniverseCoordinate,
+      placementTuning: readPlacementTuning(importForm.value),
     });
+
+    await galaxyStore.importGalaxy(request.galaxyData, request.options);
     toastService.success("Galaxy imported successfully!");
     showImportForm.value = false;
-    importForm.value = {
-      fileData: null,
-      placementMode: "clustered",
-      placementSeed: "",
-      coordinatesX: 0,
-      coordinatesY: 0,
-      clusterMinSeparation: 12,
-      clusterMaxSeparation: 29,
-      clusterClearance: 10,
-      clusterSlotsPerRing: 16,
-    };
+    importForm.value = createDefaultGalaxyImportForm();
   } catch (err) {
     toastService.error(`Failed to import galaxy: ${err.message}`);
   }
@@ -3284,8 +3244,13 @@ async function exportGalaxy() {
   }
 
   try {
+    const exportPayload = buildGalaxyExportPayload({
+      galaxy: currentGalaxy.value,
+      sectorStats: currentGalaxySectorStats.value,
+      sectors: currentGalaxySectors.value,
+    });
     const exported = await exportGalaxyArchive({
-      data: currentGalaxy,
+      data: exportPayload,
       filename: (galaxy) => `${galaxy?.name || galaxy?.galaxyId || "Galaxy"}-Galaxy.json`,
       serializeMessage: "Serializing galaxy manifest...",
       encodeMessage: "Encoding galaxy archive for transfer...",

@@ -298,6 +298,10 @@ describe("worldProfileGenerator", () => {
     expect(factionsProfile.significantFactionCount).toBe(2);
     expect(factionsProfile.profiles[1].profileCode).toBe("II-9-N");
     expect(factionsProfile.relationships[0].profileCode).toBe("I+II=5");
+    expect(factionsProfile.dominantOpposition?.roman).toBe("II");
+    expect(factionsProfile.highestConflictRelationship?.relationship?.label).toBe("Riots");
+    expect(factionsProfile.pressureSummary).toContain("Riots");
+    expect(factionsProfile.summary).toContain("pressure");
   });
 
   it("derives a judicial system from law and government structure", () => {
@@ -314,7 +318,34 @@ describe("worldProfileGenerator", () => {
 
     expect(justiceProfile.eligible).toBe(true);
     expect(justiceProfile.code).toBe("A");
-    expect(justiceProfile.summary).toBe("Adversarial");
+    expect(justiceProfile.forumSummary).toContain("Formal advocates");
+    expect(justiceProfile.oversightSummary).toContain("Judicial authorities");
+    expect(justiceProfile.recordkeepingSummary).toContain("Written archives");
+    expect(justiceProfile.summary).toContain("Adversarial");
+  });
+
+  it("captures traditional and informal justice environments in the summary fields", () => {
+    const informal = deriveJusticeProfile({
+      governmentCode: 0,
+      lawLevel: 0,
+      techLevel: 0,
+    });
+    const traditional = deriveJusticeProfile({
+      governmentCode: 13,
+      lawLevel: 5,
+      techLevel: 4,
+      governmentProfile: {
+        centralization: { code: "C" },
+        authority: { code: "E" },
+      },
+      rollJustice: () => 5,
+    });
+
+    expect(informal.summary).toContain("Informal or customary justice");
+    expect(informal.recordkeepingSummary).toContain("oral");
+    expect(traditional.code).toBe("T");
+    expect(traditional.forumSummary).toContain("Doctrine");
+    expect(traditional.oversightSummary).toContain("Executive offices");
   });
 
   it("derives Chapter 7 law uniformity and subcategory profile codes", () => {

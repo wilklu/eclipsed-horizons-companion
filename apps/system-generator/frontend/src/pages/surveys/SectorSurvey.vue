@@ -76,6 +76,18 @@
                     <span class="summary-pill-label">Empty Hexes</span>
                     <span class="summary-pill-value">{{ displayedSector.emptyCount.toLocaleString() }}</span>
                   </span>
+                  <span v-if="displayedSector.legacyReconstructedCount" class="summary-pill">
+                    <span class="summary-pill-label">Legacy Star Trees</span>
+                    <span class="summary-pill-value">{{
+                      displayedSector.legacyReconstructedCount.toLocaleString()
+                    }}</span>
+                  </span>
+                  <span v-if="displayedSector.legacyHierarchyUnknownCount" class="summary-pill">
+                    <span class="summary-pill-label">Inferred Hierarchies</span>
+                    <span class="summary-pill-value">{{
+                      displayedSector.legacyHierarchyUnknownCount.toLocaleString()
+                    }}</span>
+                  </span>
                 </div>
                 <div class="sector-summary-group sector-summary-group--right">
                   <span v-if="displayedSector.viewportLabel" class="summary-pill">
@@ -737,6 +749,11 @@ import { calculateHexOccupancyProbability, pickCentralAnomalyType } from "../../
 import { generatePhonotacticName } from "../../utils/nameGenerator.js";
 import { generateGalaxySectorLayout } from "../../utils/sectorLayoutGenerator.js";
 import { buildPersistedSurveySystemFromHex } from "../../utils/stellarSurveySystemGenerator.js";
+import {
+  buildFullSectorPreviewState as buildPersistedSectorPreviewState,
+  buildSectorHexesFromMetadata as buildPersistedSectorHexesFromMetadata,
+  buildSectorPreviewState as buildBaseSectorPreviewState,
+} from "../../utils/sectorPreviewState.js";
 import { buildSystemHexSummary as buildSavedSystemHexSummary } from "../../utils/systemSummary.js";
 import { usePreferencesStore } from "../../stores/preferencesStore.js";
 import { useArchiveTransfer } from "../../composables/useArchiveTransfer.js";
@@ -746,6 +763,7 @@ import {
   buildGeneratedStars,
   buildHexStarTypeMetadata,
   resolveGeneratedStarsFromSystem,
+  summarizeLegacyStarMetadata,
   summarizeGeneratedStars,
 } from "../../utils/systemStarMetadata.js";
 
@@ -874,11 +892,19 @@ const displayedSector = computed(() => {
     return null;
   }
 
+  const sectorLegacySummary = summarizeLegacyStarMetadata({
+    hexes: Array.isArray(sector.hexes) ? sector.hexes : [],
+    hexStarTypes: sector?.metadata?.hexStarTypes ?? {},
+  });
+
   const gridCols = Number(sector.gridCols ?? 0);
   const gridRows = Number(sector.gridRows ?? 0);
   if (scope.value !== "subsector" || gridCols !== 32 || gridRows !== 40) {
     return {
       ...sector,
+      legacySummary: sectorLegacySummary,
+      legacyReconstructedCount: sectorLegacySummary.legacyReconstructedCount,
+      legacyHierarchyUnknownCount: sectorLegacySummary.legacyHierarchyUnknownCount,
       viewportLabel: scope.value === "subsector" ? `Subsector ${selectedSubsector.value}` : null,
     };
   }
@@ -887,6 +913,7 @@ const displayedSector = computed(() => {
     isCoordInSubsector(hex?.coord, selectedSubsector.value),
   );
   const systemCount = visibleHexes.filter((hex) => hex.hasSystem).length;
+  const legacySummary = summarizeLegacyStarMetadata({ hexes: visibleHexes });
 
   return {
     ...sector,
@@ -897,6 +924,9 @@ const displayedSector = computed(() => {
     systemCount,
     emptyCount: Math.max(0, 80 - systemCount),
     presenceOnlyCount: visibleHexes.filter((hex) => hex.presenceOnly).length,
+    legacySummary,
+    legacyReconstructedCount: legacySummary.legacyReconstructedCount,
+    legacyHierarchyUnknownCount: legacySummary.legacyHierarchyUnknownCount,
     viewportLabel: `Subsector ${selectedSubsector.value}`,
   };
 });
@@ -2240,77 +2270,37 @@ async function replaceGeneratedSystemsForScope(sectorId, scopeHexes) {
 }
 
 function buildSectorPreviewState({ sectorId, name, cols, rows, hexes }) {
-  return {
+  const activeSectorId = String(sectorId || generatedSector.value?.sectorId || selectedSectorId.value || "");
+  const systems = systemStore.systems.filter((system) => String(system?.sectorId || "") === activeSectorId);
+  return buildBaseSectorPreviewState({
     sectorId,
     name,
     scope: scope.value,
     density: density.value,
     occupancyRealism: occupancyRealism.value,
-    gridCols: cols,
-    gridRows: rows,
+    cols,
+    rows,
     hexes,
-    systemCount: hexes.filter((hex) => hex.hasSystem).length,
-    emptyCount: cols * rows - hexes.filter((hex) => hex.hasSystem).length,
-    presenceOnlyCount: hexes.filter((hex) => hex.presenceOnly).length,
-  };
+    systems,
+  });
 }
 
 function buildSectorHexesFromMetadata(metadata, cols = 32, rows = 40) {
-  const occupiedSet = new Set(
-    (Array.isArray(metadata?.occupiedHexes) ? metadata.occupiedHexes : [])
-      .map((coord) => String(coord || "").trim())
-      .filter(Boolean),
-  );
-  const hexStarTypes = metadata?.hexStarTypes && typeof metadata.hexStarTypes === "object" ? metadata.hexStarTypes : {};
-  const hexes = [];
-
-  for (let row = 1; row <= rows; row++) {
-    for (let col = 1; col <= cols; col++) {
-      const coord = hexCoord(col, row);
-      const saved = hexStarTypes[coord];
-      const hasSystem = occupiedSet.has(coord) || Boolean(saved);
-      if (!hasSystem) {
-        hexes.push({ coord, hasSystem: false });
-        continue;
-      }
-
-      const starType = normalizeStarTypeValue(saved?.starType, "");
-      const starMetadata = buildHexStarTypeMetadata({
-        generatedStars: saved?.generatedStars,
-        primary: starType,
-        secondaryStars: saved?.secondaryStars,
-        anomalyType: saved?.anomalyType ?? null,
-        fallbackStarType: normalizeStarTypeValue(saved?.starType, "G2V"),
-        legacyReconstructed: saved?.legacyReconstructed ?? false,
-        legacyHierarchyUnknown: saved?.legacyHierarchyUnknown ?? false,
-      });
-      const resolvedStarType = normalizeStarTypeValue(starMetadata.starType, "");
-      hexes.push({
-        coord,
-        hasSystem: true,
-        presenceOnly: !resolvedStarType,
-        starType: resolvedStarType,
-        starClass: saved?.starClass || spectralClassToCssClass(resolvedStarType),
-        secondaryStars: starMetadata.secondaryStars,
-        generatedStars: starMetadata.generatedStars.map((star) => ({ ...star })),
-        anomalyType: starMetadata.anomalyType,
-        legacyReconstructed: starMetadata.legacyReconstructed,
-        legacyHierarchyUnknown: starMetadata.legacyHierarchyUnknown,
-      });
-    }
-  }
-
-  return hexes;
+  return buildPersistedSectorHexesFromMetadata(metadata, { cols, rows });
 }
 
 function buildFullSectorPreviewState({ sectorId, name, metadata }) {
-  const cols = 32;
-  const rows = 40;
-  const hexes = buildSectorHexesFromMetadata(metadata, cols, rows);
-  return {
-    ...buildSectorPreviewState({ sectorId, name, cols, rows, hexes }),
+  const activeSectorId = String(sectorId || generatedSector.value?.sectorId || selectedSectorId.value || "");
+  const systems = systemStore.systems.filter((system) => String(system?.sectorId || "") === activeSectorId);
+  return buildPersistedSectorPreviewState({
+    sectorId,
+    name,
+    scope: scope.value,
+    density: density.value,
+    occupancyRealism: occupancyRealism.value,
     metadata,
-  };
+    systems,
+  });
 }
 
 async function ensureCurrentSectorRecord({ showToast = false } = {}) {
@@ -3433,8 +3423,25 @@ async function exportSector() {
   if (!generatedSector.value) return;
 
   try {
+    const legacySummary = summarizeLegacyStarMetadata({
+      hexes: generatedSector.value?.hexes,
+      hexStarTypes: generatedSector.value?.metadata?.hexStarTypes ?? {},
+      systems: systemStore.systems.filter(
+        (system) => String(system?.sectorId) === String(generatedSector.value?.sectorId),
+      ),
+    });
+    const exportPayload = {
+      ...generatedSector.value,
+      metadata: {
+        ...(generatedSector.value.metadata || {}),
+        exportSummary: {
+          ...(generatedSector.value.metadata?.exportSummary || {}),
+          legacyStarMetadata: legacySummary,
+        },
+      },
+    };
     await exportSectorArchive({
-      data: generatedSector,
+      data: exportPayload,
       filename: (sector) => `${sector.name.replace(/\s+/g, "-")}-Sector.json`,
       serializeMessage: "Serializing sector manifest...",
       encodeMessage: "Encoding sector archive for transfer...",

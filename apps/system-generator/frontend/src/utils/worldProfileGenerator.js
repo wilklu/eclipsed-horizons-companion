@@ -584,6 +584,65 @@ const JUSTICE_SYSTEM_TABLE = Object.freeze({
   T: { code: "T", label: "Traditional", summary: "Justice rests on custom, doctrine, or traditional practice" },
 });
 
+function resolveJusticeForumSummary({ code, governmentCode = 0, lawLevel = 0, techLevel = 0 } = {}) {
+  if (code === "N") {
+    return "Custom, status, or local notables resolve disputes without a formal court system";
+  }
+  if (code === "I") {
+    return lawLevel >= 8
+      ? "Magistrates and investigators assemble formal case files before judgment"
+      : "Investigators gather the facts and frame the case before judgment";
+  }
+  if (code === "A") {
+    return techLevel >= 8
+      ? "Formal advocates and preserved evidence shape contested hearings"
+      : "Opposing advocates argue the case directly before the bench";
+  }
+  if ([13, 14].includes(governmentCode)) {
+    return "Doctrine, priesthood, or inherited tradition anchors the court's procedure";
+  }
+  return "Custom, elders, or doctrine anchor the court's procedure";
+}
+
+function resolveJusticeOversightSummary({ governmentProfile = null } = {}) {
+  const authorityCode = governmentProfile?.authority?.code;
+  const centralizationCode = governmentProfile?.centralization?.code;
+
+  if (authorityCode === "J") {
+    return "Judicial authorities retain strong oversight of proceedings";
+  }
+  if (authorityCode === "E") {
+    return "Executive offices can steer prosecutions and court access";
+  }
+  if (authorityCode === "L") {
+    return "Legislative bodies or civic councils define most procedural boundaries";
+  }
+  if (centralizationCode === "U") {
+    return "Central courts enforce broadly uniform procedure";
+  }
+  if (centralizationCode === "C") {
+    return "Local jurisdictions vary widely in how cases are heard";
+  }
+  return "Regional courts and local benches share procedural authority";
+}
+
+function resolveJusticeRecordkeepingSummary({ techLevel = 0 } = {}) {
+  if (techLevel <= 0) {
+    return "Precedent is mostly oral and durable records are rare";
+  }
+  if (techLevel <= 5) {
+    return "Records exist, but consistency outside major settlements is uneven";
+  }
+  if (techLevel <= 9) {
+    return "Written archives and preserved testimony support appeals and precedent";
+  }
+  return "Dense records and forensic review make procedural history easy to trace";
+}
+
+function summarizeJusticeProfile({ label, forumSummary, oversightSummary } = {}) {
+  return [label, forumSummary, oversightSummary].filter(Boolean).join("; ");
+}
+
 const LAW_UNIFORMITY_TABLE = Object.freeze({
   P: { code: "P", label: "Personal", summary: "Law varies by status, caste, profession, or group" },
   T: { code: "T", label: "Territorial", summary: "Local jurisdictions maintain distinct legal variations" },
@@ -1061,6 +1120,14 @@ function buildFactionProfileCode({ index = 1, governmentCode = 0, strengthCode =
   return `${toRomanNumeral(index)}-${resolveGovernmentCodeToken(governmentCode)}-${strengthCode}`;
 }
 
+function compareFactionStrength(left = {}, right = {}) {
+  const rank = { O: 0, F: 1, M: 2, N: 3, S: 4, P: 5, G: 6 };
+  const leftRank = rank[String(left?.strength?.code || left?.code || "O")] ?? 0;
+  const rightRank = rank[String(right?.strength?.code || right?.code || "O")] ?? 0;
+  if (leftRank !== rightRank) return rightRank - leftRank;
+  return Number(right?.strength?.total || 0) - Number(left?.strength?.total || 0);
+}
+
 export function deriveFactionsProfile({
   governmentCode = 0,
   populationCode = 0,
@@ -1125,15 +1192,34 @@ export function deriveFactionsProfile({
   }
 
   const significantFactionCount = Math.max(0, totalFactions - 1);
+  const oppositionProfiles = profiles.slice(1).sort(compareFactionStrength);
+  const dominantOpposition = oppositionProfiles[0] ?? null;
+  const highestConflictRelationship = relationships.reduce((highest, relationship) => {
+    if (!highest) return relationship;
+    return Number(relationship?.relationship?.code ?? -1) > Number(highest?.relationship?.code ?? -1)
+      ? relationship
+      : highest;
+  }, null);
+  const contestedGovernment =
+    Boolean(dominantOpposition && ["S", "P"].includes(String(dominantOpposition?.strength?.code || ""))) ||
+    Number(highestConflictRelationship?.relationship?.code ?? -1) >= 6;
+  const pressureSummary = highestConflictRelationship
+    ? `${highestConflictRelationship.relationship.label} pressure from ${dominantOpposition?.roman || "faction opposition"}`
+    : "Faction pressure contained";
+
   return {
     eligible: true,
     factionCount: totalFactions,
     significantFactionCount,
     profiles,
     relationships,
+    dominantOpposition,
+    highestConflictRelationship,
+    contestedGovernment,
+    pressureSummary,
     summary:
       significantFactionCount > 0
-        ? `${significantFactionCount} significant ${significantFactionCount === 1 ? "faction" : "factions"}`
+        ? `${significantFactionCount} significant ${significantFactionCount === 1 ? "faction" : "factions"}; ${pressureSummary}`
         : "No significant factions",
   };
 }
@@ -1154,6 +1240,9 @@ export function deriveJusticeProfile({
       eligible: false,
       ...JUSTICE_SYSTEM_TABLE.N,
       summary: JUSTICE_SYSTEM_TABLE.N.summary,
+      forumSummary: resolveJusticeForumSummary({ code: "N" }),
+      oversightSummary: resolveJusticeOversightSummary({ governmentProfile }),
+      recordkeepingSummary: resolveJusticeRecordkeepingSummary({ techLevel: numericTechLevel }),
       dm: 0,
       total: null,
     };
@@ -1170,12 +1259,27 @@ export function deriveJusticeProfile({
 
   const total = Number(rollJustice()) + dm;
   const code = resolveJusticeSystemCode(total);
+  const forumSummary = resolveJusticeForumSummary({
+    code,
+    governmentCode: numericGovernmentCode,
+    lawLevel: numericLawLevel,
+    techLevel: numericTechLevel,
+  });
+  const oversightSummary = resolveJusticeOversightSummary({ governmentProfile });
+  const recordkeepingSummary = resolveJusticeRecordkeepingSummary({ techLevel: numericTechLevel });
   return {
     eligible: true,
     ...JUSTICE_SYSTEM_TABLE[code],
     total,
     dm,
-    summary: JUSTICE_SYSTEM_TABLE[code].label,
+    forumSummary,
+    oversightSummary,
+    recordkeepingSummary,
+    summary: summarizeJusticeProfile({
+      label: JUSTICE_SYSTEM_TABLE[code].label,
+      forumSummary,
+      oversightSummary,
+    }),
   };
 }
 
