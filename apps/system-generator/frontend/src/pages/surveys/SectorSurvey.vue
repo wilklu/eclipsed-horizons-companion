@@ -378,6 +378,12 @@
                   <span v-if="selectedHexData.mainworldUwp" class="stellar-inline-detail"
                     >UWP {{ selectedHexData.mainworldUwp }}</span
                   >
+                  <span v-if="selectedHexData.habitability" class="stellar-inline-detail"
+                    >Habitability {{ selectedHexData.habitability }}</span
+                  >
+                  <span v-if="selectedHexData.resourceRating" class="stellar-inline-detail"
+                    >Resources {{ selectedHexData.resourceRating }}</span
+                  >
                   <span v-if="selectedHexData.minimumSustainableTechLevel" class="stellar-inline-detail">{{
                     selectedHexData.minimumSustainableTechLevel
                   }}</span>
@@ -402,6 +408,9 @@
                   <span v-if="selectedHexData.personalRightsProfile" class="stellar-inline-detail"
                     >Rights {{ selectedHexData.personalRightsProfile }}</span
                   >
+                  <span v-if="selectedHexData.secondaryProfiles" class="stellar-inline-detail">{{
+                    selectedHexData.secondaryProfiles
+                  }}</span>
                   <span v-if="selectedHexData.factionsProfile" class="stellar-inline-detail">{{
                     selectedHexData.factionsProfile
                   }}</span>
@@ -749,16 +758,24 @@ import { calculateHexOccupancyProbability, pickCentralAnomalyType } from "../../
 import { generatePhonotacticName } from "../../utils/nameGenerator.js";
 import { generateGalaxySectorLayout } from "../../utils/sectorLayoutGenerator.js";
 import { buildPersistedSurveySystemFromHex } from "../../utils/stellarSurveySystemGenerator.js";
-import {
-  buildFullSectorPreviewState as buildPersistedSectorPreviewState,
-  buildSectorHexesFromMetadata as buildPersistedSectorHexesFromMetadata,
-  buildSectorPreviewState as buildBaseSectorPreviewState,
-} from "../../utils/sectorPreviewState.js";
+import { buildSectorHexesFromMetadata as buildPersistedSectorHexesFromMetadata } from "../../utils/sectorPreviewState.js";
 import { buildSystemHexSummary as buildSavedSystemHexSummary } from "../../utils/systemSummary.js";
 import { usePreferencesStore } from "../../stores/preferencesStore.js";
 import { useArchiveTransfer } from "../../composables/useArchiveTransfer.js";
 import { getRequestedSurveyViewport, useSectorSurveyViewMode } from "../../composables/useSectorSurveyViewMode.js";
 import { SUBSECTOR_LETTERS, getSubsectorViewportBounds } from "../../utils/subsector.js";
+import {
+  buildSectorSurveyCreatePayload,
+  buildSectorSurveyGenerationMutation,
+  buildSectorSurveyPreviewHexUpdate,
+  buildSectorSurveyRebuiltPreview,
+  buildSectorSurveyReturnRoute,
+  buildSectorSurveySavedPreviewState,
+  buildSectorSurveySavePayload,
+  resolveSectorSurveyNameUpdate,
+  resolveSectorSurveyBackRoute,
+  resolveSectorSurveyInitialSelection,
+} from "../../utils/sectorSurveyPersistence.js";
 import {
   buildGeneratedStars,
   buildHexStarTypeMetadata,
@@ -1237,15 +1254,12 @@ const orbitalPreview = computed(() => {
 const showSelectHexHint = computed(() => hasSystemsInGrid.value && !selectedHexData.value?.hasSystem);
 const isAtlasEntry = computed(() => String(route.query.from || "").trim() === "atlas");
 const backRoute = computed(() => {
-  const explicitReturnRoute = deserializeReturnRoute(String(route.query.returnTo || ""));
-  if (explicitReturnRoute) {
-    return explicitReturnRoute;
-  }
-  if (String(route.query.from || "") === "atlas") {
-    const atlasGalaxyId = String(route.query.atlasGalaxyId || props.galaxyId || "").trim();
-    return atlasGalaxyId ? { name: "TravellerAtlas", query: { galaxyId: atlasGalaxyId } } : { name: "TravellerAtlas" };
-  }
-  return { name: "GalaxySurvey" };
+  return resolveSectorSurveyBackRoute({
+    explicitReturnRoute: deserializeReturnRoute(String(route.query.returnTo || "")),
+    from: route.query.from,
+    atlasGalaxyId: route.query.atlasGalaxyId,
+    galaxyId: props.galaxyId,
+  });
 });
 const activeSectorRecord = computed(() => {
   if (!selectedSectorId.value) return null;
@@ -2269,38 +2283,33 @@ async function replaceGeneratedSystemsForScope(sectorId, scopeHexes) {
   };
 }
 
-function buildSectorPreviewState({ sectorId, name, cols, rows, hexes }) {
+function buildSurveyPreviewState({
+  previewScope = scope.value,
+  sectorId,
+  name,
+  cols = 32,
+  rows = 40,
+  hexes = [],
+  metadata = null,
+}) {
   const activeSectorId = String(sectorId || generatedSector.value?.sectorId || selectedSectorId.value || "");
   const systems = systemStore.systems.filter((system) => String(system?.sectorId || "") === activeSectorId);
-  return buildBaseSectorPreviewState({
+  return buildSectorSurveyRebuiltPreview({
+    previewScope,
     sectorId,
     name,
-    scope: scope.value,
     density: density.value,
     occupancyRealism: occupancyRealism.value,
     cols,
     rows,
     hexes,
+    metadata,
     systems,
   });
 }
 
 function buildSectorHexesFromMetadata(metadata, cols = 32, rows = 40) {
   return buildPersistedSectorHexesFromMetadata(metadata, { cols, rows });
-}
-
-function buildFullSectorPreviewState({ sectorId, name, metadata }) {
-  const activeSectorId = String(sectorId || generatedSector.value?.sectorId || selectedSectorId.value || "");
-  const systems = systemStore.systems.filter((system) => String(system?.sectorId || "") === activeSectorId);
-  return buildPersistedSectorPreviewState({
-    sectorId,
-    name,
-    scope: scope.value,
-    density: density.value,
-    occupancyRealism: occupancyRealism.value,
-    metadata,
-    systems,
-  });
 }
 
 async function ensureCurrentSectorRecord({ showToast = false } = {}) {
@@ -2321,50 +2330,22 @@ async function ensureCurrentSectorRecord({ showToast = false } = {}) {
   const baseName = String(sectorName.value || "").trim() || generateRandomSectorBaseName();
   sectorName.value = baseName;
   const displayName = buildGeneratedSectorName(baseName);
-  const nowIso = new Date().toISOString();
-  const payload = {
-    sectorId: createSectorId(displayName, requestedGrid),
+  const payload = buildSectorSurveyCreatePayload({
     galaxyId: props.galaxyId,
-    coordinates: {
-      x: requestedGrid.x,
-      y: requestedGrid.y,
-    },
+    requestedGrid,
+    displayName,
+    scope: scope.value,
+    selectedSubsector: selectedSubsector.value,
+    subsectorName: subsectorName.value,
+    storedSubsectorNames: getStoredSubsectorNames(activeSectorRecord.value?.metadata),
     densityClass: DENSITY_CLASS_MAP[density.value] ?? 3,
     densityVariation: +((DENSITY_RATES[density.value] ?? 0.3) * 100).toFixed(2),
-    metadata: {
-      createdAt: nowIso,
-      lastModified: nowIso,
-      displayName,
-      explorationStatus: "unexplored",
-      scope: scope.value,
-      gridCols: cols,
-      gridRows: rows,
-      subsector: scope.value === "subsector" ? selectedSubsector.value : null,
-      subsectorName: scope.value === "subsector" ? String(subsectorName.value || "").trim() : null,
-      subsectorNames:
-        scope.value === "subsector"
-          ? {
-              ...getStoredSubsectorNames(activeSectorRecord.value?.metadata),
-              ...(String(subsectorName.value || "").trim()
-                ? {
-                    [getNormalizedSubsectorLetter(selectedSubsector.value)]: String(subsectorName.value || "").trim(),
-                  }
-                : {}),
-            }
-          : {},
-      isGalacticCenterSector,
-      occupancyRealism: occupancyRealism.value,
-      occupiedHexes: [],
-      hexStarTypes: {},
-      hexPresenceGenerated: false,
-      gridX: requestedGrid.x,
-      gridY: requestedGrid.y,
-      notes:
-        scope.value === "subsector"
-          ? `Generated subsector ${selectedSubsector.value}${subsectorName.value ? ` (${String(subsectorName.value).trim()})` : ""}`
-          : "Generated sector",
-    },
-  };
+    cols,
+    rows,
+    isGalacticCenterSector,
+    occupancyRealism: occupancyRealism.value,
+    createSectorId,
+  });
 
   const persisted = await sectorStore.createSector(payload);
   selectedSectorId.value = persisted.sectorId;
@@ -2487,12 +2468,17 @@ async function generateSectorPresence() {
       isGalacticCenterSector,
     });
 
-    await sectorStore.updateSector(currentSector.sectorId, {
-      ...currentSector,
+    const payload = buildSectorSurveySavePayload({
+      existingSector: currentSector,
+      existingSectorId: currentSector.sectorId,
+      generatedSectorName: String(nextMetadata.displayName || currentSector.sectorId),
+      galaxyId: props.galaxyId,
       densityClass: DENSITY_CLASS_MAP[density.value] ?? 3,
       densityVariation: +(rate * 100).toFixed(2),
-      metadata: nextMetadata,
+      nextMetadata,
     });
+
+    await sectorStore.updateSector(currentSector.sectorId, payload);
 
     // Remove any existing persisted systems that fall inside the newly generated presence-area.
     // Passing the generated hexes will result in generatedSystems === [] (presenceOnly true),
@@ -2504,20 +2490,15 @@ async function generateSectorPresence() {
       console.warn("Failed to replace persisted systems for presence generation:", err);
     }
 
-    generatedSector.value =
-      scope.value === "subsector"
-        ? buildFullSectorPreviewState({
-            sectorId: currentSector.sectorId,
-            name: String(nextMetadata.displayName || currentSector.sectorId),
-            metadata: nextMetadata,
-          })
-        : buildSectorPreviewState({
-            sectorId: currentSector.sectorId,
-            name: String(nextMetadata.displayName || currentSector.sectorId),
-            cols,
-            rows,
-            hexes,
-          });
+    generatedSector.value = buildSurveyPreviewState({
+      previewScope: scope.value,
+      sectorId: currentSector.sectorId,
+      name: String(nextMetadata.displayName || currentSector.sectorId),
+      cols,
+      rows,
+      hexes,
+      metadata: nextMetadata,
+    });
     selectedHex.value = null;
     toastService.success(
       `System presence generated — ${nextMetadata.occupiedHexes.length.toLocaleString()} occupied hex${nextMetadata.occupiedHexes.length !== 1 ? "es" : ""} detected.`,
@@ -2624,29 +2605,29 @@ async function generateSystemsFromPresence() {
       preserveLastGeneratedAt: true,
     });
 
-    await sectorStore.updateSector(currentSector.sectorId, {
-      ...currentSector,
+    const payload = buildSectorSurveySavePayload({
+      existingSector: currentSector,
+      existingSectorId: currentSector.sectorId,
+      generatedSectorName: String(nextMetadata.displayName || currentSector.sectorId),
+      galaxyId: props.galaxyId,
       densityClass: DENSITY_CLASS_MAP[density.value] ?? 3,
       densityVariation: +((DENSITY_RATES[density.value] ?? 0.3) * 100).toFixed(2),
-      metadata: nextMetadata,
+      nextMetadata,
     });
+
+    await sectorStore.updateSector(currentSector.sectorId, payload);
 
     const persistedSurveyTotals = await replaceGeneratedSystemsForScope(currentSector.sectorId, hexes);
 
-    generatedSector.value =
-      scope.value === "subsector"
-        ? buildFullSectorPreviewState({
-            sectorId: currentSector.sectorId,
-            name: String(nextMetadata.displayName || currentSector.sectorId),
-            metadata: nextMetadata,
-          })
-        : buildSectorPreviewState({
-            sectorId: currentSector.sectorId,
-            name: String(nextMetadata.displayName || currentSector.sectorId),
-            cols,
-            rows,
-            hexes,
-          });
+    generatedSector.value = buildSurveyPreviewState({
+      previewScope: scope.value,
+      sectorId: currentSector.sectorId,
+      name: String(nextMetadata.displayName || currentSector.sectorId),
+      cols,
+      rows,
+      hexes,
+      metadata: nextMetadata,
+    });
     selectedHex.value = null;
     toastService.success(
       `Systems generated — ${persistedSurveyTotals.systemCount.toLocaleString()} stellar system${persistedSurveyTotals.systemCount !== 1 ? "s" : ""} and ${persistedSurveyTotals.worldCount.toLocaleString()} world profile${persistedSurveyTotals.worldCount !== 1 ? "s" : ""} created.`,
@@ -2685,7 +2666,8 @@ async function generateSystemsFromExistingSurvey() {
 
     const persistedSurveyTotals = await replaceGeneratedSystemsForScope(currentSector.sectorId, scopeHexes);
     if (scope.value === "subsector") {
-      generatedSector.value = buildFullSectorPreviewState({
+      generatedSector.value = buildSurveyPreviewState({
+        previewScope: scope.value,
         sectorId: currentSector.sectorId,
         name: String(activeSectorMetadata.value?.displayName || currentSector.sectorId),
         metadata: activeSectorMetadata.value,
@@ -2755,23 +2737,17 @@ async function saveCurrentSector({ showToast = false } = {}) {
     preserveLastGeneratedAt: true,
   });
 
-  const payload = {
-    ...(existingSector ?? {}),
-    sectorId: existingSectorId || createSectorId(buildGeneratedSectorName(sectorName.value || "sector"), requestedGrid),
+  const payload = buildSectorSurveySavePayload({
+    existingSector,
+    existingSectorId,
+    generatedSectorName: buildGeneratedSectorName(sectorName.value || "sector"),
+    requestedGrid,
     galaxyId: props.galaxyId,
-    coordinates: {
-      x: Number(existingSector?.coordinates?.x ?? existingSector?.metadata?.gridX ?? requestedGrid?.x ?? 0),
-      y: Number(existingSector?.coordinates?.y ?? existingSector?.metadata?.gridY ?? requestedGrid?.y ?? 0),
-    },
     densityClass: DENSITY_CLASS_MAP[density.value] ?? 3,
-    densityVariation: Number(existingSector?.densityVariation ?? 0),
-    metadata: {
-      ...(existingSector?.metadata ?? {}),
-      ...(requestedGrid ? { gridX: requestedGrid.x, gridY: requestedGrid.y } : {}),
-      ...nextMetadata,
-      createdAt: existingSector?.metadata?.createdAt ?? new Date().toISOString(),
-    },
-  };
+    densityVariation: 0,
+    nextMetadata,
+    createSectorId,
+  });
 
   try {
     const persisted = existingSector
@@ -2780,15 +2756,13 @@ async function saveCurrentSector({ showToast = false } = {}) {
 
     selectedSectorId.value = persisted.sectorId;
     sectorStore.setCurrentSector(persisted.sectorId);
-    generatedSector.value = {
-      ...generatedSector.value,
-      sectorId: persisted.sectorId,
-      name: String(persisted?.metadata?.displayName || generatedSector.value.name),
+    generatedSector.value = buildSectorSurveySavedPreviewState({
+      generatedSector: generatedSector.value,
+      persistedSectorId: persisted.sectorId,
+      persistedDisplayName: String(persisted?.metadata?.displayName || generatedSector.value?.name || ""),
       density: density.value,
       occupancyRealism: occupancyRealism.value,
-      systemCount,
-      emptyCount: generatedSector.value.gridCols * generatedSector.value.gridRows - systemCount,
-    };
+    });
 
     if (showToast) {
       toastService.success(`Saved sector ${String(persisted?.metadata?.displayName || persisted.sectorId)}.`);
@@ -2890,18 +2864,15 @@ async function loadPersistedSector(sectorId, showToast = false) {
     }
     selectedHex.value = null;
 
-    generatedSector.value = {
+    generatedSector.value = buildSurveyPreviewState({
+      previewScope: renderScope,
       sectorId: sector.sectorId,
       name: sectorName.value,
-      scope: renderScope,
-      density: density.value,
-      occupancyRealism: occupancyRealism.value,
-      gridCols: cols,
-      gridRows: rows,
+      cols,
+      rows,
       hexes,
-      systemCount,
-      emptyCount: cols * rows - systemCount,
-    };
+      metadata: sector?.metadata ?? null,
+    });
 
     sectorStore.setCurrentSector(sectorId);
     if (showToast) {
@@ -2945,53 +2916,40 @@ async function persistSectorName({ showToast = false } = {}) {
     return;
   }
 
-  const nextDisplayName = buildGeneratedSectorName(baseName);
-  const nextSubsectorName = scope.value === "subsector" ? String(subsectorName.value || "").trim() : null;
-  const persistedDisplayName = String(sector?.metadata?.displayName || sector.sectorId).trim();
-  const persistedSubsectorName = getStoredSubsectorName(sector?.metadata, selectedSubsector.value);
+  const nameUpdate = resolveSectorSurveyNameUpdate({
+    sector,
+    scope: scope.value,
+    sectorName: baseName,
+    subsectorName: subsectorName.value,
+    selectedSubsector: selectedSubsector.value,
+    buildGeneratedSectorName,
+    getStoredSubsectorName,
+    getStoredSubsectorNames,
+    getNormalizedSubsectorLetter,
+  });
 
-  const isSameDisplayName = nextDisplayName === persistedDisplayName;
-  const isSameSubsectorName = scope.value !== "subsector" || nextSubsectorName === persistedSubsectorName;
-  if (isSameDisplayName && isSameSubsectorName) {
+  if (!nameUpdate.changed) {
     return;
   }
 
-  const nextSubsectorNames = getStoredSubsectorNames(sector?.metadata);
-  if (scope.value === "subsector") {
-    const currentLetter = getNormalizedSubsectorLetter(selectedSubsector.value);
-    if (nextSubsectorName) {
-      nextSubsectorNames[currentLetter] = nextSubsectorName;
-    } else {
-      delete nextSubsectorNames[currentLetter];
-    }
-  }
-
-  const updatePayload = {
-    ...sector,
-    metadata: {
-      ...(sector.metadata ?? {}),
-      displayName: nextDisplayName,
-      subsectorName: nextSubsectorName,
-      subsectorNames: nextSubsectorNames,
-      lastModified: new Date().toISOString(),
-    },
-  };
-
   try {
-    const updatedSector = await sectorStore.updateSector(sector.sectorId, updatePayload);
+    const updatedSector = await sectorStore.updateSector(sector.sectorId, nameUpdate.updatePayload);
 
     if (generatedSector.value?.sectorId === updatedSector.sectorId) {
-      generatedSector.value = {
-        ...generatedSector.value,
-        name: nextDisplayName,
-      };
+      generatedSector.value = buildSectorSurveySavedPreviewState({
+        generatedSector: generatedSector.value,
+        persistedSectorId: updatedSector.sectorId,
+        persistedDisplayName: nameUpdate.nextDisplayName,
+        density: density.value,
+        occupancyRealism: occupancyRealism.value,
+      });
     }
 
     if (scope.value === "subsector") {
-      sectorName.value = nextDisplayName.replace(/\s*\/\s*[A-P](?:\s*[-:].*)?$/i, "").trim() || baseName;
-      subsectorName.value = nextSubsectorName || "";
+      sectorName.value = nameUpdate.nextDisplayName.replace(/\s*\/\s*[A-P](?:\s*[-:].*)?$/i, "").trim() || baseName;
+      subsectorName.value = nameUpdate.nextSubsectorName || "";
     } else {
-      sectorName.value = nextDisplayName;
+      sectorName.value = nameUpdate.nextDisplayName;
     }
 
     if (showToast) {
@@ -3054,41 +3012,25 @@ async function initializeSectorSelection(galaxyId) {
     return;
   }
 
-  const currentSector = sectorStore.sectors.find((sector) => sector.sectorId === sectorStore.currentSectorId);
-  const fallbackSector = sectorStore.sectors[0];
-  const requestedSectorId = String(route.query.sectorId || "").trim();
-  const requestedGrid = getRequestedGridCoordinates();
-  const requestedSector = requestedSectorId
-    ? sectorStore.sectors.find((sector) => sector.sectorId === requestedSectorId)
-    : null;
+  const initialSelection = resolveSectorSurveyInitialSelection({
+    sectors: sectorStore.sectors,
+    currentSectorId: sectorStore.currentSectorId,
+    requestedSectorId: route.query.sectorId,
+    requestedGrid: getRequestedGridCoordinates(),
+    requestedViewport,
+  });
 
-  if (!requestedSector && requestedGrid) {
-    const requestedByGrid = sectorStore.sectors.find(
-      (sector) =>
-        Number(sector?.metadata?.gridX) === requestedGrid.x && Number(sector?.metadata?.gridY) === requestedGrid.y,
-    );
-    if (requestedByGrid) {
-      selectedSectorId.value = requestedByGrid.sectorId;
-      await loadPersistedSector(requestedByGrid.sectorId, false);
-    } else {
-      initializeAtlasRequestedSector();
+  if (initialSelection.mode === "load" && initialSelection.sectorId) {
+    selectedSectorId.value = initialSelection.sectorId;
+    await loadPersistedSector(initialSelection.sectorId, false);
+    if (initialSelection.viewport?.scope) {
+      scope.value = initialSelection.viewport.scope;
     }
-    return;
-  }
-
-  const initialSector = requestedSector ?? currentSector ?? fallbackSector;
-
-  if (initialSector) {
-    selectedSectorId.value = initialSector.sectorId;
-    await loadPersistedSector(initialSector.sectorId, false);
-    if (requestedViewport.scope) {
-      scope.value = requestedViewport.scope;
+    if (initialSelection.viewport?.subsector) {
+      selectedSubsector.value = initialSelection.viewport.subsector;
     }
-    if (requestedViewport.subsector) {
-      selectedSubsector.value = requestedViewport.subsector;
-    }
-    if (requestedViewport.scope === "subsector" && requestedViewport.subsectorName) {
-      subsectorName.value = requestedViewport.subsectorName;
+    if (initialSelection.viewport?.scope === "subsector" && initialSelection.viewport?.subsectorName) {
+      subsectorName.value = initialSelection.viewport.subsectorName;
     }
   } else {
     initializeAtlasRequestedSector();
@@ -3246,42 +3188,30 @@ async function generateSector() {
     });
 
     let finalSectorId;
-    if (existingSectorId) {
-      // Update the existing sector — do not create a new record.
-      // Must spread the full existing sector first because the backend requires sectorId,
-      // galaxyId and coordinates in the PUT body and rejects partial payloads.
-      const currentSectorRecord = sectorStore.sectors.find((s) => s.sectorId === existingSectorId) ?? {};
-      await sectorStore.updateSector(existingSectorId, {
-        ...currentSectorRecord,
-        densityClass: DENSITY_CLASS_MAP[density.value] ?? 3,
-        densityVariation: +(rate * 100).toFixed(2),
-        metadata: sharedMetadata,
-      });
+    const generationMutation = buildSectorSurveyGenerationMutation({
+      existingSectorId,
+      existingSectorRecord: sectorStore.sectors.find((s) => s.sectorId === existingSectorId) ?? null,
+      generatedName,
+      requestedGrid: getRequestedGridCoordinates(),
+      galaxyId: props.galaxyId,
+      densityClass: DENSITY_CLASS_MAP[density.value] ?? 3,
+      densityVariation: +(rate * 100).toFixed(2),
+      sharedMetadata,
+      scope: scope.value,
+      selectedSubsector: selectedSubsector.value,
+      subsectorName: subsectorName.value,
+      createSectorId,
+      fallbackCoordinates: {
+        x: Math.floor(Math.random() * 1001),
+        y: Math.floor(Math.random() * 1001),
+      },
+    });
+
+    if (generationMutation.mode === "update") {
+      await sectorStore.updateSector(existingSectorId, generationMutation.payload);
       finalSectorId = existingSectorId;
     } else {
-      const requestedGrid = getRequestedGridCoordinates();
-      const sectorPayload = {
-        sectorId: createSectorId(generatedName, requestedGrid),
-        galaxyId: props.galaxyId,
-        coordinates: {
-          x: requestedGrid?.x ?? Math.floor(Math.random() * 1001),
-          y: requestedGrid?.y ?? Math.floor(Math.random() * 1001),
-        },
-        densityClass: DENSITY_CLASS_MAP[density.value] ?? 3,
-        densityVariation: +(rate * 100).toFixed(2),
-        metadata: {
-          createdAt: new Date().toISOString(),
-          explorationStatus: "unexplored",
-          gridX: requestedGrid?.x ?? null,
-          gridY: requestedGrid?.y ?? null,
-          notes:
-            scope.value === "subsector"
-              ? `Generated subsector ${selectedSubsector.value}${subsectorName.value ? ` (${String(subsectorName.value).trim()})` : ""}`
-              : "Generated sector",
-          ...sharedMetadata,
-        },
-      };
-      const persistedSector = await sectorStore.createSector(sectorPayload);
+      const persistedSector = await sectorStore.createSector(generationMutation.payload);
       finalSectorId = persistedSector.sectorId;
       selectedSectorId.value = finalSectorId;
       sectorStore.setCurrentSector(finalSectorId);
@@ -3289,26 +3219,15 @@ async function generateSector() {
 
     const persistedSurveyTotals = await replaceGeneratedSystemsForScope(finalSectorId, hexes);
 
-    generatedSector.value =
-      scope.value === "subsector"
-        ? buildFullSectorPreviewState({
-            sectorId: finalSectorId,
-            name: generatedName,
-            metadata: sharedMetadata,
-          })
-        : {
-            sectorId: finalSectorId,
-            name: generatedName,
-            scope: scope.value,
-            density: density.value,
-            occupancyRealism: occupancyRealism.value,
-            gridCols: cols,
-            gridRows: rows,
-            hexes,
-            systemCount,
-            emptyCount: cols * rows - systemCount,
-            presenceOnlyCount: hexes.filter((h) => h.presenceOnly).length,
-          };
+    generatedSector.value = buildSurveyPreviewState({
+      previewScope: scope.value,
+      sectorId: finalSectorId,
+      name: generatedName,
+      cols,
+      rows,
+      hexes,
+      metadata: sharedMetadata,
+    });
     selectedHex.value = null;
 
     if (existingSectorId) {
@@ -3474,17 +3393,17 @@ function proceedToStarSystem() {
     anomaly: selectedAnomalyType || undefined,
     anomalyMass: anomalyTypeMatchesGalaxy ? galaxyAnomaly?.massSolarMasses : undefined,
     anomalyActivity: anomalyTypeMatchesGalaxy ? galaxyAnomaly?.activityIndex : undefined,
-    returnTo: serializeReturnRoute({
-      name: currentSurveyRouteName.value,
-      params: { galaxyId: props.galaxyId ?? "000" },
-      query: {
-        ...route.query,
-        ...(generatedSector.value?.sectorId ? { sectorId: generatedSector.value.sectorId } : {}),
-        viewScope: scope.value,
-        subsector: scope.value === "subsector" ? selectedSubsector.value : undefined,
-        subsectorName: scope.value === "subsector" ? String(subsectorName.value || "").trim() || undefined : undefined,
-      },
-    }),
+    returnTo: serializeReturnRoute(
+      buildSectorSurveyReturnRoute({
+        currentSurveyRouteName: currentSurveyRouteName.value,
+        galaxyId: props.galaxyId ?? "000",
+        routeQuery: route.query,
+        sectorId: generatedSector.value?.sectorId,
+        scope: scope.value,
+        selectedSubsector: selectedSubsector.value,
+        subsectorName: subsectorName.value,
+      }),
+    ),
   };
 
   router.push({
@@ -3554,16 +3473,11 @@ async function generateSystemForSelectedHex({ openAfter = false } = {}) {
     const persistedSurveyTotals = await replaceGeneratedSystemsForScope(currentSector.sectorId, [hexObj]);
 
     if (generatedSector.value?.hexes?.length) {
-      const nextHexes = generatedSector.value.hexes.map((h) => (h.coord === coord ? { ...h, ...hexObj } : h));
-      generatedSector.value = {
-        ...generatedSector.value,
-        hexes: nextHexes,
-        systemCount: nextHexes.filter((h) => h.hasSystem).length,
-        emptyCount:
-          (generatedSector.value.gridCols || 0) * (generatedSector.value.gridRows || 0) -
-          nextHexes.filter((h) => h.hasSystem).length,
-        presenceOnlyCount: nextHexes.filter((h) => h.presenceOnly).length,
-      };
+      generatedSector.value = buildSectorSurveyPreviewHexUpdate({
+        generatedSector: generatedSector.value,
+        coord,
+        hexPatch: hexObj,
+      });
     }
 
     toastService.success(

@@ -52,6 +52,88 @@ export function buildGalaxyImportRequest({
   };
 }
 
+export function buildGalaxyCreatePayload({
+  galaxyId = "",
+  newGalaxyForm = {},
+  universeCoordinates = null,
+  placementTuning = undefined,
+  nowIso = new Date().toISOString(),
+} = {}) {
+  return {
+    galaxyId,
+    name: newGalaxyForm?.name,
+    type: newGalaxyForm?.type,
+    morphology: {
+      bulgeRadius: newGalaxyForm?.bulgeRadius,
+      armCount: newGalaxyForm?.armCount,
+      coreDensity: newGalaxyForm?.coreDensity,
+      diskThickness: newGalaxyForm?.diskThickness,
+      centralAnomaly: {
+        type: newGalaxyForm?.centralAnomalyType || "Black Hole",
+        massSolarMasses: Number(newGalaxyForm?.centralAnomalyMassSolar) || null,
+        activityIndex: Number(newGalaxyForm?.centralAnomalyActivity) || 0,
+      },
+    },
+    metadata: {
+      createdAt: nowIso,
+      lastModified: nowIso,
+      status: "active",
+      version: 1,
+      universeCoordinates,
+      universePlacementMode: newGalaxyForm?.placementMode,
+      universePlacementSeed: newGalaxyForm?.placementSeed || null,
+      universePlacementTuning: placementTuning,
+    },
+  };
+}
+
+export function buildGalaxyEditPayload({
+  galaxy = {},
+  nextName = "",
+  galaxyEditForm = {},
+  clamp = (value) => value,
+  nowIso = new Date().toISOString(),
+} = {}) {
+  return {
+    ...galaxy,
+    name: nextName,
+    type: galaxyEditForm?.type,
+    morphology: {
+      ...(galaxy?.morphology || {}),
+      bulgeRadius: clamp(Number(galaxyEditForm?.bulgeRadius) || 5000, 5000, 50000),
+      armCount: clamp(Number(galaxyEditForm?.armCount) || 0, 0, 12),
+      coreDensity: clamp(Number(galaxyEditForm?.coreDensity) || 0.7, 0.01, 1),
+      diskThickness: clamp(Number(galaxyEditForm?.diskThickness) || 1000, 500, 10000),
+      centralAnomaly: {
+        ...(galaxy?.morphology?.centralAnomaly || {}),
+        type: galaxyEditForm?.centralAnomalyType,
+        massSolarMasses: Math.max(1, Number(galaxyEditForm?.centralAnomalyMassSolar) || 0),
+        activityIndex: clamp(Number(galaxyEditForm?.centralAnomalyActivity) || 0, 0, 1),
+      },
+    },
+    metadata: {
+      ...(galaxy?.metadata || {}),
+      lastModified: nowIso,
+    },
+  };
+}
+
+export function buildGalaxySectorStatsPayload({
+  galaxy = {},
+  stats = {},
+  normalizeStats = (value) => value,
+  nowIso = new Date().toISOString(),
+} = {}) {
+  return {
+    ...galaxy,
+    metadata: {
+      ...(galaxy?.metadata || {}),
+      sectorStats: normalizeStats(stats),
+      lastModified: nowIso,
+    },
+  };
+}
+
 export async function resolveGalaxySectorStatsRefresh({
   galaxyId = null,
   force = false,

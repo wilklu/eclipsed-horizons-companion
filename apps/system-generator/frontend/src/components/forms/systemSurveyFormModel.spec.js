@@ -296,6 +296,10 @@ describe("systemSurveyFormModel", () => {
           secondaryWorldContext: {
             eligible: true,
             classificationCodes: ["Fp"],
+            classificationLabelSummary: "Fp Freeport",
+            governmentSummary: "Independent chartered port with broad autonomy.",
+            lawLevelSummary: "Law level rerolled to 4 for freeport operations.",
+            regulatorySummary: "The freeport leniency modifier softens regulation relative to the mainworld.",
             lawLevelSourceSummary: "Law level rerolled with freeport leniency.",
           },
         },
@@ -307,6 +311,15 @@ describe("systemSurveyFormModel", () => {
         world.notes.includes("Secondary law source Law level rerolled with freeport leniency."),
       ),
     ).toBe(true);
+    expect(surveyData.worlds.some((world) => world.notes.includes("Secondary classifications Fp Freeport"))).toBe(true);
+    expect(
+      surveyData.worlds.some((world) => world.notes.includes("Secondary government Independent chartered port")),
+    ).toBe(true);
+    expect(
+      surveyData.worlds.some((world) => world.notes.includes("Secondary regulation The freeport leniency modifier")),
+    ).toBe(true);
+    expect(surveyData.secondaryProfiles).toContain("Zed Secundus: Fp Freeport");
+    expect(surveyData.secondaryProfiles).toContain("Law level rerolled to 4 for freeport operations.");
   });
 
   it("marks reconstructed flat-label star metadata as legacy in survey notes", () => {

@@ -1464,6 +1464,8 @@ export function deriveSecondaryWorldContext({
       dependent: false,
       classificationCodes: [],
       classifications: [],
+      classificationLabelSummary: "",
+      governmentSummary: "",
       summary: "",
     };
   }
@@ -1486,6 +1488,23 @@ export function deriveSecondaryWorldContext({
       ...SECONDARY_WORLD_CLASSIFICATIONS[code],
       summary,
     });
+  };
+
+  const summarizeSecondaryWorldClassifications = (entries) => {
+    if (!entries.length) {
+      return "No special secondary-world classifications";
+    }
+    return entries.map((entry) => `${entry.code} ${entry.label}`).join(", ");
+  };
+
+  const summarizeSecondaryWorldGovernment = () => {
+    const governmentLabel = GOVERNMENT_TABLE[derivedGovernmentCode] ?? "Unknown";
+    const governmentCodeLabel = toExtendedHex(derivedGovernmentCode);
+    if (dependent) {
+      const sourceLabel = governmentSource === "dependency" ? "dependency roll" : "inherited dependency state";
+      return `Dependent on the mainworld; local government ${governmentCodeLabel} ${governmentLabel} from ${sourceLabel}`;
+    }
+    return `Independent secondary world with government ${governmentCodeLabel} ${governmentLabel}`;
   };
 
   if (populationCode >= 5 && derivedGovernmentCode === 6) {
@@ -1537,16 +1556,26 @@ export function deriveSecondaryWorldContext({
     addClassification("Rb", "Scientific or survey installation");
   }
 
+  const governmentSummary = summarizeSecondaryWorldGovernment();
+  const classificationSummary = classifications.map((entry) => entry.code).join(", ");
+  const classificationLabelSummary = summarizeSecondaryWorldClassifications(classifications);
+
   return {
     eligible: true,
     dependent,
     governmentSource,
     governmentCode: derivedGovernmentCode,
+    governmentSummary,
     classificationCodes: classifications.map((entry) => entry.code),
     classifications,
-    summary: dependent ? "Dependent secondary world" : "Independent secondary world",
-    classificationSummary: classifications.map((entry) => entry.code).join(", "),
+    summary: `${dependent ? "Dependent secondary world" : "Independent secondary world"}; ${governmentSummary}; ${classificationLabelSummary}`,
+    classificationSummary,
+    classificationLabelSummary,
   };
+}
+
+function summarizeSecondaryWorldRegulation(summary, sourceSummary) {
+  return [summary, sourceSummary].filter(Boolean).join("; ");
 }
 
 export function deriveSecondaryWorldLawLevel({
@@ -1558,12 +1587,15 @@ export function deriveSecondaryWorldLawLevel({
   rollTwoDice = () => d6(),
 } = {}) {
   if (!(populationCode > 0) || !mainworldOverlay || !secondaryWorldContext?.eligible) {
+    const summary = "Default law-level roll";
+    const sourceSummary = summarizeSecondaryWorldLawSource("default");
     return {
       eligible: false,
       lawLevel: rollWorldLawLevel({ governmentCode, rollTwoDice }),
       caseLabel: "default",
-      summary: "Default law-level roll",
-      sourceSummary: summarizeSecondaryWorldLawSource("default"),
+      summary,
+      sourceSummary,
+      regulatorySummary: summarizeSecondaryWorldRegulation(summary, sourceSummary),
     };
   }
 
@@ -1579,83 +1611,107 @@ export function deriveSecondaryWorldLawLevel({
     const captiveRoll = Number(rollDie(6)) + captiveDm;
 
     if (captiveRoll <= 2) {
+      const summary = "Captive secondary world rerolls law level as Government 6";
+      const sourceSummary = summarizeSecondaryWorldLawSource("captive-reroll");
       return {
         eligible: true,
         lawLevel: rollWorldLawLevel({ governmentCode: 6, rollTwoDice }),
         caseLabel: "captive-reroll",
-        summary: "Captive secondary world rerolls law level as Government 6",
-        sourceSummary: summarizeSecondaryWorldLawSource("captive-reroll"),
+        summary,
+        sourceSummary,
+        regulatorySummary: summarizeSecondaryWorldRegulation(summary, sourceSummary),
       };
     }
     if (captiveRoll <= 4) {
+      const summary = "Captive secondary world uses the owning mainworld law level";
+      const sourceSummary = summarizeSecondaryWorldLawSource("captive-same-as-mainworld");
       return {
         eligible: true,
         lawLevel: mainworldLawLevel,
         caseLabel: "captive-same-as-mainworld",
-        summary: "Captive secondary world uses the owning mainworld law level",
-        sourceSummary: summarizeSecondaryWorldLawSource("captive-same-as-mainworld"),
+        summary,
+        sourceSummary,
+        regulatorySummary: summarizeSecondaryWorldRegulation(summary, sourceSummary),
       };
     }
     if (captiveRoll === 5) {
+      const summary = "Captive secondary world is slightly stricter than the owning mainworld";
+      const sourceSummary = summarizeSecondaryWorldLawSource("captive-mainworld-plus-one");
       return {
         eligible: true,
         lawLevel: clampWorldLawLevel(mainworldLawLevel + 1),
         caseLabel: "captive-mainworld-plus-one",
-        summary: "Captive secondary world is slightly stricter than the owning mainworld",
-        sourceSummary: summarizeSecondaryWorldLawSource("captive-mainworld-plus-one"),
+        summary,
+        sourceSummary,
+        regulatorySummary: summarizeSecondaryWorldRegulation(summary, sourceSummary),
       };
     }
 
+    const summary = "Captive secondary world is significantly stricter than the owning mainworld";
+    const sourceSummary = summarizeSecondaryWorldLawSource("captive-mainworld-plus-die");
     return {
       eligible: true,
       lawLevel: clampWorldLawLevel(mainworldLawLevel + Number(rollDie(6))),
       caseLabel: "captive-mainworld-plus-die",
-      summary: "Captive secondary world is significantly stricter than the owning mainworld",
-      sourceSummary: summarizeSecondaryWorldLawSource("captive-mainworld-plus-die"),
+      summary,
+      sourceSummary,
+      regulatorySummary: summarizeSecondaryWorldRegulation(summary, sourceSummary),
     };
   }
 
   if (secondaryWorldContext?.dependent && numericGovernmentCode >= 1 && numericGovernmentCode <= 3) {
     const authorityRoll = Number(rollTwoDice()) - mainworldGovernmentCode;
     if (authorityRoll <= 0) {
+      const summary = "Dependent low-government secondary world inherits the mainworld law level";
+      const sourceSummary = summarizeSecondaryWorldLawSource("dependent-inherits-mainworld");
       return {
         eligible: true,
         lawLevel: mainworldLawLevel,
         caseLabel: "dependent-inherits-mainworld",
-        summary: "Dependent low-government secondary world inherits the mainworld law level",
-        sourceSummary: summarizeSecondaryWorldLawSource("dependent-inherits-mainworld"),
+        summary,
+        sourceSummary,
+        regulatorySummary: summarizeSecondaryWorldRegulation(summary, sourceSummary),
       };
     }
 
     const localRoll = Number(rollDie(6));
     if (localRoll <= 3) {
+      const summary = "Dependent low-government secondary world keeps its own lightly regulated law level";
+      const sourceSummary = summarizeSecondaryWorldLawSource("dependent-local-low-law");
       return {
         eligible: true,
         lawLevel: clampWorldLawLevel(localRoll),
         caseLabel: "dependent-local-low-law",
-        summary: "Dependent low-government secondary world keeps its own lightly regulated law level",
-        sourceSummary: summarizeSecondaryWorldLawSource("dependent-local-low-law"),
+        summary,
+        sourceSummary,
+        regulatorySummary: summarizeSecondaryWorldRegulation(summary, sourceSummary),
       };
     }
 
+    const summary = "Dependent low-government secondary world rerolls its own law level";
+    const sourceSummary = summarizeSecondaryWorldLawSource("dependent-reroll");
     return {
       eligible: true,
       lawLevel: rollWorldLawLevel({ governmentCode: numericGovernmentCode, rollTwoDice }),
       caseLabel: "dependent-reroll",
-      summary: "Dependent low-government secondary world rerolls its own law level",
-      sourceSummary: summarizeSecondaryWorldLawSource("dependent-reroll"),
+      summary,
+      sourceSummary,
+      regulatorySummary: summarizeSecondaryWorldRegulation(summary, sourceSummary),
     };
   }
 
   const freeportDm = classificationCodes.includes("Fp") ? -1 : 0;
+  const summary = freeportDm
+    ? "Secondary-world law level rerolled with a freeport leniency modifier"
+    : "Secondary-world law level rerolled normally";
+  const sourceSummary = summarizeSecondaryWorldLawSource(freeportDm ? "independent-freeport" : "independent-default");
   return {
     eligible: true,
     lawLevel: rollWorldLawLevel({ governmentCode: numericGovernmentCode, dm: freeportDm, rollTwoDice }),
     caseLabel: freeportDm ? "independent-freeport" : "independent-default",
-    summary: freeportDm
-      ? "Secondary-world law level rerolled with a freeport leniency modifier"
-      : "Secondary-world law level rerolled normally",
-    sourceSummary: summarizeSecondaryWorldLawSource(freeportDm ? "independent-freeport" : "independent-default"),
+    summary,
+    sourceSummary,
+    regulatorySummary: summarizeSecondaryWorldRegulation(summary, sourceSummary),
   };
 }
 
@@ -2828,6 +2884,8 @@ function deriveSocialUwp({ world, isMainworld = true, mainworldPopulationCode = 
     resolvedSecondaryWorldContext.lawLevel = secondaryWorldLawLevel.lawLevel;
     resolvedSecondaryWorldContext.lawLevelCase = secondaryWorldLawLevel.caseLabel;
     resolvedSecondaryWorldContext.lawLevelSourceSummary = secondaryWorldLawLevel.sourceSummary;
+    resolvedSecondaryWorldContext.lawLevelSummary = secondaryWorldLawLevel.summary;
+    resolvedSecondaryWorldContext.regulatorySummary = secondaryWorldLawLevel.regulatorySummary;
   }
   const civilConflict = deriveCivilConflictProfile({ populationCode, governmentCode, lawLevel });
   const techLevelPockets = deriveTechLevelPocketProfile({ techLevel });

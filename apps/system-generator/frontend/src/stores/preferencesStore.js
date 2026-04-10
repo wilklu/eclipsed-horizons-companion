@@ -16,6 +16,15 @@ export const PREFERENCE_DEFAULTS = Object.freeze({
   ttsVoiceURI: "",
   atlasGridBiasX: 0,
   atlasGridBiasY: 0,
+  atlasLayerHexGrid: true,
+  atlasLayerNames: true,
+  atlasLayerSectorNames: false,
+  atlasLayerCoords: false,
+  atlasLayerZones: false,
+  atlasLayerRoutes: true,
+  atlasLayerAnomalies: true,
+  atlasLayerBadges: true,
+  atlasLayerPolity: true,
 });
 
 function loadPreferences() {

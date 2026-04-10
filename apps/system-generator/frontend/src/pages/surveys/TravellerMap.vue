@@ -88,6 +88,41 @@
         >
           Zones
         </button>
+        <button
+          class="tb-toggle"
+          :class="{ active: layerRoutes }"
+          @click="layerRoutes = !layerRoutes"
+          title="Trade and relay routes"
+        >
+          Routes
+        </button>
+        <button
+          class="tb-toggle"
+          :class="{ active: layerAnomalies }"
+          @click="layerAnomalies = !layerAnomalies"
+          title="Anomaly clouds and nebulae"
+        >
+          Anomalies
+        </button>
+        <button
+          class="tb-toggle"
+          :class="{ active: layerBadges }"
+          @click="layerBadges = !layerBadges"
+          title="System state badges"
+        >
+          Badges
+        </button>
+        <button
+          class="tb-toggle"
+          :class="{ active: layerPolity }"
+          @click="layerPolity = !layerPolity"
+          title="Polity glyphs"
+        >
+          Polity
+        </button>
+        <button class="tb-toggle tb-toggle--utility" @click="resetAtlasLayers" title="Restore Atlas layer defaults">
+          Reset
+        </button>
       </div>
     </header>
 
@@ -216,9 +251,23 @@
               :width="SECTOR_PX_W - 1"
               :height="SECTOR_PX_H - 1"
               :fill="densityFill(tile.densityClass)"
-              :opacity="sectorTileOpacity"
+              :opacity="sectorTileBaseOpacity(tile.sectorId)"
               class="sector-tile"
-              :class="{ hovered: hoveredSectorId === tile.sectorId }"
+              :class="{
+                hovered: hoveredSectorId === tile.sectorId,
+                'sector-tile--highlighted': sectorHasPoliticalFilter && politicalHeatMatches(tile.sectorId),
+                'sector-tile--dimmed': sectorHasPoliticalFilter && !politicalHeatMatches(tile.sectorId),
+              }"
+            />
+            <rect
+              v-if="showPoliticalHeat && politicalHeatForSector(tile.sectorId)"
+              :x="tile.wx"
+              :y="tile.wy"
+              :width="SECTOR_PX_W - 1"
+              :height="SECTOR_PX_H - 1"
+              :fill="politicalHeatForSector(tile.sectorId).tint"
+              :opacity="sectorHeatOpacity(tile.sectorId)"
+              class="sector-heat-overlay"
             />
             <text
               v-if="sectorLabelVisible && tile.showLabel"
@@ -226,7 +275,7 @@
               :y="tile.wy + SECTOR_PX_H * 0.5 + 4"
               class="sector-label"
               :transform="`rotate(-27 ${tile.wx + SECTOR_PX_W * 0.5} ${tile.wy + SECTOR_PX_H * 0.5})`"
-              :style="{ fontSize: `${sectorLabelSize}px` }"
+              :style="{ fontSize: `${sectorLabelSize}px`, opacity: sectorLabelOpacity(tile.sectorId) }"
             >
               {{ tile.name }}
             </text>
@@ -247,6 +296,42 @@
             :stroke-width="sectorBorderWidth"
             class="sector-border"
           />
+        </g>
+
+        <!-- 2a ── Region anomaly overlays -->
+        <g v-if="showAnomalyOverlays" class="layer-anomaly-overlays">
+          <g v-for="overlay in anomalyRegionOverlays" :key="overlay.key" class="anomaly-overlay">
+            <ellipse
+              v-for="lobe in overlay.lobes"
+              :key="lobe.key"
+              :cx="lobe.cx"
+              :cy="lobe.cy"
+              :rx="lobe.rx"
+              :ry="lobe.ry"
+              :transform="`rotate(${lobe.rotation} ${lobe.cx} ${lobe.cy})`"
+              :fill="lobe.fill"
+              :opacity="lobe.opacity"
+              class="anomaly-cloud"
+            />
+            <circle
+              v-for="mote in overlay.motes"
+              :key="mote.key"
+              :cx="mote.cx"
+              :cy="mote.cy"
+              :r="mote.r"
+              :fill="mote.fill"
+              :opacity="mote.opacity"
+              class="anomaly-mote"
+            />
+            <circle
+              :cx="overlay.cx"
+              :cy="overlay.cy"
+              :r="overlay.coreR"
+              :fill="overlay.coreFill"
+              :opacity="overlay.coreOpacity"
+              class="anomaly-core"
+            />
+          </g>
         </g>
 
         <!-- 2b ── Subsector borders -->
@@ -323,6 +408,35 @@
             @mouseenter="hoveredHexKey = star.key"
             @mouseleave="hoveredHexKey = null"
           >
+            <circle
+              v-if="!star.presenceOnly"
+              :cx="star.wx"
+              :cy="star.wy"
+              :r="effectiveStarR * starVisualProfile(star).haloScale"
+              :fill="starHaloFill(star)"
+              class="star-halo"
+            />
+            <line
+              v-for="(spoke, index) in star.presenceOnly
+                ? []
+                : buildStarSpikeSegments(star.wx, star.wy, effectiveStarR, starVisualProfile(star))"
+              :key="`spike-${star.key}-${index}`"
+              :x1="spoke.x1"
+              :y1="spoke.y1"
+              :x2="spoke.x2"
+              :y2="spoke.y2"
+              :stroke="spoke.stroke"
+              :stroke-opacity="spoke.opacity"
+              :stroke-width="spoke.width"
+              class="star-spike"
+            />
+            <circle
+              v-if="!star.presenceOnly && starVisualProfile(star).ring"
+              :cx="star.wx"
+              :cy="star.wy"
+              :r="effectiveStarR * 1.7"
+              class="star-ring"
+            />
             <!-- Selection ring -->
             <circle
               v-if="star.key === selectedHexKey"
@@ -364,6 +478,54 @@
               :fill="star.compColor"
               class="star-dot companion"
             />
+            <circle
+              v-if="!star.presenceOnly && star.hasSecondary && currentLod === 'detail'"
+              :cx="star.wx"
+              :cy="star.wy"
+              :r="effectiveStarR * 1.55"
+              class="star-companion-orbit"
+            />
+            <g
+              v-if="showSystemBadges && hasStarBadge(star)"
+              class="star-badge-cluster"
+              :transform="`translate(${star.wx + effectiveStarR + 4} ${star.wy + effectiveStarR - 2})`"
+            >
+              <g v-if="travelZoneBadgeText(star)" class="star-badge" :class="travelZoneBadgeClass(star)">
+                <rect x="0" y="0" width="15" height="9" rx="3" ry="3" />
+                <text x="7.5" y="6.5" text-anchor="middle">{{ travelZoneBadgeText(star) }}</text>
+              </g>
+              <g v-if="baseBadgeText(star)" class="star-badge star-badge--base" transform="translate(17 0)">
+                <rect x="0" y="0" width="15" height="9" rx="3" ry="3" />
+                <text x="7.5" y="6.5" text-anchor="middle">{{ baseBadgeText(star) }}</text>
+              </g>
+              <g
+                v-if="habitabilityBadgeText(star)"
+                class="star-badge star-badge--habitability"
+                transform="translate(34 0)"
+              >
+                <rect x="0" y="0" width="18" height="9" rx="3" ry="3" />
+                <text x="9" y="6.5" text-anchor="middle">{{ habitabilityBadgeText(star) }}</text>
+              </g>
+            </g>
+            <g
+              v-if="showPolityGlyphs && hasPolityGlyph(star)"
+              class="polity-glyph"
+              :transform="`translate(${star.wx + effectiveStarR + 4} ${star.wy - effectiveStarR - 13})`"
+            >
+              <line x1="0" y1="0" x2="0" y2="11" class="polity-staff" />
+              <path d="M0 0 L0 7.5 L9.5 4.8 L0 2.2 Z" class="polity-banner" :fill="polityGlyphFill(star)" />
+              <text v-if="governmentGlyphText(star)" x="3.3" y="5.4" class="polity-banner-text">
+                {{ governmentGlyphText(star) }}
+              </text>
+              <circle
+                v-for="(pip, index) in factionGlyphPips(star)"
+                :key="`polity-pip-${star.key}-${index}`"
+                :cx="11.5 + index * 3.4"
+                cy="2.2"
+                r="1.15"
+                class="polity-faction-pip"
+              />
+            </g>
             <!-- Hex coord -->
             <text
               v-if="showStarCoords"
@@ -396,6 +558,11 @@
             :x2="route.x2"
             :y2="route.y2"
             class="trade-route"
+            :class="[route.className, route.filterClass]"
+            :stroke="route.stroke"
+            :stroke-width="route.strokeWidth"
+            :stroke-dasharray="route.strokeDasharray"
+            :opacity="route.opacity"
           />
         </g>
 
@@ -426,6 +593,9 @@
           <h2 class="inspector-title">{{ inspectorData.name }}</h2>
           <div class="inspector-subtitle">Galaxy {{ inspectorData.galaxyName }}</div>
           <div class="inspector-badge">Sector {{ inspectorData.coords }}</div>
+          <p v-if="inspectorData.activeHeatFilterSummary" class="inspector-note inspector-note--compact">
+            {{ inspectorData.activeHeatFilterSummary }}
+          </p>
           <div class="inspector-actions">
             <button class="btn btn-primary" @click="focusSectorFromInspector">🔍 Zoom to Sector</button>
             <button class="btn btn-primary" @click="openSectorSurvey">🧭 Sector Survey</button>
@@ -476,6 +646,9 @@
               <span class="dl">Inferred Links</span
               ><span class="dv">{{ inspectorData.legacyHierarchyUnknownCount }}</span>
             </div>
+            <div v-if="inspectorData.politicalHeatLabel" class="dr">
+              <span class="dl">Political Heat</span><span class="dv">{{ inspectorData.politicalHeatLabel }}</span>
+            </div>
           </div>
         </div>
 
@@ -524,6 +697,35 @@
                 v-if="!inspectorData.presenceOnly"
                 cx="22"
                 cy="22"
+                :r="inspectorStarSvgR * inspectorStarProfile.haloScale"
+                :fill="starHaloFill(inspectorData)"
+                class="star-halo"
+              />
+              <line
+                v-for="(spoke, index) in inspectorData.presenceOnly
+                  ? []
+                  : buildStarSpikeSegments(22, 22, inspectorStarSvgR, inspectorStarProfile)"
+                :key="`inspector-spike-${index}`"
+                :x1="spoke.x1"
+                :y1="spoke.y1"
+                :x2="spoke.x2"
+                :y2="spoke.y2"
+                :stroke="spoke.stroke"
+                :stroke-opacity="spoke.opacity"
+                :stroke-width="spoke.width"
+                class="star-spike"
+              />
+              <circle
+                v-if="!inspectorData.presenceOnly && inspectorStarProfile.ring"
+                cx="22"
+                cy="22"
+                :r="inspectorStarSvgR * 1.7"
+                class="star-ring"
+              />
+              <circle
+                v-if="!inspectorData.presenceOnly"
+                cx="22"
+                cy="22"
                 :r="inspectorStarSvgR"
                 :fill="inspectorData.color"
                 filter="url(#softglow)"
@@ -545,9 +747,22 @@
                 :r="inspectorStarSvgR * 0.55"
                 :fill="inspectorData.compColor"
               />
+              <circle
+                v-if="!inspectorData.presenceOnly && inspectorData.hasSecondary"
+                cx="22"
+                cy="22"
+                :r="inspectorStarSvgR * 1.55"
+                class="star-companion-orbit"
+              />
             </svg>
             <div>
               <div class="star-type-big">{{ inspectorData.starType }}</div>
+              <div class="star-class-chip-row">
+                <span class="star-class-chip">{{ inspectorStarProfile.label }}</span>
+                <span v-if="!inspectorData.presenceOnly" class="star-class-chip star-class-chip--accent">
+                  {{ inspectorStarProfile.token }} spectrum
+                </span>
+              </div>
               <div v-if="inspectorData.hasSecondary" class="star-companion-hint">+ companion</div>
             </div>
           </div>
@@ -574,6 +789,9 @@
             </div>
             <div class="dr">
               <span class="dl">Travel Zone</span><span class="dv">{{ inspectorData.travelZone }}</span>
+            </div>
+            <div class="dr">
+              <span class="dl">Corridor</span><span class="dv">{{ inspectorData.routeCorridorLabel || "—" }}</span>
             </div>
             <div class="dr">
               <span class="dl">Minimum TL</span
@@ -609,6 +827,10 @@
               ><span class="dv">{{ inspectorData.personalRightsProfile || "—" }}</span>
             </div>
             <div class="dr">
+              <span class="dl">Secondary Worlds</span
+              ><span class="dv">{{ inspectorData.secondaryProfiles || "—" }}</span>
+            </div>
+            <div class="dr">
               <span class="dl">Factions</span><span class="dv">{{ inspectorData.factionsProfile || "—" }}</span>
             </div>
             <div class="dr">
@@ -631,6 +853,10 @@
           <div v-if="inspectorData.bases?.length" class="base-code-strip">
             <span v-for="base in inspectorData.bases" :key="base" class="base-code-chip">{{ base }}</span>
           </div>
+
+          <p v-if="inspectorData.routeCorridorDetail" class="inspector-note inspector-note--compact">
+            {{ inspectorData.routeCorridorDetail }}
+          </p>
 
           <div
             v-if="inspectorData.legacyReconstructed || inspectorData.legacyHierarchyUnknown"
@@ -659,6 +885,47 @@
             This marker is a detected stellar presence only. Atlas can show it as a known object, but it is not yet a
             generated system survey.
           </p>
+
+          <div class="atlas-key-panel">
+            <div class="atlas-key-title">Atlas Key</div>
+            <div class="atlas-key-grid">
+              <div class="atlas-key-row">
+                <span class="legend-route-sample legend-route-sample--major"></span>
+                <span class="atlas-key-copy">Major route</span>
+              </div>
+              <div class="atlas-key-row">
+                <span class="legend-route-sample legend-route-sample--pressure"></span>
+                <span class="atlas-key-copy">Faction pressure route</span>
+              </div>
+              <div class="atlas-key-row">
+                <span class="legend-route-sample legend-route-sample--hazard"></span>
+                <span class="atlas-key-copy">Hazard or interdicted route</span>
+              </div>
+              <div class="atlas-key-row">
+                <span class="legend-chip-sample legend-chip-sample--zone">A</span>
+                <span class="atlas-key-copy">Amber or red zone badge</span>
+              </div>
+              <div class="atlas-key-row">
+                <span class="legend-chip-sample legend-chip-sample--base">B2</span>
+                <span class="atlas-key-copy">Base count badge</span>
+              </div>
+              <div class="atlas-key-row">
+                <span class="legend-chip-sample legend-chip-sample--habitability">H6</span>
+                <span class="atlas-key-copy">Habitability badge</span>
+              </div>
+              <div class="atlas-key-row">
+                <span class="legend-polity-sample">
+                  <span class="legend-polity-staff"></span>
+                  <span class="legend-polity-banner">G</span>
+                  <span class="legend-polity-pips">
+                    <span></span>
+                    <span></span>
+                  </span>
+                </span>
+                <span class="atlas-key-copy">Government pennant with faction pips</span>
+              </div>
+            </div>
+          </div>
 
           <!-- Orbital diagram -->
           <div class="orbital-section">
@@ -754,6 +1021,109 @@
           {{ band.label }} ({{ band.range }})
         </span>
       </div>
+      <div class="status-political-legend" v-if="showPoliticalHeat">
+        <button
+          class="political-legend-chip"
+          :class="{ active: !activePoliticalHeatFilter }"
+          :title="legendDualShareTitle(visiblePoliticalHeatTotal, visiblePoliticalHeatTotal, scopePoliticalHeatTotal, scopePoliticalHeatTotal, 'sectors')"
+          @click="activePoliticalHeatFilter = null"
+        >
+          <span class="political-legend-swatch political-legend-swatch--all"></span>
+          All
+          <span class="legend-count-badge">{{
+            formatLegendDualShare(visiblePoliticalHeatTotal, visiblePoliticalHeatTotal, scopePoliticalHeatTotal, scopePoliticalHeatTotal)
+          }}</span>
+        </button>
+        <button
+          v-for="entry in POLITICAL_HEAT_LEGEND"
+          :key="entry.level"
+          class="political-legend-chip"
+          :class="{ active: activePoliticalHeatFilter === entry.level }"
+          :title="
+            legendDualShareTitle(
+              politicalHeatCount(entry.level),
+              visiblePoliticalHeatTotal,
+              politicalHeatScopeCount(entry.level),
+              scopePoliticalHeatTotal,
+              `${entry.label} sectors`
+            )
+          "
+          @click="togglePoliticalHeatFilter(entry.level)"
+        >
+          <span class="political-legend-swatch" :style="{ background: entry.tint }"></span>
+          {{ entry.label }}
+          <span class="legend-count-badge">{{
+            formatLegendDualShare(
+              politicalHeatCount(entry.level),
+              visiblePoliticalHeatTotal,
+              politicalHeatScopeCount(entry.level),
+              scopePoliticalHeatTotal
+            )
+          }}</span>
+        </button>
+      </div>
+      <div class="status-star-legend" v-if="currentLod === 'hex' || currentLod === 'detail'">
+        <span v-for="entry in STAR_VISUAL_LEGEND" :key="entry.token" class="star-legend-chip">
+          <span class="star-legend-swatch" :style="starLegendSwatchStyle(entry)"></span>
+          {{ entry.label }}
+        </span>
+      </div>
+      <div class="status-route-legend" v-if="showRouteLegend">
+        <button
+          class="route-legend-chip"
+          :class="{ active: !activeRouteFilter }"
+          :title="legendShareTitle(visibleTradeRoutes.length, visibleTradeRoutes.length, 'visible routes')"
+          @click="activeRouteFilter = null"
+        >
+          <span class="route-legend-sample route-legend-sample--all"></span>
+          All Routes
+          <span class="legend-count-badge">{{
+            formatLegendShare(visibleTradeRoutes.length, visibleTradeRoutes.length)
+          }}</span>
+        </button>
+        <button
+            :title="legendDualShareTitle(visibleTradeRoutes.length, visibleTradeRoutes.length, scopeRouteTotal, scopeRouteTotal, 'routes')"
+          :key="entry.id"
+          class="route-legend-chip"
+          :class="{ active: activeRouteFilter === entry.id }"
+          :title="legendShareTitle(routeLegendCount(entry.id), visibleTradeRoutes.length, `${entry.label} routes`)"
+            <span class="legend-count-badge">{{
+              formatLegendDualShare(visibleTradeRoutes.length, visibleTradeRoutes.length, scopeRouteTotal, scopeRouteTotal)
+            }}</span>
+          {{ entry.label }}
+          <span class="legend-count-badge">{{
+            formatLegendShare(routeLegendCount(entry.id), visibleTradeRoutes.length)
+          }}</span>
+        </button>
+      </div>
+            :title="
+              legendDualShareTitle(
+                routeLegendCount(entry.id),
+                visibleTradeRoutes.length,
+                routeScopeCount(entry.id),
+                scopeRouteTotal,
+                `${entry.label} routes`
+              )
+            "
+        <button class="status-toggle-chip" :class="{ active: layerRoutes }" @click="layerRoutes = !layerRoutes">
+          Routes
+        </button>
+        <button
+            <span class="legend-count-badge">{{
+              formatLegendDualShare(routeLegendCount(entry.id), visibleTradeRoutes.length, routeScopeCount(entry.id), scopeRouteTotal)
+            }}</span>
+          :class="{ active: layerAnomalies }"
+          @click="layerAnomalies = !layerAnomalies"
+        >
+          Anomalies
+        </button>
+        <button class="status-toggle-chip" :class="{ active: layerBadges }" @click="layerBadges = !layerBadges">
+          Badges
+        </button>
+        <button class="status-toggle-chip" :class="{ active: layerPolity }" @click="layerPolity = !layerPolity">
+          Polity
+        </button>
+      </div>
       <span class="status-right">{{ visibleStars.length }} stellar detections in view · {{ biasReadout }}</span>
     </footer>
   </div>
@@ -765,15 +1135,19 @@ import { useRouter } from "vue-router";
 import LoadingSpinner from "../../components/common/LoadingSpinner.vue";
 import * as sectorApi from "../../api/sectorApi.js";
 import { useGalaxyStore } from "../../stores/galaxyStore.js";
-import { usePreferencesStore } from "../../stores/preferencesStore.js";
+import { PREFERENCE_DEFAULTS, usePreferencesStore } from "../../stores/preferencesStore.js";
 import { useSectorStore } from "../../stores/sectorStore.js";
 import { useSystemStore } from "../../stores/systemStore.js";
 import { generatePrimaryStar } from "../../utils/primaryStarGenerator.js";
-import { starDescriptorToColor, starDescriptorToCssClass } from "../../utils/starDisplay.js";
+import {
+  resolveStarDescriptorToken,
+  starDescriptorToColor,
+  starDescriptorToCssClass,
+} from "../../utils/starDisplay.js";
 import { serializeReturnRoute } from "../../utils/returnRoute.js";
 import { calculateHexOccupancyProbability } from "../../utils/sectorGeneration.js";
 import { generateGalaxySectorLayoutWindow } from "../../utils/sectorLayoutGenerator.js";
-import { summarizeSystemRecord as summarizeSavedSystemRecord } from "../../utils/systemSummary.js";
+import { summarizeSystemRecord } from "../../utils/systemSummary.js";
 import {
   buildGeneratedStars,
   buildHexStarTypeMetadata,
@@ -798,6 +1172,48 @@ const STARPORT_LABELS = Object.freeze({
   E: "Frontier",
   X: "No starport",
 });
+const STAR_VISUAL_META = Object.freeze({
+  O: { label: "O Class", haloScale: 2.9, haloOpacity: 0.16, spikeCount: 4, accent: "#d9e4ff", ring: false },
+  B: { label: "B Class", haloScale: 2.7, haloOpacity: 0.15, spikeCount: 4, accent: "#dce6ff", ring: false },
+  A: { label: "A Class", haloScale: 2.5, haloOpacity: 0.14, spikeCount: 4, accent: "#eef2ff", ring: false },
+  F: { label: "F Class", haloScale: 2.3, haloOpacity: 0.13, spikeCount: 3, accent: "#fff8ef", ring: false },
+  G: { label: "G Class", haloScale: 2.15, haloOpacity: 0.12, spikeCount: 3, accent: "#fff4df", ring: false },
+  K: { label: "K Class", haloScale: 2.0, haloOpacity: 0.12, spikeCount: 2, accent: "#ffd8af", ring: false },
+  M: { label: "M Class", haloScale: 1.8, haloOpacity: 0.11, spikeCount: 2, accent: "#ffb199", ring: false },
+  D: { label: "White Dwarf", haloScale: 1.65, haloOpacity: 0.11, spikeCount: 4, accent: "#f5fbff", ring: false },
+  BD: { label: "Brown Dwarf", haloScale: 1.6, haloOpacity: 0.1, spikeCount: 0, accent: "#d88955", ring: false },
+  L: { label: "L Dwarf", haloScale: 1.5, haloOpacity: 0.1, spikeCount: 0, accent: "#b75b2f", ring: false },
+  T: { label: "T Dwarf", haloScale: 1.4, haloOpacity: 0.1, spikeCount: 0, accent: "#7d3820", ring: false },
+  Y: { label: "Y Dwarf", haloScale: 1.3, haloOpacity: 0.1, spikeCount: 0, accent: "#552616", ring: false },
+  BH: { label: "Black Hole", haloScale: 1.95, haloOpacity: 0.14, spikeCount: 0, accent: "#f7b1ff", ring: true },
+  PSR: { label: "Pulsar", haloScale: 2.05, haloOpacity: 0.15, spikeCount: 4, accent: "#ffcbff", ring: true },
+  NS: { label: "Neutron Star", haloScale: 1.95, haloOpacity: 0.14, spikeCount: 4, accent: "#ffd8ff", ring: true },
+  NB: { label: "Nebula", haloScale: 2.6, haloOpacity: 0.12, spikeCount: 0, accent: "#d1bbff", ring: true },
+  PROTO: { label: "Protostar", haloScale: 2.15, haloOpacity: 0.14, spikeCount: 3, accent: "#ffd3a0", ring: false },
+  CLUSTER: { label: "Dense Cluster", haloScale: 2.4, haloOpacity: 0.15, spikeCount: 5, accent: "#f3c4ff", ring: true },
+  ANOMALY: { label: "Anomaly", haloScale: 2.2, haloOpacity: 0.15, spikeCount: 4, accent: "#f3c4ff", ring: true },
+});
+const STAR_VISUAL_LEGEND = Object.freeze([
+  { token: "O", label: "Hot Blue", color: "#9bb0ff" },
+  { token: "G", label: "Yellow", color: "#fff4ea" },
+  { token: "M", label: "Red", color: "#ff8c69" },
+  { token: "D", label: "White Dwarf", color: "#d8e6ff" },
+  { token: "BD", label: "Brown Dwarf", color: "#b85c2e" },
+  { token: "BH", label: "Anomaly", color: "#f7b1ff" },
+]);
+const POLITICAL_HEAT_LEGEND = Object.freeze([
+  { level: "calm", label: "Calm", tint: "#2d6c5f" },
+  { level: "watched", label: "Watched", tint: "#3f86c4" },
+  { level: "contested", label: "Contested", tint: "#8b5ac9" },
+  { level: "volatile", label: "Volatile", tint: "#a93f64" },
+]);
+const ROUTE_VISUAL_LEGEND = Object.freeze([
+  { id: "major", label: "Major", sampleClass: "route-legend-sample--major" },
+  { id: "pressure", label: "Pressure", sampleClass: "route-legend-sample--pressure" },
+  { id: "hazard", label: "Hazard", sampleClass: "route-legend-sample--hazard" },
+  { id: "standard", label: "Standard", sampleClass: "route-legend-sample--standard" },
+]);
+const ANOMALY_DESCRIPTOR_TOKENS = new Set(["BH", "PSR", "NS", "NB", "PROTO", "CLUSTER", "ANOMALY"]);
 
 // ── Hex geometry constants (flat-top) ──────────────────────────────────────
 const HEX_R = 22;
@@ -913,11 +1329,17 @@ const selectedGalaxyId = ref("");
 const isLoading = ref(false);
 const atlasSectors = ref([]);
 
-const layerHexGrid = ref(true);
-const layerNames = ref(true);
-const layerSectorNames = ref(false);
-const layerCoords = ref(false);
-const layerZones = ref(false);
+const layerHexGrid = ref(Boolean(preferencesStore.atlasLayerHexGrid));
+const layerNames = ref(Boolean(preferencesStore.atlasLayerNames));
+const layerSectorNames = ref(Boolean(preferencesStore.atlasLayerSectorNames));
+const layerCoords = ref(Boolean(preferencesStore.atlasLayerCoords));
+const layerZones = ref(Boolean(preferencesStore.atlasLayerZones));
+const layerRoutes = ref(Boolean(preferencesStore.atlasLayerRoutes));
+const layerAnomalies = ref(Boolean(preferencesStore.atlasLayerAnomalies));
+const layerBadges = ref(Boolean(preferencesStore.atlasLayerBadges));
+const layerPolity = ref(Boolean(preferencesStore.atlasLayerPolity));
+const activePoliticalHeatFilter = ref(null);
+const activeRouteFilter = ref(null);
 
 const hoveredHexKey = ref(null);
 const hoveredSectorId = ref(null);
@@ -1301,7 +1723,30 @@ const renderStars = computed(() => showStars.value && (!dragging.value || parsec
 const showStarNames = computed(() => layerNames.value && !dragging.value && parsecsPerHex.value <= 5);
 const showStarCoords = computed(() => layerCoords.value && !dragging.value && parsecsPerHex.value <= 10);
 const showEmptyCoords = computed(() => layerCoords.value && hexGridVisible.value && parsecsPerHex.value <= 10);
-const showTradeRoutes = computed(() => !dragging.value && parsecsPerHex.value <= 5 && visibleStars.value.length <= 320);
+const showTradeRoutes = computed(
+  () => layerRoutes.value && !dragging.value && parsecsPerHex.value <= 5 && visibleStars.value.length <= 320,
+);
+const showRouteLegend = computed(
+  () => layerRoutes.value && (currentLod.value === "hex" || currentLod.value === "detail"),
+);
+const showSystemBadges = computed(
+  () => layerBadges.value && !dragging.value && parsecsPerHex.value <= 5 && visibleStars.value.length <= 180,
+);
+const showPolityGlyphs = computed(
+  () =>
+    layerPolity.value &&
+    layerNames.value &&
+    !dragging.value &&
+    parsecsPerHex.value <= 5 &&
+    visibleStars.value.length <= 200,
+);
+const showAnomalyOverlays = computed(
+  () => layerAnomalies.value && !dragging.value && parsecsPerHex.value <= 60 && visibleSectorTiles.value.length <= 240,
+);
+const showPoliticalHeat = computed(
+  () => layerPolity.value && !dragging.value && parsecsPerHex.value <= 100 && parsecsPerHex.value > 5,
+);
+const sectorHasPoliticalFilter = computed(() => Boolean(activePoliticalHeatFilter.value));
 
 const sectorTileOpacity = computed(() => {
   if (parsecsPerHex.value > 100) return 0.88;
@@ -1457,12 +1902,12 @@ const visibleSectorTiles = computed(() => {
   return tiles;
 });
 
-// ── Star markers (prefer persisted system records, fall back to sector metadata) ──
-const allStarMarkers = computed(() => {
-  if (!starDataEnabled.value) return [];
+const loadedSectorTiles = computed(() => sectors.value.map(toSectorTile).filter(Boolean));
+
+function buildStarMarkersForTiles(tiles) {
   const markers = [];
   const markerByKey = new Map();
-  const tileBySectorId = new Map(visibleSectorTiles.value.map((tile) => [String(tile.sectorId), tile]));
+  const tileBySectorId = new Map(tiles.map((tile) => [String(tile.sectorId), tile]));
 
   for (const system of atlasSystemRecords.value) {
     const sectorId = String(system?.sectorId || "");
@@ -1502,6 +1947,7 @@ const allStarMarkers = computed(() => {
     const secondaryStars = starMetadata.secondaryStars.map((star) => normalizeGeneratedStarType(star)).filter(Boolean);
     const starClass =
       String(tile.sector?.metadata?.hexStarTypes?.[coord]?.starClass || "").trim() || starTypeToCssClass(starType);
+    const systemSummary = summarizeSystemRecord(system);
 
     const marker = {
       key,
@@ -1516,6 +1962,16 @@ const allStarMarkers = computed(() => {
       color: starTypeToColor(starType, starClass),
       compColor: starTypeToColor(secondaryStars[0] || "M", ""),
       hasSecondary: secondaryStars.length > 0,
+      anomalyType: starMetadata.anomalyType || null,
+      anomalyToken: resolveStarDescriptorToken(starMetadata.anomalyType || starType, "G"),
+      travelZone: systemSummary.travelZone,
+      bases: systemSummary.bases,
+      habitability: systemSummary.habitability,
+      resourceRating: systemSummary.resourceRating,
+      importance: systemSummary.importance,
+      governmentProfile: systemSummary.governmentProfile,
+      factionsProfile: systemSummary.factionsProfile,
+      hasSavedSystem: systemSummary.hasSavedSystem,
       legacyReconstructed: Boolean(starMetadata.legacyReconstructed),
       legacyHierarchyUnknown: Boolean(starMetadata.legacyHierarchyUnknown),
       presenceOnly: false,
@@ -1525,7 +1981,7 @@ const allStarMarkers = computed(() => {
     markers.push(marker);
   }
 
-  for (const tile of visibleSectorTiles.value) {
+  for (const tile of tiles) {
     const hexStarTypes = tile.sector?.metadata?.hexStarTypes ?? {};
     const occupiedHexes = tile.sector?.metadata?.occupiedHexes ?? [];
     const typedCoords = new Set();
@@ -1564,6 +2020,16 @@ const allStarMarkers = computed(() => {
         color: starTypeToColor(starType, info.starClass || ""),
         compColor: starTypeToColor(starMetadata.secondaryStars?.[0] || "M", ""),
         hasSecondary: starMetadata.secondaryStars.length > 0,
+        anomalyType: starMetadata.anomalyType || null,
+        anomalyToken: resolveStarDescriptorToken(starMetadata.anomalyType || starType, "G"),
+        travelZone: "—",
+        bases: [],
+        habitability: "—",
+        resourceRating: "—",
+        importance: "—",
+        governmentProfile: "—",
+        factionsProfile: "—",
+        hasSavedSystem: false,
         legacyReconstructed: Boolean(starMetadata.legacyReconstructed),
         legacyHierarchyUnknown: Boolean(starMetadata.legacyHierarchyUnknown),
         presenceOnly: false,
@@ -1595,6 +2061,16 @@ const allStarMarkers = computed(() => {
         color: "#909090",
         compColor: "#707070",
         hasSecondary: false,
+        anomalyType: null,
+        anomalyToken: "",
+        travelZone: "—",
+        bases: [],
+        habitability: "—",
+        resourceRating: "—",
+        importance: "—",
+        governmentProfile: "—",
+        factionsProfile: "—",
+        hasSavedSystem: false,
         presenceOnly: true,
         name: "",
       };
@@ -1603,6 +2079,17 @@ const allStarMarkers = computed(() => {
     }
   }
   return markers;
+}
+
+// ── Star markers (prefer persisted system records, fall back to sector metadata) ──
+const allStarMarkers = computed(() => {
+  if (!starDataEnabled.value) return [];
+  return buildStarMarkersForTiles(visibleSectorTiles.value);
+});
+
+const loadedRouteStarMarkers = computed(() => {
+  if (inspectorMode.value !== "star") return [];
+  return buildStarMarkersForTiles(loadedSectorTiles.value);
 });
 
 const visibleStars = computed(() => {
@@ -1616,10 +2103,9 @@ const visibleStars = computed(() => {
 
 const starMarkerByKey = computed(() => new Map(allStarMarkers.value.map((star) => [star.key, star])));
 
-const visibleTradeRoutes = computed(() => {
-  if (!showTradeRoutes.value) return [];
+function buildTradeRoutesForStars(stars) {
   const bySector = new Map();
-  for (const star of visibleStars.value) {
+  for (const star of stars) {
     if (!bySector.has(star.sectorId)) bySector.set(star.sectorId, []);
     bySector.get(star.sectorId).push(star);
   }
@@ -1632,22 +2118,552 @@ const visibleTradeRoutes = computed(() => {
       const b = stars[i];
       const dist = Math.hypot(a.wx - b.wx, a.wy - b.wy);
       if (dist > HEX_STEP_X * 8) continue;
+      const routeStyle = deriveRouteStyle(a, b);
       routes.push({
         key: `${sectorId}:${a.coord}-${b.coord}`,
+        fromKey: a.key,
+        toKey: b.key,
         x1: a.wx,
         y1: a.wy,
         x2: b.wx,
         y2: b.wy,
+        legendKey: routeStyle.legendKey,
+        className: routeStyle.className,
+        filterClass: activeRouteFilter.value
+          ? activeRouteFilter.value === routeStyle.legendKey
+            ? "trade-route--highlighted"
+            : "trade-route--dimmed"
+          : "",
+        stroke: routeStyle.stroke,
+        strokeWidth: routeStyle.strokeWidth,
+        strokeDasharray: routeStyle.strokeDasharray,
+        opacity: activeRouteFilter.value
+          ? activeRouteFilter.value === routeStyle.legendKey
+            ? Math.min(1, routeStyle.opacity)
+            : Math.max(0.12, routeStyle.opacity * 0.16)
+          : routeStyle.opacity,
       });
     }
   }
 
   return routes;
+}
+
+const visibleTradeRoutes = computed(() => {
+  if (!showTradeRoutes.value) return [];
+  return buildTradeRoutesForStars(visibleStars.value).map((route) => ({
+    ...route,
+    filterClass: activeRouteFilter.value
+      ? activeRouteFilter.value === route.legendKey
+        ? "trade-route--highlighted"
+        : "trade-route--dimmed"
+      : "",
+    opacity: activeRouteFilter.value
+      ? activeRouteFilter.value === route.legendKey
+        ? Math.min(1, route.opacity)
+        : Math.max(0.12, route.opacity * 0.16)
+      : route.opacity,
+  }));
+});
+
+const loadedTradeRoutes = computed(() => buildTradeRoutesForStars(loadedRouteStarMarkers.value));
+
+const visiblePoliticalHeatCounts = computed(() => {
+  const counts = new Map(POLITICAL_HEAT_LEGEND.map((entry) => [entry.level, 0]));
+  for (const tile of visibleSectorTiles.value) {
+    const level = politicalHeatForSector(tile.sectorId)?.level;
+    if (!level || !counts.has(level)) continue;
+    counts.set(level, (counts.get(level) || 0) + 1);
+  }
+  return counts;
+});
+
+const visiblePoliticalHeatTotal = computed(() => visibleSectorTiles.value.length);
+
+const visibleRouteCounts = computed(() => {
+  const counts = new Map(ROUTE_VISUAL_LEGEND.map((entry) => [entry.id, 0]));
+  for (const route of visibleTradeRoutes.value) {
+    if (!route?.legendKey || !counts.has(route.legendKey)) continue;
+    counts.set(route.legendKey, (counts.get(route.legendKey) || 0) + 1);
+  }
+  return counts;
+});
+
+const inspectorStarRouteSummary = computed(() => {
+  if (inspectorMode.value !== "star" || !inspectorStar.value?.key) return null;
+  const key = inspectorStar.value.key;
+  const routes = loadedTradeRoutes.value.filter((route) => route.fromKey === key || route.toKey === key);
+  if (!routes.length) {
+    return {
+      label: "Local only",
+      detail: "No corridor links were found in the current atlas scope.",
+    };
+  }
+
+  const counts = new Map(ROUTE_VISUAL_LEGEND.map((entry) => [entry.id, 0]));
+  for (const route of routes) {
+    counts.set(route.legendKey, (counts.get(route.legendKey) || 0) + 1);
+  }
+
+  const dominant =
+    ["hazard", "major", "pressure", "standard"].find((entry) => (counts.get(entry) || 0) > 0) || "standard";
+  const dominantLabel = ROUTE_VISUAL_LEGEND.find((entry) => entry.id === dominant)?.label || "Standard";
+  const detail = ROUTE_VISUAL_LEGEND.map((entry) => {
+    const count = counts.get(entry.id) || 0;
+    return count ? `${count} ${entry.label.toLowerCase()}` : null;
+  })
+    .filter(Boolean)
+    .join(" · ");
+
+  return {
+    label: `${dominantLabel} corridor`,
+    detail: `${routes.length} scoped link${routes.length === 1 ? "" : "s"}${detail ? ` · ${detail}` : ""}`,
+  };
 });
 
 function starRenderFill(star) {
-  if (parsecsPerHex.value <= 10) return "#f8fbff";
   return star.color;
+}
+
+function hexToRgba(hex, alpha = 1) {
+  const normalized = String(hex || "")
+    .trim()
+    .replace("#", "");
+  if (!/^[0-9a-fA-F]{6}$/.test(normalized)) {
+    return `rgba(255, 255, 255, ${alpha})`;
+  }
+
+  const red = Number.parseInt(normalized.slice(0, 2), 16);
+  const green = Number.parseInt(normalized.slice(2, 4), 16);
+  const blue = Number.parseInt(normalized.slice(4, 6), 16);
+  return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
+}
+
+function getStarVisualProfile(starType = "", starClass = "") {
+  const token = resolveStarDescriptorToken(starClass || starType, "G");
+  const profile = STAR_VISUAL_META[token] || STAR_VISUAL_META.G;
+  return {
+    token,
+    ...profile,
+  };
+}
+
+function starVisualProfile(star) {
+  return getStarVisualProfile(star?.starType, star?.starClass);
+}
+
+function starHaloFill(star) {
+  const color = star?.color || "#fff4ea";
+  const profile = getStarVisualProfile(star?.starType, star?.starClass);
+  return hexToRgba(color, profile.haloOpacity);
+}
+
+function buildStarSpikeSegments(cx, cy, radius, profile) {
+  const spikeCount = Number(profile?.spikeCount) || 0;
+  if (!spikeCount) {
+    return [];
+  }
+
+  const accent = profile?.accent || "#ffffff";
+  const innerRadius = radius * 0.85;
+  const outerRadius = radius * Math.max(1.55, Number(profile?.haloScale) || 1.8);
+  const segments = [];
+
+  for (let index = 0; index < spikeCount; index += 1) {
+    const angle = (Math.PI / spikeCount) * index;
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    segments.push({
+      x1: cx - cos * innerRadius,
+      y1: cy - sin * innerRadius,
+      x2: cx + cos * outerRadius,
+      y2: cy + sin * outerRadius,
+      stroke: accent,
+      opacity: 0.38,
+      width: Math.max(0.7, radius * 0.09),
+    });
+  }
+
+  return segments;
+}
+
+function starLegendSwatchStyle(entry) {
+  const color = entry?.color || "#ffffff";
+  return {
+    background: `radial-gradient(circle at 35% 35%, #ffffff 0%, ${color} 50%, ${hexToRgba(color, 0.12)} 100%)`,
+    boxShadow: `0 0 10px ${hexToRgba(color, 0.45)}`,
+  };
+}
+
+function normalizeAnomalyToken(value) {
+  const token = resolveStarDescriptorToken(value, "");
+  return ANOMALY_DESCRIPTOR_TOKENS.has(token) ? token : "";
+}
+
+function resolveTravelZoneClass(value) {
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase();
+  if (!normalized || normalized === "—") return "";
+  if (normalized.startsWith("red")) return "zone-red";
+  if (normalized.startsWith("amber")) return "zone-amber";
+  return "";
+}
+
+function getAnomalyOverlayVisual(token, scope = "hex") {
+  const scale = scope === "sector" ? 1.35 : 1;
+  switch (token) {
+    case "NB":
+      return {
+        fill: hexToRgba("#7f58ff", 0.12),
+        coreFill: hexToRgba("#cab8ff", 0.22),
+        rotation: -18,
+        rx: 62 * scale,
+        ry: 38 * scale,
+        coreR: 10 * scale,
+        opacity: 1,
+        coreOpacity: 1,
+      };
+    case "BH":
+      return {
+        fill: hexToRgba("#e45cff", 0.12),
+        coreFill: hexToRgba("#251133", 0.88),
+        rotation: 0,
+        rx: 30 * scale,
+        ry: 30 * scale,
+        coreR: 8 * scale,
+        opacity: 1,
+        coreOpacity: 1,
+      };
+    case "PSR":
+      return {
+        fill: hexToRgba("#ff91f9", 0.11),
+        coreFill: hexToRgba("#ffd6fd", 0.34),
+        rotation: 26,
+        rx: 36 * scale,
+        ry: 16 * scale,
+        coreR: 5 * scale,
+        opacity: 1,
+        coreOpacity: 1,
+      };
+    case "NS":
+      return {
+        fill: hexToRgba("#f5a7ff", 0.1),
+        coreFill: hexToRgba("#ffe4ff", 0.28),
+        rotation: -20,
+        rx: 28 * scale,
+        ry: 14 * scale,
+        coreR: 4.5 * scale,
+        opacity: 1,
+        coreOpacity: 1,
+      };
+    case "PROTO":
+      return {
+        fill: hexToRgba("#ffbb78", 0.11),
+        coreFill: hexToRgba("#ffe0b3", 0.25),
+        rotation: 14,
+        rx: 34 * scale,
+        ry: 22 * scale,
+        coreR: 7 * scale,
+        opacity: 1,
+        coreOpacity: 1,
+      };
+    case "CLUSTER":
+      return {
+        fill: hexToRgba("#d68cff", 0.1),
+        coreFill: hexToRgba("#ffe1ff", 0.2),
+        rotation: 0,
+        rx: 44 * scale,
+        ry: 30 * scale,
+        coreR: 6 * scale,
+        opacity: 1,
+        coreOpacity: 1,
+      };
+    case "ANOMALY":
+      return {
+        fill: hexToRgba("#f2a0ff", 0.1),
+        coreFill: hexToRgba("#ffd1ff", 0.24),
+        rotation: 11,
+        rx: 34 * scale,
+        ry: 22 * scale,
+        coreR: 6 * scale,
+        opacity: 1,
+        coreOpacity: 1,
+      };
+    default:
+      return {
+        fill: hexToRgba("#d68cff", 0.1),
+        coreFill: hexToRgba("#ffe1ff", 0.2),
+        rotation: 0,
+        rx: 30 * scale,
+        ry: 20 * scale,
+        coreR: 5 * scale,
+        opacity: 1,
+        coreOpacity: 1,
+      };
+  }
+}
+
+function buildAnomalyOverlay({ key, cx, cy, token, scale = 1, scope = "hex" }) {
+  const visual = getAnomalyOverlayVisual(token, scope);
+  const lobes = buildAnomalyCloudLobes({ key, cx, cy, token, visual, scale });
+  const motes = buildAnomalyCloudMotes({ key, cx, cy, token, visual, scale });
+  return {
+    key,
+    cx,
+    cy,
+    token,
+    rotation: visual.rotation,
+    rx: visual.rx * scale,
+    ry: visual.ry * scale,
+    coreR: visual.coreR * scale,
+    fill: visual.fill,
+    coreFill: visual.coreFill,
+    opacity: visual.opacity,
+    coreOpacity: visual.coreOpacity,
+    lobes,
+    motes,
+  };
+}
+
+function buildAnomalyCloudLobes({ key, cx, cy, token, visual, scale = 1 }) {
+  const seed = hashString(`${key}:${token}`);
+  const lobeCount = token === "NB" || token === "CLUSTER" ? 4 : 3;
+  const lobes = [];
+
+  for (let index = 0; index < lobeCount; index += 1) {
+    const angle = ((seed % 360) + index * (360 / lobeCount)) * (Math.PI / 180);
+    const distance = index === 0 ? 0 : (visual.rx * 0.28 + ((seed >> (index * 2)) % 9)) * scale;
+    const sizeBias = 0.78 + ((seed >> (index * 3)) % 7) / 10;
+    lobes.push({
+      key: `${key}:lobe:${index}`,
+      cx: cx + Math.cos(angle) * distance,
+      cy: cy + Math.sin(angle) * distance * 0.7,
+      rx: visual.rx * sizeBias,
+      ry: visual.ry * (0.72 + ((seed >> (index * 4)) % 6) / 10),
+      rotation: visual.rotation + index * 17 - 12,
+      fill: visual.fill,
+      opacity: Math.max(0.12, visual.opacity * (index === 0 ? 1 : 0.7)),
+    });
+  }
+
+  return lobes;
+}
+
+function buildAnomalyCloudMotes({ key, cx, cy, token, visual, scale = 1 }) {
+  const seed = hashString(`${key}:${token}:motes`);
+  const moteCount = token === "NB" || token === "PROTO" ? 6 : token === "CLUSTER" ? 8 : 4;
+  const motes = [];
+
+  for (let index = 0; index < moteCount; index += 1) {
+    const angle = ((seed % 360) + index * (360 / moteCount)) * (Math.PI / 180);
+    const orbit = (visual.rx * 0.34 + ((seed >> (index + 1)) % 12)) * scale;
+    motes.push({
+      key: `${key}:mote:${index}`,
+      cx: cx + Math.cos(angle) * orbit,
+      cy: cy + Math.sin(angle) * orbit * 0.68,
+      r: Math.max(1.4, visual.coreR * 0.18 + ((seed >> (index + 2)) % 4) * 0.25),
+      fill: visual.coreFill,
+      opacity: 0.18 + ((seed >> (index + 3)) % 4) * 0.05,
+    });
+  }
+
+  return motes;
+}
+
+function travelZoneBadgeText(star) {
+  const zoneClass = resolveTravelZoneClass(star?.travelZone);
+  if (zoneClass === "zone-red") return "R";
+  if (zoneClass === "zone-amber") return "A";
+  return "";
+}
+
+function travelZoneBadgeClass(star) {
+  const zoneClass = resolveTravelZoneClass(star?.travelZone);
+  return zoneClass === "zone-red" ? "star-badge--zone-red" : zoneClass === "zone-amber" ? "star-badge--zone-amber" : "";
+}
+
+function baseBadgeText(star) {
+  const baseCount = Array.isArray(star?.bases) ? star.bases.filter(Boolean).length : 0;
+  return baseCount > 0 ? `B${Math.min(baseCount, 9)}` : "";
+}
+
+function habitabilityBadgeText(star) {
+  const value = String(star?.habitability || "").trim();
+  if (!value || value === "—") return "";
+  const numericMatch = value.match(/-?\d+(?:\.\d+)?/);
+  return numericMatch ? `H${numericMatch[0]}` : "H";
+}
+
+function hasStarBadge(star) {
+  return Boolean(travelZoneBadgeText(star) || baseBadgeText(star) || habitabilityBadgeText(star));
+}
+
+function governmentGlyphText(star) {
+  const profile = String(star?.governmentProfile || "").trim();
+  if (!profile || profile === "—") return "";
+  const firstToken = profile.split(/[^A-Za-z0-9]+/).find(Boolean) || "";
+  return firstToken.charAt(0).toUpperCase();
+}
+
+function factionGlyphCount(star) {
+  const summary = String(star?.factionsProfile || "").trim();
+  if (!summary || summary === "—") return 0;
+  const explicitCount = summary.match(/(\d+)\s+significant/i);
+  if (explicitCount) {
+    return Math.min(3, Number(explicitCount[1]) || 0);
+  }
+  return 1;
+}
+
+function factionGlyphPips(star) {
+  return Array.from({ length: factionGlyphCount(star) }, (_, index) => index);
+}
+
+function hasPolityGlyph(star) {
+  return Boolean(governmentGlyphText(star) || factionGlyphCount(star));
+}
+
+function polityGlyphFill(star) {
+  const seedSource = `${star?.governmentProfile || ""}:${star?.factionsProfile || ""}:${star?.key || ""}`;
+  const palette = ["#5f8dff", "#3ab7a1", "#d6a64f", "#d36d8d", "#8f74ff", "#4faad6"];
+  return palette[hashString(seedSource) % palette.length];
+}
+
+function parseImportanceValue(value) {
+  const match = String(value || "")
+    .trim()
+    .match(/-?\d+/);
+  return match ? Number.parseInt(match[0], 10) : null;
+}
+
+function hasFactionPressureSummary(value) {
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase();
+  if (!normalized || normalized === "—") return false;
+  return /pressure|riot|riots|conflict|opposition|insurgent|unrest/.test(normalized);
+}
+
+function hasFragmentedGovernmentSummary(value) {
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase();
+  if (!normalized || normalized === "—") return false;
+  return /fragment|balkan|feudal|decentral|diffuse|coalition|confeder|splinter|federated/.test(normalized);
+}
+
+function parseSignificantFactionCount(value) {
+  const normalized = String(value || "").trim();
+  if (!normalized || normalized === "—") return 0;
+  const explicit = normalized.match(/(\d+)\s+significant/i);
+  if (explicit) {
+    return Number.parseInt(explicit[1], 10) || 0;
+  }
+  return /faction/i.test(normalized) ? 1 : 0;
+}
+
+function buildSectorPoliticalHeat({
+  systemCount = 0,
+  pressureCount = 0,
+  fragmentedCount = 0,
+  factionSignals = 0,
+  importanceTotal = 0,
+} = {}) {
+  if (!systemCount) return null;
+
+  const pressureRatio = pressureCount / systemCount;
+  const fragmentationRatio = fragmentedCount / systemCount;
+  const factionRatio = factionSignals / systemCount;
+  const importanceAverage = importanceTotal / systemCount;
+  const score =
+    pressureRatio * 1.25 + fragmentationRatio * 0.95 + Math.min(factionRatio / 2.5, 1) * 0.7 + importanceAverage * 0.08;
+
+  if (score >= 1.55) {
+    return {
+      level: "volatile",
+      label: "Volatile",
+      tint: "#a93f64",
+      opacity: 0.28,
+    };
+  }
+
+  if (score >= 0.95) {
+    return {
+      level: "contested",
+      label: "Contested",
+      tint: "#8b5ac9",
+      opacity: 0.22,
+    };
+  }
+
+  if (score >= 0.45) {
+    return {
+      level: "watched",
+      label: "Watched",
+      tint: "#3f86c4",
+      opacity: 0.16,
+    };
+  }
+
+  return {
+    level: "calm",
+    label: "Calm",
+    tint: "#2d6c5f",
+    opacity: 0.1,
+  };
+}
+
+function deriveRouteStyle(left, right) {
+  const highestImportance = Math.max(
+    parseImportanceValue(left?.importance) ?? -99,
+    parseImportanceValue(right?.importance) ?? -99,
+  );
+  const hazardous = Boolean(travelZoneBadgeText(left) || travelZoneBadgeText(right));
+  const pressured =
+    hasFactionPressureSummary(left?.factionsProfile) || hasFactionPressureSummary(right?.factionsProfile);
+
+  if (hazardous) {
+    return {
+      legendKey: "hazard",
+      className: "trade-route--hazard",
+      stroke: "rgba(255, 178, 92, 0.62)",
+      strokeWidth: 1.5,
+      strokeDasharray: "3 3",
+      opacity: 0.95,
+    };
+  }
+
+  if (highestImportance >= 3) {
+    return {
+      legendKey: "major",
+      className: "trade-route--major",
+      stroke: "rgba(134, 229, 255, 0.82)",
+      strokeWidth: 1.7,
+      strokeDasharray: "",
+      opacity: 0.95,
+    };
+  }
+
+  if (pressured) {
+    return {
+      legendKey: "pressure",
+      className: "trade-route--pressure",
+      stroke: "rgba(232, 154, 255, 0.7)",
+      strokeWidth: 1.2,
+      strokeDasharray: "6 3 1 3",
+      opacity: 0.9,
+    };
+  }
+
+  return {
+    legendKey: "standard",
+    className: "trade-route--standard",
+    stroke: "rgba(120, 220, 255, 0.45)",
+    strokeWidth: 1.1,
+    strokeDasharray: "4 3",
+    opacity: 1,
+  };
 }
 
 // ── Hex grid cells──────────────────────────────────────────────────────────
@@ -1732,8 +2748,70 @@ const sparseCoordHexes = computed(() => {
   return visibleHexCells.value.filter((h, i) => !h.occupied && i % step === 0);
 });
 
-// Placeholder — extend when travel zone stored per hex
-const travelZoneHexes = computed(() => []);
+const travelZoneHexes = computed(() => {
+  if (!layerZones.value || !hexGridVisible.value) return [];
+  return visibleStars.value
+    .map((star) => {
+      const zoneClass = resolveTravelZoneClass(star.travelZone);
+      if (!zoneClass) return null;
+      return {
+        key: star.key,
+        points: getCachedHexPoints(`tz:${star.key}`, star.wx, star.wy),
+        zoneClass,
+      };
+    })
+    .filter(Boolean);
+});
+
+const anomalyRegionOverlays = computed(() => {
+  if (!showAnomalyOverlays.value) return [];
+
+  const overlays = [];
+  const seen = new Set();
+
+  for (const tile of visibleSectorTiles.value) {
+    const centralToken = normalizeAnomalyToken(tile.sector?.metadata?.centralAnomalyType || "");
+    if (centralToken) {
+      const key = `sector:${tile.sectorId}:${centralToken}`;
+      seen.add(key);
+      overlays.push(
+        buildAnomalyOverlay({
+          key,
+          cx: tile.wx + SECTOR_PX_W / 2,
+          cy: tile.wy + SECTOR_PX_H / 2,
+          token: centralToken,
+          scale: 1.45,
+          scope: "sector",
+        }),
+      );
+    }
+
+    const hexStarTypes = tile.sector?.metadata?.hexStarTypes ?? {};
+    for (const [coord, info] of Object.entries(hexStarTypes)) {
+      const token = normalizeAnomalyToken(info?.anomalyType || info?.starType || "");
+      if (!token) continue;
+      const hcol = Number.parseInt(coord.slice(0, 2), 10);
+      const hrow = Number.parseInt(coord.slice(2, 4), 10);
+      if (!Number.isFinite(hcol) || !Number.isFinite(hrow)) continue;
+      const key = `hex:${tile.sectorId}:${coord}:${token}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const { wx, wy } = hexWorldCenter(tile.sx, tile.sy, hcol, hrow);
+      overlays.push(
+        buildAnomalyOverlay({
+          key,
+          cx: wx,
+          cy: wy,
+          token,
+          scale: 0.68,
+          scope: "hex",
+        }),
+      );
+    }
+  }
+
+  return overlays;
+});
 
 // ── Inspector computed ─────────────────────────────────────────────────────
 const inspectorVisible = computed(() => inspectorMode.value !== null);
@@ -1868,6 +2946,31 @@ const atlasSystemRecords = computed(() => {
   return Array.from(merged.values());
 });
 
+const sectorPoliticalHeatById = computed(() => {
+  const grouped = new Map();
+
+  for (const system of atlasSystemRecords.value) {
+    const sectorId = String(system?.sectorId || "").trim();
+    if (!sectorId) continue;
+    const summary = summarizeSystemRecord(system);
+    const entry = grouped.get(sectorId) || {
+      systemCount: 0,
+      pressureCount: 0,
+      fragmentedCount: 0,
+      factionSignals: 0,
+      importanceTotal: 0,
+    };
+    entry.systemCount += 1;
+    if (hasFactionPressureSummary(summary.factionsProfile)) entry.pressureCount += 1;
+    if (hasFragmentedGovernmentSummary(summary.governmentProfile)) entry.fragmentedCount += 1;
+    entry.factionSignals += parseSignificantFactionCount(summary.factionsProfile);
+    entry.importanceTotal += Math.max(0, parseImportanceValue(summary.importance) ?? 0);
+    grouped.set(sectorId, entry);
+  }
+
+  return new Map(Array.from(grouped.entries()).map(([sectorId, entry]) => [sectorId, buildSectorPoliticalHeat(entry)]));
+});
+
 function findSystemRecordForStar(star) {
   if (!star) return null;
   const hexX = Number(String(star.coord ?? "").slice(0, 2));
@@ -1885,11 +2988,76 @@ function findSystemRecordForStar(star) {
   );
 }
 
-function summarizeSystemRecord(system) {
-  return summarizeSavedSystemRecord(system);
+const inspectorSystemSummary = computed(() => summarizeSystemRecord(findSystemRecordForStar(inspectorStar.value)));
+
+function politicalHeatForSector(sectorId) {
+  return sectorPoliticalHeatById.value.get(String(sectorId || "").trim()) || null;
 }
 
-const inspectorSystemSummary = computed(() => summarizeSystemRecord(findSystemRecordForStar(inspectorStar.value)));
+function politicalHeatMatches(sectorId) {
+  if (!activePoliticalHeatFilter.value) return true;
+  return politicalHeatForSector(sectorId)?.level === activePoliticalHeatFilter.value;
+}
+
+function sectorTileBaseOpacity(sectorId) {
+  if (!sectorHasPoliticalFilter.value) return sectorTileOpacity.value;
+  return politicalHeatMatches(sectorId)
+    ? Math.min(0.95, sectorTileOpacity.value + 0.18)
+    : Math.max(0.04, sectorTileOpacity.value * 0.28);
+}
+
+function sectorHeatOpacity(sectorId) {
+  const heat = politicalHeatForSector(sectorId);
+  if (!heat) return 0;
+  if (!sectorHasPoliticalFilter.value) return heat.opacity;
+  return politicalHeatMatches(sectorId) ? Math.min(0.42, heat.opacity + 0.14) : Math.max(0.03, heat.opacity * 0.2);
+}
+
+function sectorLabelOpacity(sectorId) {
+  if (!sectorHasPoliticalFilter.value) return 1;
+  return politicalHeatMatches(sectorId) ? 1 : 0.26;
+}
+
+function togglePoliticalHeatFilter(level) {
+  activePoliticalHeatFilter.value = activePoliticalHeatFilter.value === level ? null : level;
+}
+
+function politicalHeatCount(level) {
+  return visiblePoliticalHeatCounts.value.get(level) || 0;
+}
+
+function formatLegendShare(count, total) {
+  if (!total) return String(count || 0);
+  return `${count}/${total}`;
+}
+
+function legendShareTitle(count, total, label) {
+  if (!total) return `No ${label} in view`;
+  const percent = Math.round((count / total) * 100);
+  return `${count} of ${total} ${label} in view (${percent}%)`;
+}
+
+function toggleRouteFilter(level) {
+  activeRouteFilter.value = activeRouteFilter.value === level ? null : level;
+}
+
+function routeLegendCount(level) {
+  return visibleRouteCounts.value.get(level) || 0;
+}
+
+function resetAtlasLayers() {
+  layerHexGrid.value = Boolean(PREFERENCE_DEFAULTS.atlasLayerHexGrid);
+  layerNames.value = Boolean(PREFERENCE_DEFAULTS.atlasLayerNames);
+  layerSectorNames.value = Boolean(PREFERENCE_DEFAULTS.atlasLayerSectorNames);
+  layerCoords.value = Boolean(PREFERENCE_DEFAULTS.atlasLayerCoords);
+  layerZones.value = Boolean(PREFERENCE_DEFAULTS.atlasLayerZones);
+  layerRoutes.value = Boolean(PREFERENCE_DEFAULTS.atlasLayerRoutes);
+  layerAnomalies.value = Boolean(PREFERENCE_DEFAULTS.atlasLayerAnomalies);
+  layerBadges.value = Boolean(PREFERENCE_DEFAULTS.atlasLayerBadges);
+  layerPolity.value = Boolean(PREFERENCE_DEFAULTS.atlasLayerPolity);
+  activePoliticalHeatFilter.value = null;
+  activeRouteFilter.value = null;
+}
 
 const inspectorData = computed(() => {
   if (inspectorMode.value === "sector" && inspectorSector.value) {
@@ -1898,6 +3066,11 @@ const inspectorData = computed(() => {
     const sy = Number(s?.coordinates?.y);
     const sectorGalaxy = galaxies.value.find((galaxy) => String(galaxy?.galaxyId) === String(s?.galaxyId)) || null;
     const legacySummary = summarizeLegacyStarMetadata({ hexStarTypes: s?.metadata?.hexStarTypes ?? {} });
+    const politicalHeat = politicalHeatForSector(s?.sectorId);
+    const activeHeatFilterLabel = activePoliticalHeatFilter.value
+      ? POLITICAL_HEAT_LEGEND.find((entry) => entry.level === activePoliticalHeatFilter.value)?.label ||
+        activePoliticalHeatFilter.value
+      : "";
     return {
       name: String(
         s?.metadata?.displayName || `Sector ${Number.isFinite(sx) ? sx : "?"},${Number.isFinite(sy) ? sy : "?"}`,
@@ -1909,6 +3082,10 @@ const inspectorData = computed(() => {
       status: String(s?.metadata?.explorationStatus || "Unexplored"),
       legacyReconstructedCount: legacySummary.legacyReconstructedCount,
       legacyHierarchyUnknownCount: legacySummary.legacyHierarchyUnknownCount,
+      politicalHeatLabel: politicalHeat?.label || "",
+      activeHeatFilterSummary: activeHeatFilterLabel
+        ? `Atlas filter: ${activeHeatFilterLabel} sectors only${politicalHeat?.level === activePoliticalHeatFilter.value ? " · current sector matches" : " · current sector is outside the active band"}`
+        : "",
     };
   }
   if (inspectorMode.value === "hierarchy" && inspectorHierarchy.value) {
@@ -1948,10 +3125,15 @@ const inspectorData = computed(() => {
       appealProfile: systemSummary.appealProfile,
       privateLawProfile: systemSummary.privateLawProfile,
       personalRightsProfile: systemSummary.personalRightsProfile,
+      secondaryProfiles: systemSummary.secondaryProfiles,
       factionsProfile: systemSummary.factionsProfile,
       mainworldName: systemSummary.mainworldName,
       mainworldType: systemSummary.mainworldType,
       mainworldParent: systemSummary.mainworldParent,
+      habitability: systemSummary.habitability,
+      resourceRating: systemSummary.resourceRating,
+      routeCorridorLabel: inspectorStarRouteSummary.value?.label || "",
+      routeCorridorDetail: inspectorStarRouteSummary.value?.detail || "",
       tradeCodes: systemSummary.tradeCodes,
       surveyStatus: systemSummary.surveyStatus,
       hasSavedSystem: systemSummary.hasSavedSystem,
@@ -1969,6 +3151,7 @@ const inspectorStarSvgR = computed(() => {
     .toUpperCase();
   return { O: 13, B: 11, A: 10, F: 9, G: 8, K: 7, M: 5, D: 4, L: 4, T: 3, Y: 3 }[t] ?? 7;
 });
+const inspectorStarProfile = computed(() => getStarVisualProfile(inspectorData.value?.starType, ""));
 
 const atlasGenerationAreaOptions = computed(() => ATLAS_GENERATION_AREA_OPTIONS);
 const atlasGenerationModeOptions = computed(() => ATLAS_GENERATION_MODE_OPTIONS);
@@ -3416,7 +4599,14 @@ function onResize() {
   svgH.value = window.innerHeight;
 }
 
-function syncAtlasBiasFromStorage() {
+function coerceBooleanPreference(value, fallback) {
+  if (typeof value === "boolean") return value;
+  if (value === "true") return true;
+  if (value === "false") return false;
+  return fallback;
+}
+
+function syncAtlasPreferencesFromStorage() {
   try {
     const raw = localStorage.getItem(PREFERENCES_STORAGE_KEY);
     if (!raw) return;
@@ -3425,20 +4615,81 @@ function syncAtlasBiasFromStorage() {
     const y = Number(parsed?.atlasGridBiasY);
     if (Number.isFinite(x)) preferencesStore.set("atlasGridBiasX", x);
     if (Number.isFinite(y)) preferencesStore.set("atlasGridBiasY", y);
+    layerHexGrid.value = coerceBooleanPreference(parsed?.atlasLayerHexGrid, layerHexGrid.value);
+    layerNames.value = coerceBooleanPreference(parsed?.atlasLayerNames, layerNames.value);
+    layerSectorNames.value = coerceBooleanPreference(parsed?.atlasLayerSectorNames, layerSectorNames.value);
+    layerCoords.value = coerceBooleanPreference(parsed?.atlasLayerCoords, layerCoords.value);
+    layerZones.value = coerceBooleanPreference(parsed?.atlasLayerZones, layerZones.value);
+    layerRoutes.value = coerceBooleanPreference(parsed?.atlasLayerRoutes, layerRoutes.value);
+    layerAnomalies.value = coerceBooleanPreference(parsed?.atlasLayerAnomalies, layerAnomalies.value);
+    layerBadges.value = coerceBooleanPreference(parsed?.atlasLayerBadges, layerBadges.value);
+    layerPolity.value = coerceBooleanPreference(parsed?.atlasLayerPolity, layerPolity.value);
   } catch {
     // Ignore malformed storage payloads.
   }
 }
 
+watch(
+  () => [
+    layerHexGrid.value,
+    layerNames.value,
+    layerSectorNames.value,
+    layerCoords.value,
+    layerZones.value,
+    layerRoutes.value,
+    layerAnomalies.value,
+    layerBadges.value,
+    layerPolity.value,
+  ],
+  ([
+    atlasLayerHexGrid,
+    atlasLayerNames,
+    atlasLayerSectorNames,
+    atlasLayerCoords,
+    atlasLayerZones,
+    atlasLayerRoutes,
+    atlasLayerAnomalies,
+    atlasLayerBadges,
+    atlasLayerPolity,
+  ]) => {
+    preferencesStore.replace({
+      ...preferencesStore.$state,
+      atlasLayerHexGrid,
+      atlasLayerNames,
+      atlasLayerSectorNames,
+      atlasLayerCoords,
+      atlasLayerZones,
+      atlasLayerRoutes,
+      atlasLayerAnomalies,
+      atlasLayerBadges,
+      atlasLayerPolity,
+    });
+  },
+);
+
+watch(
+  () => showPoliticalHeat.value,
+  (visible) => {
+    if (!visible) activePoliticalHeatFilter.value = null;
+  },
+);
+
+watch(
+  () => showRouteLegend.value,
+  (visible) => {
+    if (!visible) activeRouteFilter.value = null;
+  },
+);
+
 function onPreferencesStorageChanged(event) {
   if (event.key !== PREFERENCES_STORAGE_KEY) return;
-  syncAtlasBiasFromStorage();
+  syncAtlasPreferencesFromStorage();
 }
 
 onMounted(async () => {
   window.addEventListener("resize", onResize);
   window.addEventListener("storage", onPreferencesStorageChanged);
-  syncAtlasBiasFromStorage();
+  syncAtlasPreferencesFromStorage();
   onResize();
   isLoading.value = true;
   try {
@@ -3631,6 +4882,10 @@ watch(
   border-color: #3a84c8;
 }
 
+.tb-toggle--utility {
+  color: #d2c29a;
+}
+
 /* ── SVG ──────────────────────────────────────────────────────────────────── */
 .atlas-svg {
   position: absolute;
@@ -3655,6 +4910,20 @@ watch(
 }
 .sector-tile.hovered {
   filter: brightness(1.55);
+}
+
+.sector-tile--highlighted {
+  stroke: rgba(220, 241, 255, 0.42);
+  stroke-width: 1.1;
+}
+
+.sector-tile--dimmed {
+  filter: saturate(0.72);
+}
+
+.sector-heat-overlay {
+  pointer-events: none;
+  mix-blend-mode: screen;
 }
 
 .sector-border {
@@ -3757,6 +5026,22 @@ watch(
   fill: #ffaa00;
 }
 
+.layer-anomaly-overlays {
+  pointer-events: none;
+}
+
+.anomaly-cloud {
+  mix-blend-mode: screen;
+}
+
+.anomaly-mote {
+  mix-blend-mode: screen;
+}
+
+.anomaly-core {
+  mix-blend-mode: screen;
+}
+
 /* ── Stars ────────────────────────────────────────────────────────────────── */
 .star-dot {
   stroke: rgba(255, 255, 255, 0.2);
@@ -3764,9 +5049,34 @@ watch(
   cursor: pointer;
 }
 
+.star-halo {
+  pointer-events: none;
+}
+
+.star-spike {
+  pointer-events: none;
+  stroke-linecap: round;
+}
+
+.star-ring {
+  fill: none;
+  stroke: rgba(247, 177, 255, 0.55);
+  stroke-width: 0.8;
+  stroke-dasharray: 2 2;
+  pointer-events: none;
+}
+
 .star-dot.companion {
   stroke: none;
   opacity: 0.82;
+}
+
+.star-companion-orbit {
+  fill: none;
+  stroke: rgba(180, 210, 255, 0.32);
+  stroke-width: 0.65;
+  stroke-dasharray: 2 2;
+  pointer-events: none;
 }
 
 .star-group.hovered .star-dot {
@@ -3777,11 +5087,92 @@ watch(
   stroke-width: 1.2;
 }
 
+.star-group.hovered .star-halo,
+.star-group.selected .star-halo {
+  opacity: 1;
+}
+
+.star-badge-cluster {
+  pointer-events: none;
+}
+
+.star-badge rect {
+  fill: rgba(10, 18, 34, 0.88);
+  stroke: rgba(184, 214, 255, 0.28);
+  stroke-width: 0.6;
+}
+
+.star-badge text {
+  fill: #e3f1ff;
+  font-size: 6px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.star-badge--zone-red rect {
+  fill: rgba(120, 26, 26, 0.9);
+  stroke: rgba(255, 144, 144, 0.45);
+}
+
+.star-badge--zone-amber rect {
+  fill: rgba(120, 78, 20, 0.9);
+  stroke: rgba(255, 212, 122, 0.45);
+}
+
+.star-badge--base rect {
+  fill: rgba(72, 56, 18, 0.9);
+  stroke: rgba(244, 210, 124, 0.42);
+}
+
+.star-badge--habitability rect {
+  fill: rgba(18, 74, 44, 0.9);
+  stroke: rgba(122, 232, 168, 0.42);
+}
+
+.polity-glyph {
+  pointer-events: none;
+}
+
+.polity-staff {
+  stroke: rgba(206, 225, 248, 0.6);
+  stroke-width: 0.7;
+}
+
+.polity-banner {
+  stroke: rgba(240, 248, 255, 0.34);
+  stroke-width: 0.55;
+}
+
+.polity-banner-text {
+  fill: rgba(248, 252, 255, 0.9);
+  font-size: 4.6px;
+  font-weight: 700;
+  text-anchor: middle;
+}
+
+.polity-faction-pip {
+  fill: rgba(255, 213, 132, 0.9);
+  stroke: rgba(26, 16, 8, 0.45);
+  stroke-width: 0.35;
+}
+
 .trade-route {
   stroke: rgba(120, 220, 255, 0.45);
   stroke-width: 1.1;
   stroke-dasharray: 4 3;
   pointer-events: none;
+}
+
+.trade-route--major {
+  filter: drop-shadow(0 0 4px rgba(140, 238, 255, 0.32));
+}
+
+.trade-route--pressure {
+  filter: drop-shadow(0 0 4px rgba(232, 154, 255, 0.24));
+}
+
+.trade-route--hazard {
+  filter: drop-shadow(0 0 5px rgba(255, 178, 92, 0.28));
 }
 
 /* ── Universe galaxy dots ─────────────────────────────────────────── */
@@ -3987,6 +5378,33 @@ watch(
   color: #e0d0a8;
 }
 
+.star-class-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.25rem;
+}
+
+.star-class-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.3rem;
+  padding: 0.08rem 0.42rem;
+  border-radius: 999px;
+  background: rgba(82, 128, 196, 0.18);
+  border: 1px solid rgba(134, 190, 255, 0.22);
+  color: #cfe6ff;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.star-class-chip--accent {
+  background: rgba(255, 214, 148, 0.14);
+  border-color: rgba(255, 214, 148, 0.26);
+  color: #ffe1ad;
+}
+
 .star-companion-hint {
   font-size: 0.73rem;
   color: #a08860;
@@ -4067,6 +5485,132 @@ watch(
   line-height: 1.45;
 }
 
+.atlas-key-panel {
+  margin: 0 0 0.85rem;
+  padding: 0.65rem 0.7rem;
+  border: 1px solid rgba(74, 112, 164, 0.3);
+  border-radius: 0.45rem;
+  background: rgba(10, 18, 34, 0.68);
+}
+
+.atlas-key-title {
+  margin-bottom: 0.45rem;
+  color: #7aa8cc;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.atlas-key-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.32rem;
+}
+
+.atlas-key-row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.atlas-key-copy {
+  color: #c6dbf0;
+  font-size: 0.7rem;
+  line-height: 1.3;
+}
+
+.legend-route-sample {
+  display: inline-block;
+  width: 22px;
+  height: 0;
+  border-top-width: 2px;
+  border-top-style: solid;
+  flex-shrink: 0;
+}
+
+.legend-route-sample--major {
+  border-top-color: rgba(134, 229, 255, 0.92);
+}
+
+.legend-route-sample--pressure {
+  border-top-color: rgba(232, 154, 255, 0.82);
+  border-top-style: dashed;
+}
+
+.legend-route-sample--hazard {
+  border-top-color: rgba(255, 178, 92, 0.82);
+  border-top-style: dashed;
+}
+
+.legend-chip-sample {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 19px;
+  height: 12px;
+  padding: 0 0.25rem;
+  border-radius: 999px;
+  border: 1px solid rgba(184, 214, 255, 0.28);
+  color: #eef7ff;
+  font-size: 0.58rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.legend-chip-sample--zone {
+  background: rgba(120, 78, 20, 0.9);
+}
+
+.legend-chip-sample--base {
+  background: rgba(72, 56, 18, 0.9);
+}
+
+.legend-chip-sample--habitability {
+  background: rgba(18, 74, 44, 0.9);
+}
+
+.legend-polity-sample {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 0.18rem;
+  min-width: 24px;
+  flex-shrink: 0;
+}
+
+.legend-polity-staff {
+  width: 1px;
+  height: 12px;
+  background: rgba(206, 225, 248, 0.65);
+}
+
+.legend-polity-banner {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 11px;
+  height: 8px;
+  margin-top: 0.5px;
+  background: #5f8dff;
+  clip-path: polygon(0 0, 100% 32%, 0 100%);
+  color: rgba(248, 252, 255, 0.95);
+  font-size: 0.46rem;
+  font-weight: 700;
+}
+
+.legend-polity-pips {
+  display: inline-flex;
+  gap: 0.12rem;
+  margin-top: 0.9px;
+}
+
+.legend-polity-pips span {
+  width: 3px;
+  height: 3px;
+  border-radius: 999px;
+  background: rgba(255, 213, 132, 0.95);
+}
+
 /* ── Orbital diagram ──────────────────────────────────────────────────────── */
 .orbital-section {
   margin-top: 0.55rem;
@@ -4127,6 +5671,186 @@ watch(
 .status-hex {
   color: #8ab8d8;
   font-family: monospace;
+}
+
+.status-star-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  color: #a7bfd7;
+  font-size: 0.66rem;
+}
+
+.status-political-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  pointer-events: auto;
+}
+
+.political-legend-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.32rem;
+  background: rgba(14, 25, 46, 0.92);
+  color: #8eb4d6;
+  border: 1px solid rgba(52, 84, 126, 0.8);
+  border-radius: 999px;
+  padding: 0.12rem 0.46rem;
+  font-size: 0.64rem;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.political-legend-chip:hover {
+  color: #d4ebff;
+  border-color: rgba(100, 156, 220, 0.95);
+}
+
+.political-legend-chip.active {
+  background: rgba(30, 72, 122, 0.95);
+  color: #d8efff;
+  border-color: rgba(116, 190, 255, 0.95);
+}
+
+.political-legend-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+}
+
+.political-legend-swatch--all {
+  background: linear-gradient(135deg, #2d6c5f 0%, #3f86c4 35%, #8b5ac9 68%, #a93f64 100%);
+}
+
+.status-route-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  pointer-events: auto;
+}
+
+.route-legend-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.32rem;
+  background: rgba(14, 25, 46, 0.92);
+  color: #98b6d6;
+  border: 1px solid rgba(52, 84, 126, 0.8);
+  border-radius: 999px;
+  padding: 0.12rem 0.46rem;
+  font-size: 0.64rem;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.route-legend-chip:hover {
+  color: #d4ebff;
+  border-color: rgba(100, 156, 220, 0.95);
+}
+
+.route-legend-chip.active {
+  background: rgba(30, 72, 122, 0.95);
+  color: #d8efff;
+  border-color: rgba(116, 190, 255, 0.95);
+}
+
+.legend-count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.35rem;
+  height: 1rem;
+  padding: 0 0.24rem;
+  border-radius: 999px;
+  background: rgba(8, 14, 28, 0.72);
+  color: #dcecff;
+  font-size: 0.58rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.route-legend-sample {
+  width: 16px;
+  height: 0;
+  border-top-width: 2px;
+  border-top-style: solid;
+  border-top-color: rgba(120, 220, 255, 0.72);
+}
+
+.route-legend-sample--all {
+  border-top-color: rgba(120, 220, 255, 0.72);
+}
+
+.route-legend-sample--standard {
+  border-top-color: rgba(120, 220, 255, 0.72);
+  border-top-style: dashed;
+}
+
+.route-legend-sample--major {
+  border-top-color: rgba(134, 229, 255, 0.92);
+}
+
+.route-legend-sample--pressure {
+  border-top-color: rgba(232, 154, 255, 0.82);
+  border-top-style: dashed;
+}
+
+.route-legend-sample--hazard {
+  border-top-color: rgba(255, 178, 92, 0.82);
+  border-top-style: dashed;
+}
+
+.status-layer-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  pointer-events: auto;
+}
+
+.status-toggle-chip {
+  background: rgba(14, 25, 46, 0.92);
+  color: #7da7cb;
+  border: 1px solid rgba(52, 84, 126, 0.8);
+  border-radius: 999px;
+  padding: 0.12rem 0.46rem;
+  font-size: 0.64rem;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.status-toggle-chip:hover {
+  color: #c1dcf4;
+  border-color: rgba(100, 156, 220, 0.95);
+}
+
+.status-toggle-chip.active {
+  background: rgba(30, 72, 122, 0.95);
+  color: #d8efff;
+  border-color: rgba(116, 190, 255, 0.95);
+}
+
+.trade-route--highlighted {
+  filter: drop-shadow(0 0 6px rgba(214, 244, 255, 0.38));
+}
+
+.trade-route--dimmed {
+  filter: none;
+}
+
+.star-legend-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.32rem;
+  white-space: nowrap;
+}
+
+.star-legend-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
 }
 
 .status-density {

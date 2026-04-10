@@ -834,7 +834,10 @@ import {
   normalizeSectorStats as normalizeGalaxySectorStats,
 } from "../../utils/galaxySectorStats.js";
 import {
+  buildGalaxyCreatePayload,
+  buildGalaxyEditPayload,
   buildGalaxyImportRequest,
+  buildGalaxySectorStatsPayload,
   canDismissGalaxyImportModal,
   createDefaultGalaxyImportForm,
   resolveGalaxySectorStatsRefresh,
@@ -1430,14 +1433,11 @@ function getCachedSectorStats(galaxyId) {
 async function persistCachedSectorStats(galaxy, stats) {
   if (!galaxy?.galaxyId) return;
 
-  const payload = {
-    ...galaxy,
-    metadata: {
-      ...(galaxy.metadata || {}),
-      sectorStats: normalizeSectorStats(stats),
-      lastModified: new Date().toISOString(),
-    },
-  };
+  const payload = buildGalaxySectorStatsPayload({
+    galaxy,
+    stats,
+    normalizeStats: normalizeSectorStats,
+  });
 
   await galaxyStore.updateGalaxy(galaxy.galaxyId, payload);
 }
@@ -1917,32 +1917,12 @@ async function createNewGalaxy() {
           ? generateRandomUniverseCoordinates()
           : generateClusteredCoordinatesForNewGalaxy();
 
-    const newGalaxy = {
+    const newGalaxy = buildGalaxyCreatePayload({
       galaxyId: `gal-${Date.now()}`,
-      name: newGalaxyForm.value.name,
-      type: newGalaxyForm.value.type,
-      morphology: {
-        bulgeRadius: newGalaxyForm.value.bulgeRadius,
-        armCount: newGalaxyForm.value.armCount,
-        coreDensity: newGalaxyForm.value.coreDensity,
-        diskThickness: newGalaxyForm.value.diskThickness,
-        centralAnomaly: {
-          type: newGalaxyForm.value.centralAnomalyType || "Black Hole",
-          massSolarMasses: Number(newGalaxyForm.value.centralAnomalyMassSolar) || null,
-          activityIndex: Number(newGalaxyForm.value.centralAnomalyActivity) || 0,
-        },
-      },
-      metadata: {
-        createdAt: new Date().toISOString(),
-        lastModified: new Date().toISOString(),
-        status: "active",
-        version: 1,
-        universeCoordinates,
-        universePlacementMode: newGalaxyForm.value.placementMode,
-        universePlacementSeed: newGalaxyForm.value.placementSeed || null,
-        universePlacementTuning: readPlacementTuning(newGalaxyForm.value),
-      },
-    };
+      newGalaxyForm: newGalaxyForm.value,
+      universeCoordinates,
+      placementTuning: readPlacementTuning(newGalaxyForm.value),
+    });
 
     const createdGalaxy = await galaxyStore.createGalaxy(newGalaxy);
     updateGenerationProgress(0, 1, "Seeding center sector");
@@ -2126,28 +2106,12 @@ async function saveGalaxyEdits() {
     return;
   }
 
-  const payload = {
-    ...galaxy,
-    name: nextName,
-    type: galaxyEditForm.value.type,
-    morphology: {
-      ...(galaxy.morphology || {}),
-      bulgeRadius: clamp(Number(galaxyEditForm.value.bulgeRadius) || 5000, 5000, 50000),
-      armCount: clamp(Number(galaxyEditForm.value.armCount) || 0, 0, 12),
-      coreDensity: clamp(Number(galaxyEditForm.value.coreDensity) || 0.7, 0.01, 1),
-      diskThickness: clamp(Number(galaxyEditForm.value.diskThickness) || 1000, 500, 10000),
-      centralAnomaly: {
-        ...(galaxy.morphology?.centralAnomaly || {}),
-        type: galaxyEditForm.value.centralAnomalyType,
-        massSolarMasses: Math.max(1, Number(galaxyEditForm.value.centralAnomalyMassSolar) || 0),
-        activityIndex: clamp(Number(galaxyEditForm.value.centralAnomalyActivity) || 0, 0, 1),
-      },
-    },
-    metadata: {
-      ...(galaxy.metadata || {}),
-      lastModified: new Date().toISOString(),
-    },
-  };
+  const payload = buildGalaxyEditPayload({
+    galaxy,
+    nextName,
+    galaxyEditForm: galaxyEditForm.value,
+    clamp,
+  });
 
   try {
     await galaxyStore.updateGalaxy(galaxy.galaxyId, payload);

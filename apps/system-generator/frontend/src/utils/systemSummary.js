@@ -137,6 +137,17 @@ function countGasGiantsFromBodies(bodies) {
   return matches > 0 ? matches : null;
 }
 
+function summarizeSecondaryWorldProfiles(...sources) {
+  for (const source of sources) {
+    const text = String(source ?? "").trim();
+    if (text) {
+      return text;
+    }
+  }
+
+  return "";
+}
+
 export function summarizeSystemRecord(system) {
   if (!system) {
     return {
@@ -158,6 +169,7 @@ export function summarizeSystemRecord(system) {
       appealProfile: "—",
       privateLawProfile: "—",
       personalRightsProfile: "—",
+      secondaryProfiles: "—",
       factionsProfile: "—",
       tradeCodes: [],
       surveyStatus: "Stellar data only",
@@ -297,6 +309,11 @@ export function summarizeSystemRecord(system) {
     metadata?.factionsProfile?.summary,
     mainworld?.factionsProfile?.summary,
   );
+  const secondaryProfiles = summarizeSecondaryWorldProfiles(
+    profiles?.secondaryProfiles,
+    system?.secondaryProfiles,
+    metadata?.secondaryProfiles,
+  );
   const systemName = firstNonEmptyString(
     system?.name,
     system?.systemDesignation,
@@ -330,6 +347,7 @@ export function summarizeSystemRecord(system) {
     appealProfile: appealProfile || "—",
     privateLawProfile: privateLawProfile || "—",
     personalRightsProfile: personalRightsProfile || "—",
+    secondaryProfiles: secondaryProfiles || "—",
     factionsProfile: factionsProfile || "—",
     mainworldName: firstNonEmptyString(mainworld?.name, metadata?.mainworld?.name) || "—",
     mainworldType: firstNonEmptyString(mainworld?.type, mainworld?.parentWorldName ? "Moon" : "") || "—",
@@ -341,12 +359,37 @@ export function summarizeSystemRecord(system) {
   };
 }
 
+export function buildSystemSummaryLabel({ system = null, fallbackHex = "Unknown Hex", starLabel = "" } = {}) {
+  const summary = summarizeSystemRecord(system);
+  const systemName = firstNonEmptyString(summary?.systemName, system?.systemId, fallbackHex);
+  const primaryLabel = firstNonEmptyString(
+    starLabel,
+    system?.primaryStar?.designation,
+    system?.stars?.[0]?.designation,
+    "Unknown primary",
+  );
+
+  return `${systemName} · ${primaryLabel}`;
+}
+
 export function buildSystemHexSummary(system = {}) {
   const mainworld = system?.mainworld && typeof system.mainworld === "object" ? system.mainworld : null;
 
   return {
     mainworldName: firstNonEmptyHexSummary(system?.mainworldName, mainworld?.name),
     mainworldUwp: firstNonEmptyHexSummary(system?.mainworldUwp, mainworld?.uwp),
+    habitability: firstNonEmptyHexSummary(
+      system?.habitability,
+      system?.metadata?.habitability,
+      mainworld?.economics?.habitability,
+      mainworld?.habitability,
+    ),
+    resourceRating: firstNonEmptyHexSummary(
+      system?.resourceRating,
+      system?.metadata?.resourceRating,
+      mainworld?.economics?.resourceRating,
+      mainworld?.resourceRating,
+    ),
     minimumSustainableTechLevel: firstNonEmptyHexSummary(
       system?.minimumSustainableTechLevel?.summary,
       mainworld?.minimumSustainableTechLevel?.summary,
@@ -373,6 +416,11 @@ export function buildSystemHexSummary(system = {}) {
     personalRightsProfile: firstNonEmptyHexSummary(
       system?.personalRightsProfile?.summary,
       mainworld?.personalRightsProfile?.summary,
+    ),
+    secondaryProfiles: firstNonEmptyHexSummary(
+      system?.profiles?.secondaryProfiles,
+      system?.secondaryProfiles,
+      system?.metadata?.secondaryProfiles,
     ),
     factionsProfile: firstNonEmptyHexSummary(system?.factionsProfile?.summary, mainworld?.factionsProfile?.summary),
   };

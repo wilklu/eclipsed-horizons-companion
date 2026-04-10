@@ -117,7 +117,19 @@ function buildWorldSocialOverlayNotes(world) {
     notes.push(`Factions ${String(world.factionsProfile.summary)}`);
   }
   if (world?.secondaryWorldContext?.eligible && world?.secondaryWorldContext?.classificationCodes?.length) {
-    notes.push(`Secondary classifications ${world.secondaryWorldContext.classificationCodes.join(", ")}`);
+    const classificationSummary = String(world?.secondaryWorldContext?.classificationLabelSummary || "").trim();
+    notes.push(
+      `Secondary classifications ${classificationSummary || world.secondaryWorldContext.classificationCodes.join(", ")}`,
+    );
+  }
+  if (world?.secondaryWorldContext?.eligible && world?.secondaryWorldContext?.governmentSummary) {
+    notes.push(`Secondary government ${String(world.secondaryWorldContext.governmentSummary)}`);
+  }
+  if (world?.secondaryWorldContext?.eligible && world?.secondaryWorldContext?.lawLevelSummary) {
+    notes.push(`Secondary law ${String(world.secondaryWorldContext.lawLevelSummary)}`);
+  }
+  if (world?.secondaryWorldContext?.eligible && world?.secondaryWorldContext?.regulatorySummary) {
+    notes.push(`Secondary regulation ${String(world.secondaryWorldContext.regulatorySummary)}`);
   }
   if (world?.secondaryWorldContext?.eligible && world?.secondaryWorldContext?.lawLevelSourceSummary) {
     notes.push(`Secondary law source ${String(world.secondaryWorldContext.lawLevelSourceSummary)}`);
@@ -132,6 +144,29 @@ function buildWorldSocialOverlayNotes(world) {
   }
 
   return notes.join("; ");
+}
+
+function buildSecondaryProfilesSummary(worlds = []) {
+  return (Array.isArray(worlds) ? worlds : [])
+    .filter((world) => world?.secondaryWorldContext?.eligible)
+    .map((world) => {
+      const worldName = String(world?.name || world?.designation || "Secondary world").trim() || "Secondary world";
+      const context = world.secondaryWorldContext;
+      const details = [
+        String(context?.classificationLabelSummary || context?.summary || "").trim(),
+        String(context?.governmentSummary || "").trim(),
+        String(context?.lawLevelSummary || "").trim(),
+        String(context?.regulatorySummary || "").trim(),
+      ].filter(Boolean);
+
+      if (!details.length) {
+        return "";
+      }
+
+      return `${worldName}: ${details.join("; ")}`;
+    })
+    .filter(Boolean)
+    .join(" | ");
 }
 
 export function buildMainworldSocialProfileNotes(mainworld) {
@@ -294,6 +329,7 @@ export function buildSurveyDataFromSystem(systemRecord) {
   const profiles = systemRecord?.profiles && typeof systemRecord.profiles === "object" ? systemRecord.profiles : {};
   const derivedProfileNotes = buildMainworldSocialProfileNotes(mainworld);
   const legacyStarNote = buildLegacyStarMetadataNote(systemRecord);
+  const derivedSecondaryProfiles = buildSecondaryProfilesSummary(systemRecord?.worlds || systemRecord?.planets || []);
 
   return {
     ...base,
@@ -347,7 +383,7 @@ export function buildSurveyDataFromSystem(systemRecord) {
         mainworld?.personalRightsProfile?.summary ||
         "",
     ),
-    secondaryProfiles: String(profiles?.secondaryProfiles || ""),
+    secondaryProfiles: String(profiles?.secondaryProfiles || derivedSecondaryProfiles || ""),
     profileNotes: combineProfileNotes(profiles?.profileNotes, derivedProfileNotes, legacyStarNote),
     comments: String(systemRecord?.comments || ""),
   };

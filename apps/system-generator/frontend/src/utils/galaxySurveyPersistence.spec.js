@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  buildGalaxyCreatePayload,
+  buildGalaxyEditPayload,
   buildGalaxyImportRequest,
+  buildGalaxySectorStatsPayload,
   canDismissGalaxyImportModal,
   createDefaultGalaxyImportForm,
   resolveGalaxySectorStatsRefresh,
@@ -54,6 +57,123 @@ describe("galaxySurveyPersistence", () => {
     expect(request.options.coordinates).toBeNull();
     expect(canDismissGalaxyImportModal(true)).toBe(false);
     expect(canDismissGalaxyImportModal(false)).toBe(true);
+  });
+
+  it("builds galaxy create payloads from the new-galaxy form and resolved placement coordinates", () => {
+    const payload = buildGalaxyCreatePayload({
+      galaxyId: "gal-123",
+      newGalaxyForm: {
+        name: "Deneb",
+        type: "Spiral",
+        placementMode: "manual",
+        placementSeed: "seed-1",
+        bulgeRadius: 7000,
+        armCount: 4,
+        coreDensity: 0.55,
+        diskThickness: 1800,
+        centralAnomalyType: "Black Hole",
+        centralAnomalyMassSolar: "4200000",
+        centralAnomalyActivity: "0.35",
+      },
+      universeCoordinates: { x: 20, y: -10 },
+      placementTuning: { minSeparationDiameters: 12 },
+      nowIso: "2026-04-08T00:00:00.000Z",
+    });
+
+    expect(payload).toEqual({
+      galaxyId: "gal-123",
+      name: "Deneb",
+      type: "Spiral",
+      morphology: {
+        bulgeRadius: 7000,
+        armCount: 4,
+        coreDensity: 0.55,
+        diskThickness: 1800,
+        centralAnomaly: {
+          type: "Black Hole",
+          massSolarMasses: 4200000,
+          activityIndex: 0.35,
+        },
+      },
+      metadata: {
+        createdAt: "2026-04-08T00:00:00.000Z",
+        lastModified: "2026-04-08T00:00:00.000Z",
+        status: "active",
+        version: 1,
+        universeCoordinates: { x: 20, y: -10 },
+        universePlacementMode: "manual",
+        universePlacementSeed: "seed-1",
+        universePlacementTuning: { minSeparationDiameters: 12 },
+      },
+    });
+  });
+
+  it("builds galaxy edit payloads with clamped morphology and anomaly fields", () => {
+    const payload = buildGalaxyEditPayload({
+      galaxy: {
+        galaxyId: "gal-7",
+        name: "Old Name",
+        type: "Spiral",
+        morphology: {
+          bulgeRadius: 6000,
+          centralAnomaly: { legacyField: true },
+        },
+        metadata: { createdAt: "2026-01-01T00:00:00.000Z" },
+      },
+      nextName: "New Name",
+      galaxyEditForm: {
+        type: "Elliptical",
+        bulgeRadius: 999999,
+        armCount: -5,
+        coreDensity: 2,
+        diskThickness: 10,
+        centralAnomalyType: "Pulsar",
+        centralAnomalyMassSolar: 0,
+        centralAnomalyActivity: 5,
+      },
+      clamp: (value, min, max) => Math.min(max, Math.max(min, value)),
+      nowIso: "2026-04-08T00:00:00.000Z",
+    });
+
+    expect(payload.name).toBe("New Name");
+    expect(payload.type).toBe("Elliptical");
+    expect(payload.morphology.bulgeRadius).toBe(50000);
+    expect(payload.morphology.armCount).toBe(0);
+    expect(payload.morphology.coreDensity).toBe(1);
+    expect(payload.morphology.diskThickness).toBe(500);
+    expect(payload.morphology.centralAnomaly).toEqual({
+      legacyField: true,
+      type: "Pulsar",
+      massSolarMasses: 1,
+      activityIndex: 1,
+    });
+    expect(payload.metadata.lastModified).toBe("2026-04-08T00:00:00.000Z");
+    expect(payload.metadata.createdAt).toBe("2026-01-01T00:00:00.000Z");
+  });
+
+  it("builds galaxy stats update payloads without dropping existing metadata", () => {
+    const payload = buildGalaxySectorStatsPayload({
+      galaxy: {
+        galaxyId: "gal-9",
+        metadata: {
+          createdAt: "2026-01-01T00:00:00.000Z",
+          status: "active",
+        },
+      },
+      stats: { totalSectors: 4 },
+      normalizeStats: (stats) => ({ ...stats, normalized: true }),
+      nowIso: "2026-04-08T00:00:00.000Z",
+    });
+
+    expect(payload).toEqual({
+      galaxyId: "gal-9",
+      metadata: {
+        createdAt: "2026-01-01T00:00:00.000Z",
+        status: "active",
+        sectorStats: { totalSectors: 4, normalized: true },
+        lastModified: "2026-04-08T00:00:00.000Z",
+      },
+    });
   });
 
   it("uses cached galaxy stats when refresh is not forced", async () => {

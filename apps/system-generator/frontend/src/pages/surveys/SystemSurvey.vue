@@ -14,6 +14,28 @@
           <p class="survey-subtitle">
             {{ systemSummaryLabel }}
           </p>
+          <div v-if="savedSystemSummary.hasSavedSystem" class="survey-summary-strip">
+            <span class="survey-summary-pill">UWP {{ savedSystemSummary.uwp }}</span>
+            <span class="survey-summary-pill">Starport {{ savedSystemSummary.starport }}</span>
+            <span v-if="savedSystemSummary.habitability !== '—'" class="survey-summary-pill"
+              >Habitability {{ savedSystemSummary.habitability }}</span
+            >
+            <span v-if="savedSystemSummary.resourceRating !== '—'" class="survey-summary-pill"
+              >Resources {{ savedSystemSummary.resourceRating }}</span
+            >
+            <span
+              v-if="savedSystemSummary.secondaryProfiles !== '—'"
+              class="survey-summary-pill survey-summary-pill--wide"
+            >
+              {{ savedSystemSummary.secondaryProfiles }}
+            </span>
+            <span
+              v-else-if="savedSystemSummary.factionsProfile !== '—'"
+              class="survey-summary-pill survey-summary-pill--wide"
+            >
+              {{ savedSystemSummary.factionsProfile }}
+            </span>
+          </div>
         </div>
       </header>
 
@@ -29,6 +51,7 @@ import SurveyNavigation from "../../components/common/SurveyNavigation.vue";
 import SystemSurveyForm from "../../components/forms/SystemSurveyForm.vue";
 import { useSystemStore } from "../../stores/systemStore";
 import { deserializeReturnRoute } from "../../utils/returnRoute.js";
+import { buildSystemSummaryLabel, summarizeSystemRecord } from "../../utils/systemSummary.js";
 
 const props = defineProps({
   galaxyId: {
@@ -64,6 +87,8 @@ const currentSystem = computed(() => {
   );
 });
 
+const savedSystemSummary = computed(() => summarizeSystemRecord(currentSystem.value));
+
 const backRoute = computed(() => {
   const explicitReturnRoute = deserializeReturnRoute(String(route.query.returnTo || ""));
   if (explicitReturnRoute) {
@@ -78,13 +103,11 @@ const backRoute = computed(() => {
 });
 
 const systemSummaryLabel = computed(() => {
-  const system = currentSystem.value;
-  const fallbackHex = String(route.query.hex || "Unknown Hex");
-  const systemName = String(system?.systemDesignation || system?.mainworldName || system?.systemId || fallbackHex);
-  const starLabel = String(
-    route.query.star || system?.primaryStar?.designation || system?.stars?.[0]?.designation || "Unknown primary",
-  );
-  return `${systemName} · ${starLabel}`;
+  return buildSystemSummaryLabel({
+    system: currentSystem.value,
+    fallbackHex: String(route.query.hex || "Unknown Hex"),
+    starLabel: String(route.query.star || ""),
+  });
 });
 </script>
 
@@ -118,5 +141,26 @@ const systemSummaryLabel = computed(() => {
 .survey-subtitle {
   margin: 0.2rem 0 0;
   color: #95b9d0;
+}
+
+.survey-summary-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.55rem;
+}
+
+.survey-summary-pill {
+  background: rgba(15, 30, 54, 0.82);
+  border: 1px solid rgba(120, 173, 214, 0.22);
+  border-radius: 999px;
+  color: #d9edf9;
+  font-size: 0.82rem;
+  line-height: 1.2;
+  padding: 0.35rem 0.65rem;
+}
+
+.survey-summary-pill--wide {
+  max-width: min(100%, 42rem);
 }
 </style>

@@ -626,6 +626,9 @@ describe("worldProfileGenerator", () => {
     expect(secondaryWorldContext.governmentCode).toBe(6);
     expect(secondaryWorldContext.classificationCodes).toContain("Cy");
     expect(secondaryWorldContext.classificationCodes).toContain("Mi");
+    expect(secondaryWorldContext.governmentSummary).toContain("Dependent on the mainworld");
+    expect(secondaryWorldContext.classificationLabelSummary).toContain("Cy Colony");
+    expect(secondaryWorldContext.summary).toContain("Mi Mining");
   });
 
   it("derives secondary-world law levels for captive, dependent, and freeport cases", () => {
@@ -677,10 +680,13 @@ describe("worldProfileGenerator", () => {
     expect(captiveLawLevel.caseLabel).toBe("captive-mainworld-plus-die");
     expect(captiveLawLevel.lawLevel).toBe(7);
     expect(captiveLawLevel.sourceSummary).toContain("owning mainworld");
+    expect(captiveLawLevel.regulatorySummary).toContain("significantly stricter");
     expect(inheritedLawLevel.caseLabel).toBe("dependent-inherits-mainworld");
     expect(inheritedLawLevel.lawLevel).toBe(6);
+    expect(inheritedLawLevel.regulatorySummary).toContain("inherits the mainworld law level");
     expect(freeportLawLevel.caseLabel).toBe("independent-freeport");
     expect(freeportLawLevel.lawLevel).toBe(4);
+    expect(freeportLawLevel.regulatorySummary).toContain("freeport leniency modifier");
   });
 
   it("allows secondary-world law levels to extend above 9", () => {
