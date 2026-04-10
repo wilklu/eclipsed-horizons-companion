@@ -767,7 +767,6 @@ import { SUBSECTOR_LETTERS, getSubsectorViewportBounds } from "../../utils/subse
 import {
   buildSectorSurveyCreatePayload,
   buildSectorSurveyGenerationMutation,
-  buildSectorSurveyPreviewHexUpdate,
   buildSectorSurveyRebuiltPreview,
   buildSectorSurveyReturnRoute,
   buildSectorSurveySavedPreviewState,
@@ -1875,6 +1874,44 @@ function buildHexGridFromSystems(systems, cols, rows) {
   return { hexes, systemCount: occupied.size };
 }
 
+function buildPreviewHexesFromSectorData({
+  metadata = null,
+  systems = [],
+  cols = 32,
+  rows = 40,
+  fallbackHexes = [],
+} = {}) {
+  const { hexes: baseHexes } = buildHexGridFromSystems(systems, cols, rows);
+  const hexStarTypes = metadata?.hexStarTypes ?? {};
+  const presenceCoords = new Set([
+    ...(Array.isArray(metadata?.occupiedHexes) ? metadata.occupiedHexes : []),
+    ...Object.keys(hexStarTypes),
+  ]);
+
+  const mergedHexes = baseHexes.map((hex) => {
+    const saved = hexStarTypes[hex.coord];
+    if (!saved && !presenceCoords.has(hex.coord)) {
+      return hex;
+    }
+
+    const starType = normalizeStarTypeValue(saved?.starType ?? hex.starType, "");
+    return {
+      ...hex,
+      hasSystem: true,
+      presenceOnly: !starType,
+      starType,
+      starClass: saved?.starClass || hex.starClass || spectralClassToCssClass(starType),
+      secondaryStars: saved?.secondaryStars ?? hex.secondaryStars ?? [],
+      generatedStars: saved?.generatedStars ?? hex.generatedStars ?? [],
+      anomalyType: saved?.anomalyType ?? hex.anomalyType ?? null,
+      legacyReconstructed: saved?.legacyReconstructed ?? hex.legacyReconstructed ?? false,
+      legacyHierarchyUnknown: saved?.legacyHierarchyUnknown ?? hex.legacyHierarchyUnknown ?? false,
+    };
+  });
+
+  return mergedHexes.length ? mergedHexes : Array.isArray(fallbackHexes) ? fallbackHexes : [];
+}
+
 function hexCoord(col, row) {
   return String(col).padStart(2, "0") + String(row).padStart(2, "0");
 }
@@ -2294,15 +2331,32 @@ function buildSurveyPreviewState({
 }) {
   const activeSectorId = String(sectorId || generatedSector.value?.sectorId || selectedSectorId.value || "");
   const systems = systemStore.systems.filter((system) => String(system?.sectorId || "") === activeSectorId);
+  const inferredLayout = metadata ? inferGridDimensions({ metadata }) : null;
+  const useSectorLayoutInSubsectorView = previewScope === "subsector" && inferredLayout?.scope === "sector";
+  const resolvedCols = useSectorLayoutInSubsectorView ? 32 : Number(cols || inferredLayout?.cols || 32);
+  const resolvedRows = useSectorLayoutInSubsectorView ? 40 : Number(rows || inferredLayout?.rows || 40);
+  const resolvedHexes =
+    metadata && systems.length
+      ? buildPreviewHexesFromSectorData({
+          metadata,
+          systems,
+          cols: resolvedCols,
+          rows: resolvedRows,
+          fallbackHexes: hexes,
+        })
+      : Array.isArray(hexes)
+        ? hexes
+        : [];
+
   return buildSectorSurveyRebuiltPreview({
-    previewScope,
+    previewScope: useSectorLayoutInSubsectorView ? "sector" : previewScope,
     sectorId,
     name,
     density: density.value,
     occupancyRealism: occupancyRealism.value,
-    cols,
-    rows,
-    hexes,
+    cols: resolvedCols,
+    rows: resolvedRows,
+    hexes: resolvedHexes,
     metadata,
     systems,
   });
@@ -3471,14 +3525,15 @@ async function generateSystemForSelectedHex({ openAfter = false } = {}) {
   isLoading.value = true;
   try {
     const persistedSurveyTotals = await replaceGeneratedSystemsForScope(currentSector.sectorId, [hexObj]);
+    const refreshedSectorRecord =
+      sectorStore.sectors.find((entry) => entry.sectorId === currentSector.sectorId) ?? currentSector;
 
-    if (generatedSector.value?.hexes?.length) {
-      generatedSector.value = buildSectorSurveyPreviewHexUpdate({
-        generatedSector: generatedSector.value,
-        coord,
-        hexPatch: hexObj,
-      });
-    }
+    generatedSector.value = buildSurveyPreviewState({
+      previewScope: scope.value,
+      sectorId: currentSector.sectorId,
+      name: String(refreshedSectorRecord?.metadata?.displayName || sectorName.value || currentSector.sectorId),
+      metadata: refreshedSectorRecord?.metadata ?? null,
+    });
 
     toastService.success(
       `System generated — ${persistedSurveyTotals.systemCount.toLocaleString()} system(s), ${persistedSurveyTotals.worldCount.toLocaleString()} world profile(s) created.`,

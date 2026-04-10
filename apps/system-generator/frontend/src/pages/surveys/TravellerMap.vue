@@ -1025,13 +1025,26 @@
         <button
           class="political-legend-chip"
           :class="{ active: !activePoliticalHeatFilter }"
-          :title="legendDualShareTitle(visiblePoliticalHeatTotal, visiblePoliticalHeatTotal, scopePoliticalHeatTotal, scopePoliticalHeatTotal, 'sectors')"
+          :title="
+            legendDualShareTitle(
+              visiblePoliticalHeatTotal,
+              visiblePoliticalHeatTotal,
+              scopePoliticalHeatTotal,
+              scopePoliticalHeatTotal,
+              'sectors',
+            )
+          "
           @click="activePoliticalHeatFilter = null"
         >
           <span class="political-legend-swatch political-legend-swatch--all"></span>
           All
           <span class="legend-count-badge">{{
-            formatLegendDualShare(visiblePoliticalHeatTotal, visiblePoliticalHeatTotal, scopePoliticalHeatTotal, scopePoliticalHeatTotal)
+            formatLegendDualShare(
+              visiblePoliticalHeatTotal,
+              visiblePoliticalHeatTotal,
+              scopePoliticalHeatTotal,
+              scopePoliticalHeatTotal,
+            )
           }}</span>
         </button>
         <button
@@ -1045,7 +1058,7 @@
               visiblePoliticalHeatTotal,
               politicalHeatScopeCount(entry.level),
               scopePoliticalHeatTotal,
-              `${entry.label} sectors`
+              `${entry.label} sectors`,
             )
           "
           @click="togglePoliticalHeatFilter(entry.level)"
@@ -1057,7 +1070,7 @@
               politicalHeatCount(entry.level),
               visiblePoliticalHeatTotal,
               politicalHeatScopeCount(entry.level),
-              scopePoliticalHeatTotal
+              scopePoliticalHeatTotal,
             )
           }}</span>
         </button>
@@ -1072,46 +1085,69 @@
         <button
           class="route-legend-chip"
           :class="{ active: !activeRouteFilter }"
-          :title="legendShareTitle(visibleTradeRoutes.length, visibleTradeRoutes.length, 'visible routes')"
+          :title="
+            legendDualShareTitle(
+              visibleTradeRoutes.length,
+              visibleTradeRoutes.length,
+              scopeRouteTotal,
+              scopeRouteTotal,
+              'routes',
+            )
+          "
           @click="activeRouteFilter = null"
         >
           <span class="route-legend-sample route-legend-sample--all"></span>
           All Routes
           <span class="legend-count-badge">{{
-            formatLegendShare(visibleTradeRoutes.length, visibleTradeRoutes.length)
+            formatLegendDualShare(
+              visibleTradeRoutes.length,
+              visibleTradeRoutes.length,
+              scopeRouteTotal,
+              scopeRouteTotal,
+            )
           }}</span>
         </button>
         <button
-            :title="legendDualShareTitle(visibleTradeRoutes.length, visibleTradeRoutes.length, scopeRouteTotal, scopeRouteTotal, 'routes')"
+          v-for="entry in ROUTE_VISUAL_LEGEND"
           :key="entry.id"
           class="route-legend-chip"
           :class="{ active: activeRouteFilter === entry.id }"
-          :title="legendShareTitle(routeLegendCount(entry.id), visibleTradeRoutes.length, `${entry.label} routes`)"
-            <span class="legend-count-badge">{{
-              formatLegendDualShare(visibleTradeRoutes.length, visibleTradeRoutes.length, scopeRouteTotal, scopeRouteTotal)
-            }}</span>
+          :title="
+            legendDualShareTitle(
+              routeLegendCount(entry.id),
+              visibleTradeRoutes.length,
+              routeScopeCount(entry.id),
+              scopeRouteTotal,
+              `${entry.label} routes`,
+            )
+          "
+          @click="toggleRouteFilter(entry.id)"
+        >
+          <span class="route-legend-sample" :class="entry.sampleClass"></span>
           {{ entry.label }}
           <span class="legend-count-badge">{{
-            formatLegendShare(routeLegendCount(entry.id), visibleTradeRoutes.length)
+            formatLegendDualShare(
+              routeLegendCount(entry.id),
+              visibleTradeRoutes.length,
+              routeScopeCount(entry.id),
+              scopeRouteTotal,
+            )
           }}</span>
         </button>
       </div>
-            :title="
-              legendDualShareTitle(
-                routeLegendCount(entry.id),
-                visibleTradeRoutes.length,
-                routeScopeCount(entry.id),
-                scopeRouteTotal,
-                `${entry.label} routes`
-              )
-            "
+      <span
+        v-if="showPoliticalHeat || showRouteLegend"
+        class="status-legend-key"
+        title="Legend badges show in-view totals on the left and loaded-scope totals on the right."
+      >
+        view|scope
+      </span>
+      <div class="status-layer-controls" v-if="currentLod === 'hex' || currentLod === 'detail'">
         <button class="status-toggle-chip" :class="{ active: layerRoutes }" @click="layerRoutes = !layerRoutes">
           Routes
         </button>
         <button
-            <span class="legend-count-badge">{{
-              formatLegendDualShare(routeLegendCount(entry.id), visibleTradeRoutes.length, routeScopeCount(entry.id), scopeRouteTotal)
-            }}</span>
+          class="status-toggle-chip"
           :class="{ active: layerAnomalies }"
           @click="layerAnomalies = !layerAnomalies"
         >
@@ -1221,6 +1257,8 @@ const HEX_STEP_X = HEX_R * 1.5; // 33
 const HEX_STEP_Y = HEX_R * Math.sqrt(3); // ≈38.1
 const SECTOR_COLS = 32;
 const SECTOR_ROWS = 40;
+const ROUTE_MAX_DISTANCE = HEX_STEP_X * 8;
+const ROUTE_NEIGHBOR_LIMIT = 2;
 const SELECTED_GALAXY_WINDOW_RADIUS = 12;
 const REGION_SECTORS = 4;
 const QUADRANT_REGIONS = 4;
@@ -2087,10 +2125,7 @@ const allStarMarkers = computed(() => {
   return buildStarMarkersForTiles(visibleSectorTiles.value);
 });
 
-const loadedRouteStarMarkers = computed(() => {
-  if (inspectorMode.value !== "star") return [];
-  return buildStarMarkersForTiles(loadedSectorTiles.value);
-});
+const loadedRouteStarMarkers = computed(() => buildStarMarkersForTiles(loadedSectorTiles.value));
 
 const visibleStars = computed(() => {
   if (!renderStars.value) return [];
@@ -2111,37 +2146,60 @@ function buildTradeRoutesForStars(stars) {
   }
 
   const routes = [];
-  for (const [sectorId, stars] of bySector.entries()) {
-    stars.sort((a, b) => a.coord.localeCompare(b.coord));
-    for (let i = 1; i < stars.length; i++) {
-      const a = stars[i - 1];
-      const b = stars[i];
-      const dist = Math.hypot(a.wx - b.wx, a.wy - b.wy);
-      if (dist > HEX_STEP_X * 8) continue;
-      const routeStyle = deriveRouteStyle(a, b);
+  for (const [sectorId, sectorStars] of bySector.entries()) {
+    const candidateByKey = new Map();
+    const rankedNeighborsByStar = new Map(sectorStars.map((star) => [star.key, []]));
+
+    for (let i = 0; i < sectorStars.length; i++) {
+      for (let j = i + 1; j < sectorStars.length; j++) {
+        const left = sectorStars[i];
+        const right = sectorStars[j];
+        const dist = Math.hypot(left.wx - right.wx, left.wy - right.wy);
+        if (dist > ROUTE_MAX_DISTANCE) continue;
+
+        const key = [left.key, right.key].sort().join("|");
+        const candidate = {
+          key,
+          left,
+          right,
+          dist,
+          score: scoreRouteCandidate(left, right, dist),
+        };
+        candidateByKey.set(key, candidate);
+        rankedNeighborsByStar.get(left.key)?.push(candidate);
+        rankedNeighborsByStar.get(right.key)?.push(candidate);
+      }
+    }
+
+    const selectedKeys = new Set();
+    for (const star of sectorStars) {
+      const ranked = (rankedNeighborsByStar.get(star.key) || [])
+        .sort((left, right) => right.score - left.score || left.dist - right.dist)
+        .slice(0, ROUTE_NEIGHBOR_LIMIT);
+      for (const candidate of ranked) {
+        selectedKeys.add(candidate.key);
+      }
+    }
+
+    for (const candidateKey of selectedKeys) {
+      const candidate = candidateByKey.get(candidateKey);
+      if (!candidate) continue;
+      const routeStyle = deriveRouteStyle(candidate.left, candidate.right);
+      const [from, to] = [candidate.left, candidate.right].sort((left, right) => left.coord.localeCompare(right.coord));
       routes.push({
-        key: `${sectorId}:${a.coord}-${b.coord}`,
-        fromKey: a.key,
-        toKey: b.key,
-        x1: a.wx,
-        y1: a.wy,
-        x2: b.wx,
-        y2: b.wy,
+        key: `${sectorId}:${from.coord}-${to.coord}`,
+        fromKey: from.key,
+        toKey: to.key,
+        x1: from.wx,
+        y1: from.wy,
+        x2: to.wx,
+        y2: to.wy,
         legendKey: routeStyle.legendKey,
         className: routeStyle.className,
-        filterClass: activeRouteFilter.value
-          ? activeRouteFilter.value === routeStyle.legendKey
-            ? "trade-route--highlighted"
-            : "trade-route--dimmed"
-          : "",
         stroke: routeStyle.stroke,
         strokeWidth: routeStyle.strokeWidth,
         strokeDasharray: routeStyle.strokeDasharray,
-        opacity: activeRouteFilter.value
-          ? activeRouteFilter.value === routeStyle.legendKey
-            ? Math.min(1, routeStyle.opacity)
-            : Math.max(0.12, routeStyle.opacity * 0.16)
-          : routeStyle.opacity,
+        opacity: routeStyle.opacity,
       });
     }
   }
@@ -2180,6 +2238,18 @@ const visiblePoliticalHeatCounts = computed(() => {
 
 const visiblePoliticalHeatTotal = computed(() => visibleSectorTiles.value.length);
 
+const scopePoliticalHeatCounts = computed(() => {
+  const counts = new Map(POLITICAL_HEAT_LEGEND.map((entry) => [entry.level, 0]));
+  for (const tile of loadedSectorTiles.value) {
+    const level = politicalHeatForSector(tile.sectorId)?.level;
+    if (!level || !counts.has(level)) continue;
+    counts.set(level, (counts.get(level) || 0) + 1);
+  }
+  return counts;
+});
+
+const scopePoliticalHeatTotal = computed(() => loadedSectorTiles.value.length);
+
 const visibleRouteCounts = computed(() => {
   const counts = new Map(ROUTE_VISUAL_LEGEND.map((entry) => [entry.id, 0]));
   for (const route of visibleTradeRoutes.value) {
@@ -2188,6 +2258,17 @@ const visibleRouteCounts = computed(() => {
   }
   return counts;
 });
+
+const scopeRouteCounts = computed(() => {
+  const counts = new Map(ROUTE_VISUAL_LEGEND.map((entry) => [entry.id, 0]));
+  for (const route of loadedTradeRoutes.value) {
+    if (!route?.legendKey || !counts.has(route.legendKey)) continue;
+    counts.set(route.legendKey, (counts.get(route.legendKey) || 0) + 1);
+  }
+  return counts;
+});
+
+const scopeRouteTotal = computed(() => loadedTradeRoutes.value.length);
 
 const inspectorStarRouteSummary = computed(() => {
   if (inspectorMode.value !== "star" || !inspectorStar.value?.key) return null;
@@ -2535,6 +2616,42 @@ function parseImportanceValue(value) {
     .trim()
     .match(/-?\d+/);
   return match ? Number.parseInt(match[0], 10) : null;
+}
+
+function parseHabitabilityValue(value) {
+  const match = String(value || "")
+    .trim()
+    .match(/-?\d+/);
+  return match ? Number.parseInt(match[0], 10) : null;
+}
+
+function routeBaseWeight(star) {
+  return Array.isArray(star?.bases) ? star.bases.length : 0;
+}
+
+function routeHabitabilityWeight(star) {
+  const habitability = parseHabitabilityValue(star?.habitability);
+  if (!Number.isFinite(habitability)) return 0;
+  return Math.max(0, Math.min(habitability, 10));
+}
+
+function scoreRouteCandidate(left, right, dist) {
+  const importanceScore =
+    (parseImportanceValue(left?.importance) ?? 0) + (parseImportanceValue(right?.importance) ?? 0);
+  const habitabilityScore = routeHabitabilityWeight(left) + routeHabitabilityWeight(right);
+  const baseScore = routeBaseWeight(left) + routeBaseWeight(right);
+  const savedSystemScore = (left?.hasSavedSystem ? 1 : 0) + (right?.hasSavedSystem ? 1 : 0);
+  const travelZonePenalty = travelZoneBadgeText(left) || travelZoneBadgeText(right) ? 1.35 : 0;
+  const distanceScore = Math.max(0, 1 - dist / ROUTE_MAX_DISTANCE) * 3.25;
+
+  return (
+    importanceScore * 2.25 +
+    habitabilityScore * 0.35 +
+    baseScore * 1.3 +
+    savedSystemScore * 0.9 +
+    distanceScore -
+    travelZonePenalty
+  );
 }
 
 function hasFactionPressureSummary(value) {
@@ -3026,9 +3143,17 @@ function politicalHeatCount(level) {
   return visiblePoliticalHeatCounts.value.get(level) || 0;
 }
 
+function politicalHeatScopeCount(level) {
+  return scopePoliticalHeatCounts.value.get(level) || 0;
+}
+
 function formatLegendShare(count, total) {
   if (!total) return String(count || 0);
   return `${count}/${total}`;
+}
+
+function formatLegendDualShare(visibleCount, visibleTotal, scopeCount, scopeTotal) {
+  return `${formatLegendShare(visibleCount, visibleTotal)}|${formatLegendShare(scopeCount, scopeTotal)}`;
 }
 
 function legendShareTitle(count, total, label) {
@@ -3037,12 +3162,26 @@ function legendShareTitle(count, total, label) {
   return `${count} of ${total} ${label} in view (${percent}%)`;
 }
 
+function legendDualShareTitle(visibleCount, visibleTotal, scopeCount, scopeTotal, label) {
+  const visibleText = visibleTotal
+    ? `${visibleCount} of ${visibleTotal} ${label} in view (${Math.round((visibleCount / visibleTotal) * 100)}%)`
+    : `No ${label} in view`;
+  const scopeText = scopeTotal
+    ? `${scopeCount} of ${scopeTotal} ${label} in scope (${Math.round((scopeCount / scopeTotal) * 100)}%)`
+    : `No ${label} in scope`;
+  return `${visibleText} · ${scopeText}`;
+}
+
 function toggleRouteFilter(level) {
   activeRouteFilter.value = activeRouteFilter.value === level ? null : level;
 }
 
 function routeLegendCount(level) {
   return visibleRouteCounts.value.get(level) || 0;
+}
+
+function routeScopeCount(level) {
+  return scopeRouteCounts.value.get(level) || 0;
 }
 
 function resetAtlasLayers() {
@@ -5760,7 +5899,7 @@ watch(
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 2.35rem;
+  min-width: 5.1rem;
   height: 1rem;
   padding: 0 0.24rem;
   border-radius: 999px;
@@ -5769,6 +5908,7 @@ watch(
   font-size: 0.58rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
 }
 
 .route-legend-sample {
@@ -5800,6 +5940,20 @@ watch(
 .route-legend-sample--hazard {
   border-top-color: rgba(255, 178, 92, 0.82);
   border-top-style: dashed;
+}
+
+.status-legend-key {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.12rem 0.42rem;
+  border-radius: 999px;
+  border: 1px solid rgba(82, 112, 152, 0.62);
+  background: rgba(10, 18, 34, 0.84);
+  color: #88a7c9;
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
 }
 
 .status-layer-controls {
