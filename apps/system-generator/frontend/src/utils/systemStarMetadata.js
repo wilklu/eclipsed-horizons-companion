@@ -116,11 +116,21 @@ export function cloneGeneratedStarRecord(star, fallbackOrbitType = null) {
       star?.designation || star?.spectralClass || star?.spectralType || star?.starKey || "",
     ).trim();
     const spectralClass = String(star?.spectralClass || designation || "").trim();
+    const fallbackRecord = resolveStarRecord(designation || spectralClass || "G2V", fallbackOrbitType);
+    const massInSolarMasses = Number(star?.massInSolarMasses);
+    const luminosity = Number(star?.luminosity);
+    const temperatureK = Number(star?.temperatureK);
     return {
       ...star,
       designation,
       spectralClass,
       spectralType: String(star?.spectralType || spectralClass || designation).trim(),
+      massInSolarMasses:
+        Number.isFinite(massInSolarMasses) && massInSolarMasses >= 0
+          ? massInSolarMasses
+          : fallbackRecord.massInSolarMasses,
+      luminosity: Number.isFinite(luminosity) && luminosity >= 0 ? luminosity : fallbackRecord.luminosity,
+      temperatureK: Number.isFinite(temperatureK) && temperatureK >= 0 ? temperatureK : fallbackRecord.temperatureK,
       orbitType: star?.orbitType ?? fallbackOrbitType ?? null,
     };
   }

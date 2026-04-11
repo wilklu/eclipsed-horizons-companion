@@ -1,6 +1,13 @@
 const STORAGE_KEY = "eclipsed-horizons-systems";
 const API_BASE_URL = String(import.meta.env.VITE_API_BASE_URL || "http://localhost:3100/api").replace(/\/$/, "");
 
+function isStorageQuotaError(error) {
+  if (!error) return false;
+  const name = String(error?.name || "").toLowerCase();
+  const message = String(error?.message || "").toLowerCase();
+  return name.includes("quota") || message.includes("quota") || message.includes("exceeded the quota");
+}
+
 async function request(path, options = {}) {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     headers: {
@@ -34,7 +41,18 @@ function loadSystems() {
 }
 
 function saveSystems(systems) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(systems));
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(systems));
+  } catch (error) {
+    if (!isStorageQuotaError(error)) {
+      return;
+    }
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch {
+      // Ignore storage cleanup failures; system cache persistence is best-effort only.
+    }
+  }
 }
 
 function normalizeHexCoordinates(value) {
@@ -116,6 +134,16 @@ export async function upsertSystem(system) {
     mergeCachedSystems([payload]);
     return payload;
   }
+}
+
+export async function upsertSystemStrict(system) {
+  const payload = normalizeSystem(system);
+  const updated = await request("/systems/upsert", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  mergeCachedSystems([updated]);
+  return normalizeSystem(updated);
 }
 
 export async function updateSystem(systemId, updates) {

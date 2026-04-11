@@ -2,6 +2,8 @@ import { normalizeHexStarTypesMap } from "../utils/systemStarMetadata.js";
 
 const STORAGE_KEY = "eclipsed-horizons-sectors-cache";
 const API_BASE_URL = String(import.meta.env.VITE_API_BASE_URL || "http://localhost:3100/api").replace(/\/$/, "");
+const CACHE_HEX_DETAIL_LIMIT = 128;
+const CACHE_SECTOR_RETRY_LIMIT = 250;
 
 async function request(path, options = {}) {
   const response = await fetch(`${API_BASE_URL}${path}`, {
@@ -35,8 +37,77 @@ function loadSectors() {
   }
 }
 
+function isStorageQuotaError(error) {
+  if (!error) return false;
+  const name = String(error?.name || "").toLowerCase();
+  const message = String(error?.message || "").toLowerCase();
+  return name.includes("quota") || message.includes("quota") || message.includes("exceeded the quota");
+}
+
+function sortSectorsForCache(sectors) {
+  return [...sectors].sort((left, right) => {
+    const leftUpdated = Date.parse(left?.metadata?.lastUpdated || left?.lastUpdated || 0) || 0;
+    const rightUpdated = Date.parse(right?.metadata?.lastUpdated || right?.lastUpdated || 0) || 0;
+    return rightUpdated - leftUpdated;
+  });
+}
+
+function compactHexStarTypesForCache(hexStarTypes) {
+  if (!hasObjectEntries(hexStarTypes)) {
+    return hexStarTypes;
+  }
+  const entries = Object.entries(normalizeHexStarTypesMap(hexStarTypes));
+  if (entries.length <= CACHE_HEX_DETAIL_LIMIT) {
+    return Object.fromEntries(entries);
+  }
+  return undefined;
+}
+
+function compactSectorForCache(sector) {
+  const normalized = normalizeSector(sector);
+  const metadata = normalized?.metadata && typeof normalized.metadata === "object" ? { ...normalized.metadata } : {};
+  const occupiedHexes = Array.isArray(metadata.occupiedHexes) ? metadata.occupiedHexes : [];
+  const compactHexStarTypes = compactHexStarTypesForCache(metadata.hexStarTypes);
+
+  if (occupiedHexes.length > CACHE_HEX_DETAIL_LIMIT) {
+    metadata.occupiedHexesCount = occupiedHexes.length;
+    delete metadata.occupiedHexes;
+  }
+
+  if (compactHexStarTypes === undefined) {
+    if (hasObjectEntries(metadata.hexStarTypes)) {
+      metadata.hexStarTypeCount = Object.keys(metadata.hexStarTypes).length;
+    }
+    delete metadata.hexStarTypes;
+  } else {
+    metadata.hexStarTypes = compactHexStarTypes;
+  }
+
+  return {
+    ...normalized,
+    metadata,
+  };
+}
+
 function saveSectors(sectors) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(sectors));
+  const compacted = (Array.isArray(sectors) ? sectors : []).map(compactSectorForCache);
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(compacted));
+  } catch (error) {
+    if (!isStorageQuotaError(error)) {
+      return;
+    }
+    try {
+      const trimmed = sortSectorsForCache(compacted).slice(0, CACHE_SECTOR_RETRY_LIMIT);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(trimmed));
+    } catch {
+      try {
+        localStorage.removeItem(STORAGE_KEY);
+      } catch {
+        // Ignore storage cleanup failures; cache persistence is best-effort only.
+      }
+    }
+  }
 }
 
 function hasObjectEntries(value) {
@@ -303,6 +374,26 @@ export async function updateSector(sectorId, payload) {
     mergeCachedSectors([body]);
     return normalizeSector(body);
   }
+}
+
+export async function deleteSector(sectorId) {
+  const normalizedSectorId = String(sectorId || "").trim();
+  if (!normalizedSectorId) {
+    throw new Error("sectorId is required");
+  }
+
+  try {
+    await request(`/sectors/${encodeURIComponent(normalizedSectorId)}`, {
+      method: "DELETE",
+    });
+  } catch (error) {
+    if (!/not found|404/i.test(String(error?.message || ""))) {
+      throw error;
+    }
+  }
+
+  removeCachedSector(normalizedSectorId);
+  return { sectorId: normalizedSectorId };
 }
 
 export async function createSectorsBatch(sectors) {

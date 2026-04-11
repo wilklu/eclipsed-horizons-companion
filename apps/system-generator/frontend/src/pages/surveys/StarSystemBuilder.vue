@@ -213,7 +213,7 @@ import { useSystemStore } from "../../stores/systemStore.js";
 import { useArchiveTransfer } from "../../composables/useArchiveTransfer.js";
 import { generateObjectName } from "../../utils/nameGenerator.js";
 import { generatePrimaryStar } from "../../utils/primaryStarGenerator.js";
-import { buildHexStarTypeMetadata } from "../../utils/systemStarMetadata.js";
+import { buildHexStarTypeMetadata, resolveGeneratedStarsFromSystem } from "../../utils/systemStarMetadata.js";
 import { buildProfiledWbhSystemPlanets, calculateSystemHabitableZone } from "../../utils/systemWorldGeneration.js";
 import { starDescriptorToCssClass } from "../../utils/starDisplay.js";
 import { generateAutomaticWorldName } from "../../utils/worldProfileGenerator.js";
@@ -657,7 +657,15 @@ async function hydrateSystem() {
         ],
         ledger: ["Stellar Survey", `Hex ${normalizeHex(hexCoord.value)} requested`, "Record matcher: active"],
       });
-      const existing = systemStore.findSystemByHex(props.galaxyId, persistedSectorId, hexCoord.value);
+      const requestedSystemRecordId = String(route.query.systemRecordId || "").trim();
+      const existingById = requestedSystemRecordId
+        ? systemStore.systems.find(
+            (entry) =>
+              String(entry?.systemId || "") === requestedSystemRecordId &&
+              String(entry?.sectorId || "") === String(persistedSectorId || ""),
+          )
+        : null;
+      const existing = existingById ?? systemStore.findSystemByHex(props.galaxyId, persistedSectorId, hexCoord.value);
       if (existing?.stars?.length) {
         primarySpectral.value = normalizePrimarySelection(
           existing.stars[0]?.designation || existing.stars[0]?.spectralClass || existing?.primaryStar?.spectralClass,
@@ -665,10 +673,11 @@ async function hydrateSystem() {
         multiplicity.value = multiplicityFromStars(existing.stars);
         system.value = {
           ...existing,
-          systemId: normalizeHex(hexCoord.value),
+          systemId: normalizeHex(existing.systemId || hexCoord.value),
         };
         selectedWorldIndex.value = resolveSelectedWorldIndex(existing.planets);
         systemStore.setCurrentSystem(existing.systemId);
+        hexCoord.value = normalizeHex(existing.systemId || hexCoord.value);
         await syncSectorSurveyState(existing);
         return;
       }
@@ -782,6 +791,14 @@ async function buildSystem() {
   const requestedPrimary = normalizePrimarySelection(primarySpectral.value);
   primarySpectral.value = requestedPrimary;
 
+  const existingStars = resolveGeneratedStarsFromSystem(system.value);
+  const shouldReuseExistingStars =
+    existingStars.length > 0 &&
+    Boolean(String(route.query.systemRecordId || systemStore.currentSystemId || "").trim()) &&
+    (Boolean(system.value?.metadata?.generatedWorldProfilesIncomplete) ||
+      !Array.isArray(system.value?.planets) ||
+      system.value.planets.length === 0);
+
   const primaryEntry =
     requestedPrimary === "random"
       ? null
@@ -789,12 +806,14 @@ async function buildSystem() {
   const primaryIsAnomaly = primaryEntry ? ANOMALY_TYPES.some((entry) => entry.code === primaryEntry.code) : false;
 
   const starCountLimit = multiplicity.value === "single" ? 1 : multiplicity.value === "binary" ? 2 : 3;
-  const stars = primaryIsAnomaly
-    ? [buildAnomalyPrimary(primaryEntry)]
-    : generateMultipleStarSystemWbh({
-        spectralType: requestedPrimary === "random" ? undefined : requestedPrimary,
-        maxStars: multiplicity.value === "random" ? 3 : starCountLimit,
-      }).slice(0, multiplicity.value === "random" ? 3 : starCountLimit);
+  const stars = shouldReuseExistingStars
+    ? existingStars.map((star) => ({ ...star }))
+    : primaryIsAnomaly
+      ? [buildAnomalyPrimary(primaryEntry)]
+      : generateMultipleStarSystemWbh({
+          spectralType: requestedPrimary === "random" ? undefined : requestedPrimary,
+          maxStars: multiplicity.value === "random" ? 3 : starCountLimit,
+        }).slice(0, multiplicity.value === "random" ? 3 : starCountLimit);
 
   const hz = calculateSystemHabitableZone(stars);
   const planets = buildProfiledWbhSystemPlanets({

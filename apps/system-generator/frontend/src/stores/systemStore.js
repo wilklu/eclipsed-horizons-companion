@@ -14,7 +14,15 @@ function loadSystems() {
 }
 
 function saveSystems(systems) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(systems));
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(systems));
+  } catch {
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch {
+      // Ignore storage cleanup failures; the backend remains the source of truth.
+    }
+  }
 }
 
 function normalizeHexCoordinates(value) {

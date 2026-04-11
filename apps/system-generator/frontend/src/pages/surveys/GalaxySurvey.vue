@@ -60,6 +60,22 @@
       @confirm="confirmFullGalaxy"
       @cancel="cancelFullGalaxy"
     />
+    <ConfirmDialog
+      :isOpen="regenerateDialog.isOpen"
+      :title="regenerateDialog.title"
+      :message="regenerateDialog.message"
+      :confirmText="regenerateDialog.confirmText"
+      @confirm="confirmFullRegenerate"
+      @cancel="cancelFullRegenerate"
+    />
+    <ConfirmDialog
+      :isOpen="resetDialog.isOpen"
+      :title="resetDialog.title"
+      :message="resetDialog.message"
+      :confirmText="resetDialog.confirmText"
+      @confirm="confirmResetGeneratedContent"
+      @cancel="cancelResetGeneratedContent"
+    />
 
     <div class="survey-content">
       <!-- Error Message Display -->
@@ -91,7 +107,7 @@
             v-if="currentGalaxy"
             type="button"
             class="btn btn-secondary"
-            :disabled="isGeneratingSectors || isGeneratingFullGalaxy"
+            :disabled="isGeneratingSectors || isGeneratingFullGalaxy || isApplyingFullRegenerate"
             @click="regenerateGalaxy"
           >
             🔄 Regenerate
@@ -118,14 +134,13 @@
               @change="onEditGalaxyTypeChange"
             >
               <option value="Spiral">Spiral</option>
-              <option value="Barred Spiral">Barred Spiral</option>
               <option value="Elliptical">Elliptical</option>
               <option value="Lenticular">Lenticular</option>
               <option value="Irregular">Irregular</option>
               <option value="Dwarf">Dwarf</option>
             </select>
           </template>
-          <div v-else class="galaxy-type-badge">{{ currentGalaxy.type }}</div>
+          <span v-else class="galaxy-type-badge">{{ currentGalaxy.type || "Unknown" }}</span>
         </div>
 
         <div class="galaxy-parameter-strip">
@@ -162,6 +177,35 @@
             <span class="parameter-value">{{ currentGalaxy.metadata?.status || "Active" }}</span>
           </div>
         </div>
+
+        <section v-if="isEditingGalaxy && galaxyEditDeltaRows.length" class="detail-section detail-section--strip">
+          <h3>🧪 Draft Delta</h3>
+          <div class="draft-delta-panel">
+            <div class="draft-delta-grid">
+              <div v-for="row in galaxyEditDeltaRows" :key="row.label" class="draft-delta-card">
+                <span class="draft-delta-label">{{ row.label }}</span>
+                <span class="draft-delta-before">Current {{ row.before }}</span>
+                <span class="draft-delta-after">Draft {{ row.after }}</span>
+                <span v-if="row.delta" class="draft-delta-shift">{{ row.delta }}</span>
+              </div>
+            </div>
+            <div class="draft-delta-actions">
+              <div class="draft-delta-copy">
+                Full regenerate applies this draft and clears
+                {{ destructiveRegenerateSummary.sectorCount.toLocaleString() }} persisted sector{{
+                  destructiveRegenerateSummary.sectorCount === 1 ? "" : "s"
+                }}
+                and {{ destructiveRegenerateSummary.systemCount.toLocaleString() }} cached system{{
+                  destructiveRegenerateSummary.systemCount === 1 ? "" : "s"
+                }}
+                for this galaxy.
+              </div>
+              <button class="btn btn-danger" :disabled="isApplyingFullRegenerate" @click="showFullRegenerateConfirm">
+                {{ isApplyingFullRegenerate ? "Rebuilding…" : "💥 Full Regenerate" }}
+              </button>
+            </div>
+          </div>
+        </section>
 
         <div class="details-stack">
           <section class="detail-section detail-section--strip">
@@ -305,6 +349,132 @@
             </div>
           </section>
 
+          <section class="detail-section detail-section--strip">
+            <h3>🧭 Planner</h3>
+            <div class="planner-panel">
+              <div class="planner-summary-card">
+                <div class="planner-summary-head">
+                  <span class="planner-kicker">{{ generationPlannerSummary.modeLabel }}</span>
+                  <strong>{{ generationPlannerSummary.actionLabel }}</strong>
+                </div>
+                <div class="planner-metrics">
+                  <div class="planner-metric">
+                    <span class="planner-metric-label">Layout Footprint</span>
+                    <span class="planner-metric-value">{{ generationPlannerSummary.layoutCountLabel }}</span>
+                  </div>
+                  <div class="planner-metric">
+                    <span class="planner-metric-label">Targeted This Run</span>
+                    <span class="planner-metric-value">{{ generationPlannerSummary.sectorsTouchedLabel }}</span>
+                  </div>
+                  <div class="planner-metric">
+                    <span class="planner-metric-label">Named Sectors On Hand</span>
+                    <span class="planner-metric-value">{{ generationPlannerSummary.namedSectorsLabel }}</span>
+                  </div>
+                  <div class="planner-metric">
+                    <span class="planner-metric-label">Presence Coverage</span>
+                    <span class="planner-metric-value">{{ generationPlannerSummary.presenceCoverageLabel }}</span>
+                  </div>
+                  <div class="planner-metric">
+                    <span class="planner-metric-label">Cached Systems</span>
+                    <span class="planner-metric-value">{{ generationPlannerSummary.cachedSystemsLabel }}</span>
+                  </div>
+                  <div class="planner-metric">
+                    <span class="planner-metric-label">Expected Write Pattern</span>
+                    <span class="planner-metric-value">{{ generationPlannerSummary.writeProfile }}</span>
+                  </div>
+                </div>
+                <div v-if="generationPlannerSummary.warningMessages.length" class="planner-warning-list">
+                  <div
+                    v-for="warning in generationPlannerSummary.warningMessages"
+                    :key="warning"
+                    class="planner-warning-item"
+                  >
+                    {{ warning }}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="detail-section detail-section--strip">
+            <h3>🛠️ Reset</h3>
+            <div class="planner-panel">
+              <div class="reset-panel">
+                <div class="reset-copy">
+                  Reset generated content without deleting the galaxy record. Use sector-only reset from the selected
+                  map tile when you need to rework a specific area.
+                </div>
+                <div class="reset-action-grid">
+                  <button
+                    class="btn btn-secondary"
+                    :disabled="isApplyingSectorReset || !currentGalaxySectors.length"
+                    @click="requestResetGeneratedContent({ level: 'systems', scopeLabel: 'this galaxy' })"
+                  >
+                    {{ isApplyingSectorReset ? "Resetting…" : "Clear Systems Only" }}
+                  </button>
+                  <button
+                    class="btn btn-danger"
+                    :disabled="isApplyingSectorReset || !currentGalaxySectors.length"
+                    @click="requestResetGeneratedContent({ level: 'presence', scopeLabel: 'this galaxy' })"
+                  >
+                    {{ isApplyingSectorReset ? "Resetting…" : "Clear Presence + Systems" }}
+                  </button>
+                  <button
+                    class="btn btn-secondary"
+                    :disabled="isApplyingSectorReset || !selectedGalaxyMapSectorRecord"
+                    @click="
+                      requestResetGeneratedContent({
+                        level: 'systems',
+                        scopeLabel: selectedGalaxyMapTile?.displayName || 'the selected sector',
+                        sectorIds: [selectedGalaxyMapSectorRecord.sectorId],
+                      })
+                    "
+                  >
+                    Clear Selected Sector Systems
+                  </button>
+                  <button
+                    class="btn btn-secondary"
+                    :disabled="isApplyingSectorReset || !selectedGalaxyMapSectorRecord"
+                    @click="
+                      requestResetGeneratedContent({
+                        level: 'presence',
+                        scopeLabel: selectedGalaxyMapTile?.displayName || 'the selected sector',
+                        sectorIds: [selectedGalaxyMapSectorRecord.sectorId],
+                      })
+                    "
+                  >
+                    Clear Selected Sector Survey
+                  </button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="detail-section detail-section--strip">
+            <h3>🕘 History</h3>
+            <div class="history-panel">
+              <div v-if="currentGalaxyHistory.length" class="history-list">
+                <div v-for="entry in currentGalaxyHistory" :key="entry.id" class="history-entry">
+                  <div class="history-entry-head">
+                    <strong>{{ entry.label }}</strong>
+                    <span>{{ formatHistoryTimestamp(entry.at) }}</span>
+                  </div>
+                  <div class="history-entry-body">{{ entry.detail }}</div>
+                  <div v-if="entry.metrics?.length" class="history-entry-metrics">
+                    <span
+                      v-for="metric in entry.metrics"
+                      :key="`${entry.id}-${metric.label}`"
+                      class="history-entry-metric"
+                    >
+                      {{ metric.label }}: {{ metric.value }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <div v-else class="history-empty">No Galaxy Survey actions logged for this galaxy yet.</div>
+            </div>
+          </section>
+
           <!-- Metadata -->
           <section class="detail-section detail-section--strip">
             <h3>📋 Metadata</h3>
@@ -355,6 +525,14 @@
                 {{ option.label }}
               </button>
             </div>
+            <div class="density-map-search">
+              <input
+                v-model.trim="galaxyMapSearch"
+                class="density-map-search-input"
+                type="search"
+                placeholder="Search sector id, name, or grid"
+              />
+            </div>
           </div>
           <div class="density-map-container">
             <svg
@@ -382,10 +560,16 @@
                 :height="galaxyMapPreview.renderTileSize"
                 :fill="tile.color"
                 :opacity="tile.opacity"
+                class="density-map-tile"
+                :class="{
+                  'density-map-tile--active': selectedGalaxyMapTileId === tile.id,
+                  'density-map-tile--persisted': tile.persisted,
+                }"
                 rx="1"
                 ry="1"
+                @click="selectGalaxyMapTile(tile)"
               >
-                <title>Density Class {{ tile.dc }}</title>
+                <title>{{ tile.tooltip }}</title>
               </rect>
               <line
                 :x1="galaxyMapPreview.centerPx - 8"
@@ -422,6 +606,120 @@
               </div>
               <span class="legend-label">Dense Core</span>
             </div>
+            <div v-if="galaxySectorSearchResults.length" class="density-map-search-results">
+              <button
+                v-for="tile in galaxySectorSearchResults"
+                :key="tile.id"
+                type="button"
+                class="density-map-search-result"
+                @click="focusGalaxyMapTile(tile.id, { zoom: true })"
+              >
+                <span class="density-map-search-result-name">{{ tile.displayName }}</span>
+                <span class="density-map-search-result-meta">
+                  {{ tile.sectorId }} · grid {{ formatTileGrid(tile.gridX, tile.gridY) }} · density {{ tile.dc }}
+                </span>
+              </button>
+            </div>
+            <div v-if="selectedGalaxyMapTile" class="density-map-inspector">
+              <div class="density-map-inspector-head">
+                <div>
+                  <div class="density-map-inspector-kicker">Selected Sector</div>
+                  <strong>{{ selectedGalaxyMapTile.displayName }}</strong>
+                </div>
+                <span class="density-map-inspector-density">Density Class {{ selectedGalaxyMapTile.dc }}</span>
+              </div>
+              <div class="density-map-inspector-grid">
+                <div class="density-map-inspector-item">
+                  <span>Sector ID</span>
+                  <strong>{{ selectedGalaxyMapTile.sectorId }}</strong>
+                </div>
+                <div class="density-map-inspector-item">
+                  <span>Grid</span>
+                  <strong>{{ formatTileGrid(selectedGalaxyMapTile.gridX, selectedGalaxyMapTile.gridY) }}</strong>
+                </div>
+                <div class="density-map-inspector-item">
+                  <span>Persisted</span>
+                  <strong>{{ selectedGalaxyMapTile.persisted ? "Yes" : "Layout Only" }}</strong>
+                </div>
+                <div class="density-map-inspector-item">
+                  <span>Presence Hexes</span>
+                  <strong>{{ formatNumber(selectedGalaxyMapTile.occupiedHexCount) }}</strong>
+                </div>
+                <div class="density-map-inspector-item">
+                  <span>Typed Hexes</span>
+                  <strong>{{ formatNumber(selectedGalaxyMapTile.typedHexCount) }}</strong>
+                </div>
+                <div class="density-map-inspector-item">
+                  <span>Ring Distance</span>
+                  <strong>{{ selectedGalaxyMapTile.ring }}</strong>
+                </div>
+              </div>
+              <div class="density-map-inspector-ring-copy">
+                Ring {{ selectedGalaxyMapTile.ring }} contains
+                {{ selectedGalaxyMapRingTiles.length.toLocaleString() }} layout tile{{
+                  selectedGalaxyMapRingTiles.length === 1 ? "" : "s"
+                }}
+                and {{ selectedGalaxyMapRingPersistedSectors.length.toLocaleString() }} persisted sector{{
+                  selectedGalaxyMapRingPersistedSectors.length === 1 ? "" : "s"
+                }}.
+              </div>
+              <div class="density-map-inspector-actions">
+                <button
+                  class="btn btn-secondary"
+                  :disabled="!selectedGalaxyMapTile.persisted"
+                  @click="jumpToSectorSurvey()"
+                >
+                  Open Sector Survey
+                </button>
+                <button
+                  class="btn btn-secondary"
+                  :disabled="!selectedGalaxyMapTile.persisted"
+                  @click="jumpToSectorSurvey({ viewName: 'SubsectorSurvey' })"
+                >
+                  Open Subsector Survey
+                </button>
+                <button
+                  class="btn btn-info"
+                  :disabled="!selectedGalaxyMapRingTiles.length || isGeneratingSectors || isGeneratingFullGalaxy"
+                  @click="generateSelectedRing({ mode: 'presence' })"
+                >
+                  Generate Ring Presence
+                </button>
+                <button
+                  class="btn btn-info"
+                  :disabled="!selectedGalaxyMapRingTiles.length || isGeneratingSectors || isGeneratingFullGalaxy"
+                  @click="generateSelectedRing({ mode: 'systems' })"
+                >
+                  Generate Ring Systems
+                </button>
+                <button
+                  class="btn btn-secondary"
+                  :disabled="isApplyingSectorReset || !selectedGalaxyMapRingPersistedSectors.length"
+                  @click="
+                    requestResetGeneratedContent({
+                      level: 'systems',
+                      scopeLabel: `ring ${selectedGalaxyMapTile.ring}`,
+                      sectorIds: selectedGalaxyMapRingPersistedSectors.map((sector) => sector.sectorId),
+                    })
+                  "
+                >
+                  Clear Ring Systems
+                </button>
+                <button
+                  class="btn btn-secondary"
+                  :disabled="isApplyingSectorReset || !selectedGalaxyMapRingPersistedSectors.length"
+                  @click="
+                    requestResetGeneratedContent({
+                      level: 'presence',
+                      scopeLabel: `ring ${selectedGalaxyMapTile.ring}`,
+                      sectorIds: selectedGalaxyMapRingPersistedSectors.map((sector) => sector.sectorId),
+                    })
+                  "
+                >
+                  Clear Ring Survey
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -449,6 +747,7 @@
           >
             {{ isGeneratingSectors || isGeneratingFullGalaxy ? "Generating…" : currentGalaxyGenerateLabel }}
           </button>
+          <button v-if="isEditingGalaxy" @click="rerollGalaxyDraft" class="btn btn-secondary">🎲 Reroll Draft</button>
           <button v-if="isEditingGalaxy" @click="saveGalaxyEdits" class="btn btn-primary">💾 Save Galaxy</button>
           <button v-if="isEditingGalaxy" @click="cancelGalaxyEdits" class="btn btn-secondary">↩ Cancel Edit</button>
           <button v-else @click="editGalaxy" class="btn btn-secondary">✏️ Edit Galaxy</button>
@@ -825,7 +1124,7 @@ import { useRouter, useRoute } from "vue-router";
 import { useGalaxyStore } from "../../stores/galaxyStore.js";
 import { useSectorStore } from "../../stores/sectorStore.js";
 import { useSystemStore } from "../../stores/systemStore.js";
-import { createSectorsBatch, getSectorStats, upsertSector } from "../../api/sectorApi.js";
+import { createSectorsBatch, deleteSector, getSectorStats, upsertSector } from "../../api/sectorApi.js";
 import { calculateHexOccupancyProbability } from "../../utils/sectorGeneration.js";
 import { generatePrimaryStar } from "../../utils/primaryStarGenerator.js";
 import { buildHexStarTypeMetadata, normalizeHexStarTypeRecord } from "../../utils/systemStarMetadata.js";
@@ -891,9 +1190,13 @@ const isCreating = ref(false);
 const isEditingGalaxy = ref(false);
 const isGeneratingSectors = ref(false);
 const isGeneratingFullGalaxy = ref(false);
+const isApplyingFullRegenerate = ref(false);
+const isApplyingSectorReset = ref(false);
 const isRefreshingSectorStats = ref(false);
 const galaxySurveyGenerationMode = ref("names");
 const galaxyMapZoomLevel = ref("fit");
+const galaxyMapSearch = ref("");
+const selectedGalaxyMapTileId = ref("");
 const galaxyMapPan = ref({ x: 0, y: 0 });
 const galaxyMapPanState = ref({
   isDragging: false,
@@ -910,6 +1213,8 @@ const generationProgress = ref({
   total: 0,
   startedAtMs: 0,
 });
+const GALAXY_SURVEY_HISTORY_STORAGE_KEY = "eclipsed-horizons-galaxy-survey-history";
+const galaxySurveyHistory = ref(loadGalaxySurveyHistory());
 
 const generationProgressPercent = computed(() => {
   if (!generationProgress.value.active || generationProgress.value.total <= 0) return 0;
@@ -1024,6 +1329,73 @@ const currentGalaxyGenerateTitle = computed(
     })[galaxySurveyGenerationMode.value] || "Generate sectors for this galaxy.",
 );
 
+const currentGalaxyLayoutCount = computed(() =>
+  currentGalaxy.value ? estimateGalaxySectorLayoutCount(currentGalaxy.value, { scale: "true" }) : 0,
+);
+
+const currentGalaxyCachedSystemCount = computed(
+  () =>
+    systemStore.systems.filter(
+      (system) => String(system?.galaxyId || "") === String(currentGalaxy.value?.galaxyId || ""),
+    ).length,
+);
+
+const generationPlannerSummary = computed(() => {
+  const totalLayout = currentGalaxyLayoutCount.value;
+  const namedSectors = currentGalaxySectors.value.length;
+  const generatedPresence = Number(currentGalaxySectorStats.value.generatedPresenceSectors || 0);
+  const mode = galaxySurveyGenerationMode.value;
+  let sectorsTouched = totalLayout;
+  let actionLabel = "Full layout run";
+  let writeProfile = "Upserts sectors in large batches";
+
+  if (mode === "center") {
+    sectorsTouched = Math.min(1, totalLayout);
+    actionLabel = "Center sector only";
+    writeProfile = "Touches the center tile only";
+  } else if (mode === "expand") {
+    sectorsTouched = Math.max(1, Math.min(totalLayout, Math.max(1, generatedPresence || namedSectors || 1)));
+    actionLabel = "Ring expansion from center";
+    writeProfile = "Progressively expands until an empty ring is found";
+  } else if (mode === "names") {
+    actionLabel = "Name missing layout sectors";
+    writeProfile = "Writes sector records in chunked batches";
+  } else if (mode === "presence") {
+    actionLabel = "Roll occupied hex presence";
+    writeProfile = "Updates sector metadata and presence markers";
+  } else if (mode === "systems") {
+    actionLabel = "Generate persisted systems";
+    writeProfile = "Writes sector metadata and replaces sector system records";
+  }
+
+  const warningMessages = [];
+  if (totalLayout > 50000 && mode !== "center") {
+    warningMessages.push(
+      "Large galaxy footprint detected. Full-galaxy runs can take noticeable time and produce a large number of writes.",
+    );
+  }
+  if (mode === "systems" && generatedPresence === 0 && namedSectors > 0) {
+    warningMessages.push(
+      "System generation will also seed presence where needed. If you want a lighter pass, run presence first.",
+    );
+  }
+  if (mode === "names" && namedSectors >= totalLayout && totalLayout > 0) {
+    warningMessages.push("All layout sectors already have records. This run will mainly normalize naming metadata.");
+  }
+
+  return {
+    modeLabel: currentGalaxyGenerateLabel.value,
+    actionLabel,
+    layoutCountLabel: totalLayout.toLocaleString(),
+    sectorsTouchedLabel: sectorsTouched.toLocaleString(),
+    namedSectorsLabel: `${namedSectors.toLocaleString()} / ${totalLayout.toLocaleString()}`,
+    presenceCoverageLabel: sectorGenerationCoverageLabel.value,
+    cachedSystemsLabel: currentGalaxyCachedSystemCount.value.toLocaleString(),
+    writeProfile,
+    warningMessages,
+  };
+});
+
 const sectorGenerateDialog = ref({
   isOpen: false,
   title: "Generate All Sectors",
@@ -1035,6 +1407,19 @@ const fullGalaxyDialog = ref({
   title: "Generate Sectors And Systems",
   message: "",
   confirmText: "Generate Sectors And Systems",
+});
+const regenerateDialog = ref({
+  isOpen: false,
+  title: "Full Regenerate Galaxy",
+  message: "",
+  confirmText: "Full Regenerate",
+});
+const resetDialog = ref({
+  isOpen: false,
+  title: "Reset Generated Content",
+  message: "",
+  confirmText: "Reset",
+  payload: null,
 });
 const DEFAULT_UNIVERSE_COORD_LIMITS = Object.freeze({ minX: -500, maxX: 500, minY: -500, maxY: 500 });
 const UNIVERSE_BOUNDS_STORAGE_KEY = "eclipsed-horizons-universe-bounds";
@@ -1214,19 +1599,142 @@ function calculateMorphologyFromAnomaly({ type, massSolarMasses, activityIndex, 
 }
 
 function autoCalculateGalaxyFromAnomaly() {
+  applyMorphologyFromAnomalyToForm(newGalaxyForm);
+}
+
+function applyMorphologyFromAnomalyToForm(targetFormRef) {
+  if (!targetFormRef?.value) {
+    return;
+  }
+
   const computed = calculateMorphologyFromAnomaly({
-    type: newGalaxyForm.value.centralAnomalyType,
-    massSolarMasses: newGalaxyForm.value.centralAnomalyMassSolar,
-    activityIndex: newGalaxyForm.value.centralAnomalyActivity,
-    galaxyType: newGalaxyForm.value.type,
-    existingArmCount: newGalaxyForm.value.armCount,
+    type: targetFormRef.value.centralAnomalyType,
+    massSolarMasses: targetFormRef.value.centralAnomalyMassSolar,
+    activityIndex: targetFormRef.value.centralAnomalyActivity,
+    galaxyType: targetFormRef.value.type,
+    existingArmCount: targetFormRef.value.armCount,
   });
 
-  newGalaxyForm.value.bulgeRadius = computed.bulgeRadius;
-  newGalaxyForm.value.diskThickness = computed.diskThickness;
-  newGalaxyForm.value.coreDensity = computed.coreDensity;
-  newGalaxyForm.value.armCount = computed.armCount;
+  targetFormRef.value.bulgeRadius = computed.bulgeRadius;
+  targetFormRef.value.diskThickness = computed.diskThickness;
+  targetFormRef.value.coreDensity = computed.coreDensity;
+  targetFormRef.value.armCount = computed.armCount;
 }
+
+function rerollGalaxyDraft() {
+  const galaxy = currentGalaxy.value;
+  if (!galaxy) {
+    return;
+  }
+
+  if (!isEditingGalaxy.value) {
+    syncGalaxyEditForm(galaxy);
+    isEditingGalaxy.value = true;
+  }
+
+  galaxyEditForm.value.type = String(galaxy?.type || galaxyEditForm.value.type || "Spiral");
+  galaxyEditForm.value.centralAnomalyType = rollCentralAnomalyType();
+  galaxyEditForm.value.centralAnomalyMassSolar = roundTo(
+    sampleAnomalyMassSolar(galaxyEditForm.value.centralAnomalyType),
+  );
+  galaxyEditForm.value.centralAnomalyActivity = roundTo(Math.random(), 2);
+  applyMorphologyFromAnomalyToForm(galaxyEditForm);
+  onEditGalaxyTypeChange();
+
+  toastService.info(
+    `Rerolled a new ${galaxyEditForm.value.type} profile draft for ${galaxy.name}. Review and save to apply it.`,
+  );
+}
+
+function formatGalaxyDraftValue(value, formatter = (input) => String(input ?? "—")) {
+  return formatter(value);
+}
+
+function buildDeltaLabel(nextValue, currentValue, formatter = (input) => String(input ?? "—")) {
+  if (String(formatter(nextValue)) === String(formatter(currentValue))) {
+    return "";
+  }
+  return `→ ${formatter(nextValue)}`;
+}
+
+const galaxyEditDeltaRows = computed(() => {
+  const galaxy = currentGalaxy.value;
+  if (!isEditingGalaxy.value || !galaxy) {
+    return [];
+  }
+
+  const currentAnomaly = galaxy?.morphology?.centralAnomaly ?? {};
+  const formatPc = (value) => `${Number(value || 0).toLocaleString()} pc`;
+  const formatDensity = (value) => `${(Number(value || 0) * 100).toFixed(1)}%`;
+  const formatMass = (value) => `${formatNumber(Number(value || 0))} M☉`;
+  const formatActivity = (value) => Number(value || 0).toFixed(2);
+
+  return [
+    {
+      label: "Galaxy Type",
+      before: formatGalaxyDraftValue(galaxy.type),
+      after: formatGalaxyDraftValue(galaxyEditForm.value.type),
+      delta: buildDeltaLabel(galaxyEditForm.value.type, galaxy.type),
+    },
+    {
+      label: "Central Anomaly",
+      before: formatGalaxyDraftValue(currentAnomaly.type),
+      after: formatGalaxyDraftValue(galaxyEditForm.value.centralAnomalyType),
+      delta: buildDeltaLabel(galaxyEditForm.value.centralAnomalyType, currentAnomaly.type),
+    },
+    {
+      label: "Anomaly Mass",
+      before: formatMass(currentAnomaly.massSolarMasses),
+      after: formatMass(galaxyEditForm.value.centralAnomalyMassSolar),
+      delta: buildDeltaLabel(galaxyEditForm.value.centralAnomalyMassSolar, currentAnomaly.massSolarMasses, formatMass),
+    },
+    {
+      label: "Activity Index",
+      before: formatActivity(currentAnomaly.activityIndex),
+      after: formatActivity(galaxyEditForm.value.centralAnomalyActivity),
+      delta: buildDeltaLabel(galaxyEditForm.value.centralAnomalyActivity, currentAnomaly.activityIndex, formatActivity),
+    },
+    {
+      label: "Bulge Radius",
+      before: formatPc(galaxy?.morphology?.bulgeRadius),
+      after: formatPc(galaxyEditForm.value.bulgeRadius),
+      delta: buildDeltaLabel(galaxyEditForm.value.bulgeRadius, galaxy?.morphology?.bulgeRadius, formatPc),
+    },
+    {
+      label: "Disk Thickness",
+      before: formatPc(galaxy?.morphology?.diskThickness),
+      after: formatPc(galaxyEditForm.value.diskThickness),
+      delta: buildDeltaLabel(galaxyEditForm.value.diskThickness, galaxy?.morphology?.diskThickness, formatPc),
+    },
+    {
+      label: "Core Density",
+      before: formatDensity(galaxy?.morphology?.coreDensity),
+      after: formatDensity(galaxyEditForm.value.coreDensity),
+      delta: buildDeltaLabel(galaxyEditForm.value.coreDensity, galaxy?.morphology?.coreDensity, formatDensity),
+    },
+    {
+      label: "Spiral Arms",
+      before: formatGalaxyDraftValue(galaxy?.morphology?.armCount ?? 0),
+      after: formatGalaxyDraftValue(galaxyEditForm.value.armCount ?? 0),
+      delta: buildDeltaLabel(galaxyEditForm.value.armCount ?? 0, galaxy?.morphology?.armCount ?? 0),
+    },
+  ];
+});
+
+const destructiveRegenerateSummary = computed(() => {
+  const sectors = Array.isArray(currentGalaxySectors.value) ? currentGalaxySectors.value : [];
+  const sectorIds = new Set(sectors.map((sector) => String(sector?.sectorId || "")).filter(Boolean));
+  const systemCount = systemStore.systems.filter((system) => {
+    const matchesGalaxy = String(system?.galaxyId || "") === String(currentGalaxy.value?.galaxyId || "");
+    const matchesSector = sectorIds.has(String(system?.sectorId || ""));
+    return matchesGalaxy || matchesSector;
+  }).length;
+
+  return {
+    sectorCount: sectors.length,
+    systemCount,
+  };
+});
 
 const anomalyPreview = computed(() =>
   calculateMorphologyFromAnomaly({
@@ -1366,6 +1874,65 @@ function getGalaxyUniverseCoordinates(galaxy) {
 function coordinateKey(x, y) {
   return `${Math.round(x)}:${Math.round(y)}`;
 }
+
+function buildGalaxyGridKey(x, y) {
+  return `${Number(x) || 0}:${Number(y) || 0}`;
+}
+
+function loadGalaxySurveyHistory() {
+  try {
+    const raw = localStorage.getItem(GALAXY_SURVEY_HISTORY_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveGalaxySurveyHistory(entries) {
+  galaxySurveyHistory.value = Array.isArray(entries) ? entries : [];
+  try {
+    localStorage.setItem(GALAXY_SURVEY_HISTORY_STORAGE_KEY, JSON.stringify(galaxySurveyHistory.value));
+  } catch {
+    // Ignore history persistence failures; feature is advisory only.
+  }
+}
+
+function normalizeHistoryMetrics(metrics) {
+  return (Array.isArray(metrics) ? metrics : [])
+    .map((metric) => {
+      const label = String(metric?.label || "").trim();
+      const value = String(metric?.value ?? "").trim();
+      return label && value ? { label, value } : null;
+    })
+    .filter(Boolean);
+}
+
+function recordGalaxySurveyHistory({ galaxyId, label, detail, metrics = [] }) {
+  const normalizedGalaxyId = String(galaxyId || currentGalaxy.value?.galaxyId || "").trim();
+  if (!normalizedGalaxyId) {
+    return;
+  }
+
+  const nextEntries = [
+    {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      galaxyId: normalizedGalaxyId,
+      label: String(label || "Galaxy Survey Activity").trim(),
+      detail: String(detail || "").trim(),
+      metrics: normalizeHistoryMetrics(metrics),
+      at: new Date().toISOString(),
+    },
+    ...galaxySurveyHistory.value,
+  ].slice(0, 60);
+  saveGalaxySurveyHistory(nextEntries);
+}
+
+const currentGalaxyHistory = computed(() =>
+  galaxySurveyHistory.value
+    .filter((entry) => String(entry?.galaxyId || "") === String(currentGalaxy.value?.galaxyId || ""))
+    .slice(0, 8),
+);
 
 function randomIntInRange(min, max) {
   return min + Math.floor(Math.random() * (max - min + 1));
@@ -1625,6 +2192,13 @@ const galaxyMapPreview = computed(() => {
   const layout = generateGalaxySectorLayout(galaxy);
   if (!layout.length) return null;
 
+  const persistedSectorsByGrid = new Map(
+    currentGalaxySectors.value.map((sector) => [
+      buildGalaxyGridKey(sector?.metadata?.gridX, sector?.metadata?.gridY),
+      sector,
+    ]),
+  );
+
   const xValues = layout.map((sector) => Number(sector?.metadata?.gridX ?? sector?.x ?? 0));
   const yValues = layout.map((sector) => Number(sector?.metadata?.gridY ?? sector?.y ?? 0));
   const minGridX = Math.min(...xValues);
@@ -1673,15 +2247,88 @@ const galaxyMapPreview = computed(() => {
     centerPy: offsetY,
     densityColors: DENSITY_COLORS,
     scaleLabel,
-    tiles: layout.map((s) => ({
-      id: `${s.metadata.gridX}_${s.metadata.gridY}`,
-      px: offsetX + s.metadata.gridX * step,
-      py: offsetY + s.metadata.gridY * step,
-      color: DENSITY_COLORS[s.densityClass] ?? DENSITY_COLORS[0],
-      dc: s.densityClass,
-      opacity: tileSize < 3 ? 0.82 : 1,
-    })),
+    tiles: layout.map((s) => {
+      const gridX = Number(s?.metadata?.gridX ?? s?.x ?? 0);
+      const gridY = Number(s?.metadata?.gridY ?? s?.y ?? 0);
+      const persistedSector = persistedSectorsByGrid.get(buildGalaxyGridKey(gridX, gridY)) ?? null;
+      const occupiedHexCount = Array.isArray(persistedSector?.metadata?.occupiedHexes)
+        ? persistedSector.metadata.occupiedHexes.length
+        : 0;
+      const typedHexCount = persistedSector?.metadata?.hexStarTypes
+        ? Object.keys(persistedSector.metadata.hexStarTypes).length
+        : 0;
+      const displayName =
+        String(
+          persistedSector?.metadata?.displayName ||
+            persistedSector?.name ||
+            s?.metadata?.displayName ||
+            s?.sectorId ||
+            "",
+        ).trim() || String(s?.sectorId || "Unnamed Sector");
+
+      return {
+        id: `${gridX}_${gridY}`,
+        sectorId: String(persistedSector?.sectorId || s?.sectorId || `${galaxy.galaxyId}:${gridX},${gridY}`),
+        displayName,
+        gridX,
+        gridY,
+        ring: Math.max(Math.abs(gridX), Math.abs(gridY)),
+        persisted: Boolean(persistedSector),
+        occupiedHexCount,
+        typedHexCount,
+        px: offsetX + gridX * step,
+        py: offsetY + gridY * step,
+        color: DENSITY_COLORS[s.densityClass] ?? DENSITY_COLORS[0],
+        dc: s.densityClass,
+        tooltip: `${displayName} (${String(persistedSector?.sectorId || s?.sectorId || "layout-only")})\nGrid ${gridX >= 0 ? "+" : ""}${gridX}, ${gridY >= 0 ? "+" : ""}${gridY}\nDensity ${s.densityClass}\nPresence ${occupiedHexCount.toLocaleString()} · Typed ${typedHexCount.toLocaleString()}`,
+        persistedSector,
+        opacity: tileSize < 3 ? 0.82 : 1,
+      };
+    }),
   };
+});
+
+const selectedGalaxyMapTile = computed(
+  () => galaxyMapPreview.value?.tiles.find((tile) => tile.id === selectedGalaxyMapTileId.value) ?? null,
+);
+
+const selectedGalaxyMapSectorRecord = computed(() => selectedGalaxyMapTile.value?.persistedSector ?? null);
+
+const selectedGalaxyMapRingTiles = computed(() => {
+  const ring = Number(selectedGalaxyMapTile.value?.ring);
+  if (!Number.isFinite(ring)) {
+    return [];
+  }
+  return (galaxyMapPreview.value?.tiles ?? []).filter((tile) => Number(tile?.ring) === ring);
+});
+
+const selectedGalaxyMapRingPersistedSectors = computed(() =>
+  selectedGalaxyMapRingTiles.value.map((tile) => tile.persistedSector).filter(Boolean),
+);
+
+const galaxySectorSearchResults = computed(() => {
+  const query = String(galaxyMapSearch.value || "")
+    .trim()
+    .toLowerCase();
+  if (!query) {
+    return [];
+  }
+
+  return (galaxyMapPreview.value?.tiles ?? [])
+    .filter((tile) => {
+      const haystack = [
+        tile.displayName,
+        tile.sectorId,
+        `${tile.gridX},${tile.gridY}`,
+        `${tile.gridX} ${tile.gridY}`,
+        tile.persisted ? "persisted" : "layout",
+      ]
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(query);
+    })
+    .sort((left, right) => Number(right.persisted) - Number(left.persisted) || left.ring - right.ring)
+    .slice(0, 8);
 });
 
 function formatSignedDelta(value, precision = 0, suffix = "") {
@@ -1718,7 +2365,27 @@ watch(
   async (galaxy) => {
     syncGalaxyEditForm(galaxy);
     isEditingGalaxy.value = false;
+    galaxyMapSearch.value = "";
+    selectedGalaxyMapTileId.value = "0_0";
+    galaxyMapPan.value = { x: 0, y: 0 };
     await loadCurrentGalaxySectorStats({ galaxyId: galaxy?.galaxyId, silent: true });
+  },
+  { immediate: true },
+);
+
+watch(
+  galaxyMapPreview,
+  (preview) => {
+    if (!preview?.tiles?.length) {
+      selectedGalaxyMapTileId.value = "";
+      return;
+    }
+
+    const hasSelected = preview.tiles.some((tile) => tile.id === selectedGalaxyMapTileId.value);
+    if (!hasSelected) {
+      const centerTile = preview.tiles.find((tile) => tile.gridX === 0 && tile.gridY === 0) ?? preview.tiles[0];
+      selectedGalaxyMapTileId.value = centerTile?.id || "";
+    }
   },
   { immediate: true },
 );
@@ -1895,6 +2562,7 @@ async function createNewGalaxy() {
 
   showNewGalaxyForm.value = false;
   isCreating.value = true;
+  const startedAt = Date.now();
   try {
     startGenerationProgress("Creating galaxy record", 0);
     await flushGenerationProgressUi();
@@ -1948,8 +2616,20 @@ async function createNewGalaxy() {
     }
     successMessage +=
       " The center anomaly has been seeded. Use Galaxy Survey to name the rest of the galaxy or generate presence and systems.";
-    toastService.success(successMessage);
     const createdGalaxyId = createdGalaxy?.galaxyId || newGalaxy.galaxyId;
+    recordGalaxySurveyHistory({
+      galaxyId: createdGalaxyId,
+      label: "Created Galaxy",
+      detail: `Created ${newGalaxyForm.value.name} with center-sector seeding.`,
+      metrics: buildHistoryMetrics({
+        mode: "create",
+        scope: "galaxy",
+        sectors: sectorCount,
+        systems: sectorCount > 0 ? 1 : 0,
+        durationMs: Date.now() - startedAt,
+      }),
+    });
+    toastService.success(successMessage);
     await router.push({
       name: "GalaxySurvey",
       query: { galaxyId: createdGalaxyId },
@@ -2011,6 +2691,7 @@ async function importGalaxyData() {
   }
 
   try {
+    const startedAt = Date.now();
     const request = buildGalaxyImportRequest({
       importForm: importForm.value,
       universeBoundsRange: universeBoundsRange.value,
@@ -2019,6 +2700,16 @@ async function importGalaxyData() {
     });
 
     await galaxyStore.importGalaxy(request.galaxyData, request.options);
+    recordGalaxySurveyHistory({
+      galaxyId: request.galaxyData?.galaxyId,
+      label: "Imported Galaxy",
+      detail: `Imported galaxy archive using ${String(importForm.value.placementMode || "clustered")} placement.`,
+      metrics: buildHistoryMetrics({
+        mode: "import",
+        scope: String(importForm.value.placementMode || "clustered"),
+        durationMs: Date.now() - startedAt,
+      }),
+    });
     toastService.success("Galaxy imported successfully!");
     showImportForm.value = false;
     importForm.value = createDefaultGalaxyImportForm();
@@ -2076,6 +2767,198 @@ function openUniverseMap() {
   });
 }
 
+function formatTileGrid(gridX, gridY) {
+  const x = Number(gridX) || 0;
+  const y = Number(gridY) || 0;
+  return `${x >= 0 ? "+" : ""}${x}, ${y >= 0 ? "+" : ""}${y}`;
+}
+
+function selectGalaxyMapTile(tile) {
+  if (!tile?.id) {
+    return;
+  }
+  selectedGalaxyMapTileId.value = tile.id;
+}
+
+function focusGalaxyMapTile(tileId, { zoom = false } = {}) {
+  const preview = galaxyMapPreview.value;
+  if (!preview?.tiles?.length) {
+    return;
+  }
+
+  const tile = preview.tiles.find((entry) => entry.id === tileId);
+  if (!tile) {
+    return;
+  }
+
+  selectedGalaxyMapTileId.value = tile.id;
+  if (zoom) {
+    galaxyMapZoomLevel.value = "detail";
+  }
+
+  if (!preview.canPan) {
+    galaxyMapPan.value = { x: 0, y: 0 };
+    return;
+  }
+
+  galaxyMapPan.value = {
+    x: Math.max(-preview.maxPanOffset, Math.min(preview.maxPanOffset, tile.px - preview.svgSize / 2)),
+    y: Math.max(-preview.maxPanOffset, Math.min(preview.maxPanOffset, tile.py - preview.svgSize / 2)),
+  };
+}
+
+function formatHistoryTimestamp(value) {
+  const time = Date.parse(value);
+  if (!Number.isFinite(time)) {
+    return "Unknown time";
+  }
+  return new Date(time).toLocaleString();
+}
+
+function jumpToSectorSurvey({ viewName = "SectorSurvey" } = {}) {
+  const tile = selectedGalaxyMapTile.value;
+  const galaxyId = currentGalaxy.value?.galaxyId;
+  if (!galaxyId || !tile?.persisted) {
+    toastService.error("Select a persisted sector tile first.");
+    return;
+  }
+
+  router.push({
+    name: viewName,
+    params: { galaxyId },
+    query:
+      viewName === "SubsectorSurvey"
+        ? {
+            sectorId: tile.sectorId,
+            gridX: tile.gridX,
+            gridY: tile.gridY,
+            sectorName: tile.displayName,
+            viewScope: "subsector",
+            from: "GalaxySurvey",
+          }
+        : {
+            sectorId: tile.sectorId,
+            gridX: tile.gridX,
+            gridY: tile.gridY,
+            sectorName: tile.displayName,
+            from: "GalaxySurvey",
+          },
+  });
+}
+
+function requestResetGeneratedContent({ level = "systems", scopeLabel = "this galaxy", sectorIds = null } = {}) {
+  const targetSectors = (
+    Array.isArray(sectorIds) && sectorIds.length
+      ? currentGalaxySectors.value.filter((sector) => sectorIds.includes(sector.sectorId))
+      : currentGalaxySectors.value
+  ).filter(Boolean);
+  if (!targetSectors.length) {
+    toastService.warning("No persisted sectors matched this reset request.");
+    return;
+  }
+
+  resetDialog.value = {
+    isOpen: true,
+    title: level === "presence" ? "Clear Survey Presence + Systems" : "Clear Generated Systems",
+    message:
+      `${level === "presence" ? "This will clear presence markers and systems for" : "This will clear systems for"} ${scopeLabel}. ` +
+      `${targetSectors.length.toLocaleString()} persisted sector${targetSectors.length === 1 ? "" : "s"} will be updated.`,
+    confirmText: level === "presence" ? "Clear Survey" : "Clear Systems",
+    payload: {
+      level,
+      scopeLabel,
+      sectorIds: targetSectors.map((sector) => sector.sectorId),
+    },
+  };
+}
+
+function cancelResetGeneratedContent() {
+  resetDialog.value.isOpen = false;
+  resetDialog.value.payload = null;
+}
+
+async function confirmResetGeneratedContent() {
+  const payload = resetDialog.value.payload;
+  resetDialog.value.isOpen = false;
+  resetDialog.value.payload = null;
+  if (!payload) {
+    return;
+  }
+  await resetGalaxyGeneratedContent(payload);
+}
+
+async function generateSelectedRing({ mode = "systems" } = {}) {
+  const galaxy = currentGalaxy.value;
+  const ring = Number(selectedGalaxyMapTile.value?.ring);
+  if (!galaxy?.galaxyId || !Number.isFinite(ring)) {
+    toastService.error("Select a ring tile first.");
+    return;
+  }
+
+  const ringSectors = getRingLayoutSectors(galaxy, ring);
+  if (!ringSectors.length) {
+    toastService.warning("No sectors were found for the selected ring.");
+    return;
+  }
+
+  const startedAt = Date.now();
+  isGeneratingSectors.value = true;
+  try {
+    let result = null;
+    if (mode === "presence") {
+      result = await generateSectorPresenceForSectors(galaxy, ringSectors, {
+        progressLabel: `Generating ring ${ring} presence`,
+        totalCount: ringSectors.length,
+      });
+      await sectorStore.loadSectors(galaxy.galaxyId);
+      recordGalaxySurveyHistory({
+        galaxyId: galaxy.galaxyId,
+        label: `Generated Ring ${ring} Presence`,
+        detail: `Processed ring ${ring} and found ${result.totalSystems.toLocaleString()} occupied hexes.`,
+        metrics: buildHistoryMetrics({
+          mode: "presence",
+          scope: `ring ${ring}`,
+          sectors: result.namedSectorCount,
+          populatedSectors: result.populatedSectorCount,
+          systems: result.totalSystems,
+          durationMs: Date.now() - startedAt,
+        }),
+      });
+      toastService.success(
+        `Ring ${ring} processed: ${result.namedSectorCount.toLocaleString()} sectors and ${result.totalSystems.toLocaleString()} occupied hexes.`,
+      );
+      return;
+    }
+
+    result = await generateSectorSystemsForSectors(galaxy, ringSectors, {
+      progressLabel: `Generating ring ${ring} systems`,
+      totalCount: ringSectors.length,
+    });
+    await sectorStore.loadSectors(galaxy.galaxyId);
+    recordGalaxySurveyHistory({
+      galaxyId: galaxy.galaxyId,
+      label: `Generated Ring ${ring} Systems`,
+      detail: `Processed ring ${ring} and generated ${result.totalSystems.toLocaleString()} systems.`,
+      metrics: buildHistoryMetrics({
+        mode: "systems",
+        scope: `ring ${ring}`,
+        sectors: result.namedSectorCount,
+        populatedSectors: result.populatedSectorCount,
+        systems: result.totalSystems,
+        durationMs: Date.now() - startedAt,
+      }),
+    });
+    toastService.success(
+      `Ring ${ring} processed: ${result.namedSectorCount.toLocaleString()} sectors and ${result.totalSystems.toLocaleString()} systems.`,
+    );
+  } catch (err) {
+    toastService.error(`Failed to generate selected ring: ${err.message}`);
+  } finally {
+    isGeneratingSectors.value = false;
+    resetGenerationProgress();
+  }
+}
+
 function editGalaxy() {
   syncGalaxyEditForm(currentGalaxy.value);
   isEditingGalaxy.value = true;
@@ -2114,8 +2997,19 @@ async function saveGalaxyEdits() {
   });
 
   try {
+    const startedAt = Date.now();
     await galaxyStore.updateGalaxy(galaxy.galaxyId, payload);
     isEditingGalaxy.value = false;
+    recordGalaxySurveyHistory({
+      galaxyId: galaxy.galaxyId,
+      label: "Saved Galaxy Draft",
+      detail: `Updated galaxy profile for ${nextName}.`,
+      metrics: buildHistoryMetrics({
+        mode: "edit",
+        scope: "galaxy",
+        durationMs: Date.now() - startedAt,
+      }),
+    });
     toastService.success(`Galaxy "${nextName}" updated.`);
   } catch (err) {
     toastService.error(`Failed to update galaxy: ${err.message}`);
@@ -2298,6 +3192,38 @@ function sectorRingDistance(sector) {
   const gridX = Number(sector?.metadata?.gridX ?? sector?.coordinates?.x ?? sector?.x ?? 0);
   const gridY = Number(sector?.metadata?.gridY ?? sector?.coordinates?.y ?? sector?.y ?? 0);
   return Math.max(Math.abs(gridX), Math.abs(gridY));
+}
+
+function getRingLayoutSectors(galaxy, ring) {
+  const targetRing = Number(ring);
+  if (!Number.isFinite(targetRing) || targetRing < 0) {
+    return [];
+  }
+  return Array.from(iterateGalaxySectorLayout(galaxy, { scale: "true" })).filter(
+    (sector) => sectorRingDistance(sector) === targetRing,
+  );
+}
+
+function buildHistoryMetrics({
+  mode = null,
+  scope = null,
+  sectors = null,
+  systems = null,
+  populatedSectors = null,
+  durationMs = null,
+} = {}) {
+  const metrics = [];
+  if (mode) metrics.push({ label: "Mode", value: String(mode) });
+  if (scope) metrics.push({ label: "Scope", value: String(scope) });
+  if (Number.isFinite(Number(sectors))) metrics.push({ label: "Sectors", value: Number(sectors).toLocaleString() });
+  if (Number.isFinite(Number(populatedSectors))) {
+    metrics.push({ label: "Populated", value: Number(populatedSectors).toLocaleString() });
+  }
+  if (Number.isFinite(Number(systems))) metrics.push({ label: "Systems", value: Number(systems).toLocaleString() });
+  if (Number.isFinite(Number(durationMs)) && Number(durationMs) >= 0) {
+    metrics.push({ label: "Duration", value: formatDuration(Number(durationMs) / 1000) });
+  }
+  return metrics;
 }
 
 function getGalaxyLayoutSectors(galaxy) {
@@ -2851,12 +3777,24 @@ async function doGenerateAllSectors() {
   }
 
   isGeneratingSectors.value = true;
+  const startedAt = Date.now();
   try {
     const result = await generateNamedSectorsForGalaxy(galaxy, { progressLabel: "Naming sectors" });
     if (result.estimatedLayoutCount === 0) {
       toastService.warning("Could not generate sector layout for this galaxy.");
       return;
     }
+    recordGalaxySurveyHistory({
+      galaxyId: galaxy.galaxyId,
+      label: "Named Sectors",
+      detail: `Named or normalized ${result.namedSectorCount.toLocaleString()} sectors.`,
+      metrics: buildHistoryMetrics({
+        mode: "names",
+        scope: "galaxy",
+        sectors: result.namedSectorCount,
+        durationMs: Date.now() - startedAt,
+      }),
+    });
     toastService.success(
       `Named ${result.namedSectorCount.toLocaleString()} sectors in ${galaxy.name || galaxy.galaxyId}.`,
     );
@@ -3126,6 +4064,7 @@ async function runGalaxySurveyGenerationMode() {
   }
 
   isGeneratingSectors.value = true;
+  const startedAt = Date.now();
   try {
     let result = null;
     if (galaxySurveyGenerationMode.value === "names") {
@@ -3135,6 +4074,19 @@ async function runGalaxySurveyGenerationMode() {
     if (galaxySurveyGenerationMode.value === "presence") {
       result = await generateSectorPresenceForGalaxy(galaxy);
       await sectorStore.loadSectors(galaxy.galaxyId);
+      recordGalaxySurveyHistory({
+        galaxyId: galaxy.galaxyId,
+        label: "Generated Presence",
+        detail: `Processed ${result.namedSectorCount.toLocaleString()} sectors and found ${result.totalSystems.toLocaleString()} occupied hexes.`,
+        metrics: buildHistoryMetrics({
+          mode: "presence",
+          scope: "galaxy",
+          sectors: result.namedSectorCount,
+          populatedSectors: result.populatedSectorCount,
+          systems: result.totalSystems,
+          durationMs: Date.now() - startedAt,
+        }),
+      });
       toastService.success(
         `Processed ${result.namedSectorCount.toLocaleString()} sectors and found ${result.totalSystems.toLocaleString()} occupied hexes.`,
       );
@@ -3143,6 +4095,19 @@ async function runGalaxySurveyGenerationMode() {
     if (galaxySurveyGenerationMode.value === "systems") {
       result = await generateFullGalaxyForGalaxy(galaxy, { progressLabel: "Generating galaxy systems" });
       await sectorStore.loadSectors(galaxy.galaxyId);
+      recordGalaxySurveyHistory({
+        galaxyId: galaxy.galaxyId,
+        label: "Generated Galaxy Systems",
+        detail: `Processed ${result.namedSectorCount.toLocaleString()} sectors and generated ${result.totalSystems.toLocaleString()} systems.`,
+        metrics: buildHistoryMetrics({
+          mode: "systems",
+          scope: "galaxy",
+          sectors: result.namedSectorCount,
+          populatedSectors: result.populatedSectorCount,
+          systems: result.totalSystems,
+          durationMs: Date.now() - startedAt,
+        }),
+      });
       toastService.success(
         `Processed ${result.namedSectorCount.toLocaleString()} sectors and generated ${result.totalSystems.toLocaleString()} systems.`,
       );
@@ -3151,12 +4116,38 @@ async function runGalaxySurveyGenerationMode() {
     if (galaxySurveyGenerationMode.value === "center") {
       result = await generateCenterSectorSystemsForGalaxy(galaxy, { progressLabel: "Generating center sector" });
       await sectorStore.loadSectors(galaxy.galaxyId);
+      recordGalaxySurveyHistory({
+        galaxyId: galaxy.galaxyId,
+        label: "Generated Center Sector",
+        detail: `Generated ${result.totalSystems.toLocaleString()} systems in the center sector.`,
+        metrics: buildHistoryMetrics({
+          mode: "center",
+          scope: "ring 0",
+          sectors: result.namedSectorCount,
+          populatedSectors: result.populatedSectorCount,
+          systems: result.totalSystems,
+          durationMs: Date.now() - startedAt,
+        }),
+      });
       toastService.success(`Generated ${result.totalSystems.toLocaleString()} systems in the center sector.`);
       return;
     }
     if (galaxySurveyGenerationMode.value === "expand") {
       result = await generateExpandingCenterSectorsForGalaxy(galaxy, { progressLabel: "Expanding from center" });
       await sectorStore.loadSectors(galaxy.galaxyId);
+      recordGalaxySurveyHistory({
+        galaxyId: galaxy.galaxyId,
+        label: "Expanded From Center",
+        detail: `Expanded through ${result.namedSectorCount.toLocaleString()} sectors and generated ${result.totalSystems.toLocaleString()} systems.`,
+        metrics: buildHistoryMetrics({
+          mode: "expand",
+          scope: "radial expansion",
+          sectors: result.namedSectorCount,
+          populatedSectors: result.populatedSectorCount,
+          systems: result.totalSystems,
+          durationMs: Date.now() - startedAt,
+        }),
+      });
       toastService.success(
         `Expanded through ${result.namedSectorCount.toLocaleString()} sectors and generated ${result.totalSystems.toLocaleString()} systems before reaching an empty ring.`,
       );
@@ -3198,8 +4189,117 @@ function cancelDeleteGalaxy() {
 }
 
 function regenerateGalaxy() {
-  // TODO: Implement regeneration
-  toastService.info("Regeneration not yet implemented");
+  if (!currentGalaxy.value) {
+    toastService.error("No galaxy selected.");
+    return;
+  }
+
+  rerollGalaxyDraft();
+}
+
+function showFullRegenerateConfirm() {
+  if (!currentGalaxy.value || !isEditingGalaxy.value) {
+    return;
+  }
+
+  const galaxyName = String(currentGalaxy.value.name || currentGalaxy.value.galaxyId || "this galaxy");
+  regenerateDialog.value.title = `Full Regenerate ${galaxyName}`;
+  regenerateDialog.value.confirmText = "Full Regenerate";
+  regenerateDialog.value.message =
+    `Apply the current draft to ${galaxyName} and permanently clear ` +
+    `${destructiveRegenerateSummary.value.sectorCount.toLocaleString()} generated sector` +
+    `${destructiveRegenerateSummary.value.sectorCount === 1 ? "" : "s"} and ` +
+    `${destructiveRegenerateSummary.value.systemCount.toLocaleString()} cached system` +
+    `${destructiveRegenerateSummary.value.systemCount === 1 ? "" : "s"}? You will need to regenerate sector content afterwards.`;
+  regenerateDialog.value.isOpen = true;
+}
+
+function cancelFullRegenerate() {
+  regenerateDialog.value.isOpen = false;
+}
+
+async function confirmFullRegenerate() {
+  regenerateDialog.value.isOpen = false;
+  const galaxy = currentGalaxy.value;
+  if (!galaxy) {
+    return;
+  }
+
+  const nextName = String(galaxyEditForm.value.name || "").trim();
+  if (!nextName) {
+    toastService.error("Galaxy name cannot be empty.");
+    return;
+  }
+
+  const duplicateName = galaxies.value.some(
+    (entry) => entry.galaxyId !== galaxy.galaxyId && (entry.name || "").trim().toLowerCase() === nextName.toLowerCase(),
+  );
+  if (duplicateName) {
+    toastService.error("A galaxy with this name already exists. Choose a different name.");
+    return;
+  }
+
+  isApplyingFullRegenerate.value = true;
+  const startedAt = Date.now();
+  try {
+    const payload = buildGalaxyEditPayload({
+      galaxy,
+      nextName,
+      galaxyEditForm: galaxyEditForm.value,
+      clamp,
+    });
+    await galaxyStore.updateGalaxy(galaxy.galaxyId, payload);
+
+    const sectors = await sectorStore.loadSectors(galaxy.galaxyId).catch(() => currentGalaxySectors.value);
+    for (const sector of Array.isArray(sectors) ? sectors : []) {
+      const sectorId = String(sector?.sectorId || "").trim();
+      if (!sectorId) {
+        continue;
+      }
+      await deleteSector(sectorId);
+    }
+
+    sectorStore.sectors = sectorStore.sectors.filter(
+      (sector) => String(sector?.galaxyId || "") !== String(galaxy.galaxyId),
+    );
+    systemStore.systems = systemStore.systems.filter(
+      (system) => String(system?.galaxyId || "") !== String(galaxy.galaxyId),
+    );
+
+    const resetStats = normalizeSectorStats({
+      totalSectors: 0,
+      populatedSectors: 0,
+      generatedPresenceSectors: 0,
+      emptySectors: 0,
+      totalObjects: 0,
+      avgObjectsPerSector: 0,
+      legacyReconstructedCount: 0,
+      legacyHierarchyUnknownCount: 0,
+    });
+    await persistCachedSectorStats(payload, resetStats);
+    currentGalaxySectorStats.value = resetStats;
+    isEditingGalaxy.value = false;
+    recordGalaxySurveyHistory({
+      galaxyId: galaxy.galaxyId,
+      label: "Full Regenerate",
+      detail: `Applied rerolled draft and cleared ${destructiveRegenerateSummary.value.sectorCount.toLocaleString()} sectors.`,
+      metrics: buildHistoryMetrics({
+        mode: "full-regenerate",
+        scope: "galaxy",
+        sectors: destructiveRegenerateSummary.value.sectorCount,
+        systems: destructiveRegenerateSummary.value.systemCount,
+        durationMs: Date.now() - startedAt,
+      }),
+    });
+
+    toastService.success(
+      `Galaxy "${nextName}" rerolled and cleared. Generate sectors again to build the new galaxy footprint.`,
+    );
+  } catch (err) {
+    toastService.error(`Failed to full regenerate galaxy: ${err.message}`);
+  } finally {
+    isApplyingFullRegenerate.value = false;
+  }
 }
 
 async function exportGalaxy() {
@@ -3227,6 +4327,107 @@ async function exportGalaxy() {
     }
   } catch (err) {
     toastService.error(`Failed to export galaxy: ${err.message}`);
+  }
+}
+
+function buildSystemsResetHexStarTypes(metadata = {}) {
+  const nextEntries = Object.entries(
+    metadata?.hexStarTypes && typeof metadata.hexStarTypes === "object" ? metadata.hexStarTypes : {},
+  )
+    .filter(([, info]) => String(info?.anomalyType || "").trim())
+    .map(([coord, info]) => [coord, normalizeHexStarTypeRecord(info, info?.anomalyType || "Black Hole")]);
+
+  const centerCoord = String(metadata?.centralAnomalyHex || metadata?.centralAnomaly?.coord || "").trim();
+  const centerType = String(metadata?.centralAnomalyType || metadata?.centralAnomaly?.type || "").trim();
+  if (centerCoord && centerType && !nextEntries.some(([coord]) => coord === centerCoord)) {
+    const anomalyMetadata = buildHexStarTypeMetadata({
+      anomalyType: centerType,
+      fallbackStarType: centerType,
+    });
+    nextEntries.push([
+      centerCoord,
+      {
+        starType: anomalyMetadata.starType,
+        starClass: "anomaly-core",
+        secondaryStars: anomalyMetadata.secondaryStars,
+        generatedStars: anomalyMetadata.generatedStars.map((star) => ({ ...star })),
+        anomalyType: anomalyMetadata.anomalyType,
+      },
+    ]);
+  }
+
+  return Object.fromEntries(nextEntries);
+}
+
+async function resetGalaxyGeneratedContent({ level = "systems", sectorIds = null } = {}) {
+  const galaxy = currentGalaxy.value;
+  if (!galaxy?.galaxyId) {
+    toastService.error("No galaxy selected.");
+    return;
+  }
+
+  const targetSectors = (
+    Array.isArray(sectorIds) && sectorIds.length
+      ? currentGalaxySectors.value.filter((sector) => sectorIds.includes(sector.sectorId))
+      : currentGalaxySectors.value
+  ).filter(Boolean);
+
+  if (!targetSectors.length) {
+    toastService.warning("No persisted sectors matched this reset request.");
+    return;
+  }
+
+  isApplyingSectorReset.value = true;
+  const startedAt = Date.now();
+  try {
+    for (const sector of targetSectors) {
+      const metadata = sector?.metadata && typeof sector.metadata === "object" ? sector.metadata : {};
+      const occupiedHexes = Array.isArray(metadata.occupiedHexes) ? [...metadata.occupiedHexes] : [];
+      const nextMetadata =
+        level === "presence"
+          ? ensureSectorNamingMetadata(sector, {
+              ...metadata,
+              systemCount: 0,
+              occupiedHexes: [],
+              hexStarTypes: {},
+              hexPresenceGenerated: false,
+              hexPresenceGeneratedAt: null,
+            })
+          : ensureSectorNamingMetadata(sector, {
+              ...metadata,
+              systemCount: occupiedHexes.length,
+              occupiedHexes,
+              hexStarTypes: buildSystemsResetHexStarTypes(metadata),
+              hexPresenceGenerated: occupiedHexes.length > 0,
+            });
+
+      await sectorStore.updateSector(sector.sectorId, {
+        ...sector,
+        metadata: nextMetadata,
+      });
+      await systemStore.replaceSectorSystems(sector.sectorId, []);
+    }
+
+    await sectorStore.loadSectors(galaxy.galaxyId);
+    await loadCurrentGalaxySectorStats({ galaxyId: galaxy.galaxyId, silent: true, force: true });
+    recordGalaxySurveyHistory({
+      galaxyId: galaxy.galaxyId,
+      label: level === "presence" ? "Cleared Presence + Systems" : "Cleared Systems",
+      detail: `${level === "presence" ? "Reset survey presence and systems for" : "Reset systems for"} ${targetSectors.length.toLocaleString()} sector${targetSectors.length === 1 ? "" : "s"}.`,
+      metrics: buildHistoryMetrics({
+        mode: level,
+        scope: targetSectors.length === currentGalaxySectors.value.length ? "galaxy" : "subset",
+        sectors: targetSectors.length,
+        durationMs: Date.now() - startedAt,
+      }),
+    });
+    toastService.success(
+      `${level === "presence" ? "Survey presence and systems" : "Systems"} cleared for ${targetSectors.length.toLocaleString()} sector${targetSectors.length === 1 ? "" : "s"}.`,
+    );
+  } catch (err) {
+    toastService.error(`Failed to reset generated content: ${err.message}`);
+  } finally {
+    isApplyingSectorReset.value = false;
   }
 }
 
@@ -3518,6 +4719,196 @@ function formatNumber(num) {
   min-width: 0;
 }
 
+.draft-delta-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.draft-delta-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.7rem;
+}
+
+.draft-delta-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.22rem;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid rgba(109, 210, 255, 0.18);
+  border-radius: 0.5rem;
+  background: rgba(7, 18, 34, 0.6);
+}
+
+.draft-delta-label {
+  color: #8edaff;
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.draft-delta-before,
+.draft-delta-after,
+.draft-delta-shift {
+  color: #d9eef9;
+  font-family: monospace;
+}
+
+.draft-delta-before {
+  color: #9bb8c8;
+}
+
+.draft-delta-shift {
+  color: #9ff0bd;
+}
+
+.draft-delta-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid rgba(255, 135, 112, 0.26);
+  border-radius: 0.5rem;
+  background: rgba(50, 19, 17, 0.34);
+}
+
+.draft-delta-copy {
+  color: #f5d1c8;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.planner-panel,
+.history-panel {
+  min-width: 0;
+}
+
+.planner-summary-card,
+.reset-panel,
+.history-entry,
+.history-empty,
+.density-map-inspector,
+.density-map-search-results {
+  border: 1px solid rgba(0, 217, 255, 0.14);
+  border-radius: 0.5rem;
+  background: rgba(6, 19, 35, 0.52);
+}
+
+.planner-summary-card,
+.reset-panel,
+.history-panel {
+  padding: 0.9rem;
+}
+
+.planner-summary-head,
+.history-entry-head,
+.density-map-inspector-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.8rem;
+}
+
+.planner-kicker,
+.density-map-inspector-kicker {
+  color: #8fb3c9;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.planner-metrics,
+.density-map-inspector-grid,
+.reset-action-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.7rem;
+  margin-top: 0.8rem;
+}
+
+.planner-metric,
+.density-map-inspector-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid rgba(95, 188, 223, 0.16);
+  border-radius: 0.45rem;
+  background: rgba(9, 25, 46, 0.58);
+}
+
+.planner-metric-label,
+.density-map-inspector-item span,
+.history-entry-head span {
+  color: #8fb3c9;
+  font-size: 0.74rem;
+}
+
+.planner-metric-value,
+.density-map-inspector-item strong,
+.history-entry-body {
+  color: #e8f8ff;
+  font-family: monospace;
+}
+
+.planner-warning-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.9rem;
+}
+
+.planner-warning-item {
+  color: #ffd7aa;
+  padding: 0.65rem 0.75rem;
+  border-radius: 0.45rem;
+  border: 1px solid rgba(255, 179, 95, 0.2);
+  background: rgba(58, 32, 12, 0.4);
+  font-size: 0.8rem;
+}
+
+.reset-copy,
+.history-empty {
+  color: #c9e2ef;
+  line-height: 1.5;
+}
+
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.history-entry {
+  padding: 0.8rem 0.9rem;
+}
+
+.history-entry-body {
+  margin-top: 0.35rem;
+  line-height: 1.45;
+}
+
+.history-entry-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.65rem;
+}
+
+.history-entry-metric {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.22rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid rgba(143, 179, 201, 0.28);
+  background: rgba(16, 36, 49, 0.72);
+  color: #d8eef8;
+  font-size: 0.72rem;
+}
+
 .property-link-row {
   align-items: center;
 }
@@ -3631,6 +5022,19 @@ function formatNumber(num) {
   .detail-section--strip h3 {
     padding-top: 0;
   }
+
+  .draft-delta-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .density-map-toolbar,
+  .planner-summary-head,
+  .history-entry-head,
+  .density-map-inspector-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
 }
 
 .region-list {
@@ -3716,6 +5120,20 @@ function formatNumber(num) {
   margin: 0 0 0.85rem;
 }
 
+.density-map-search {
+  flex: 1 1 220px;
+  max-width: 320px;
+}
+
+.density-map-search-input {
+  width: 100%;
+  border: 1px solid #2d5872;
+  background: #10182a;
+  color: #d9efff;
+  border-radius: 999px;
+  padding: 0.5rem 0.8rem;
+}
+
 .density-map-toolbar-label {
   color: #8fb3c9;
   font-size: 0.8rem;
@@ -3767,6 +5185,24 @@ function formatNumber(num) {
   display: block;
 }
 
+.density-map-tile {
+  cursor: pointer;
+  stroke: transparent;
+  stroke-width: 1.3;
+  transition:
+    stroke 0.18s ease,
+    opacity 0.18s ease;
+}
+
+.density-map-tile:hover,
+.density-map-tile--active {
+  stroke: #f0f7ff;
+}
+
+.density-map-tile--persisted {
+  opacity: 1;
+}
+
 .density-map-svg.pannable {
   cursor: grab;
   touch-action: none;
@@ -3789,6 +5225,60 @@ function formatNumber(num) {
   gap: 0.5rem;
   font-size: 0.75rem;
   color: #888;
+}
+
+.density-map-search-results {
+  width: min(100%, 640px);
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.5rem;
+}
+
+.density-map-search-result {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  text-align: left;
+  border: 1px solid rgba(0, 217, 255, 0.14);
+  background: rgba(8, 24, 44, 0.72);
+  color: #d8f5ff;
+  border-radius: 0.45rem;
+  padding: 0.55rem 0.7rem;
+  cursor: pointer;
+}
+
+.density-map-search-result:hover {
+  border-color: rgba(0, 217, 255, 0.4);
+}
+
+.density-map-search-result-name {
+  font-weight: 700;
+}
+
+.density-map-search-result-meta,
+.density-map-inspector-density {
+  color: #8fb3c9;
+  font-size: 0.76rem;
+}
+
+.density-map-inspector {
+  width: min(100%, 640px);
+  padding: 0.85rem 0.95rem;
+}
+
+.density-map-inspector-ring-copy {
+  margin-top: 0.8rem;
+  color: #c9e2ef;
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.density-map-inspector-actions {
+  display: flex;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+  margin-top: 0.8rem;
 }
 
 .legend-swatches {

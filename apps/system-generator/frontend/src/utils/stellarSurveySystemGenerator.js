@@ -3,6 +3,70 @@ import { generateAutomaticWorldName } from "./worldProfileGenerator.js";
 import { buildProfiledWbhSystemPlanets, calculateSystemHabitableZone } from "./systemWorldGeneration.js";
 import { resolveGeneratedStarsFromHex, resolveStarRecord } from "./systemStarMetadata.js";
 
+function buildSurveySystemShell({
+  galaxyId,
+  sectorId,
+  hex,
+  stars,
+  primary,
+  companionStars,
+  anomalyType,
+  error = null,
+}) {
+  const nowIso = new Date().toISOString();
+  return {
+    systemId: `${sectorId}:${String(hex?.coord || "0000").trim()}`,
+    galaxyId,
+    sectorId,
+    hexCoordinates: {
+      x: Number(String(hex?.coord || "0000").slice(0, 2)) || 0,
+      y: Number(String(hex?.coord || "0000").slice(2, 4)) || 0,
+    },
+    starCount: stars.length,
+    stars,
+    primaryStar: primary,
+    companionStars,
+    habitableZone: null,
+    planets: [],
+    mainworld: null,
+    mainworldName: "",
+    mainworldType: "",
+    mainworldParentWorldName: "",
+    mainworldUwp: "",
+    nativeLifeform: "",
+    habitability: "",
+    resourceRating: "",
+    minimumSustainableTechLevel: null,
+    populationConcentration: null,
+    urbanization: null,
+    majorCities: null,
+    governmentProfile: null,
+    justiceProfile: null,
+    lawProfile: null,
+    appealProfile: null,
+    privateLawProfile: null,
+    personalRightsProfile: null,
+    factionsProfile: null,
+    tradeCodes: [],
+    mainworldRemarks: [],
+    metadata: {
+      generatedSurvey: {
+        stars,
+        anomalyType,
+        legacyReconstructed: Boolean(hex?.legacyReconstructed),
+        legacyHierarchyUnknown: Boolean(hex?.legacyHierarchyUnknown),
+      },
+      anomalyType,
+      legacyReconstructed: Boolean(hex?.legacyReconstructed),
+      legacyHierarchyUnknown: Boolean(hex?.legacyHierarchyUnknown),
+      generatedWorldProfilesAt: nowIso,
+      lastModified: nowIso,
+      generationError: error ? String(error) : null,
+      generatedWorldProfilesIncomplete: Boolean(error),
+    },
+  };
+}
+
 export function buildPersistedSurveySystemFromHex({ galaxyId, sectorId, hex, namingOptions = {} }) {
   const stars = resolveGeneratedStarsFromHex(hex);
   const primary = stars[0] ?? resolveStarRecord(hex?.anomalyType || hex?.starType || "G2V");
@@ -14,27 +78,50 @@ export function buildPersistedSurveySystemFromHex({ galaxyId, sectorId, hex, nam
       : null);
   const legacyReconstructed = Boolean(hex?.legacyReconstructed);
   const legacyHierarchyUnknown = Boolean(hex?.legacyHierarchyUnknown);
-  const habitableZone = calculateSystemHabitableZone(stars);
-  const planets = buildProfiledWbhSystemPlanets({
-    stars,
-    habitableZone,
-    createPlanetName: ({ type, usedNames }) =>
-      type === "Planetoid Belt"
-        ? generateObjectName({
-            mode: String(namingOptions.asteroidBeltNameMode || "phonotactic")
-              .trim()
-              .toLowerCase(),
-            objectType: "asteroid-belt",
-            mythicTheme: String(namingOptions.galaxyMythicTheme || "all")
-              .trim()
-              .toLowerCase(),
-          })
-        : generateAutomaticWorldName({
-            mode: namingOptions.worldNameMode,
-            usedNames,
-          }),
-  });
-  const mainworld = planets.find((world) => world?.isMainworld) ?? null;
+  let habitableZone = null;
+  let planets = [];
+  let mainworld = null;
+  let generationError = null;
+
+  try {
+    habitableZone = calculateSystemHabitableZone(stars);
+    planets = buildProfiledWbhSystemPlanets({
+      stars,
+      habitableZone,
+      createPlanetName: ({ type, usedNames }) =>
+        type === "Planetoid Belt"
+          ? generateObjectName({
+              mode: String(namingOptions.asteroidBeltNameMode || "phonotactic")
+                .trim()
+                .toLowerCase(),
+              objectType: "asteroid-belt",
+              mythicTheme: String(namingOptions.galaxyMythicTheme || "all")
+                .trim()
+                .toLowerCase(),
+            })
+          : generateAutomaticWorldName({
+              mode: namingOptions.worldNameMode,
+              usedNames,
+            }),
+    });
+    mainworld = planets.find((world) => world?.isMainworld) ?? null;
+  } catch (error) {
+    generationError = error instanceof Error ? error.message : String(error || "Unknown system generation error");
+  }
+
+  if (generationError) {
+    return buildSurveySystemShell({
+      galaxyId,
+      sectorId,
+      hex,
+      stars,
+      primary,
+      companionStars,
+      anomalyType,
+      error: generationError,
+    });
+  }
+
   const nowIso = new Date().toISOString();
 
   return {
