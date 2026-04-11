@@ -66,11 +66,11 @@ export const useSystemStore = defineStore("system", {
       return systemData;
     },
 
-    async loadSystems(galaxyId, sectorId) {
+    async loadSystems(galaxyId, sectorId, options = {}) {
       this.isLoading = true;
       this.error = null;
       try {
-        const all = sectorId ? await systemApi.getSystemsBySector(sectorId) : loadSystems();
+        const all = sectorId ? await systemApi.getSystemsBySector(sectorId, options) : loadSystems();
         this.systems = all.filter((system) => {
           const galaxyMatches = !galaxyId || String(system.galaxyId) === String(galaxyId);
           const sectorMatches = !sectorId || String(system.sectorId) === String(sectorId);
@@ -96,9 +96,9 @@ export const useSystemStore = defineStore("system", {
       );
     },
 
-    async createSystem(systemData) {
+    async createSystem(systemData, options = {}) {
       this.error = null;
-      const persisted = await systemApi.upsertSystem(systemData);
+      const persisted = await systemApi.upsertSystem(systemData, options);
       const index = this.systems.findIndex((system) => system.systemId === persisted.systemId);
       if (index >= 0) {
         this.systems[index] = persisted;
@@ -113,9 +113,9 @@ export const useSystemStore = defineStore("system", {
       return persisted;
     },
 
-    async updateSystem(systemId, updates) {
+    async updateSystem(systemId, updates, options = {}) {
       this.error = null;
-      const next = await systemApi.updateSystem(systemId, updates);
+      const next = await systemApi.updateSystem(systemId, updates, options);
       saveSystems(
         loadSystems()
           .filter((system) => system.systemId !== systemId)
@@ -130,9 +130,9 @@ export const useSystemStore = defineStore("system", {
       return next;
     },
 
-    async replaceSectorSystems(sectorId, systems) {
+    async replaceSectorSystems(sectorId, systems, options = {}) {
       this.error = null;
-      const replaced = await systemApi.replaceSystemsForSector(sectorId, systems);
+      const replaced = await systemApi.replaceSystemsForSector(sectorId, systems, options);
       const otherSystems = this.systems.filter((system) => String(system?.sectorId) !== String(sectorId));
       this.systems = otherSystems.concat(replaced);
       return replaced;

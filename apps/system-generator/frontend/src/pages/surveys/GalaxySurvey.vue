@@ -349,131 +349,19 @@
             </div>
           </section>
 
-          <section class="detail-section detail-section--strip">
-            <h3>🧭 Planner</h3>
-            <div class="planner-panel">
-              <div class="planner-summary-card">
-                <div class="planner-summary-head">
-                  <span class="planner-kicker">{{ generationPlannerSummary.modeLabel }}</span>
-                  <strong>{{ generationPlannerSummary.actionLabel }}</strong>
-                </div>
-                <div class="planner-metrics">
-                  <div class="planner-metric">
-                    <span class="planner-metric-label">Layout Footprint</span>
-                    <span class="planner-metric-value">{{ generationPlannerSummary.layoutCountLabel }}</span>
-                  </div>
-                  <div class="planner-metric">
-                    <span class="planner-metric-label">Targeted This Run</span>
-                    <span class="planner-metric-value">{{ generationPlannerSummary.sectorsTouchedLabel }}</span>
-                  </div>
-                  <div class="planner-metric">
-                    <span class="planner-metric-label">Named Sectors On Hand</span>
-                    <span class="planner-metric-value">{{ generationPlannerSummary.namedSectorsLabel }}</span>
-                  </div>
-                  <div class="planner-metric">
-                    <span class="planner-metric-label">Presence Coverage</span>
-                    <span class="planner-metric-value">{{ generationPlannerSummary.presenceCoverageLabel }}</span>
-                  </div>
-                  <div class="planner-metric">
-                    <span class="planner-metric-label">Cached Systems</span>
-                    <span class="planner-metric-value">{{ generationPlannerSummary.cachedSystemsLabel }}</span>
-                  </div>
-                  <div class="planner-metric">
-                    <span class="planner-metric-label">Expected Write Pattern</span>
-                    <span class="planner-metric-value">{{ generationPlannerSummary.writeProfile }}</span>
-                  </div>
-                </div>
-                <div v-if="generationPlannerSummary.warningMessages.length" class="planner-warning-list">
-                  <div
-                    v-for="warning in generationPlannerSummary.warningMessages"
-                    :key="warning"
-                    class="planner-warning-item"
-                  >
-                    {{ warning }}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <section class="detail-section detail-section--strip">
-            <h3>🛠️ Reset</h3>
-            <div class="planner-panel">
-              <div class="reset-panel">
-                <div class="reset-copy">
-                  Reset generated content without deleting the galaxy record. Use sector-only reset from the selected
-                  map tile when you need to rework a specific area.
-                </div>
-                <div class="reset-action-grid">
-                  <button
-                    class="btn btn-secondary"
-                    :disabled="isApplyingSectorReset || !currentGalaxySectors.length"
-                    @click="requestResetGeneratedContent({ level: 'systems', scopeLabel: 'this galaxy' })"
-                  >
-                    {{ isApplyingSectorReset ? "Resetting…" : "Clear Systems Only" }}
-                  </button>
-                  <button
-                    class="btn btn-danger"
-                    :disabled="isApplyingSectorReset || !currentGalaxySectors.length"
-                    @click="requestResetGeneratedContent({ level: 'presence', scopeLabel: 'this galaxy' })"
-                  >
-                    {{ isApplyingSectorReset ? "Resetting…" : "Clear Presence + Systems" }}
-                  </button>
-                  <button
-                    class="btn btn-secondary"
-                    :disabled="isApplyingSectorReset || !selectedGalaxyMapSectorRecord"
-                    @click="
-                      requestResetGeneratedContent({
-                        level: 'systems',
-                        scopeLabel: selectedGalaxyMapTile?.displayName || 'the selected sector',
-                        sectorIds: [selectedGalaxyMapSectorRecord.sectorId],
-                      })
-                    "
-                  >
-                    Clear Selected Sector Systems
-                  </button>
-                  <button
-                    class="btn btn-secondary"
-                    :disabled="isApplyingSectorReset || !selectedGalaxyMapSectorRecord"
-                    @click="
-                      requestResetGeneratedContent({
-                        level: 'presence',
-                        scopeLabel: selectedGalaxyMapTile?.displayName || 'the selected sector',
-                        sectorIds: [selectedGalaxyMapSectorRecord.sectorId],
-                      })
-                    "
-                  >
-                    Clear Selected Sector Survey
-                  </button>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <section class="detail-section detail-section--strip">
-            <h3>🕘 History</h3>
-            <div class="history-panel">
-              <div v-if="currentGalaxyHistory.length" class="history-list">
-                <div v-for="entry in currentGalaxyHistory" :key="entry.id" class="history-entry">
-                  <div class="history-entry-head">
-                    <strong>{{ entry.label }}</strong>
-                    <span>{{ formatHistoryTimestamp(entry.at) }}</span>
-                  </div>
-                  <div class="history-entry-body">{{ entry.detail }}</div>
-                  <div v-if="entry.metrics?.length" class="history-entry-metrics">
-                    <span
-                      v-for="metric in entry.metrics"
-                      :key="`${entry.id}-${metric.label}`"
-                      class="history-entry-metric"
-                    >
-                      {{ metric.label }}: {{ metric.value }}
-                    </span>
-                  </div>
-                </div>
-              </div>
-              <div v-else class="history-empty">No Galaxy Survey actions logged for this galaxy yet.</div>
-            </div>
-          </section>
+          <GalaxySurveyOperationsPanel
+            :generationPlannerSummary="generationPlannerSummary"
+            :generationGuidance="generationGuidance"
+            :isGeneratingSectors="isGeneratingSectors"
+            :isGeneratingFullGalaxy="isGeneratingFullGalaxy"
+            :isApplyingSectorReset="isApplyingSectorReset"
+            :hasGalaxySectors="Boolean(currentGalaxySectors.length)"
+            :selectedSectorName="selectedGalaxyMapTile?.displayName || ''"
+            :selectedSectorId="selectedGalaxyMapSectorRecord?.sectorId || ''"
+            :currentGalaxyHistory="currentGalaxyHistory"
+            @guided-generate="runGuidedGenerationStepAction"
+            @request-reset="requestResetGeneratedContent"
+          />
 
           <!-- Metadata -->
           <section class="detail-section detail-section--strip">
@@ -525,6 +413,34 @@
                 {{ option.label }}
               </button>
             </div>
+            <span class="density-map-toolbar-label">Overlay</span>
+            <div class="density-map-zoom-toggle" role="group" aria-label="Galaxy density map overlay mode">
+              <button
+                v-for="option in galaxyMapOverlayOptions"
+                :key="option.id"
+                type="button"
+                class="density-map-zoom-btn"
+                :class="{ active: galaxyMapOverlayMode === option.id }"
+                @click="galaxyMapOverlayMode = option.id"
+              >
+                {{ option.label }}
+              </button>
+            </div>
+            <select
+              v-model="galaxyMapStatusFilter"
+              class="density-map-filter-select"
+              aria-label="Galaxy map status filter"
+            >
+              <option v-for="option in galaxyMapStatusFilterOptions" :key="option.id" :value="option.id">
+                {{ option.label }}
+              </option>
+            </select>
+            <select v-model="galaxyMapRingFilter" class="density-map-filter-select" aria-label="Galaxy map ring filter">
+              <option v-for="option in galaxyMapRingFilterOptions" :key="option.id" :value="option.id">
+                {{ option.label }}
+              </option>
+            </select>
+            <span class="density-map-toolbar-meta">{{ galaxyMapVisibleTileCount.toLocaleString() }} tiles in view</span>
             <div class="density-map-search">
               <input
                 v-model.trim="galaxyMapSearch"
@@ -532,6 +448,41 @@
                 type="search"
                 placeholder="Search sector id, name, or grid"
               />
+            </div>
+          </div>
+          <div v-if="galaxyMapFrontierBanner" class="frontier-banner">
+            <div class="frontier-banner-copy">
+              <span class="frontier-banner-kicker">Frontier</span>
+              <strong>{{ galaxyMapFrontierBanner.title }}</strong>
+              <p>{{ galaxyMapFrontierBanner.body }}</p>
+            </div>
+            <div class="frontier-banner-meta">
+              Ring {{ galaxyMapFrontierBanner.ring }} · {{ galaxyMapFrontierBanner.mode || "review" }}
+            </div>
+            <div class="frontier-banner-actions">
+              <button
+                type="button"
+                class="btn btn-secondary btn-sm"
+                @click="focusGalaxyMapRing(galaxyMapFrontierBanner.ring)"
+              >
+                Focus Ring
+              </button>
+              <button
+                type="button"
+                class="btn btn-info btn-sm"
+                :disabled="isGeneratingSectors || isGeneratingFullGalaxy || !generationGuidance.nextPresenceRing"
+                @click="runGuidedGenerationStepAction({ mode: 'presence' })"
+              >
+                Run Presence
+              </button>
+              <button
+                type="button"
+                class="btn btn-info btn-sm"
+                :disabled="isGeneratingSectors || isGeneratingFullGalaxy || !generationGuidance.nextSystemsRing"
+                @click="runGuidedGenerationStepAction({ mode: 'systems' })"
+              >
+                Run Systems
+              </button>
             </div>
           </div>
           <div class="density-map-container">
@@ -552,18 +503,20 @@
             >
               <rect x="0" y="0" :width="galaxyMapPreview.svgSize" :height="galaxyMapPreview.svgSize" fill="#020209" />
               <rect
-                v-for="tile in galaxyMapPreview.tiles"
+                v-for="tile in galaxyMapRenderedTiles"
                 :key="tile.id"
                 :x="tile.px - galaxyMapPreview.renderTileHalf"
                 :y="tile.py - galaxyMapPreview.renderTileHalf"
                 :width="galaxyMapPreview.renderTileSize"
                 :height="galaxyMapPreview.renderTileSize"
-                :fill="tile.color"
-                :opacity="tile.opacity"
+                :fill="tile.renderFill"
+                :opacity="tile.renderOpacity"
                 class="density-map-tile"
                 :class="{
                   'density-map-tile--active': selectedGalaxyMapTileId === tile.id,
                   'density-map-tile--persisted': tile.persisted,
+                  'density-map-tile--dimmed': !tile.matchesFilter,
+                  'density-map-tile--frontier': tile.isFrontierRing,
                 }"
                 rx="1"
                 ry="1"
@@ -594,17 +547,17 @@
               Scroll to zoom toward or away from the galactic center. Drag while zoomed in to pan across the map.
             </p>
             <div class="density-legend">
-              <span class="legend-label">Void</span>
+              <span class="legend-label">Legend</span>
               <div class="legend-swatches">
                 <div
-                  v-for="(color, i) in galaxyMapPreview.densityColors"
-                  :key="i"
+                  v-for="entry in galaxyMapLegendEntries"
+                  :key="entry.label"
                   class="legend-swatch"
-                  :style="{ background: color }"
-                  :title="`Density Class ${i}`"
+                  :style="{ background: entry.color }"
+                  :title="entry.label"
                 />
               </div>
-              <span class="legend-label">Dense Core</span>
+              <span class="legend-label">{{ galaxyMapLegendEntries.map((entry) => entry.label).join(" · ") }}</span>
             </div>
             <div v-if="galaxySectorSearchResults.length" class="density-map-search-results">
               <button
@@ -620,106 +573,17 @@
                 </span>
               </button>
             </div>
-            <div v-if="selectedGalaxyMapTile" class="density-map-inspector">
-              <div class="density-map-inspector-head">
-                <div>
-                  <div class="density-map-inspector-kicker">Selected Sector</div>
-                  <strong>{{ selectedGalaxyMapTile.displayName }}</strong>
-                </div>
-                <span class="density-map-inspector-density">Density Class {{ selectedGalaxyMapTile.dc }}</span>
-              </div>
-              <div class="density-map-inspector-grid">
-                <div class="density-map-inspector-item">
-                  <span>Sector ID</span>
-                  <strong>{{ selectedGalaxyMapTile.sectorId }}</strong>
-                </div>
-                <div class="density-map-inspector-item">
-                  <span>Grid</span>
-                  <strong>{{ formatTileGrid(selectedGalaxyMapTile.gridX, selectedGalaxyMapTile.gridY) }}</strong>
-                </div>
-                <div class="density-map-inspector-item">
-                  <span>Persisted</span>
-                  <strong>{{ selectedGalaxyMapTile.persisted ? "Yes" : "Layout Only" }}</strong>
-                </div>
-                <div class="density-map-inspector-item">
-                  <span>Presence Hexes</span>
-                  <strong>{{ formatNumber(selectedGalaxyMapTile.occupiedHexCount) }}</strong>
-                </div>
-                <div class="density-map-inspector-item">
-                  <span>Typed Hexes</span>
-                  <strong>{{ formatNumber(selectedGalaxyMapTile.typedHexCount) }}</strong>
-                </div>
-                <div class="density-map-inspector-item">
-                  <span>Ring Distance</span>
-                  <strong>{{ selectedGalaxyMapTile.ring }}</strong>
-                </div>
-              </div>
-              <div class="density-map-inspector-ring-copy">
-                Ring {{ selectedGalaxyMapTile.ring }} contains
-                {{ selectedGalaxyMapRingTiles.length.toLocaleString() }} layout tile{{
-                  selectedGalaxyMapRingTiles.length === 1 ? "" : "s"
-                }}
-                and {{ selectedGalaxyMapRingPersistedSectors.length.toLocaleString() }} persisted sector{{
-                  selectedGalaxyMapRingPersistedSectors.length === 1 ? "" : "s"
-                }}.
-              </div>
-              <div class="density-map-inspector-actions">
-                <button
-                  class="btn btn-secondary"
-                  :disabled="!selectedGalaxyMapTile.persisted"
-                  @click="jumpToSectorSurvey()"
-                >
-                  Open Sector Survey
-                </button>
-                <button
-                  class="btn btn-secondary"
-                  :disabled="!selectedGalaxyMapTile.persisted"
-                  @click="jumpToSectorSurvey({ viewName: 'SubsectorSurvey' })"
-                >
-                  Open Subsector Survey
-                </button>
-                <button
-                  class="btn btn-info"
-                  :disabled="!selectedGalaxyMapRingTiles.length || isGeneratingSectors || isGeneratingFullGalaxy"
-                  @click="generateSelectedRing({ mode: 'presence' })"
-                >
-                  Generate Ring Presence
-                </button>
-                <button
-                  class="btn btn-info"
-                  :disabled="!selectedGalaxyMapRingTiles.length || isGeneratingSectors || isGeneratingFullGalaxy"
-                  @click="generateSelectedRing({ mode: 'systems' })"
-                >
-                  Generate Ring Systems
-                </button>
-                <button
-                  class="btn btn-secondary"
-                  :disabled="isApplyingSectorReset || !selectedGalaxyMapRingPersistedSectors.length"
-                  @click="
-                    requestResetGeneratedContent({
-                      level: 'systems',
-                      scopeLabel: `ring ${selectedGalaxyMapTile.ring}`,
-                      sectorIds: selectedGalaxyMapRingPersistedSectors.map((sector) => sector.sectorId),
-                    })
-                  "
-                >
-                  Clear Ring Systems
-                </button>
-                <button
-                  class="btn btn-secondary"
-                  :disabled="isApplyingSectorReset || !selectedGalaxyMapRingPersistedSectors.length"
-                  @click="
-                    requestResetGeneratedContent({
-                      level: 'presence',
-                      scopeLabel: `ring ${selectedGalaxyMapTile.ring}`,
-                      sectorIds: selectedGalaxyMapRingPersistedSectors.map((sector) => sector.sectorId),
-                    })
-                  "
-                >
-                  Clear Ring Survey
-                </button>
-              </div>
-            </div>
+            <GalaxySurveyMapInspector
+              :selectedTile="selectedGalaxyMapTile"
+              :ringTileCount="selectedGalaxyMapRingTiles.length"
+              :ringPersistedSectors="selectedGalaxyMapRingPersistedSectors"
+              :isGeneratingSectors="isGeneratingSectors"
+              :isGeneratingFullGalaxy="isGeneratingFullGalaxy"
+              :isApplyingSectorReset="isApplyingSectorReset"
+              @open-sector-survey="jumpToSectorSurvey"
+              @generate-ring="generateSelectedRing"
+              @request-reset="requestResetGeneratedContent"
+            />
           </div>
         </div>
 
@@ -760,6 +624,19 @@
               >{{ generationProgress.current.toLocaleString() }} / {{ generationProgress.total.toLocaleString() }}</span
             >
             <span>{{ generationProgressEtaLabel }}</span>
+          </div>
+          <div class="generation-progress-actions">
+            <span v-if="generationCancelRequested" class="generation-progress-cancel-note">{{
+              generationCancelMessage
+            }}</span>
+            <button
+              type="button"
+              class="btn btn-danger btn-sm"
+              :disabled="generationCancelRequested"
+              @click="requestGenerationCancel()"
+            >
+              {{ generationCancelRequested ? "Cancel Requested" : "Cancel After Current Sector" }}
+            </button>
           </div>
           <div class="progress-bar generation-progress-bar">
             <div class="progress-fill" :style="{ width: generationProgressPercent + '%' }">
@@ -1141,13 +1018,20 @@ import {
   createDefaultGalaxyImportForm,
   resolveGalaxySectorStatsRefresh,
 } from "../../utils/galaxySurveyPersistence.js";
+import { buildGalaxyGenerationGuidance } from "../../utils/galaxySurveyGenerationGuidance.js";
 import { starDescriptorToCssClass } from "../../utils/starDisplay.js";
 import LoadingSpinner from "../../components/common/LoadingSpinner.vue";
 import ConfirmDialog from "../../components/common/ConfirmDialog.vue";
+import GalaxySurveyOperationsPanel from "../../components/galaxy-survey/GalaxySurveyOperationsPanel.vue";
+import GalaxySurveyMapInspector from "../../components/galaxy-survey/GalaxySurveyMapInspector.vue";
 import * as toastService from "../../utils/toast.js";
 import { generateGalaxyName, generatePhonotacticName } from "../../utils/nameGenerator.js";
 import { usePreferencesStore } from "../../stores/preferencesStore.js";
 import { useArchiveTransfer } from "../../composables/useArchiveTransfer.js";
+import {
+  isGalaxySurveyGenerationCancelledError,
+  useGalaxySurveyGenerationController,
+} from "../../composables/useGalaxySurveyGenerationController.js";
 import {
   estimateGalaxySectorLayoutCount,
   generateGalaxySectorLayout,
@@ -1193,8 +1077,13 @@ const isGeneratingFullGalaxy = ref(false);
 const isApplyingFullRegenerate = ref(false);
 const isApplyingSectorReset = ref(false);
 const isRefreshingSectorStats = ref(false);
+const GALAXY_SURVEY_VIEW_STORAGE_KEY = "eclipsed-horizons-galaxy-survey-view";
 const galaxySurveyGenerationMode = ref("names");
-const galaxyMapZoomLevel = ref("fit");
+const persistedGalaxySurveyView = loadGalaxySurveyViewState();
+const galaxyMapZoomLevel = ref(persistedGalaxySurveyView.zoomLevel);
+const galaxyMapOverlayMode = ref(persistedGalaxySurveyView.overlayMode);
+const galaxyMapStatusFilter = ref(persistedGalaxySurveyView.statusFilter);
+const galaxyMapRingFilter = ref(persistedGalaxySurveyView.ringFilter);
 const galaxyMapSearch = ref("");
 const selectedGalaxyMapTileId = ref("");
 const galaxyMapPan = ref({ x: 0, y: 0 });
@@ -1206,45 +1095,33 @@ const galaxyMapPanState = ref({
   startPanX: 0,
   startPanY: 0,
 });
-const generationProgress = ref({
-  active: false,
-  label: "",
-  current: 0,
-  total: 0,
-  startedAtMs: 0,
-});
 const GALAXY_SURVEY_HISTORY_STORAGE_KEY = "eclipsed-horizons-galaxy-survey-history";
 const galaxySurveyHistory = ref(loadGalaxySurveyHistory());
-
-const generationProgressPercent = computed(() => {
-  if (!generationProgress.value.active || generationProgress.value.total <= 0) return 0;
-  const pct = Math.round((generationProgress.value.current / generationProgress.value.total) * 100);
-  return Math.max(0, Math.min(100, pct));
-});
-
-function formatDuration(seconds) {
-  const clamped = Math.max(0, Math.round(seconds));
-  const hours = Math.floor(clamped / 3600);
-  const minutes = Math.floor((clamped % 3600) / 60);
-  const secs = clamped % 60;
-  if (hours > 0) return `${hours}h ${minutes}m`;
-  if (minutes > 0) return `${minutes}m ${secs}s`;
-  return `${secs}s`;
-}
-
-const generationProgressEtaLabel = computed(() => {
-  const progress = generationProgress.value;
-  if (!progress.active || progress.total <= 0) return "ETA --";
-  if (progress.current <= 0 || progress.current >= progress.total) return "ETA --";
-  if (progress.startedAtMs <= 0) return "ETA --";
-
-  const elapsedSeconds = Math.max(1, (Date.now() - progress.startedAtMs) / 1000);
-  const sectorsPerSecond = progress.current / elapsedSeconds;
-  if (!Number.isFinite(sectorsPerSecond) || sectorsPerSecond <= 0) return "ETA --";
-
-  const remaining = progress.total - progress.current;
-  const etaSeconds = remaining / sectorsPerSecond;
-  return `ETA ${formatDuration(etaSeconds)}`;
+const {
+  generationProgress,
+  generationProgressPercent,
+  generationProgressEtaLabel,
+  generationCancelRequested,
+  generationCancelMessage,
+  startGenerationProgress,
+  flushGenerationProgressUi,
+  updateGenerationProgress,
+  resetGenerationProgress,
+  beginGenerationRequestScope,
+  getGenerationRequestOptions,
+  clearGenerationRequestScope,
+  requestGenerationCancel,
+  assertGenerationNotCancelled,
+  focusGalaxyMapRing,
+  getRecommendedGenerationRing,
+  syncGenerationFrontierSelection,
+  runGuidedGenerationStep,
+} = useGalaxySurveyGenerationController({
+  getGenerationGuidance: () => generationGuidance.value,
+  getSelectedGalaxyMapTile: () => selectedGalaxyMapTile.value,
+  getGalaxyMapPreview: () => galaxyMapPreview.value,
+  focusGalaxyMapTile,
+  toastService,
 });
 
 const importOverlayPhase = computed(() => {
@@ -1344,6 +1221,7 @@ const generationPlannerSummary = computed(() => {
   const totalLayout = currentGalaxyLayoutCount.value;
   const namedSectors = currentGalaxySectors.value.length;
   const generatedPresence = Number(currentGalaxySectorStats.value.generatedPresenceSectors || 0);
+  const avgObjectsPerSector = Number(currentGalaxySectorStats.value.avgObjectsPerSector || 0);
   const mode = galaxySurveyGenerationMode.value;
   let sectorsTouched = totalLayout;
   let actionLabel = "Full layout run";
@@ -1383,6 +1261,56 @@ const generationPlannerSummary = computed(() => {
     warningMessages.push("All layout sectors already have records. This run will mainly normalize naming metadata.");
   }
 
+  const estimatedSectorWrites =
+    mode === "names"
+      ? Math.max(0, totalLayout - namedSectors) || Math.min(totalLayout, Math.max(1, sectorsTouched))
+      : Math.max(1, sectorsTouched);
+  const estimatedSystemWrites =
+    mode === "names"
+      ? 0
+      : mode === "center"
+        ? Math.max(1, Math.round(avgObjectsPerSector || 1))
+        : Math.max(0, Math.round(sectorsTouched * avgObjectsPerSector));
+  const estimatedPresenceWrites =
+    mode === "systems"
+      ? estimatedSectorWrites
+      : mode === "presence" || mode === "expand" || mode === "center"
+        ? estimatedSectorWrites
+        : 0;
+  const runtimeTone =
+    estimatedSectorWrites > 50000 || estimatedSystemWrites > 500000
+      ? "heavy"
+      : estimatedSectorWrites > 5000 || estimatedSystemWrites > 50000
+        ? "moderate"
+        : estimatedSectorWrites > 500 || estimatedSystemWrites > 5000
+          ? "fast"
+          : "none";
+  const runtimeLabel = {
+    none: "Minimal",
+    fast: "Manageable",
+    moderate: "Moderate",
+    heavy: "Heavy",
+  }[runtimeTone];
+  const forecastRows = [
+    { label: "Sector Writes", value: `${estimatedSectorWrites.toLocaleString()} upserts` },
+    {
+      label: "Presence Writes",
+      value:
+        estimatedPresenceWrites > 0
+          ? `${estimatedPresenceWrites.toLocaleString()} metadata updates`
+          : "No new presence writes",
+    },
+    {
+      label: "System Rewrites",
+      value:
+        estimatedSystemWrites > 0 ? `~${estimatedSystemWrites.toLocaleString()} cached systems` : "No system rewrites",
+    },
+    { label: "Likely Runtime", value: runtimeLabel, tone: runtimeTone },
+  ];
+  const forecastNote =
+    `Forecasts use ${avgObjectsPerSector.toFixed(2)} average objects per surveyed sector and current cached coverage. ` +
+    `Actual writes may vary by ring density and center anomaly seeding.`;
+
   return {
     modeLabel: currentGalaxyGenerateLabel.value,
     actionLabel,
@@ -1392,6 +1320,8 @@ const generationPlannerSummary = computed(() => {
     presenceCoverageLabel: sectorGenerationCoverageLabel.value,
     cachedSystemsLabel: currentGalaxyCachedSystemCount.value.toLocaleString(),
     writeProfile,
+    forecastRows,
+    forecastNote,
     warningMessages,
   };
 });
@@ -2118,7 +2048,36 @@ const GALAXY_MAP_ZOOM_OPTIONS = Object.freeze([
   { id: "detail", label: "Detail", multiplier: 2.35 },
 ]);
 
+const GALAXY_MAP_OVERLAY_OPTIONS = Object.freeze([
+  { id: "density", label: "Density" },
+  { id: "presence", label: "Presence" },
+  { id: "systems", label: "Systems" },
+  { id: "frontier", label: "Frontier" },
+]);
+
+const GALAXY_MAP_STATUS_FILTER_OPTIONS = Object.freeze([
+  { id: "all", label: "All Tiles" },
+  { id: "persisted", label: "Persisted Only" },
+  { id: "layout-only", label: "Layout Only" },
+  { id: "presence-pending", label: "Presence Pending" },
+  { id: "systems-pending", label: "Systems Pending" },
+  { id: "frontier", label: "Current Frontier" },
+  { id: "selected-ring", label: "Selected Ring" },
+]);
+
+const GALAXY_MAP_STATUS_COLORS = Object.freeze({
+  "layout-only": "#1d2738",
+  "named-only": "#8f5d35",
+  "surveyed-empty": "#55657a",
+  "presence-only": "#3aa5a1",
+  "systems-partial": "#d5a93d",
+  "systems-complete": "#3dbb6a",
+  frontier: "#49c8ff",
+});
+
 const galaxyMapZoomOptions = computed(() => GALAXY_MAP_ZOOM_OPTIONS);
+const galaxyMapOverlayOptions = computed(() => GALAXY_MAP_OVERLAY_OPTIONS);
+const galaxyMapStatusFilterOptions = computed(() => GALAXY_MAP_STATUS_FILTER_OPTIONS);
 
 function stepGalaxyMapZoom(direction) {
   const currentIndex = GALAXY_MAP_ZOOM_OPTIONS.findIndex((option) => option.id === galaxyMapZoomLevel.value);
@@ -2274,6 +2233,7 @@ const galaxyMapPreview = computed(() => {
         gridY,
         ring: Math.max(Math.abs(gridX), Math.abs(gridY)),
         persisted: Boolean(persistedSector),
+        presenceGenerated: Boolean(persistedSector?.metadata?.hexPresenceGenerated),
         occupiedHexCount,
         typedHexCount,
         px: offsetX + gridX * step,
@@ -2288,8 +2248,152 @@ const galaxyMapPreview = computed(() => {
   };
 });
 
+const generationGuidance = computed(() =>
+  buildGalaxyGenerationGuidance({ tiles: galaxyMapPreview.value?.tiles ?? [] }),
+);
+
+function isGalaxyMapTileSystemsComplete(tile) {
+  return Boolean(
+    tile?.persisted &&
+    tile?.presenceGenerated &&
+    Number(tile?.typedHexCount || 0) >= Number(tile?.occupiedHexCount || 0),
+  );
+}
+
+function resolveGalaxyMapTileStatus(tile) {
+  if (!tile?.persisted) {
+    return { key: "layout-only", label: "Layout Only" };
+  }
+  if (!tile?.presenceGenerated) {
+    return { key: "named-only", label: "Named Only" };
+  }
+  if (Number(tile?.occupiedHexCount || 0) <= 0) {
+    return { key: "surveyed-empty", label: "Surveyed Empty" };
+  }
+  if (isGalaxyMapTileSystemsComplete(tile)) {
+    return { key: "systems-complete", label: "Systems Complete" };
+  }
+  if (Number(tile?.typedHexCount || 0) > 0) {
+    return { key: "systems-partial", label: "Systems Partial" };
+  }
+  return { key: "presence-only", label: "Presence Only" };
+}
+
+function resolveGalaxyMapTileOverlay(tile, { overlayMode, frontierRing, frontierMode }) {
+  const status = resolveGalaxyMapTileStatus(tile);
+  const isFrontierTile = Number(frontierRing) === Number(tile?.ring);
+  if (overlayMode === "density") {
+    return { fill: tile.color, accent: isFrontierTile };
+  }
+  if (overlayMode === "presence") {
+    if (status.key === "layout-only") return { fill: GALAXY_MAP_STATUS_COLORS["layout-only"], accent: false };
+    if (status.key === "named-only") return { fill: GALAXY_MAP_STATUS_COLORS["named-only"], accent: false };
+    if (status.key === "surveyed-empty") return { fill: GALAXY_MAP_STATUS_COLORS["surveyed-empty"], accent: false };
+    return {
+      fill:
+        status.key === "systems-complete"
+          ? GALAXY_MAP_STATUS_COLORS["systems-complete"]
+          : GALAXY_MAP_STATUS_COLORS["presence-only"],
+      accent: isFrontierTile,
+    };
+  }
+  if (overlayMode === "systems") {
+    return { fill: GALAXY_MAP_STATUS_COLORS[status.key] || tile.color, accent: isFrontierTile };
+  }
+  if (isFrontierTile) {
+    return { fill: GALAXY_MAP_STATUS_COLORS.frontier, accent: true, frontierMode };
+  }
+  if (status.key === "systems-complete") {
+    return { fill: GALAXY_MAP_STATUS_COLORS["systems-complete"], accent: false };
+  }
+  if (status.key === "presence-only" || status.key === "systems-partial") {
+    return { fill: GALAXY_MAP_STATUS_COLORS["systems-partial"], accent: false };
+  }
+  return { fill: GALAXY_MAP_STATUS_COLORS[status.key] || tile.color, accent: false };
+}
+
+function matchesGalaxyMapFilters(tile, { frontierRing, selectedRing }) {
+  const status = resolveGalaxyMapTileStatus(tile);
+  const ringFilter = galaxyMapRingFilter.value;
+  if (ringFilter !== "all" && String(tile?.ring) !== ringFilter) {
+    return false;
+  }
+
+  const statusFilter = galaxyMapStatusFilter.value;
+  if (statusFilter === "all") {
+    return true;
+  }
+  if (statusFilter === "persisted") {
+    return tile.persisted;
+  }
+  if (statusFilter === "layout-only") {
+    return status.key === "layout-only";
+  }
+  if (statusFilter === "presence-pending") {
+    return !tile.presenceGenerated;
+  }
+  if (statusFilter === "systems-pending") {
+    return tile.persisted && tile.presenceGenerated && !isGalaxyMapTileSystemsComplete(tile);
+  }
+  if (statusFilter === "frontier") {
+    return Number(frontierRing) === Number(tile?.ring);
+  }
+  if (statusFilter === "selected-ring") {
+    return Number.isFinite(selectedRing) && Number(tile?.ring) === selectedRing;
+  }
+  return true;
+}
+
+const galaxyMapRingFilterOptions = computed(() => {
+  const rings = Array.from(new Set((galaxyMapPreview.value?.tiles ?? []).map((tile) => Number(tile?.ring))))
+    .filter((ring) => Number.isFinite(ring))
+    .sort((left, right) => left - right);
+
+  return [{ id: "all", label: "All Rings" }, ...rings.map((ring) => ({ id: String(ring), label: `Ring ${ring}` }))];
+});
+
+watch(galaxyMapRingFilterOptions, (options) => {
+  const allowed = new Set((options || []).map((option) => String(option.id)));
+  if (!allowed.has(String(galaxyMapRingFilter.value))) {
+    galaxyMapRingFilter.value = "all";
+  }
+});
+
+const galaxyMapRenderedTiles = computed(() => {
+  const guidance = generationGuidance.value;
+  const frontierRing = Number(guidance?.recommendation?.ring);
+  const frontierMode = guidance?.recommendation?.mode || null;
+  const selectedRing = Number(
+    galaxyMapPreview.value?.tiles.find((tile) => tile.id === selectedGalaxyMapTileId.value)?.ring,
+  );
+
+  return (galaxyMapPreview.value?.tiles ?? []).map((tile) => {
+    const status = resolveGalaxyMapTileStatus(tile);
+    const matchesFilter = matchesGalaxyMapFilters(tile, { frontierRing, selectedRing });
+    const overlay = resolveGalaxyMapTileOverlay(tile, {
+      overlayMode: galaxyMapOverlayMode.value,
+      frontierRing,
+      frontierMode,
+    });
+
+    return {
+      ...tile,
+      statusKey: status.key,
+      statusLabel: status.label,
+      renderFill: overlay.fill,
+      renderOpacity: matchesFilter ? tile.opacity : 0.1,
+      matchesFilter,
+      isFrontierRing: Number(frontierRing) === Number(tile?.ring),
+      frontierMode,
+      tooltip:
+        `${tile.tooltip}\nStatus ${status.label}` +
+        (Number(frontierRing) === Number(tile?.ring) && frontierMode ? `\nFrontier ${frontierMode}` : ""),
+    };
+  });
+});
+
 const selectedGalaxyMapTile = computed(
-  () => galaxyMapPreview.value?.tiles.find((tile) => tile.id === selectedGalaxyMapTileId.value) ?? null,
+  () => galaxyMapRenderedTiles.value.find((tile) => tile.id === selectedGalaxyMapTileId.value) ?? null,
 );
 
 const selectedGalaxyMapSectorRecord = computed(() => selectedGalaxyMapTile.value?.persistedSector ?? null);
@@ -2299,12 +2403,65 @@ const selectedGalaxyMapRingTiles = computed(() => {
   if (!Number.isFinite(ring)) {
     return [];
   }
-  return (galaxyMapPreview.value?.tiles ?? []).filter((tile) => Number(tile?.ring) === ring);
+  return galaxyMapRenderedTiles.value.filter((tile) => Number(tile?.ring) === ring);
 });
 
 const selectedGalaxyMapRingPersistedSectors = computed(() =>
   selectedGalaxyMapRingTiles.value.map((tile) => tile.persistedSector).filter(Boolean),
 );
+
+const galaxyMapLegendEntries = computed(() => {
+  if (galaxyMapOverlayMode.value === "density") {
+    return [
+      { label: "Void", color: DENSITY_COLORS[0] },
+      { label: "Sparse", color: DENSITY_COLORS[1] },
+      { label: "Inter-arm", color: DENSITY_COLORS[3] },
+      { label: "Dense Core", color: DENSITY_COLORS[5] },
+    ];
+  }
+
+  if (galaxyMapOverlayMode.value === "frontier") {
+    return [
+      { label: "Frontier Ring", color: GALAXY_MAP_STATUS_COLORS.frontier },
+      { label: "Systems Complete", color: GALAXY_MAP_STATUS_COLORS["systems-complete"] },
+      { label: "Needs Systems", color: GALAXY_MAP_STATUS_COLORS["systems-partial"] },
+      { label: "Layout Only", color: GALAXY_MAP_STATUS_COLORS["layout-only"] },
+    ];
+  }
+
+  return [
+    { label: "Layout Only", color: GALAXY_MAP_STATUS_COLORS["layout-only"] },
+    { label: "Named Only", color: GALAXY_MAP_STATUS_COLORS["named-only"] },
+    { label: "Surveyed Empty", color: GALAXY_MAP_STATUS_COLORS["surveyed-empty"] },
+    {
+      label: galaxyMapOverlayMode.value === "presence" ? "Presence Found" : "Systems Partial",
+      color:
+        galaxyMapOverlayMode.value === "presence"
+          ? GALAXY_MAP_STATUS_COLORS["presence-only"]
+          : GALAXY_MAP_STATUS_COLORS["systems-partial"],
+    },
+    { label: "Systems Complete", color: GALAXY_MAP_STATUS_COLORS["systems-complete"] },
+  ];
+});
+
+const galaxyMapVisibleTileCount = computed(
+  () => galaxyMapRenderedTiles.value.filter((tile) => tile.matchesFilter).length,
+);
+
+const galaxyMapFrontierBanner = computed(() => {
+  const guidance = generationGuidance.value;
+  const recommended = getRecommendedGenerationRing({ preferMode: guidance?.recommendation?.mode || null });
+  if (!guidance?.ringSummaries?.length || !recommended) {
+    return null;
+  }
+
+  return {
+    ring: recommended.ring,
+    title: guidance.recommendation.title,
+    body: guidance.recommendation.body,
+    mode: guidance.recommendation.mode || null,
+  };
+});
 
 const galaxySectorSearchResults = computed(() => {
   const query = String(galaxyMapSearch.value || "")
@@ -2314,14 +2471,18 @@ const galaxySectorSearchResults = computed(() => {
     return [];
   }
 
-  return (galaxyMapPreview.value?.tiles ?? [])
+  return galaxyMapRenderedTiles.value
     .filter((tile) => {
+      if (!tile.matchesFilter) {
+        return false;
+      }
       const haystack = [
         tile.displayName,
         tile.sectorId,
         `${tile.gridX},${tile.gridY}`,
         `${tile.gridX} ${tile.gridY}`,
         tile.persisted ? "persisted" : "layout",
+        tile.statusLabel,
       ]
         .join(" ")
         .toLowerCase();
@@ -2350,6 +2511,48 @@ function deltaClass(value) {
   return numeric > 0 ? "preview-delta-up" : "preview-delta-down";
 }
 
+function loadGalaxySurveyViewState() {
+  const defaults = {
+    zoomLevel: "fit",
+    overlayMode: "density",
+    statusFilter: "all",
+    ringFilter: "all",
+  };
+
+  try {
+    const raw = localStorage.getItem(GALAXY_SURVEY_VIEW_STORAGE_KEY);
+    if (!raw) {
+      return defaults;
+    }
+
+    const parsed = JSON.parse(raw);
+    return {
+      zoomLevel: String(parsed?.zoomLevel || defaults.zoomLevel),
+      overlayMode: String(parsed?.overlayMode || defaults.overlayMode),
+      statusFilter: String(parsed?.statusFilter || defaults.statusFilter),
+      ringFilter: String(parsed?.ringFilter || defaults.ringFilter),
+    };
+  } catch {
+    return defaults;
+  }
+}
+
+function persistGalaxySurveyViewState() {
+  try {
+    localStorage.setItem(
+      GALAXY_SURVEY_VIEW_STORAGE_KEY,
+      JSON.stringify({
+        zoomLevel: galaxyMapZoomLevel.value,
+        overlayMode: galaxyMapOverlayMode.value,
+        statusFilter: galaxyMapStatusFilter.value,
+        ringFilter: galaxyMapRingFilter.value,
+      }),
+    );
+  } catch {
+    // Ignore localStorage persistence failures.
+  }
+}
+
 // Update page title dynamically
 watchEffect(() => {
   const galaxy = currentGalaxy.value;
@@ -2372,6 +2575,10 @@ watch(
   },
   { immediate: true },
 );
+
+watch([galaxyMapZoomLevel, galaxyMapOverlayMode, galaxyMapStatusFilter, galaxyMapRingFilter], () => {
+  persistGalaxySurveyViewState();
+});
 
 watch(
   galaxyMapPreview,
@@ -2807,14 +3014,6 @@ function focusGalaxyMapTile(tileId, { zoom = false } = {}) {
   };
 }
 
-function formatHistoryTimestamp(value) {
-  const time = Date.parse(value);
-  if (!Number.isFinite(time)) {
-    return "Unknown time";
-  }
-  return new Date(time).toLocaleString();
-}
-
 function jumpToSectorSurvey({ viewName = "SectorSurvey" } = {}) {
   const tile = selectedGalaxyMapTile.value;
   const galaxyId = currentGalaxy.value?.galaxyId;
@@ -2887,37 +3086,44 @@ async function confirmResetGeneratedContent() {
   await resetGalaxyGeneratedContent(payload);
 }
 
-async function generateSelectedRing({ mode = "systems" } = {}) {
+async function generateRingByNumber({ ring, mode = "systems", reason = "manual" } = {}) {
   const galaxy = currentGalaxy.value;
-  const ring = Number(selectedGalaxyMapTile.value?.ring);
-  if (!galaxy?.galaxyId || !Number.isFinite(ring)) {
+  const targetRing = Number(ring);
+  if (!galaxy?.galaxyId || !Number.isFinite(targetRing)) {
     toastService.error("Select a ring tile first.");
     return;
   }
 
-  const ringSectors = getRingLayoutSectors(galaxy, ring);
+  const ringSectors = getRingLayoutSectors(galaxy, targetRing);
   if (!ringSectors.length) {
     toastService.warning("No sectors were found for the selected ring.");
     return;
   }
 
+  focusGalaxyMapRing(targetRing, { zoom: true });
+
   const startedAt = Date.now();
   isGeneratingSectors.value = true;
+  beginGenerationRequestScope();
   try {
     let result = null;
     if (mode === "presence") {
       result = await generateSectorPresenceForSectors(galaxy, ringSectors, {
-        progressLabel: `Generating ring ${ring} presence`,
+        progressLabel: `Generating ring ${targetRing} presence`,
         totalCount: ringSectors.length,
       });
       await sectorStore.loadSectors(galaxy.galaxyId);
+      await syncGenerationFrontierSelection({ preferMode: "systems", announce: true });
       recordGalaxySurveyHistory({
         galaxyId: galaxy.galaxyId,
-        label: `Generated Ring ${ring} Presence`,
-        detail: `Processed ring ${ring} and found ${result.totalSystems.toLocaleString()} occupied hexes.`,
+        label: `Generated Ring ${targetRing} Presence`,
+        detail:
+          reason === "frontier"
+            ? `Guided frontier run processed ring ${targetRing} and found ${result.totalSystems.toLocaleString()} occupied hexes.`
+            : `Processed ring ${targetRing} and found ${result.totalSystems.toLocaleString()} occupied hexes.`,
         metrics: buildHistoryMetrics({
           mode: "presence",
-          scope: `ring ${ring}`,
+          scope: `ring ${targetRing}`,
           sectors: result.namedSectorCount,
           populatedSectors: result.populatedSectorCount,
           systems: result.totalSystems,
@@ -2925,23 +3131,27 @@ async function generateSelectedRing({ mode = "systems" } = {}) {
         }),
       });
       toastService.success(
-        `Ring ${ring} processed: ${result.namedSectorCount.toLocaleString()} sectors and ${result.totalSystems.toLocaleString()} occupied hexes.`,
+        `Ring ${targetRing} processed: ${result.namedSectorCount.toLocaleString()} sectors and ${result.totalSystems.toLocaleString()} occupied hexes.`,
       );
       return;
     }
 
     result = await generateSectorSystemsForSectors(galaxy, ringSectors, {
-      progressLabel: `Generating ring ${ring} systems`,
+      progressLabel: `Generating ring ${targetRing} systems`,
       totalCount: ringSectors.length,
     });
     await sectorStore.loadSectors(galaxy.galaxyId);
+    await syncGenerationFrontierSelection({ preferMode: "systems", announce: true });
     recordGalaxySurveyHistory({
       galaxyId: galaxy.galaxyId,
-      label: `Generated Ring ${ring} Systems`,
-      detail: `Processed ring ${ring} and generated ${result.totalSystems.toLocaleString()} systems.`,
+      label: `Generated Ring ${targetRing} Systems`,
+      detail:
+        reason === "frontier"
+          ? `Guided frontier run processed ring ${targetRing} and generated ${result.totalSystems.toLocaleString()} systems.`
+          : `Processed ring ${targetRing} and generated ${result.totalSystems.toLocaleString()} systems.`,
       metrics: buildHistoryMetrics({
         mode: "systems",
-        scope: `ring ${ring}`,
+        scope: `ring ${targetRing}`,
         sectors: result.namedSectorCount,
         populatedSectors: result.populatedSectorCount,
         systems: result.totalSystems,
@@ -2949,14 +3159,32 @@ async function generateSelectedRing({ mode = "systems" } = {}) {
       }),
     });
     toastService.success(
-      `Ring ${ring} processed: ${result.namedSectorCount.toLocaleString()} sectors and ${result.totalSystems.toLocaleString()} systems.`,
+      `Ring ${targetRing} processed: ${result.namedSectorCount.toLocaleString()} sectors and ${result.totalSystems.toLocaleString()} systems.`,
     );
   } catch (err) {
+    if (isGalaxySurveyGenerationCancelledError(err)) {
+      return;
+    }
     toastService.error(`Failed to generate selected ring: ${err.message}`);
   } finally {
     isGeneratingSectors.value = false;
+    clearGenerationRequestScope();
     resetGenerationProgress();
   }
+}
+
+async function runGuidedGenerationStepAction({ mode = "systems" } = {}) {
+  await runGuidedGenerationStep({ mode, generateRing: generateRingByNumber });
+}
+
+async function generateSelectedRing({ mode = "systems" } = {}) {
+  const ring = Number(selectedGalaxyMapTile.value?.ring);
+  if (!Number.isFinite(ring)) {
+    toastService.error("Select a ring tile first.");
+    return;
+  }
+
+  await generateRingByNumber({ ring, mode, reason: "manual" });
 }
 
 function editGalaxy() {
@@ -3202,6 +3430,16 @@ function getRingLayoutSectors(galaxy, ring) {
   return Array.from(iterateGalaxySectorLayout(galaxy, { scale: "true" })).filter(
     (sector) => sectorRingDistance(sector) === targetRing,
   );
+}
+
+function formatDuration(seconds) {
+  const clamped = Math.max(0, Math.round(seconds));
+  const hours = Math.floor(clamped / 3600);
+  const minutes = Math.floor((clamped % 3600) / 60);
+  const secs = clamped % 60;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  if (minutes > 0) return `${minutes}m ${secs}s`;
+  return `${secs}s`;
 }
 
 function buildHistoryMetrics({
@@ -3456,25 +3694,29 @@ async function seedGalacticCenterSector(galaxy) {
     hexStarTypes: {},
   });
 
-  const persistedSector = await upsertSector({
-    ...centerSector,
-    metadata: ensureSectorNamingMetadata(centerSector, {
-      ...(centerSector.metadata ?? {}),
-      systemCount: seeded.occupiedHexes.length,
-      hexPresenceGenerated: true,
-      hexPresenceGeneratedAt: new Date().toISOString(),
-      occupiedHexes: seeded.occupiedHexes,
-      hexStarTypes: seeded.hexStarTypes,
-      isGalacticCenterSector: true,
-      centralAnomalyType: seeded.centerAnomalyType,
-      centralAnomaly: seeded.centerAnomaly,
-      centralAnomalyHex: seeded.centerAnomaly?.coord,
-    }),
-  });
+  const persistedSector = await upsertSector(
+    {
+      ...centerSector,
+      metadata: ensureSectorNamingMetadata(centerSector, {
+        ...(centerSector.metadata ?? {}),
+        systemCount: seeded.occupiedHexes.length,
+        hexPresenceGenerated: true,
+        hexPresenceGeneratedAt: new Date().toISOString(),
+        occupiedHexes: seeded.occupiedHexes,
+        hexStarTypes: seeded.hexStarTypes,
+        isGalacticCenterSector: true,
+        centralAnomalyType: seeded.centerAnomalyType,
+        centralAnomaly: seeded.centerAnomaly,
+        centralAnomalyHex: seeded.centerAnomaly?.coord,
+      }),
+    },
+    getGenerationRequestOptions(),
+  );
 
   await systemStore.replaceSectorSystems(
     persistedSector.sectorId,
     buildPersistedSystemRecordsForSector(persistedSector, seeded.hexStarTypes),
+    getGenerationRequestOptions(),
   );
 
   return true;
@@ -3492,7 +3734,7 @@ async function createTrueScaleSectorsInChunks(galaxy, { chunkSize = 1000 } = {})
       ...sector,
       metadata: ensureSectorNamingMetadata(sector, sector.metadata ?? {}),
     }));
-    const result = await createSectorsBatch(chunk);
+    const result = await createSectorsBatch(chunk, getGenerationRequestOptions());
     if (Array.isArray(result)) {
       created += result.length;
     } else {
@@ -3506,6 +3748,7 @@ async function createTrueScaleSectorsInChunks(galaxy, { chunkSize = 1000 } = {})
 async function generateNamedSectorsForGalaxy(galaxy, { progressLabel = "Naming sectors", chunkSize = 1000 } = {}) {
   startGenerationProgress(`${progressLabel}... preparing layout`, 0);
   await flushGenerationProgressUi();
+  assertGenerationNotCancelled();
 
   const estimatedLayoutCount = estimateGalaxySectorLayoutCount(galaxy, { scale: "true" });
   if (!estimatedLayoutCount) {
@@ -3519,6 +3762,7 @@ async function generateNamedSectorsForGalaxy(galaxy, { progressLabel = "Naming s
   let chunk = [];
   let scanned = 0;
   for (const sector of iterateGalaxySectorLayout(galaxy, { scale: "true" })) {
+    assertGenerationNotCancelled();
     scanned += 1;
     chunk.push({
       ...sector,
@@ -3544,8 +3788,9 @@ async function generateNamedSectorsForGalaxy(galaxy, { progressLabel = "Naming s
       `${progressLabel}... writing batch`,
     );
     await flushGenerationProgressUi();
+    assertGenerationNotCancelled();
 
-    const result = await createSectorsBatch(chunk);
+    const result = await createSectorsBatch(chunk, getGenerationRequestOptions());
     if (Array.isArray(result)) {
       created += result.length;
     } else {
@@ -3564,8 +3809,9 @@ async function generateNamedSectorsForGalaxy(galaxy, { progressLabel = "Naming s
       `${progressLabel}... writing final batch`,
     );
     await flushGenerationProgressUi();
+    assertGenerationNotCancelled();
 
-    const result = await createSectorsBatch(chunk);
+    const result = await createSectorsBatch(chunk, getGenerationRequestOptions());
     if (Array.isArray(result)) {
       created += result.length;
     } else {
@@ -3627,6 +3873,7 @@ async function generateSectorPresenceForSectors(
   const nowIso = new Date().toISOString();
 
   for (const sector of targetSectors) {
+    assertGenerationNotCancelled();
     const ring = sectorRingDistance(sector);
     if (stopAfterEmptyRing && currentRing !== null && ring !== currentRing && ringPopulatedCount === 0) {
       break;
@@ -3667,30 +3914,35 @@ async function generateSectorPresenceForSectors(
       ringPopulatedCount += 1;
     }
 
-    const persistedSector = await upsertSector({
-      ...sector,
-      metadata: ensureSectorNamingMetadata(sector, {
-        ...(sector.metadata ?? {}),
-        systemCount,
-        hexPresenceGenerated: true,
-        hexPresenceGeneratedAt: nowIso,
-        occupiedHexes: seeded.occupiedHexes,
-        isGalacticCenterSector: seeded.isGalacticCenterSector,
-        centralAnomalyType: seeded.centerAnomalyType,
-        centralAnomaly: seeded.centerAnomaly,
-        centralAnomalyHex: seeded.centerAnomaly?.coord,
-      }),
-    });
+    const persistedSector = await upsertSector(
+      {
+        ...sector,
+        metadata: ensureSectorNamingMetadata(sector, {
+          ...(sector.metadata ?? {}),
+          systemCount,
+          hexPresenceGenerated: true,
+          hexPresenceGeneratedAt: nowIso,
+          occupiedHexes: seeded.occupiedHexes,
+          isGalacticCenterSector: seeded.isGalacticCenterSector,
+          centralAnomalyType: seeded.centerAnomalyType,
+          centralAnomaly: seeded.centerAnomaly,
+          centralAnomalyHex: seeded.centerAnomaly?.coord,
+        }),
+      },
+      getGenerationRequestOptions(),
+    );
 
     await systemStore.replaceSectorSystems(
       persistedSector.sectorId,
       buildPersistedSystemRecordsForSector(persistedSector, seeded.hexStarTypes),
+      getGenerationRequestOptions(),
     );
 
     processed += 1;
     if (processed % GENERATION_PROGRESS_STEP === 0 || processed === resolvedTotal) {
       updateGenerationProgress(processed, resolvedTotal, progressLabel);
       await flushGenerationProgressUi();
+      assertGenerationNotCancelled();
     }
   }
 
@@ -3716,54 +3968,6 @@ async function generateSectorPresenceForSectors(
   };
 }
 
-function startGenerationProgress(label, total) {
-  const now = Date.now();
-  generationProgress.value = {
-    active: true,
-    label,
-    current: 0,
-    total: Math.max(0, Number(total) || 0),
-    startedAtMs: now,
-  };
-}
-
-async function flushGenerationProgressUi() {
-  await nextTick();
-  await new Promise((resolve) => {
-    if (typeof window === "undefined" || typeof window.requestAnimationFrame !== "function") {
-      setTimeout(resolve, 0);
-      return;
-    }
-    window.requestAnimationFrame(() => resolve());
-  });
-}
-
-function updateGenerationProgress(
-  current,
-  total = generationProgress.value.total,
-  label = generationProgress.value.label,
-) {
-  const previousStart = generationProgress.value.startedAtMs;
-  const now = Date.now();
-  generationProgress.value = {
-    active: true,
-    label,
-    current: Math.max(0, Number(current) || 0),
-    total: Math.max(0, Number(total) || 0),
-    startedAtMs: previousStart > 0 ? previousStart : now,
-  };
-}
-
-function resetGenerationProgress() {
-  generationProgress.value = {
-    active: false,
-    label: "",
-    current: 0,
-    total: 0,
-    startedAtMs: 0,
-  };
-}
-
 async function doGenerateAllSectors() {
   const galaxy = currentGalaxy.value;
   if (!galaxy) {
@@ -3777,6 +3981,7 @@ async function doGenerateAllSectors() {
   }
 
   isGeneratingSectors.value = true;
+  beginGenerationRequestScope();
   const startedAt = Date.now();
   try {
     const result = await generateNamedSectorsForGalaxy(galaxy, { progressLabel: "Naming sectors" });
@@ -3784,6 +3989,8 @@ async function doGenerateAllSectors() {
       toastService.warning("Could not generate sector layout for this galaxy.");
       return;
     }
+    await sectorStore.loadSectors(galaxy.galaxyId);
+    await syncGenerationFrontierSelection({ preferMode: "presence", zoom: false, announce: true });
     recordGalaxySurveyHistory({
       galaxyId: galaxy.galaxyId,
       label: "Named Sectors",
@@ -3799,10 +4006,14 @@ async function doGenerateAllSectors() {
       `Named ${result.namedSectorCount.toLocaleString()} sectors in ${galaxy.name || galaxy.galaxyId}.`,
     );
   } catch (err) {
+    if (isGalaxySurveyGenerationCancelledError(err)) {
+      return;
+    }
     console.error(`[Generate Sector Names] Error:`, err);
     toastService.error(`Failed to name sectors: ${err.message}`);
   } finally {
     isGeneratingSectors.value = false;
+    clearGenerationRequestScope();
     resetGenerationProgress();
   }
 }
@@ -3888,6 +4099,7 @@ async function generateSectorSystemsForSectors(
   const nowIso = new Date().toISOString();
 
   for (const sector of targetSectors) {
+    assertGenerationNotCancelled();
     const ring = sectorRingDistance(sector);
     if (stopAfterEmptyRing && currentRing !== null && ring !== currentRing && ringPopulatedCount === 0) {
       break;
@@ -3945,31 +4157,36 @@ async function generateSectorSystemsForSectors(
       ringPopulatedCount += 1;
     }
 
-    const persistedSector = await upsertSector({
-      ...sector,
-      metadata: ensureSectorNamingMetadata(sector, {
-        ...(sector.metadata ?? {}),
-        systemCount,
-        hexPresenceGenerated: true,
-        hexPresenceGeneratedAt: nowIso,
-        occupiedHexes: seeded.occupiedHexes,
-        hexStarTypes: seeded.hexStarTypes,
-        isGalacticCenterSector: seeded.isGalacticCenterSector,
-        centralAnomalyType: seeded.centerAnomalyType,
-        centralAnomaly: seeded.centerAnomaly,
-        centralAnomalyHex: seeded.centerAnomaly?.coord,
-      }),
-    });
+    const persistedSector = await upsertSector(
+      {
+        ...sector,
+        metadata: ensureSectorNamingMetadata(sector, {
+          ...(sector.metadata ?? {}),
+          systemCount,
+          hexPresenceGenerated: true,
+          hexPresenceGeneratedAt: nowIso,
+          occupiedHexes: seeded.occupiedHexes,
+          hexStarTypes: seeded.hexStarTypes,
+          isGalacticCenterSector: seeded.isGalacticCenterSector,
+          centralAnomalyType: seeded.centerAnomalyType,
+          centralAnomaly: seeded.centerAnomaly,
+          centralAnomalyHex: seeded.centerAnomaly?.coord,
+        }),
+      },
+      getGenerationRequestOptions(),
+    );
 
     await systemStore.replaceSectorSystems(
       persistedSector.sectorId,
       buildPersistedSystemRecordsForSector(persistedSector, seeded.hexStarTypes),
+      getGenerationRequestOptions(),
     );
 
     processed += 1;
     if (processed % GENERATION_PROGRESS_STEP === 0 || processed === resolvedTotal) {
       updateGenerationProgress(processed, resolvedTotal, progressLabel);
       await flushGenerationProgressUi();
+      assertGenerationNotCancelled();
     }
   }
 
@@ -4037,6 +4254,7 @@ async function doGenerateFullGalaxy() {
   }
 
   isGeneratingFullGalaxy.value = true;
+  beginGenerationRequestScope();
   try {
     const result = await generateFullGalaxyForGalaxy(galaxy);
     if (result.estimatedLayoutCount === 0) {
@@ -4044,14 +4262,21 @@ async function doGenerateFullGalaxy() {
       return;
     }
 
+    await sectorStore.loadSectors(galaxy.galaxyId);
+    await syncGenerationFrontierSelection({ preferMode: "systems", announce: true });
+
     toastService.success(
-      `Sector systems generated — persisted ${result.persistedSectorCount.toLocaleString()} non-empty sectors with ${result.totalSystems.toLocaleString()} sector systems assigned.`,
+      `Sector systems generated — persisted ${result.populatedSectorCount.toLocaleString()} non-empty sectors with ${result.totalSystems.toLocaleString()} sector systems assigned.`,
     );
   } catch (err) {
+    if (isGalaxySurveyGenerationCancelledError(err)) {
+      return;
+    }
     console.error(`[Generate Sectors And Systems] Error:`, err);
     toastService.error(`Failed to generate sectors and systems: ${err.message}`);
   } finally {
     isGeneratingFullGalaxy.value = false;
+    clearGenerationRequestScope();
     resetGenerationProgress();
   }
 }
@@ -4064,6 +4289,7 @@ async function runGalaxySurveyGenerationMode() {
   }
 
   isGeneratingSectors.value = true;
+  beginGenerationRequestScope();
   const startedAt = Date.now();
   try {
     let result = null;
@@ -4074,6 +4300,7 @@ async function runGalaxySurveyGenerationMode() {
     if (galaxySurveyGenerationMode.value === "presence") {
       result = await generateSectorPresenceForGalaxy(galaxy);
       await sectorStore.loadSectors(galaxy.galaxyId);
+      await syncGenerationFrontierSelection({ preferMode: "systems", announce: true });
       recordGalaxySurveyHistory({
         galaxyId: galaxy.galaxyId,
         label: "Generated Presence",
@@ -4095,6 +4322,7 @@ async function runGalaxySurveyGenerationMode() {
     if (galaxySurveyGenerationMode.value === "systems") {
       result = await generateFullGalaxyForGalaxy(galaxy, { progressLabel: "Generating galaxy systems" });
       await sectorStore.loadSectors(galaxy.galaxyId);
+      await syncGenerationFrontierSelection({ preferMode: "systems", announce: true });
       recordGalaxySurveyHistory({
         galaxyId: galaxy.galaxyId,
         label: "Generated Galaxy Systems",
@@ -4116,6 +4344,7 @@ async function runGalaxySurveyGenerationMode() {
     if (galaxySurveyGenerationMode.value === "center") {
       result = await generateCenterSectorSystemsForGalaxy(galaxy, { progressLabel: "Generating center sector" });
       await sectorStore.loadSectors(galaxy.galaxyId);
+      await syncGenerationFrontierSelection({ preferMode: "systems", announce: true });
       recordGalaxySurveyHistory({
         galaxyId: galaxy.galaxyId,
         label: "Generated Center Sector",
@@ -4135,6 +4364,7 @@ async function runGalaxySurveyGenerationMode() {
     if (galaxySurveyGenerationMode.value === "expand") {
       result = await generateExpandingCenterSectorsForGalaxy(galaxy, { progressLabel: "Expanding from center" });
       await sectorStore.loadSectors(galaxy.galaxyId);
+      await syncGenerationFrontierSelection({ preferMode: "systems", announce: true });
       recordGalaxySurveyHistory({
         galaxyId: galaxy.galaxyId,
         label: "Expanded From Center",
@@ -4153,9 +4383,13 @@ async function runGalaxySurveyGenerationMode() {
       );
     }
   } catch (err) {
+    if (isGalaxySurveyGenerationCancelledError(err)) {
+      return;
+    }
     toastService.error(`Failed to run generation mode: ${err.message}`);
   } finally {
     isGeneratingSectors.value = false;
+    clearGenerationRequestScope();
     resetGenerationProgress();
   }
 }
@@ -4551,6 +4785,11 @@ function formatNumber(num) {
   border: 2px solid #00d9ff;
   border-radius: 0.5rem;
   padding: 1.25rem;
+  max-height: calc(100vh - 8rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
 }
 
 .details-header {
@@ -4780,133 +5019,15 @@ function formatNumber(num) {
   line-height: 1.45;
 }
 
-.planner-panel,
+.density-map-search-results,
 .history-panel {
   min-width: 0;
 }
 
-.planner-summary-card,
-.reset-panel,
-.history-entry,
-.history-empty,
-.density-map-inspector,
 .density-map-search-results {
   border: 1px solid rgba(0, 217, 255, 0.14);
   border-radius: 0.5rem;
   background: rgba(6, 19, 35, 0.52);
-}
-
-.planner-summary-card,
-.reset-panel,
-.history-panel {
-  padding: 0.9rem;
-}
-
-.planner-summary-head,
-.history-entry-head,
-.density-map-inspector-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 0.8rem;
-}
-
-.planner-kicker,
-.density-map-inspector-kicker {
-  color: #8fb3c9;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-}
-
-.planner-metrics,
-.density-map-inspector-grid,
-.reset-action-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 0.7rem;
-  margin-top: 0.8rem;
-}
-
-.planner-metric,
-.density-map-inspector-item {
-  display: flex;
-  flex-direction: column;
-  gap: 0.18rem;
-  padding: 0.7rem 0.8rem;
-  border: 1px solid rgba(95, 188, 223, 0.16);
-  border-radius: 0.45rem;
-  background: rgba(9, 25, 46, 0.58);
-}
-
-.planner-metric-label,
-.density-map-inspector-item span,
-.history-entry-head span {
-  color: #8fb3c9;
-  font-size: 0.74rem;
-}
-
-.planner-metric-value,
-.density-map-inspector-item strong,
-.history-entry-body {
-  color: #e8f8ff;
-  font-family: monospace;
-}
-
-.planner-warning-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  margin-top: 0.9rem;
-}
-
-.planner-warning-item {
-  color: #ffd7aa;
-  padding: 0.65rem 0.75rem;
-  border-radius: 0.45rem;
-  border: 1px solid rgba(255, 179, 95, 0.2);
-  background: rgba(58, 32, 12, 0.4);
-  font-size: 0.8rem;
-}
-
-.reset-copy,
-.history-empty {
-  color: #c9e2ef;
-  line-height: 1.5;
-}
-
-.history-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.7rem;
-}
-
-.history-entry {
-  padding: 0.8rem 0.9rem;
-}
-
-.history-entry-body {
-  margin-top: 0.35rem;
-  line-height: 1.45;
-}
-
-.history-entry-metrics {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.45rem;
-  margin-top: 0.65rem;
-}
-
-.history-entry-metric {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.22rem 0.5rem;
-  border-radius: 999px;
-  border: 1px solid rgba(143, 179, 201, 0.28);
-  background: rgba(16, 36, 49, 0.72);
-  color: #d8eef8;
-  font-size: 0.72rem;
 }
 
 .property-link-row {
@@ -5028,10 +5149,13 @@ function formatNumber(num) {
     align-items: stretch;
   }
 
-  .density-map-toolbar,
-  .planner-summary-head,
-  .history-entry-head,
-  .density-map-inspector-head {
+  .density-map-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .frontier-banner-actions,
+  .generation-progress-actions {
     flex-direction: column;
     align-items: stretch;
   }
@@ -5125,6 +5249,19 @@ function formatNumber(num) {
   max-width: 320px;
 }
 
+.density-map-filter-select {
+  border: 1px solid #2d5872;
+  background: #10182a;
+  color: #d9efff;
+  border-radius: 999px;
+  padding: 0.45rem 0.8rem;
+}
+
+.density-map-toolbar-meta {
+  color: #8fb3c9;
+  font-size: 0.78rem;
+}
+
 .density-map-search-input {
   width: 100%;
   border: 1px solid #2d5872;
@@ -5180,6 +5317,55 @@ function formatNumber(num) {
   gap: 0.75rem;
 }
 
+.frontier-banner {
+  position: sticky;
+  top: 0.75rem;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 0.75rem;
+  align-items: center;
+  margin: 0 0 0.9rem;
+  padding: 0.85rem 0.95rem;
+  border: 1px solid rgba(73, 200, 255, 0.28);
+  border-radius: 0.55rem;
+  background: linear-gradient(135deg, rgba(10, 31, 56, 0.94), rgba(8, 22, 36, 0.92));
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
+}
+
+.frontier-banner-copy strong {
+  display: block;
+  color: #e6fbff;
+}
+
+.frontier-banner-copy p {
+  margin: 0.3rem 0 0;
+  color: #b9d8e8;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.frontier-banner-kicker {
+  color: #77d8ff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.frontier-banner-meta {
+  color: #9ec8dd;
+  font-family: monospace;
+  font-size: 0.8rem;
+}
+
+.frontier-banner-actions {
+  display: flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .density-map-svg {
   border-radius: 6px;
   display: block;
@@ -5201,6 +5387,15 @@ function formatNumber(num) {
 
 .density-map-tile--persisted {
   opacity: 1;
+}
+
+.density-map-tile--dimmed {
+  stroke-opacity: 0.25;
+}
+
+.density-map-tile--frontier {
+  stroke: rgba(125, 229, 255, 0.95);
+  stroke-width: 1.6;
 }
 
 .density-map-svg.pannable {
@@ -5256,29 +5451,9 @@ function formatNumber(num) {
   font-weight: 700;
 }
 
-.density-map-search-result-meta,
-.density-map-inspector-density {
+.density-map-search-result-meta {
   color: #8fb3c9;
   font-size: 0.76rem;
-}
-
-.density-map-inspector {
-  width: min(100%, 640px);
-  padding: 0.85rem 0.95rem;
-}
-
-.density-map-inspector-ring-copy {
-  margin-top: 0.8rem;
-  color: #c9e2ef;
-  font-size: 0.8rem;
-  line-height: 1.45;
-}
-
-.density-map-inspector-actions {
-  display: flex;
-  gap: 0.7rem;
-  flex-wrap: wrap;
-  margin-top: 0.8rem;
 }
 
 .legend-swatches {
@@ -5315,6 +5490,19 @@ function formatNumber(num) {
   margin-bottom: 0.45rem;
 }
 
+.generation-progress-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0 0 0.55rem;
+}
+
+.generation-progress-cancel-note {
+  color: #ffd6b8;
+  font-size: 0.78rem;
+}
+
 .generation-progress-bar {
   margin: 0;
   height: 18px;
@@ -5327,6 +5515,11 @@ function formatNumber(num) {
   cursor: pointer;
   font-weight: bold;
   transition: all 0.3s ease;
+}
+
+.btn-sm {
+  padding: 0.45rem 0.8rem;
+  font-size: 0.78rem;
 }
 
 .btn-primary {
@@ -5570,6 +5763,10 @@ function formatNumber(num) {
 
   .create-galaxy-side {
     position: static;
+  }
+
+  .frontier-banner {
+    grid-template-columns: 1fr;
   }
 }
 

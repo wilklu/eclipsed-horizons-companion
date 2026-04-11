@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
 
 vi.mock("../../../backend/generators/utils/galaxyImporter.js", () => ({
@@ -24,6 +24,11 @@ describe("galaxyStore", () => {
     vi.useFakeTimers();
     vi.stubGlobal("localStorage", createLocalStorageMock());
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
   });
 
   it("imports archived galaxies with placement options and commits the result", async () => {

@@ -32,11 +32,11 @@ export const useSectorStore = defineStore("sector", {
       return sectorData;
     },
 
-    async loadSectors(galaxyId) {
+    async loadSectors(galaxyId, options = {}) {
       this.isLoading = true;
       this.error = null;
       try {
-        this.sectors = await sectorApi.getSectors(galaxyId);
+        this.sectors = await sectorApi.getSectors(galaxyId, options);
         if (this.currentSectorId && !this.sectors.some((sector) => sector.sectorId === this.currentSectorId)) {
           this.setCurrentSector(null);
         }
@@ -49,9 +49,9 @@ export const useSectorStore = defineStore("sector", {
       }
     },
 
-    async createSector(sectorData) {
+    async createSector(sectorData, options = {}) {
       this.error = null;
-      const created = await sectorApi.createSector(sectorData);
+      const created = await sectorApi.createSector(sectorData, options);
       const index = this.sectors.findIndex((sector) => sector.sectorId === created.sectorId);
       if (index >= 0) {
         this.sectors[index] = created;
@@ -61,9 +61,9 @@ export const useSectorStore = defineStore("sector", {
       return created;
     },
 
-    async updateSector(sectorId, updates) {
+    async updateSector(sectorId, updates, options = {}) {
       this.error = null;
-      const updated = await sectorApi.updateSector(sectorId, updates);
+      const updated = await sectorApi.updateSector(sectorId, updates, options);
       const index = this.sectors.findIndex((sector) => sector.sectorId === updated.sectorId);
       if (index >= 0) {
         this.sectors[index] = updated;

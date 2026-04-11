@@ -5,6 +5,14 @@ const API_BASE_URL = String(import.meta.env.VITE_API_BASE_URL || "http://localho
 const CACHE_HEX_DETAIL_LIMIT = 128;
 const CACHE_SECTOR_RETRY_LIMIT = 250;
 
+function isAbortError(error) {
+  if (!error) return false;
+  const name = String(error?.name || "").toLowerCase();
+  const code = String(error?.code || "").toLowerCase();
+  const message = String(error?.message || "").toLowerCase();
+  return name === "aborterror" || code === "abort_err" || message.includes("aborted") || message.includes("abort");
+}
+
 async function request(path, options = {}) {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     headers: {
@@ -255,16 +263,19 @@ function normalizeSectorPayload(sector) {
   };
 }
 
-export async function getSectors(galaxyId) {
+export async function getSectors(galaxyId, options = {}) {
   try {
-    const sectors = await request(`/galaxies/${encodeURIComponent(galaxyId)}/sectors?limit=10000`);
+    const sectors = await request(`/galaxies/${encodeURIComponent(galaxyId)}/sectors?limit=10000`, options);
     return replaceCachedSectorsForGalaxy(galaxyId, Array.isArray(sectors) ? sectors : []);
-  } catch {
+  } catch (error) {
+    if (isAbortError(error)) {
+      throw error;
+    }
     return sectorsForGalaxy(loadSectors(), galaxyId).map(normalizeSector);
   }
 }
 
-export async function getSectorsWindow(galaxyId, { xMin, xMax, yMin, yMax, limit = 2500 } = {}) {
+export async function getSectorsWindow(galaxyId, { xMin, xMax, yMin, yMax, limit = 2500, signal } = {}) {
   const params = new URLSearchParams({
     xMin: String(Number(xMin)),
     xMax: String(Number(xMax)),
@@ -274,7 +285,7 @@ export async function getSectorsWindow(galaxyId, { xMin, xMax, yMin, yMax, limit
   });
 
   try {
-    const sectors = await request(`/galaxies/${encodeURIComponent(galaxyId)}/sectors?${params.toString()}`);
+    const sectors = await request(`/galaxies/${encodeURIComponent(galaxyId)}/sectors?${params.toString()}`, { signal });
     return replaceCachedSectorsInWindow(galaxyId, Array.isArray(sectors) ? sectors : [], { xMin, xMax, yMin, yMax })
       .map(normalizeSector)
       .filter((sector) => {
@@ -282,7 +293,10 @@ export async function getSectorsWindow(galaxyId, { xMin, xMax, yMin, yMax, limit
         const y = Number(sector?.coordinates?.y);
         return Number.isFinite(x) && Number.isFinite(y) && x >= xMin && x <= xMax && y >= yMin && y <= yMax;
       });
-  } catch {
+  } catch (error) {
+    if (isAbortError(error)) {
+      throw error;
+    }
     return sectorsForGalaxy(loadSectors(), galaxyId)
       .map(normalizeSector)
       .filter((sector) => {
@@ -293,11 +307,14 @@ export async function getSectorsWindow(galaxyId, { xMin, xMax, yMin, yMax, limit
   }
 }
 
-export async function getSectorStats(galaxyId) {
+export async function getSectorStats(galaxyId, options = {}) {
   try {
-    return await request(`/galaxies/${encodeURIComponent(galaxyId)}/sectors/stats`);
-  } catch {
-    const sectors = await getSectors(galaxyId);
+    return await request(`/galaxies/${encodeURIComponent(galaxyId)}/sectors/stats`, options);
+  } catch (error) {
+    if (isAbortError(error)) {
+      throw error;
+    }
+    const sectors = await getSectors(galaxyId, options);
     const generatedPresenceSectors = sectors.filter((sector) => sector.metadata?.hexPresenceGenerated).length;
     const populatedSectors = sectors.filter((sector) => Number(sector.metadata?.systemCount) > 0).length;
     const totalObjects = sectors.reduce((sum, sector) => sum + (Number(sector.metadata?.systemCount) || 0), 0);
@@ -319,6 +336,9 @@ export async function getSector(sectorId) {
     const sector = await request(`/sectors/${encodeURIComponent(sectorId)}`);
     return replaceCachedSector(sector);
   } catch (err) {
+    if (isAbortError(err)) {
+      throw err;
+    }
     if (/not found|404/i.test(String(err?.message || ""))) {
       removeCachedSector(sectorId);
       throw err;
@@ -331,46 +351,58 @@ export async function getSector(sectorId) {
   }
 }
 
-export async function createSector(sector) {
+export async function createSector(sector, options = {}) {
   const payload = normalizeSectorPayload(sector);
   try {
     const created = await request("/sectors", {
       method: "POST",
       body: JSON.stringify(payload),
+      ...options,
     });
     mergeCachedSectors([created]);
     return normalizeSector(created);
-  } catch {
+  } catch (error) {
+    if (isAbortError(error)) {
+      throw error;
+    }
     mergeCachedSectors([payload]);
     return normalizeSector(payload);
   }
 }
 
-export async function upsertSector(sector) {
+export async function upsertSector(sector, options = {}) {
   const payload = normalizeSectorPayload(sector);
   try {
     const updated = await request("/sectors/upsert", {
       method: "POST",
       body: JSON.stringify(payload),
+      ...options,
     });
     mergeCachedSectors([updated]);
     return normalizeSector(updated);
-  } catch {
+  } catch (error) {
+    if (isAbortError(error)) {
+      throw error;
+    }
     mergeCachedSectors([payload]);
     return normalizeSector(payload);
   }
 }
 
-export async function updateSector(sectorId, payload) {
+export async function updateSector(sectorId, payload, options = {}) {
   const body = normalizeSectorPayload({ ...payload, sectorId });
   try {
     const updated = await request(`/sectors/${encodeURIComponent(sectorId)}`, {
       method: "PUT",
       body: JSON.stringify(body),
+      ...options,
     });
     mergeCachedSectors([updated]);
     return normalizeSector(updated);
-  } catch {
+  } catch (error) {
+    if (isAbortError(error)) {
+      throw error;
+    }
     mergeCachedSectors([body]);
     return normalizeSector(body);
   }
@@ -396,20 +428,24 @@ export async function deleteSector(sectorId) {
   return { sectorId: normalizedSectorId };
 }
 
-export async function createSectorsBatch(sectors) {
+export async function createSectorsBatch(sectors, options = {}) {
   const items = Array.isArray(sectors) ? sectors : [];
   const payload = items.map(normalizeSectorPayload);
   try {
     await request("/sectors/batch", {
       method: "POST",
       body: JSON.stringify(payload),
+      ...options,
     });
     mergeCachedSectors(payload);
     return payload.map(normalizeSector);
-  } catch {
+  } catch (error) {
+    if (isAbortError(error)) {
+      throw error;
+    }
     const created = [];
     for (const sector of payload) {
-      created.push(await upsertSector(sector));
+      created.push(await upsertSector(sector, options));
     }
     return created;
   }

@@ -1,6 +1,14 @@
 const STORAGE_KEY = "eclipsed-horizons-systems";
 const API_BASE_URL = String(import.meta.env.VITE_API_BASE_URL || "http://localhost:3100/api").replace(/\/$/, "");
 
+function isAbortError(error) {
+  if (!error) return false;
+  const name = String(error?.name || "").toLowerCase();
+  const code = String(error?.code || "").toLowerCase();
+  const message = String(error?.message || "").toLowerCase();
+  return name === "aborterror" || code === "abort_err" || message.includes("aborted") || message.includes("abort");
+}
+
 function isStorageQuotaError(error) {
   if (!error) return false;
   const name = String(error?.name || "").toLowerCase();
@@ -110,66 +118,82 @@ function replaceCachedSystemsForSector(sectorId, nextSystems) {
   return normalized;
 }
 
-export async function getSystemsBySector(sectorId) {
+export async function getSystemsBySector(sectorId, options = {}) {
   try {
-    const systems = await request(`/sectors/${encodeURIComponent(sectorId)}/systems`);
+    const systems = await request(`/sectors/${encodeURIComponent(sectorId)}/systems`, options);
     return replaceCachedSystemsForSector(sectorId, Array.isArray(systems) ? systems : []);
-  } catch {
+  } catch (error) {
+    if (isAbortError(error)) {
+      throw error;
+    }
     return loadSystems()
       .map(normalizeSystem)
       .filter((system) => String(system?.sectorId) === String(sectorId));
   }
 }
 
-export async function upsertSystem(system) {
+export async function upsertSystem(system, options = {}) {
   const payload = normalizeSystem(system);
   try {
     const updated = await request("/systems/upsert", {
       method: "POST",
       body: JSON.stringify(payload),
+      ...options,
     });
     mergeCachedSystems([updated]);
     return normalizeSystem(updated);
-  } catch {
+  } catch (error) {
+    if (isAbortError(error)) {
+      throw error;
+    }
     mergeCachedSystems([payload]);
     return payload;
   }
 }
 
-export async function upsertSystemStrict(system) {
+export async function upsertSystemStrict(system, options = {}) {
   const payload = normalizeSystem(system);
   const updated = await request("/systems/upsert", {
     method: "POST",
     body: JSON.stringify(payload),
+    ...options,
   });
   mergeCachedSystems([updated]);
   return normalizeSystem(updated);
 }
 
-export async function updateSystem(systemId, updates) {
+export async function updateSystem(systemId, updates, options = {}) {
   const payload = normalizeSystem({ ...updates, systemId });
   try {
     const updated = await request(`/systems/${encodeURIComponent(systemId)}`, {
       method: "PUT",
       body: JSON.stringify(payload),
+      ...options,
     });
     mergeCachedSystems([updated]);
     return normalizeSystem(updated);
-  } catch {
+  } catch (error) {
+    if (isAbortError(error)) {
+      throw error;
+    }
     mergeCachedSystems([payload]);
     return payload;
   }
 }
 
-export async function replaceSystemsForSector(sectorId, systems) {
+export async function replaceSystemsForSector(sectorId, systems, options = {}) {
   const payload = Array.isArray(systems) ? systems.map(normalizeSystem) : [];
   try {
     const updated = await request(`/sectors/${encodeURIComponent(sectorId)}/systems/replace`, {
       method: "POST",
       body: JSON.stringify(payload),
+      ...options,
     });
     return replaceCachedSystemsForSector(sectorId, Array.isArray(updated) ? updated : []);
-  } catch {
+  } catch (error) {
+    if (isAbortError(error)) {
+      throw error;
+    }
     const existing = loadSystems()
       .map(normalizeSystem)
       .filter((system) => String(system?.sectorId) !== String(sectorId));
