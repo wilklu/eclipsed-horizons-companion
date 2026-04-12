@@ -127,6 +127,22 @@
             🔄 Regenerate
           </button>
           <button v-if="currentGalaxy" type="button" class="btn btn-secondary" @click="exportGalaxy">📤 Export</button>
+          <button
+            v-if="currentGalaxy"
+            type="button"
+            class="btn btn-danger"
+            :disabled="
+              isDeletingGalaxy ||
+              isGeneratingSectors ||
+              isGeneratingFullGalaxy ||
+              isApplyingFullRegenerate ||
+              galaxySurveyInteractionLocked
+            "
+            data-test="galaxy-delete-top-action"
+            @click="showDeleteConfirm"
+          >
+            {{ isDeletingGalaxy ? "Deleting…" : "🗑 Delete" }}
+          </button>
           <button type="button" class="btn btn-primary" @click="showNewGalaxyForm = true">➕ Create Galaxy</button>
           <button type="button" class="btn btn-secondary" @click="showImportForm = true">📥 Import Galaxy</button>
           <!-- Item 6: Performance mode toggle -->
@@ -588,165 +604,184 @@
             </div>
           </div>
           <div class="density-map-container">
-            <svg
-              class="density-map-svg"
-              :class="{
-                pannable: galaxyMapPreview.canPan,
-                dragging: galaxyMapPanState.isDragging,
-              }"
-              @wheel.prevent="handleGalaxyMapWheel"
-              @pointerdown="beginGalaxyMapPan"
-              @pointermove="updateGalaxyMapPan"
-              @pointerup="endGalaxyMapPan"
-              @pointercancel="endGalaxyMapPan"
-              :viewBox="galaxyMapPreview.viewBox"
-              :width="galaxyMapPreview.svgSize"
-              :height="galaxyMapPreview.svgSize"
-              role="img"
-              :aria-label="currentGalaxy ? `Galaxy map for ${currentGalaxy.name}` : 'Galaxy map'"
-              :aria-busy="galaxySurveyWarmupPending ? 'true' : 'false'"
-            >
-              <rect x="0" y="0" :width="galaxyMapPreview.svgSize" :height="galaxyMapPreview.svgSize" fill="#020209" />
-              <rect
-                v-for="tile in galaxyMapRenderedTiles"
-                :key="tile.id"
-                :x="tile.renderX"
-                :y="tile.renderY"
-                :width="tile.renderWidth"
-                :height="tile.renderHeight"
-                :fill="tile.renderFill"
-                :opacity="tile.renderOpacity"
-                class="density-map-tile"
-                :class="{
-                  'density-map-tile--active': selectedGalaxyMapTileId === tile.id,
-                  'density-map-tile--persisted': tile.persisted,
-                  'density-map-tile--atlas': tile.kind === 'atlas',
-                  'density-map-tile--dimmed': !tile.matchesFilter,
-                  'density-map-tile--selected-ring': tile.isSelectedRing,
-                  'density-map-tile--frontier': tile.isFrontierRing,
-                }"
-                rx="1"
-                ry="1"
-                @click="selectGalaxyMapTile(tile)"
-              >
-                <title>{{ tile.tooltip }}</title>
-              </rect>
-              <line
-                :x1="galaxyMapPreview.centerPx - 8"
-                :y1="galaxyMapPreview.centerPy"
-                :x2="galaxyMapPreview.centerPx + 8"
-                :y2="galaxyMapPreview.centerPy"
-                stroke="#f0a020"
-                stroke-width="1.5"
-                opacity="0.8"
-              />
-              <line
-                :x1="galaxyMapPreview.centerPx"
-                :y1="galaxyMapPreview.centerPy - 8"
-                :x2="galaxyMapPreview.centerPx"
-                :y2="galaxyMapPreview.centerPy + 8"
-                stroke="#f0a020"
-                stroke-width="1.5"
-                opacity="0.8"
-              />
-            </svg>
-
-            <!-- Compact mini-map panel (Item 9) -->
-            <div v-if="galaxyMapPreview && miniMapRingMetrics.length" class="galaxy-mini-map-panel">
-              <div class="galaxy-mini-map-header">
-                <span class="galaxy-mini-map-title">Rings</span>
-                <button
-                  type="button"
-                  class="galaxy-mini-map-toggle-labels"
-                  :title="miniMapShowRingLabels ? 'Hide ring labels' : 'Show ring labels'"
-                  @click="miniMapShowRingLabels = !miniMapShowRingLabels"
-                  aria-label="Toggle mini-map ring labels"
-                >
-                  {{ miniMapShowRingLabels ? "•" : "○" }}
-                </button>
-              </div>
-              <svg
-                class="galaxy-mini-map-svg"
-                :width="miniMapDimensions.size"
-                :height="miniMapDimensions.size"
-                role="img"
-                aria-label="Galaxy ring mini-map"
-              >
-                <!-- Concentric ring guide circles -->
-                <circle
-                  v-for="ring in miniMapRingMetrics"
-                  :key="`guide-${ring.ring}`"
-                  :cx="miniMapDimensions.centerX"
-                  :cy="miniMapDimensions.centerY"
-                  :r="ring.radius * miniMapDimensions.scale"
-                  class="galaxy-mini-map-ring-guide"
-                  :title="`Ring ${ring.ring} — ${ring.tileCount} tiles (${ring.persistedCount} persisted)`"
-                />
-
-                <!-- Ring zones (clickable) -->
-                <circle
-                  v-for="ring in miniMapRingMetrics"
-                  :key="`ring-${ring.ring}`"
-                  :cx="miniMapDimensions.centerX"
-                  :cy="miniMapDimensions.centerY"
-                  :r="ring.radius * miniMapDimensions.scale"
-                  class="galaxy-mini-map-ring-zone"
-                  :class="{
-                    'galaxy-mini-map-ring-zone--frontier': ring.isFrontier,
-                    'galaxy-mini-map-ring-zone--highlighted': ring.isHighlighted,
-                    'galaxy-mini-map-ring-zone--empty': ring.persistedCount === 0,
-                  }"
-                  @click="focusGalaxyMapRing(ring.ring, { zoom: true })"
-                  @keydown.enter="focusGalaxyMapRing(ring.ring, { zoom: true })"
-                  tabindex="0"
-                  :title="`Ring ${ring.ring}: ${ring.tileCount} tiles (${ring.persistedCount} persisted) - Click to focus`"
-                />
-
-                <!-- Center point indicator -->
-                <circle
-                  :cx="miniMapDimensions.centerX"
-                  :cy="miniMapDimensions.centerY"
-                  r="2"
-                  class="galaxy-mini-map-center"
-                />
-              </svg>
-              <div v-if="miniMapShowRingLabels" class="galaxy-mini-map-legend">
-                <span class="galaxy-mini-map-legend-item galaxy-mini-map-legend-frontier">Frontier</span>
-                <span class="galaxy-mini-map-legend-item galaxy-mini-map-legend-highlight">Selected</span>
-              </div>
-            </div>
-
-            <!-- Bookmarks dropdown menu (Item 8 - keyboard navigation) -->
-            <div v-if="showBookmarkDropdown && bookmarkedSectorRecords.length" class="galaxy-bookmarks-dropdown">
-              <div class="galaxy-bookmarks-header">
-                <span class="galaxy-bookmarks-title">{{ bookmarkedSectorRecords.length }} Bookmarks</span>
-                <button
-                  type="button"
-                  class="galaxy-bookmarks-close"
-                  @click="showBookmarkDropdown = false"
-                  aria-label="Close bookmarks"
-                >
-                  ✕
-                </button>
-              </div>
-              <div class="galaxy-bookmarks-list">
-                <button
-                  v-for="(sector, index) in bookmarkedSectorRecords"
-                  :key="sector.sectorId"
-                  type="button"
-                  class="galaxy-bookmarks-item"
-                  :class="{ active: bookmarkNavigationIndex === index }"
-                  @click="jumpToBookmark(sector.sectorId)"
-                  @keydown.enter="jumpToBookmark(sector.sectorId)"
-                >
-                  <span class="galaxy-bookmarks-star">★</span>
-                  <span class="galaxy-bookmarks-name">{{ sector.name || sector.sectorId }}</span>
-                  <span class="galaxy-bookmarks-grid"
-                    >{{ sector.metadata?.gridX || sector.x }},{{ sector.metadata?.gridY || sector.y }}</span
+            <div class="density-map-stage" :style="{ '--galaxy-map-size': `${galaxyMapPreview.svgSize}px` }">
+              <div class="density-map-stage-panel density-map-stage-panel--primary">
+                <div class="density-map-preview-frame">
+                  <svg
+                    class="density-map-svg"
+                    :class="{
+                      pannable: galaxyMapPreview.canPan,
+                      dragging: galaxyMapPanState.isDragging,
+                    }"
+                    @wheel.prevent="handleGalaxyMapWheel"
+                    @pointerdown="beginGalaxyMapPan"
+                    @pointermove="updateGalaxyMapPan"
+                    @pointerup="endGalaxyMapPan"
+                    @pointercancel="endGalaxyMapPan"
+                    :viewBox="galaxyMapPreview.viewBox"
+                    :width="galaxyMapPreview.svgSize"
+                    :height="galaxyMapPreview.svgSize"
+                    role="img"
+                    :aria-label="currentGalaxy ? `Galaxy map for ${currentGalaxy.name}` : 'Galaxy map'"
+                    :aria-busy="galaxySurveyWarmupPending ? 'true' : 'false'"
                   >
-                </button>
+                    <rect
+                      x="0"
+                      y="0"
+                      :width="galaxyMapPreview.svgSize"
+                      :height="galaxyMapPreview.svgSize"
+                      fill="#020209"
+                    />
+                    <rect
+                      v-for="tile in galaxyMapRenderedTiles"
+                      :key="tile.id"
+                      :x="tile.renderX"
+                      :y="tile.renderY"
+                      :width="tile.renderWidth"
+                      :height="tile.renderHeight"
+                      :fill="tile.renderFill"
+                      :opacity="tile.renderOpacity"
+                      class="density-map-tile"
+                      :class="{
+                        'density-map-tile--active': selectedGalaxyMapTileId === tile.id,
+                        'density-map-tile--persisted': tile.persisted,
+                        'density-map-tile--atlas': tile.kind === 'atlas',
+                        'density-map-tile--dimmed': !tile.matchesFilter,
+                        'density-map-tile--selected-ring': tile.isSelectedRing,
+                        'density-map-tile--frontier': tile.isFrontierRing,
+                      }"
+                      rx="1"
+                      ry="1"
+                      @click="selectGalaxyMapTile(tile)"
+                    >
+                      <title>{{ tile.tooltip }}</title>
+                    </rect>
+                    <line
+                      :x1="galaxyMapPreview.centerPx - 8"
+                      :y1="galaxyMapPreview.centerPy"
+                      :x2="galaxyMapPreview.centerPx + 8"
+                      :y2="galaxyMapPreview.centerPy"
+                      stroke="#f0a020"
+                      stroke-width="1.5"
+                      opacity="0.8"
+                    />
+                    <line
+                      :x1="galaxyMapPreview.centerPx"
+                      :y1="galaxyMapPreview.centerPy - 8"
+                      :x2="galaxyMapPreview.centerPx"
+                      :y2="galaxyMapPreview.centerPy + 8"
+                      stroke="#f0a020"
+                      stroke-width="1.5"
+                      opacity="0.8"
+                    />
+                  </svg>
+                </div>
               </div>
-              <div class="galaxy-bookmarks-hint">↑↓ to navigate · Enter to select · Esc to close</div>
+
+              <div
+                class="galaxy-map-preview-tools density-map-stage-panel density-map-stage-panel--secondary"
+                aria-label="Map galaxy preview tools"
+              >
+                <div class="density-map-preview-frame">
+                  <!-- Compact mini-map panel (Item 9) -->
+                  <div v-if="galaxyMapPreview && miniMapRingMetrics.length" class="galaxy-mini-map-panel">
+                    <div class="galaxy-mini-map-header">
+                      <span class="galaxy-mini-map-title">Rings</span>
+                      <button
+                        type="button"
+                        class="galaxy-mini-map-toggle-labels"
+                        :title="miniMapShowRingLabels ? 'Hide ring labels' : 'Show ring labels'"
+                        @click="miniMapShowRingLabels = !miniMapShowRingLabels"
+                        aria-label="Toggle mini-map ring labels"
+                      >
+                        {{ miniMapShowRingLabels ? "•" : "○" }}
+                      </button>
+                    </div>
+                    <svg
+                      class="galaxy-mini-map-svg"
+                      :width="miniMapDimensions.size"
+                      :height="miniMapDimensions.size"
+                      role="img"
+                      aria-label="Galaxy ring mini-map"
+                    >
+                      <!-- Concentric ring guide circles -->
+                      <circle
+                        v-for="ring in miniMapRingMetrics"
+                        :key="`guide-${ring.ring}`"
+                        :cx="miniMapDimensions.centerX"
+                        :cy="miniMapDimensions.centerY"
+                        :r="ring.radius * miniMapDimensions.scale"
+                        class="galaxy-mini-map-ring-guide"
+                        :title="`Ring ${ring.ring} — ${ring.tileCount} tiles (${ring.persistedCount} persisted)`"
+                      />
+
+                      <!-- Ring zones (clickable) -->
+                      <circle
+                        v-for="ring in miniMapRingMetrics"
+                        :key="`ring-${ring.ring}`"
+                        :cx="miniMapDimensions.centerX"
+                        :cy="miniMapDimensions.centerY"
+                        :r="ring.radius * miniMapDimensions.scale"
+                        class="galaxy-mini-map-ring-zone"
+                        :class="{
+                          'galaxy-mini-map-ring-zone--frontier': ring.isFrontier,
+                          'galaxy-mini-map-ring-zone--highlighted': ring.isHighlighted,
+                          'galaxy-mini-map-ring-zone--empty': ring.persistedCount === 0,
+                        }"
+                        @click="focusGalaxyMapRing(ring.ring, { zoom: true })"
+                        @keydown.enter="focusGalaxyMapRing(ring.ring, { zoom: true })"
+                        tabindex="0"
+                        :title="`Ring ${ring.ring}: ${ring.tileCount} tiles (${ring.persistedCount} persisted) - Click to focus`"
+                      />
+
+                      <!-- Center point indicator -->
+                      <circle
+                        :cx="miniMapDimensions.centerX"
+                        :cy="miniMapDimensions.centerY"
+                        r="2"
+                        class="galaxy-mini-map-center"
+                      />
+                    </svg>
+                    <div v-if="miniMapShowRingLabels" class="galaxy-mini-map-legend">
+                      <span class="galaxy-mini-map-legend-item galaxy-mini-map-legend-frontier">Frontier</span>
+                      <span class="galaxy-mini-map-legend-item galaxy-mini-map-legend-highlight">Selected</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Bookmarks dropdown menu (Item 8 - keyboard navigation) -->
+                <div v-if="showBookmarkDropdown && bookmarkedSectorRecords.length" class="galaxy-bookmarks-dropdown">
+                  <div class="galaxy-bookmarks-header">
+                    <span class="galaxy-bookmarks-title">{{ bookmarkedSectorRecords.length }} Bookmarks</span>
+                    <button
+                      type="button"
+                      class="galaxy-bookmarks-close"
+                      @click="showBookmarkDropdown = false"
+                      aria-label="Close bookmarks"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <div class="galaxy-bookmarks-list">
+                    <button
+                      v-for="(sector, index) in bookmarkedSectorRecords"
+                      :key="sector.sectorId"
+                      type="button"
+                      class="galaxy-bookmarks-item"
+                      :class="{ active: bookmarkNavigationIndex === index }"
+                      @click="jumpToBookmark(sector.sectorId)"
+                      @keydown.enter="jumpToBookmark(sector.sectorId)"
+                    >
+                      <span class="galaxy-bookmarks-star">★</span>
+                      <span class="galaxy-bookmarks-name">{{ sector.name || sector.sectorId }}</span>
+                      <span class="galaxy-bookmarks-grid"
+                        >{{ sector.metadata?.gridX || sector.x }},{{ sector.metadata?.gridY || sector.y }}</span
+                      >
+                    </button>
+                  </div>
+                  <div class="galaxy-bookmarks-hint">↑↓ to navigate · Enter to select · Esc to close</div>
+                </div>
+              </div>
             </div>
 
             <p class="density-map-gesture-hint">
@@ -843,7 +878,20 @@
           <button v-if="isEditingGalaxy" @click="saveGalaxyEdits" class="btn btn-primary">💾 Save Galaxy</button>
           <button v-if="isEditingGalaxy" @click="cancelGalaxyEdits" class="btn btn-secondary">↩ Cancel Edit</button>
           <button v-else @click="editGalaxy" class="btn btn-secondary">✏️ Edit Galaxy</button>
-          <button @click="showDeleteConfirm" class="btn btn-danger">🗑️ Delete Galaxy</button>
+          <button
+            @click="showDeleteConfirm"
+            class="btn btn-danger"
+            :disabled="
+              isDeletingGalaxy ||
+              isGeneratingSectors ||
+              isGeneratingFullGalaxy ||
+              isApplyingFullRegenerate ||
+              galaxySurveyInteractionLocked
+            "
+            data-test="galaxy-delete-action"
+          >
+            {{ isDeletingGalaxy ? "Deleting…" : "🗑️ Delete Galaxy" }}
+          </button>
         </div>
         <div v-if="generationProgress.active" class="generation-progress">
           <div class="generation-progress-header">
@@ -1331,6 +1379,7 @@ const isGeneratingFullGalaxy = ref(false);
 const isApplyingFullRegenerate = ref(false);
 const isApplyingSectorReset = ref(false);
 const isRefreshingSectorStats = ref(false);
+const isDeletingGalaxy = ref(false);
 const GALAXY_SURVEY_VIEW_STORAGE_KEY = "eclipsed-horizons-galaxy-survey-view";
 const galaxySurveyGenerationMode = ref("names");
 const persistedGalaxySurveyView = loadGalaxySurveyViewState();
@@ -3488,7 +3537,8 @@ const miniMapRingMetrics = computed(() => {
 const miniMapDimensions = computed(() => {
   const rings = miniMapRingMetrics.value;
   const maxRing = rings.length > 0 ? rings[rings.length - 1].ring : 0;
-  const size = 140;
+  const previewSize = Number(galaxyMapPreview.value?.svgSize);
+  const size = Number.isFinite(previewSize) && previewSize > 0 ? previewSize : 140;
   const margin = 10;
   const centerX = size / 2;
   const centerY = size / 2;
@@ -5643,17 +5693,30 @@ async function runGalaxySurveyGenerationMode() {
 }
 
 function showDeleteConfirm() {
-  if (currentGalaxy.value) {
-    confirmDialog.value.isOpen = true;
-    confirmDialog.value.galaxyIdToDelete = currentGalaxy.value.galaxyId;
+  if (!currentGalaxy.value || isDeletingGalaxy.value) {
+    return;
   }
+
+  const galaxyName = String(currentGalaxy.value.name || currentGalaxy.value.galaxyId || "this galaxy").trim();
+  confirmDialog.value.title = `Delete ${galaxyName}`;
+  confirmDialog.value.message =
+    `Delete ${galaxyName} and all cached sector and system survey data? ` +
+    "This action permanently removes saved galaxy progress.";
+  confirmDialog.value.confirmText = "Delete Galaxy";
+  confirmDialog.value.isOpen = true;
+  confirmDialog.value.galaxyIdToDelete = currentGalaxy.value.galaxyId;
 }
 
 async function confirmDeleteGalaxy() {
+  if (isDeletingGalaxy.value) {
+    return;
+  }
+
   confirmDialog.value.isOpen = false;
   const galaxyId = confirmDialog.value.galaxyIdToDelete;
   if (!galaxyId) return;
 
+  isDeletingGalaxy.value = true;
   try {
     const galaxyName = galaxies.value.find((g) => g.galaxyId === galaxyId)?.name || galaxyId;
     await galaxyStore.deleteGalaxy(galaxyId);
@@ -5661,6 +5724,7 @@ async function confirmDeleteGalaxy() {
   } catch (err) {
     toastService.error(`Failed to delete galaxy: ${err.message}`);
   } finally {
+    isDeletingGalaxy.value = false;
     confirmDialog.value.galaxyIdToDelete = null;
   }
 }
@@ -6691,7 +6755,37 @@ function formatNumber(num) {
   display: flex;
   flex-direction: column;
   align-items: center;
+  width: 100%;
   gap: 0.75rem;
+}
+
+.density-map-stage {
+  --galaxy-map-size: 640px;
+  width: min(100%, calc(var(--galaxy-map-size) * 2 + 0.9rem));
+  margin-inline: auto;
+  display: grid;
+  grid-template-columns: var(--galaxy-map-size) var(--galaxy-map-size);
+  justify-content: center;
+  align-items: start;
+  gap: 0.9rem;
+}
+
+.density-map-stage-panel {
+  width: var(--galaxy-map-size);
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.density-map-preview-frame {
+  width: var(--galaxy-map-size);
+  max-width: 100%;
+  min-height: var(--galaxy-map-size);
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
 .frontier-banner {
@@ -6746,6 +6840,11 @@ function formatNumber(num) {
 .density-map-svg {
   border-radius: 6px;
   display: block;
+  width: var(--galaxy-map-size);
+  max-width: 100%;
+  aspect-ratio: 1 / 1;
+  height: auto;
+  margin-inline: auto;
 }
 
 .density-map-tile {
@@ -7335,17 +7434,28 @@ function formatNumber(num) {
 }
 
 /* ── Mini-map panel (Item 9) ── */
+.galaxy-map-preview-tools {
+  width: var(--galaxy-map-size);
+  max-width: 100%;
+  margin-inline: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  justify-content: stretch;
+  align-items: start;
+  gap: 0.75rem;
+}
+
 .galaxy-mini-map-panel {
-  position: absolute;
-  top: 12px;
-  right: 12px;
+  position: static;
+  align-self: flex-start;
   background: rgba(8, 22, 36, 0.92);
   border: 1px solid rgba(0, 217, 255, 0.24);
   border-radius: 0.4rem;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
-  padding: 0.6rem;
-  z-index: 20;
-  max-width: 160px;
+  padding: 0;
+  width: 100%;
+  max-width: none;
+  overflow: hidden;
 }
 
 .galaxy-mini-map-header {
@@ -7353,7 +7463,8 @@ function formatNumber(num) {
   align-items: center;
   justify-content: space-between;
   gap: 0.4rem;
-  margin-bottom: 0.4rem;
+  margin-bottom: 0;
+  padding: 0.55rem 0.6rem;
   font-size: 0.75rem;
   color: #9fc4d6;
   font-weight: bold;
@@ -7379,7 +7490,9 @@ function formatNumber(num) {
 
 .galaxy-mini-map-svg {
   display: block;
-  width: 100%;
+  width: var(--galaxy-map-size);
+  max-width: 100%;
+  aspect-ratio: 1 / 1;
   height: auto;
 }
 
@@ -7431,7 +7544,8 @@ function formatNumber(num) {
 }
 
 .galaxy-mini-map-legend {
-  margin-top: 0.45rem;
+  margin-top: 0;
+  padding: 0.45rem 0.6rem 0.6rem;
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
@@ -7465,15 +7579,14 @@ function formatNumber(num) {
 
 /* ── Bookmarks dropdown (Item 8) ── */
 .galaxy-bookmarks-dropdown {
-  position: absolute;
-  top: 160px;
-  right: 12px;
+  position: static;
+  align-self: flex-start;
   background: rgba(8, 22, 36, 0.95);
   border: 1px solid rgba(0, 217, 255, 0.3);
   border-radius: 0.4rem;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.8);
-  max-width: 240px;
-  z-index: 21;
+  width: 100%;
+  max-width: none;
   max-height: 320px;
   display: flex;
   flex-direction: column;
@@ -7565,6 +7678,29 @@ function formatNumber(num) {
   color: #5a7a96;
   font-size: 0.65rem;
   line-height: 1.3;
+}
+
+@media (max-width: 980px) {
+  .density-map-stage {
+    width: min(100%, var(--galaxy-map-size));
+    grid-template-columns: minmax(0, 1fr);
+    justify-content: stretch;
+  }
+
+  .density-map-stage-panel,
+  .density-map-preview-frame,
+  .galaxy-map-preview-tools {
+    width: 100%;
+  }
+
+  .density-map-svg,
+  .galaxy-mini-map-svg {
+    width: 100%;
+  }
+
+  .galaxy-map-preview-tools {
+    justify-content: stretch;
+  }
 }
 
 /* Keyboard focus enhancements */

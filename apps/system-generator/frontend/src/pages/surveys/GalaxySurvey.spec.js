@@ -434,4 +434,23 @@ describe("GalaxySurvey guided flow", () => {
     expect(toastSuccess).toHaveBeenCalledWith("Ring 1 processed: 1 sectors and 0 systems.");
     expect(runtimeErrors).toEqual([]);
   });
+
+  it("opens a delete confirmation and deletes the active galaxy", async () => {
+    const wrapper = mount(GalaxySurvey);
+    await flushPromises();
+
+    wrapper.vm.$.setupState.showDeleteConfirm();
+    await flushPromises();
+
+    expect(wrapper.vm.$.setupState.confirmDialog.isOpen).toBe(true);
+    expect(wrapper.vm.$.setupState.confirmDialog.galaxyIdToDelete).toBe("gal-1");
+    expect(wrapper.vm.$.setupState.confirmDialog.message).toContain("Delete Test Galaxy");
+
+    await wrapper.vm.$.setupState.confirmDeleteGalaxy();
+    await flushPromises();
+
+    expect(galaxyStoreState.deleteGalaxy).toHaveBeenCalledWith("gal-1");
+    expect(toastSuccess).toHaveBeenCalledWith('Galaxy "Test Galaxy" deleted successfully');
+    expect(wrapper.vm.$.setupState.isDeletingGalaxy).toBe(false);
+  });
 });

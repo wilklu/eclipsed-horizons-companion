@@ -187,6 +187,42 @@
                 </button>
               </div>
 
+              <div class="subsector-nav" aria-label="Subsector directional navigation">
+                <button
+                  class="btn btn-secondary subsector-nav-btn"
+                  type="button"
+                  :disabled="subsectorDirectionalTargets.north === selectedSubsector"
+                  @click="moveSubsectorSelection(0, -1)"
+                >
+                  ↑
+                </button>
+                <button
+                  class="btn btn-secondary subsector-nav-btn"
+                  type="button"
+                  :disabled="subsectorDirectionalTargets.west === selectedSubsector"
+                  @click="moveSubsectorSelection(-1, 0)"
+                >
+                  ←
+                </button>
+                <span class="subsector-nav-current">{{ currentSubsectorSummary || selectedSubsector }}</span>
+                <button
+                  class="btn btn-secondary subsector-nav-btn"
+                  type="button"
+                  :disabled="subsectorDirectionalTargets.east === selectedSubsector"
+                  @click="moveSubsectorSelection(1, 0)"
+                >
+                  →
+                </button>
+                <button
+                  class="btn btn-secondary subsector-nav-btn"
+                  type="button"
+                  :disabled="subsectorDirectionalTargets.south === selectedSubsector"
+                  @click="moveSubsectorSelection(0, 1)"
+                >
+                  ↓
+                </button>
+              </div>
+
               <div class="subsector-select-actions" style="margin-top: 0.6rem">
                 <div class="control-inline-row control-inline-row--generation">
                   <button class="btn btn-primary" @click="generateAllSubsectorSystems" :disabled="isLoading">
@@ -329,6 +365,40 @@
               </div>
             </div>
 
+            <div v-if="generatedSector" class="control-group control-group--span-2">
+              <label>Survey Progress</label>
+              <div class="survey-progress-card">
+                <div class="survey-progress-bar" aria-hidden="true">
+                  <span
+                    class="survey-progress-segment survey-progress-segment--typed"
+                    :style="{ width: `${surveyProgress.typedPercent}%` }"
+                  ></span>
+                  <span
+                    class="survey-progress-segment survey-progress-segment--presence"
+                    :style="{ width: `${surveyProgress.presencePercent}%` }"
+                  ></span>
+                  <span
+                    class="survey-progress-segment survey-progress-segment--empty"
+                    :style="{ width: `${surveyProgress.emptyPercent}%` }"
+                  ></span>
+                </div>
+                <div class="survey-progress-metrics">
+                  <span class="survey-progress-pill survey-progress-pill--typed"
+                    >{{ surveyProgress.typedCount.toLocaleString() }} typed</span
+                  >
+                  <span class="survey-progress-pill survey-progress-pill--presence"
+                    >{{ surveyProgress.presenceOnlyCount.toLocaleString() }} presence only</span
+                  >
+                  <span class="survey-progress-pill survey-progress-pill--empty"
+                    >{{ surveyProgress.emptyCount.toLocaleString() }} empty</span
+                  >
+                  <span class="survey-progress-pill survey-progress-pill--total"
+                    >{{ surveyProgress.completedPercent }}% mapped</span
+                  >
+                </div>
+              </div>
+            </div>
+
             <div v-if="currentViewMode !== 'subsector'" class="control-group control-group--span-2">
               <label>Survey Options</label>
               <div class="survey-option-grid" role="radiogroup" aria-label="Sector survey options">
@@ -357,62 +427,69 @@
 
             <div v-if="generatedSector && currentViewMode !== 'subsector'" class="control-group control-group--span-2">
               <label>Stellar Survey</label>
-              <div v-if="selectedHexData?.hasSystem" class="stellar-inline-card">
+              <div
+                v-if="inspectedHexData?.hasSystem && !inspectedHexData?.presenceOnly && inspectedHexData?.starType"
+                class="stellar-inline-card"
+              >
                 <div class="stellar-inline-copy">
-                  <span class="stellar-inline-title">System {{ selectedHexData.coord }}</span>
-                  <span class="stellar-inline-detail">{{ selectedHexData.starType }}</span>
-                  <span v-if="selectedHexData.secondaryStars?.length" class="stellar-inline-detail"
-                    >+ {{ selectedHexData.secondaryStars.join(", ") }}</span
+                  <span class="stellar-inline-title">System {{ inspectedHexData.coord }}</span>
+                  <span class="stellar-inline-source">{{ inspectedHexSourceLabel }}</span>
+                  <span class="stellar-inline-detail">{{ inspectedHexData.starType }}</span>
+                  <span v-if="inspectedHexData.secondaryStars?.length" class="stellar-inline-detail"
+                    >+ {{ inspectedHexData.secondaryStars.join(", ") }}</span
                   >
-                  <span v-if="selectedHexData.mainworldName" class="stellar-inline-detail"
-                    >Mainworld {{ selectedHexData.mainworldName }}</span
+                  <span v-if="inspectedHexData.mainworldName" class="stellar-inline-detail"
+                    >Mainworld {{ inspectedHexData.mainworldName }}</span
                   >
-                  <span v-if="selectedHexData.mainworldUwp" class="stellar-inline-detail"
-                    >UWP {{ selectedHexData.mainworldUwp }}</span
+                  <span v-if="inspectedHexData.mainworldUwp" class="stellar-inline-detail"
+                    >UWP {{ inspectedHexData.mainworldUwp }}</span
                   >
-                  <span v-if="selectedHexData.habitability" class="stellar-inline-detail"
-                    >Habitability {{ selectedHexData.habitability }}</span
+                  <span v-if="inspectedHexData.habitability" class="stellar-inline-detail"
+                    >Habitability {{ inspectedHexData.habitability }}</span
                   >
-                  <span v-if="selectedHexData.resourceRating" class="stellar-inline-detail"
-                    >Resources {{ selectedHexData.resourceRating }}</span
+                  <span v-if="inspectedHexData.resourceRating" class="stellar-inline-detail"
+                    >Resources {{ inspectedHexData.resourceRating }}</span
                   >
-                  <span v-if="selectedHexData.minimumSustainableTechLevel" class="stellar-inline-detail">{{
-                    selectedHexData.minimumSustainableTechLevel
+                  <span v-if="inspectedHexData.minimumSustainableTechLevel" class="stellar-inline-detail">{{
+                    inspectedHexData.minimumSustainableTechLevel
                   }}</span>
-                  <span v-if="selectedHexData.majorCities" class="stellar-inline-detail">{{
-                    selectedHexData.majorCities
+                  <span v-if="inspectedHexData.majorCities" class="stellar-inline-detail">{{
+                    inspectedHexData.majorCities
                   }}</span>
-                  <span v-if="selectedHexData.governmentProfile" class="stellar-inline-detail"
-                    >Gov {{ selectedHexData.governmentProfile }}</span
+                  <span v-if="inspectedHexData.governmentProfile" class="stellar-inline-detail"
+                    >Gov {{ inspectedHexData.governmentProfile }}</span
                   >
-                  <span v-if="selectedHexData.justiceProfile" class="stellar-inline-detail"
-                    >Justice {{ selectedHexData.justiceProfile }}</span
+                  <span v-if="inspectedHexData.justiceProfile" class="stellar-inline-detail"
+                    >Justice {{ inspectedHexData.justiceProfile }}</span
                   >
-                  <span v-if="selectedHexData.lawProfile" class="stellar-inline-detail"
-                    >Law {{ selectedHexData.lawProfile }}</span
+                  <span v-if="inspectedHexData.lawProfile" class="stellar-inline-detail"
+                    >Law {{ inspectedHexData.lawProfile }}</span
                   >
-                  <span v-if="selectedHexData.appealProfile" class="stellar-inline-detail"
-                    >Appeals {{ selectedHexData.appealProfile }}</span
+                  <span v-if="inspectedHexData.appealProfile" class="stellar-inline-detail"
+                    >Appeals {{ inspectedHexData.appealProfile }}</span
                   >
-                  <span v-if="selectedHexData.privateLawProfile" class="stellar-inline-detail"
-                    >Private {{ selectedHexData.privateLawProfile }}</span
+                  <span v-if="inspectedHexData.privateLawProfile" class="stellar-inline-detail"
+                    >Private {{ inspectedHexData.privateLawProfile }}</span
                   >
-                  <span v-if="selectedHexData.personalRightsProfile" class="stellar-inline-detail"
-                    >Rights {{ selectedHexData.personalRightsProfile }}</span
+                  <span v-if="inspectedHexData.personalRightsProfile" class="stellar-inline-detail"
+                    >Rights {{ inspectedHexData.personalRightsProfile }}</span
                   >
-                  <span v-if="selectedHexData.secondaryProfiles" class="stellar-inline-detail">{{
-                    selectedHexData.secondaryProfiles
+                  <span v-if="inspectedHexData.secondaryProfiles" class="stellar-inline-detail">{{
+                    inspectedHexData.secondaryProfiles
                   }}</span>
-                  <span v-if="selectedHexData.factionsProfile" class="stellar-inline-detail">{{
-                    selectedHexData.factionsProfile
+                  <span v-if="inspectedHexData.factionsProfile" class="stellar-inline-detail">{{
+                    inspectedHexData.factionsProfile
                   }}</span>
-                  <span v-if="selectedHexData.legacyReconstructed" class="stellar-inline-flag">Legacy Star Tree</span>
-                  <span v-if="selectedHexData.legacyHierarchyUnknown" class="stellar-inline-flag"
+                  <span v-if="inspectedHexData.legacyReconstructed" class="stellar-inline-flag">Legacy Star Tree</span>
+                  <span v-if="inspectedHexData.legacyHierarchyUnknown" class="stellar-inline-flag"
                     >Hierarchy Inferred</span
                   >
                 </div>
                 <div class="detail-actions">
-                  <button class="btn btn-primary" @click="proceedToStarSystem">🔭 Stellar Survey →</button>
+                  <button v-if="hasLockedHexSelection" class="btn btn-primary" @click="proceedToStarSystem">
+                    🔭 Stellar Survey →
+                  </button>
+                  <span v-else class="stellar-inline-hint">Hover preview only. Click to lock this hex.</span>
                 </div>
               </div>
               <div v-else-if="hasSystemsInGrid" class="stellar-inline-card stellar-inline-card--placeholder">
@@ -512,7 +589,92 @@
           </div>
 
           <div v-if="generatedSector" class="sector-results">
-            <div ref="gridWrapperRef" class="hex-grid-wrapper" :class="`hex-grid-wrapper--${gridSizeMode}`">
+            <div class="sector-grid-toolbar">
+              <div class="sector-grid-toolbar-group">
+                <span class="sector-grid-toolbar-label">Grid size</span>
+                <div class="grid-size-toggle" role="group" aria-label="Sector grid size">
+                  <button
+                    type="button"
+                    class="survey-option-btn grid-size-btn"
+                    :class="{ active: gridSizeMode === 'fit' }"
+                    :aria-pressed="gridSizeMode === 'fit'"
+                    @click="gridSizeMode = 'fit'"
+                  >
+                    Fit
+                  </button>
+                  <button
+                    type="button"
+                    class="survey-option-btn grid-size-btn"
+                    :class="{ active: gridSizeMode === 'comfortable' }"
+                    :aria-pressed="gridSizeMode === 'comfortable'"
+                    @click="gridSizeMode = 'comfortable'"
+                  >
+                    Comfort
+                  </button>
+                  <button
+                    type="button"
+                    class="survey-option-btn grid-size-btn"
+                    :class="{ active: gridSizeMode === 'large' }"
+                    :aria-pressed="gridSizeMode === 'large'"
+                    @click="gridSizeMode = 'large'"
+                  >
+                    Large
+                  </button>
+                </div>
+              </div>
+
+              <form class="grid-jump-form" @submit.prevent="jumpToHexCoord()">
+                <label class="sector-grid-toolbar-label" for="sector-grid-jump">Jump to hex</label>
+                <div class="grid-jump-controls">
+                  <input
+                    id="sector-grid-jump"
+                    ref="coordJumpInputRef"
+                    v-model="coordJumpInput"
+                    class="text-input grid-jump-input"
+                    type="text"
+                    inputmode="numeric"
+                    maxlength="4"
+                    placeholder="0618"
+                  />
+                  <button class="btn btn-secondary" type="submit" :disabled="!canJumpToHex">Go</button>
+                </div>
+              </form>
+
+              <div class="sector-grid-toolbar-group sector-grid-toolbar-group--full">
+                <span class="sector-grid-toolbar-label">Filter</span>
+                <div class="sector-filter-chips" role="group" aria-label="Sector survey filter">
+                  <button
+                    v-for="option in surveyFilterOptions"
+                    :key="option.id"
+                    type="button"
+                    class="survey-option-btn sector-filter-chip"
+                    :class="{ active: sectorSurveyFilterMode === option.id }"
+                    :aria-pressed="sectorSurveyFilterMode === option.id"
+                    @click="sectorSurveyFilterMode = option.id"
+                  >
+                    <span>{{ option.label }}</span>
+                    <span class="sector-filter-chip-count">{{ option.count }}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="sector-grid-toolbar-meta">
+              <span>{{ surveyProgress.completedPercent }}% mapped</span>
+              <span>{{ surveyProgress.typedCount.toLocaleString() }} typed</span>
+              <span>{{ surveyProgress.presenceOnlyCount.toLocaleString() }} presence only</span>
+              <span>Arrow keys move, Enter locks, G opens Stellar Survey, / focuses jump.</span>
+            </div>
+
+            <div
+              ref="gridWrapperRef"
+              class="hex-grid-wrapper"
+              :class="`hex-grid-wrapper--${gridSizeMode}`"
+              tabindex="0"
+              role="grid"
+              aria-label="Sector hex grid"
+              @keydown="handleGridKeydown"
+            >
               <div class="hex-grid" :key="gridRenderKey" :style="gridStyle">
                 <div
                   v-for="hex in displayedSector.hexes"
@@ -522,17 +684,22 @@
                     occupied: hex.hasSystem,
                     'presence-only': hex.presenceOnly,
                     selected: hex.coord === selectedHex,
+                    'hex-cell--hovered': hex.coord === hoveredHex,
+                    'hex-cell--filtered-out': sectorSurveyFilterMode !== 'all' && !doesHexMatchFilter(hex),
+                    'hex-cell--matched': sectorSurveyFilterMode !== 'all' && doesHexMatchFilter(hex),
+                    'hex-cell--anomaly': Boolean(getHexBadge(hex)),
                   }"
+                  :data-hex-coord="hex.coord"
+                  :title="buildSectorSurveyHexTitle(hex)"
+                  :aria-selected="hex.coord === selectedHex"
                   @click="selectHex(hex)"
-                  :title="
-                    hex.presenceOnly
-                      ? `${hex.coord} — stellar object detected (unsurveyed)`
-                      : hex.hasSystem
-                        ? `${hex.coord} — ${hex.starType}`
-                        : hex.coord
-                  "
+                  @mouseenter="hoverHex(hex)"
+                  @mouseleave="clearHoveredHex(hex)"
                 >
                   <div v-if="showHexCoords" class="hex-coord">{{ hex.coord }}</div>
+                  <span v-if="getHexBadge(hex)" class="hex-badge" :class="getHexBadge(hex).className">
+                    {{ getHexBadge(hex).icon }}
+                  </span>
                   <div v-if="hex.hasSystem && !hex.presenceOnly" class="hex-star" :class="hex.starClass">★</div>
                   <div v-if="hex.presenceOnly" class="hex-star hex-star--presence">◦</div>
                 </div>
@@ -611,6 +778,41 @@
                 @click="selectSubsector(letter)"
               >
                 {{ letter }}
+              </button>
+            </div>
+            <div class="subsector-nav subsector-nav--sidebar" aria-label="Subsector directional navigation">
+              <button
+                class="btn btn-secondary subsector-nav-btn"
+                type="button"
+                :disabled="subsectorDirectionalTargets.north === selectedSubsector"
+                @click="moveSubsectorSelection(0, -1)"
+              >
+                ↑
+              </button>
+              <button
+                class="btn btn-secondary subsector-nav-btn"
+                type="button"
+                :disabled="subsectorDirectionalTargets.west === selectedSubsector"
+                @click="moveSubsectorSelection(-1, 0)"
+              >
+                ←
+              </button>
+              <span class="subsector-nav-current">{{ currentSubsectorSummary || selectedSubsector }}</span>
+              <button
+                class="btn btn-secondary subsector-nav-btn"
+                type="button"
+                :disabled="subsectorDirectionalTargets.east === selectedSubsector"
+                @click="moveSubsectorSelection(1, 0)"
+              >
+                →
+              </button>
+              <button
+                class="btn btn-secondary subsector-nav-btn"
+                type="button"
+                :disabled="subsectorDirectionalTargets.south === selectedSubsector"
+                @click="moveSubsectorSelection(0, 1)"
+              >
+                ↓
               </button>
             </div>
           </section>
@@ -711,12 +913,13 @@
                   orbitalPreview.secondaryLabel
                 }}</span>
               </div>
-              <div class="orbital-preview-actions">
+              <div v-if="hasLockedHexSelection" class="orbital-preview-actions">
                 <button class="btn btn-secondary" @click="generateSystemForSelectedHex" :disabled="isLoading">
                   ⚙ Generate System
                 </button>
                 <button class="btn btn-primary" @click="proceedToStarSystem">🔭 Stellar Survey →</button>
               </div>
+              <div v-else class="orbital-preview-hint">Hover preview active. Click a hex to lock preview actions.</div>
               <div v-if="generationStatusMessage" class="control-help control-help--multiline generation-status-copy">
                 {{ generationStatusMessage }}
               </div>
@@ -731,6 +934,9 @@
                 <button class="btn btn-primary" @click="generateSystemForSelectedHex" :disabled="isLoading">
                   ⚙ Generate System
                 </button>
+              </div>
+              <div v-else-if="inspectedHexData?.presenceOnly" class="orbital-preview-hint">
+                Hover preview active. Click this presence-only hex to enable generation.
               </div>
             </div>
           </section>
@@ -762,6 +968,16 @@ import { useArchiveTransfer } from "../../composables/useArchiveTransfer.js";
 import { getRequestedSurveyViewport, useSectorSurveyViewMode } from "../../composables/useSectorSurveyViewMode.js";
 import { SUBSECTOR_LETTERS, getSubsectorViewportBounds } from "../../utils/subsector.js";
 import { upsertSystemStrict } from "../../api/systemApi.js";
+import {
+  buildSectorSurveyHexTitle,
+  buildSectorSurveyProgress,
+  describeSectorSurveyHexBadge,
+  moveSectorSurveyCoord,
+  moveSectorSurveySubsector,
+  normalizeSectorSurveyCoord,
+  resolveSectorSurveyFilterMatch,
+  summarizeSectorSurveyFilters,
+} from "../../utils/sectorSurveyInteractions.js";
 import {
   buildSectorSurveyCreatePayload,
   buildSectorSurveyGenerationMutation,
@@ -812,9 +1028,13 @@ const isSpeakingSubsectorName = ref(false);
 const generationMode = ref("");
 const generationStatus = ref({ tone: "idle", message: "" });
 const gridWrapperRef = ref(null);
+const coordJumpInputRef = ref(null);
 const gridWrapperBounds = ref({ width: 0, height: 0 });
 const focusedOrbitalTarget = ref(null);
 const gridRenderNonce = ref(0);
+const hoveredHex = ref(null);
+const coordJumpInput = ref("");
+const sectorSurveyFilterMode = ref("all");
 const supportsSpeechSynthesis = typeof window !== "undefined" && "speechSynthesis" in window;
 let gridWrapperResizeObserver = null;
 const { currentViewMode, currentSurveyRouteName, surveyPageLabel, switchSurveyPage } = useSectorSurveyViewMode({
@@ -1103,17 +1323,51 @@ const showHexCoords = computed(() => {
   return gridSizeMode.value !== "fit";
 });
 
+const gridColumnCount = computed(() => Number(displayedSector.value?.gridCols ?? 0));
+const gridRowCount = computed(() => Number(displayedSector.value?.gridRows ?? 0));
+
 const selectedHexData = computed(
   () => displayedSector.value?.hexes?.find((h) => h.coord === selectedHex.value) ?? null,
 );
+const hoveredHexData = computed(() => displayedSector.value?.hexes?.find((h) => h.coord === hoveredHex.value) ?? null);
+const inspectedHexData = computed(() => selectedHexData.value ?? hoveredHexData.value ?? null);
+const hasLockedHexSelection = computed(() => Boolean(selectedHexData.value?.coord));
+const inspectedHexSourceLabel = computed(() => {
+  if (selectedHexData.value?.coord) {
+    return "Selected";
+  }
+  if (hoveredHexData.value?.coord) {
+    return "Hover";
+  }
+  return "Idle";
+});
 const hasSystemsInGrid = computed(() => (displayedSector.value?.systemCount ?? 0) > 0);
 
 watch(selectedHexData, () => {
   clearOrbitalTarget();
 });
 
+watch(
+  displayedSector,
+  (sector) => {
+    const coords = new Set(
+      (Array.isArray(sector?.hexes) ? sector.hexes : []).map((hex) => String(hex?.coord || "").trim()),
+    );
+    if (selectedHex.value && !coords.has(String(selectedHex.value || "").trim())) {
+      selectedHex.value = null;
+    }
+    if (hoveredHex.value && !coords.has(String(hoveredHex.value || "").trim())) {
+      hoveredHex.value = null;
+    }
+    if (!selectedHex.value) {
+      coordJumpInput.value = "";
+    }
+  },
+  { immediate: true },
+);
+
 const orbitalPreview = computed(() => {
-  const hex = selectedHexData.value;
+  const hex = inspectedHexData.value;
   const focusedTarget = focusedOrbitalTarget.value;
   if (!hasSystemsInGrid.value) {
     return {
@@ -1129,7 +1383,9 @@ const orbitalPreview = computed(() => {
     return {
       state: "select",
       title: "Select a surveyed system",
-      message: "Choose a starred hex in the subsector grid to preview its local orbital structure.",
+      message: hasHexSelection
+        ? "Click this hex to lock actions, or choose a starred hex in the subsector grid to preview its local orbital structure."
+        : "Choose a starred hex in the subsector grid to preview its local orbital structure.",
       metaItems: hasHexSelection
         ? [
             { label: "Hex", value: hex.coord },
@@ -1226,6 +1482,7 @@ const orbitalPreview = computed(() => {
 
   const metaItems = [
     { label: "Hex", value: hex.coord },
+    { label: "Source", value: inspectedHexSourceLabel.value, tone: selectedHexData.value?.coord ? "focus" : "muted" },
     { label: "Type", value: hex.starType, tone: isAnomaly ? "anomaly" : "accent" },
     {
       label: "Status",
@@ -1447,6 +1704,37 @@ const displayedTotalHexCount = computed(() => {
   const rows = Number(displayedSector.value?.gridRows ?? 0);
   return cols * rows;
 });
+const surveyProgress = computed(() =>
+  buildSectorSurveyProgress({
+    systemCount: displayedOccupiedHexCount.value,
+    presenceOnlyCount: displayedPresenceOnlyCount.value,
+    totalHexes: displayedTotalHexCount.value,
+  }),
+);
+const surveyFilterCounts = computed(() => summarizeSectorSurveyFilters(displayedSector.value?.hexes ?? []));
+const surveyFilterOptions = computed(() => [
+  { id: "all", label: "All", count: Number(displayedSector.value?.hexes?.length ?? 0) },
+  { id: "surveyed", label: "Surveyed", count: surveyFilterCounts.value.surveyed },
+  { id: "presence", label: "Presence", count: surveyFilterCounts.value.presence },
+  { id: "anomaly", label: "Anomaly", count: surveyFilterCounts.value.anomaly },
+  { id: "oba", label: "O/B/A", count: surveyFilterCounts.value.oba },
+  { id: "fgk", label: "F/G/K", count: surveyFilterCounts.value.fgk },
+  { id: "m", label: "M", count: surveyFilterCounts.value.m },
+  { id: "legacy", label: "Legacy", count: surveyFilterCounts.value.legacy },
+  { id: "empty", label: "Empty", count: surveyFilterCounts.value.empty },
+]);
+const subsectorDirectionalTargets = computed(() => {
+  const current = String(selectedSubsector.value || "A").trim() || "A";
+  return {
+    north: moveSectorSurveySubsector(current, { rowDelta: -1 }),
+    south: moveSectorSurveySubsector(current, { rowDelta: 1 }),
+    west: moveSectorSurveySubsector(current, { columnDelta: -1 }),
+    east: moveSectorSurveySubsector(current, { columnDelta: 1 }),
+  };
+});
+const canJumpToHex = computed(() =>
+  Boolean(normalizeSectorSurveyCoord(coordJumpInput.value, { cols: gridColumnCount.value, rows: gridRowCount.value })),
+);
 const subsectorSurveyPercentLabel = computed(() => {
   const totalHexes = displayedTotalHexCount.value;
   if (!totalHexes) {
@@ -2098,6 +2386,169 @@ function setGenerationStatus(message, tone = "info") {
     tone,
     message: String(message || "").trim(),
   };
+}
+
+function doesHexMatchFilter(hex) {
+  return resolveSectorSurveyFilterMatch(hex, sectorSurveyFilterMode.value);
+}
+
+function getHexBadge(hex) {
+  return describeSectorSurveyHexBadge(hex);
+}
+
+function focusGridWrapper() {
+  gridWrapperRef.value?.focus?.();
+}
+
+function focusHexCell(coord, { center = true } = {}) {
+  const wrapper = gridWrapperRef.value;
+  if (!wrapper || !coord) {
+    return;
+  }
+
+  const target = wrapper.querySelector(`[data-hex-coord="${coord}"]`);
+  if (target?.scrollIntoView) {
+    target.scrollIntoView({ block: center ? "center" : "nearest", inline: "center", behavior: "smooth" });
+  }
+  focusGridWrapper();
+}
+
+function hoverHex(hex) {
+  const coord = String(hex?.coord || "").trim();
+  if (coord) {
+    hoveredHex.value = coord;
+  }
+}
+
+function clearHoveredHex(hex = null) {
+  const coord = String(hex?.coord || hex || "").trim();
+  if (!coord || hoveredHex.value === coord) {
+    hoveredHex.value = null;
+  }
+}
+
+function setSelectedHexCoord(coord, { toggle = false, focus = true } = {}) {
+  const normalized = normalizeSectorSurveyCoord(coord, { cols: gridColumnCount.value, rows: gridRowCount.value });
+  if (!normalized) {
+    return false;
+  }
+
+  if (toggle && normalized === selectedHex.value) {
+    selectedHex.value = null;
+    return true;
+  }
+
+  selectedHex.value = normalized;
+  hoveredHex.value = normalized;
+  coordJumpInput.value = normalized;
+  if (focus) {
+    focusHexCell(normalized);
+  }
+  return true;
+}
+
+function jumpToHexCoord({ showToast = true } = {}) {
+  const normalized = normalizeSectorSurveyCoord(coordJumpInput.value, {
+    cols: gridColumnCount.value,
+    rows: gridRowCount.value,
+  });
+  if (!normalized) {
+    if (showToast) {
+      toastService.error("Enter a valid hex coordinate inside the current viewport.");
+    }
+    return false;
+  }
+
+  return setSelectedHexCoord(normalized, { focus: true });
+}
+
+function moveGridSelection(columnDelta, rowDelta) {
+  const seed =
+    selectedHex.value ||
+    hoveredHex.value ||
+    normalizeSectorSurveyCoord(coordJumpInput.value, { cols: gridColumnCount.value, rows: gridRowCount.value }) ||
+    displayedSector.value?.hexes?.[0]?.coord;
+  const nextCoord = moveSectorSurveyCoord(seed, {
+    cols: gridColumnCount.value,
+    rows: gridRowCount.value,
+    columnDelta,
+    rowDelta,
+  });
+  return setSelectedHexCoord(nextCoord, { focus: true });
+}
+
+function moveSubsectorSelection(columnDelta, rowDelta) {
+  const nextLetter = moveSectorSurveySubsector(selectedSubsector.value, { columnDelta, rowDelta });
+  if (nextLetter !== selectedSubsector.value) {
+    selectSubsector(nextLetter);
+  }
+}
+
+function handleGridKeydown(event) {
+  if (!displayedSector.value) {
+    return;
+  }
+
+  const targetTag = String(event.target?.tagName || "").toLowerCase();
+  if (["input", "textarea", "select", "button"].includes(targetTag)) {
+    return;
+  }
+
+  const key = String(event.key || "").toLowerCase();
+  if (key === "/") {
+    coordJumpInputRef.value?.focus?.();
+    coordJumpInputRef.value?.select?.();
+    event.preventDefault();
+    return;
+  }
+
+  if (key === "escape") {
+    if (selectedHex.value) {
+      selectedHex.value = null;
+      event.preventDefault();
+      return;
+    }
+    if (hoveredHex.value) {
+      hoveredHex.value = null;
+      event.preventDefault();
+    }
+    return;
+  }
+
+  if (key === "g" && selectedHexData.value?.hasSystem && !selectedHexData.value?.presenceOnly) {
+    proceedToStarSystem();
+    event.preventDefault();
+    return;
+  }
+
+  if (key === "enter") {
+    const focusCoord = selectedHex.value || hoveredHex.value || coordJumpInput.value;
+    if (focusCoord) {
+      setSelectedHexCoord(focusCoord, { focus: true });
+      event.preventDefault();
+    }
+    return;
+  }
+
+  if (key === "arrowleft") {
+    moveGridSelection(-1, 0);
+    event.preventDefault();
+    return;
+  }
+  if (key === "arrowright") {
+    moveGridSelection(1, 0);
+    event.preventDefault();
+    return;
+  }
+  if (key === "arrowup") {
+    moveGridSelection(0, -1);
+    event.preventDefault();
+    return;
+  }
+  if (key === "arrowdown") {
+    moveGridSelection(0, 1);
+    event.preventDefault();
+  }
 }
 
 function refreshSubsectorSurveyPage() {
@@ -3674,7 +4125,7 @@ async function generateSector() {
 }
 
 function selectHex(hex) {
-  selectedHex.value = hex.coord === selectedHex.value ? null : hex.coord;
+  setSelectedHexCoord(hex?.coord, { toggle: true, focus: true });
 }
 
 function stopSectorNameSpeech() {
@@ -4059,6 +4510,16 @@ async function generateSystemForSelectedHex({ openAfter = false } = {}) {
   gap: 0.5rem;
 }
 
+.grid-size-toggle {
+  display: inline-flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.grid-size-btn {
+  min-width: 5.4rem;
+}
+
 .survey-option-btn {
   min-width: 0;
   padding: 0.72rem 0.85rem;
@@ -4178,6 +4639,79 @@ async function generateSystemForSelectedHex({ openAfter = false } = {}) {
 
 .control-inline-row--load .btn {
   white-space: nowrap;
+}
+
+.survey-progress-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  padding: 0.85rem 0.9rem;
+  border: 1px solid rgba(0, 217, 255, 0.18);
+  border-radius: 0.65rem;
+  background: rgba(7, 18, 28, 0.88);
+}
+
+.survey-progress-bar {
+  display: flex;
+  width: 100%;
+  min-height: 0.8rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.survey-progress-segment {
+  min-width: 0;
+}
+
+.survey-progress-segment--typed {
+  background: linear-gradient(90deg, #34d399 0%, #14b8a6 100%);
+}
+
+.survey-progress-segment--presence {
+  background: linear-gradient(90deg, #60a5fa 0%, #38bdf8 100%);
+}
+
+.survey-progress-segment--empty {
+  background: rgba(148, 163, 184, 0.28);
+}
+
+.survey-progress-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.survey-progress-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.65rem;
+  padding: 0.18rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #e6faff;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.survey-progress-pill--typed {
+  background: rgba(16, 185, 129, 0.16);
+  border-color: rgba(16, 185, 129, 0.28);
+}
+
+.survey-progress-pill--presence {
+  background: rgba(56, 189, 248, 0.16);
+  border-color: rgba(56, 189, 248, 0.28);
+}
+
+.survey-progress-pill--empty {
+  background: rgba(148, 163, 184, 0.14);
+  border-color: rgba(148, 163, 184, 0.24);
+}
+
+.survey-progress-pill--total {
+  background: rgba(250, 204, 21, 0.12);
+  border-color: rgba(250, 204, 21, 0.26);
 }
 
 /* Galaxy Position Minimap */
@@ -4574,10 +5108,33 @@ async function generateSystemForSelectedHex({ openAfter = false } = {}) {
   font-weight: 700;
 }
 
+.stellar-inline-source {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.35rem;
+  padding: 0.08rem 0.42rem;
+  border-radius: 999px;
+  background: rgba(0, 217, 255, 0.12);
+  border: 1px solid rgba(0, 217, 255, 0.22);
+  color: #c4f8ff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .stellar-inline-detail {
   color: #b7d8ea;
   font-family: monospace;
   font-size: 0.88rem;
+}
+
+.stellar-inline-hint,
+.orbital-preview-hint {
+  color: #8fb3c9;
+  font-size: 0.8rem;
+  line-height: 1.35;
+  text-align: center;
 }
 
 .stellar-inline-flag {
@@ -4600,6 +5157,59 @@ async function generateSystemForSelectedHex({ openAfter = false } = {}) {
   grid-template-columns: repeat(4, 1fr);
   gap: 0.5rem;
   margin-top: 0.5rem;
+}
+
+.subsector-nav {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.45rem;
+  align-items: center;
+  margin-top: 0.65rem;
+}
+
+.subsector-nav--sidebar {
+  margin-top: 0.85rem;
+}
+
+.subsector-nav-btn {
+  padding: 0.5rem 0.75rem;
+}
+
+.subsector-nav-current {
+  grid-column: 2;
+  grid-row: 2;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 2.25rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: 0.55rem;
+  background: rgba(0, 217, 255, 0.08);
+  border: 1px solid rgba(0, 217, 255, 0.18);
+  color: #e7fbff;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.subsector-nav > :nth-child(1) {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.subsector-nav > :nth-child(2) {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+.subsector-nav > :nth-child(4) {
+  grid-column: 3;
+  grid-row: 2;
+}
+
+.subsector-nav > :nth-child(5) {
+  grid-column: 2;
+  grid-row: 3;
 }
 
 .subsector-grid--sidebar {
@@ -4821,6 +5431,83 @@ async function generateSystemForSelectedHex({ openAfter = false } = {}) {
   overflow: hidden;
 }
 
+.sector-grid-toolbar {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+  margin-bottom: 0.9rem;
+}
+
+.sector-grid-toolbar-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.sector-grid-toolbar-group--full {
+  grid-column: 1 / -1;
+}
+
+.sector-grid-toolbar-label {
+  color: rgba(183, 247, 255, 0.72);
+  font-size: 0.73rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.grid-jump-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.grid-jump-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.45rem;
+}
+
+.grid-jump-input {
+  font-family: monospace;
+  letter-spacing: 0.08em;
+}
+
+.sector-filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.sector-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+  min-width: 0;
+}
+
+.sector-filter-chip-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.35rem;
+  min-height: 1.35rem;
+  padding: 0 0.32rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.sector-grid-toolbar-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem 0.85rem;
+  margin-bottom: 0.9rem;
+  color: #9fc7d8;
+  font-size: 0.8rem;
+}
+
 /* Hex Grid */
 .hex-grid-wrapper {
   overflow-y: auto;
@@ -4832,6 +5519,11 @@ async function generateSystemForSelectedHex({ openAfter = false } = {}) {
   border-radius: 0.25rem;
   padding: 0.5rem;
   background: #0d0d1a;
+}
+
+.hex-grid-wrapper:focus {
+  outline: 2px solid rgba(0, 217, 255, 0.55);
+  outline-offset: 2px;
 }
 
 .hex-grid-wrapper--comfortable,
@@ -4885,6 +5577,11 @@ async function generateSystemForSelectedHex({ openAfter = false } = {}) {
   border-color: #555;
 }
 
+.hex-cell--hovered {
+  border-color: rgba(250, 204, 21, 0.65);
+  box-shadow: inset 0 0 0 1px rgba(250, 204, 21, 0.35);
+}
+
 .hex-cell.occupied {
   background: #12122a;
   border-color: #2a2a5a;
@@ -4918,6 +5615,51 @@ async function generateSystemForSelectedHex({ openAfter = false } = {}) {
 .hex-cell.presence-only {
   background: rgba(255, 255, 255, 0.03);
   border-color: #333;
+}
+
+.hex-cell--filtered-out {
+  opacity: 0.24;
+  filter: saturate(0.45);
+}
+
+.hex-cell--matched {
+  box-shadow: inset 0 0 0 1px rgba(0, 217, 255, 0.22);
+}
+
+.hex-cell--anomaly {
+  background: radial-gradient(circle at 50% 40%, rgba(176, 108, 255, 0.12), transparent 70%), #12122a;
+}
+
+.hex-badge {
+  position: absolute;
+  top: 0.15rem;
+  right: 0.15rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1rem;
+  min-height: 1rem;
+  border-radius: 999px;
+  background: rgba(6, 12, 20, 0.82);
+  font-size: 0.62rem;
+  line-height: 1;
+}
+
+.hex-badge--black-hole {
+  color: #d8b4fe;
+}
+
+.hex-badge--nebula {
+  color: #86efac;
+}
+
+.hex-badge--pulsar,
+.hex-badge--neutron {
+  color: #7dd3fc;
+}
+
+.hex-badge--anomaly {
+  color: #f5b4fc;
 }
 
 /* Spectral class colours */
@@ -5050,6 +5792,10 @@ async function generateSystemForSelectedHex({ openAfter = false } = {}) {
 
   .detail-actions .btn {
     width: 100%;
+  }
+
+  .sector-grid-toolbar {
+    grid-template-columns: 1fr;
   }
 }
 
