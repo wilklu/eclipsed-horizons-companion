@@ -118,6 +118,10 @@ function saveSectors(sectors) {
   }
 }
 
+function shouldPersistSectorCache(options = {}) {
+  return options?.persistCache !== false;
+}
+
 function hasObjectEntries(value) {
   return Boolean(value && typeof value === "object" && !Array.isArray(value) && Object.keys(value).length > 0);
 }
@@ -159,14 +163,16 @@ function mergeSectorRecords(existingSector, nextSector) {
   };
 }
 
-function mergeCachedSectors(nextSectors) {
+function mergeCachedSectors(nextSectors, options = {}) {
   const byId = new Map(loadSectors().map((sector) => [normalizeSectorId(sector), normalizeSector(sector)]));
   for (const sector of nextSectors) {
     const sectorId = normalizeSectorId(sector);
     byId.set(sectorId, mergeSectorRecords(byId.get(sectorId), sector));
   }
   const merged = Array.from(byId.values());
-  saveSectors(merged);
+  if (shouldPersistSectorCache(options)) {
+    saveSectors(merged);
+  }
   return merged;
 }
 
@@ -359,13 +365,13 @@ export async function createSector(sector, options = {}) {
       body: JSON.stringify(payload),
       ...options,
     });
-    mergeCachedSectors([created]);
+    mergeCachedSectors([created], options);
     return normalizeSector(created);
   } catch (error) {
     if (isAbortError(error)) {
       throw error;
     }
-    mergeCachedSectors([payload]);
+    mergeCachedSectors([payload], options);
     return normalizeSector(payload);
   }
 }
@@ -378,13 +384,13 @@ export async function upsertSector(sector, options = {}) {
       body: JSON.stringify(payload),
       ...options,
     });
-    mergeCachedSectors([updated]);
+    mergeCachedSectors([updated], options);
     return normalizeSector(updated);
   } catch (error) {
     if (isAbortError(error)) {
       throw error;
     }
-    mergeCachedSectors([payload]);
+    mergeCachedSectors([payload], options);
     return normalizeSector(payload);
   }
 }
@@ -397,13 +403,13 @@ export async function updateSector(sectorId, payload, options = {}) {
       body: JSON.stringify(body),
       ...options,
     });
-    mergeCachedSectors([updated]);
+    mergeCachedSectors([updated], options);
     return normalizeSector(updated);
   } catch (error) {
     if (isAbortError(error)) {
       throw error;
     }
-    mergeCachedSectors([body]);
+    mergeCachedSectors([body], options);
     return normalizeSector(body);
   }
 }
@@ -437,7 +443,7 @@ export async function createSectorsBatch(sectors, options = {}) {
       body: JSON.stringify(payload),
       ...options,
     });
-    mergeCachedSectors(payload);
+    mergeCachedSectors(payload, options);
     return payload.map(normalizeSector);
   } catch (error) {
     if (isAbortError(error)) {

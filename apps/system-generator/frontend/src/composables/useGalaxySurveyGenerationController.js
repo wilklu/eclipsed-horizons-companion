@@ -155,7 +155,8 @@ export function useGalaxySurveyGenerationController({
 
   function focusGalaxyMapRing(ring, { zoom = true } = {}) {
     const preview = getGalaxyMapPreview?.();
-    if (!preview?.tiles?.length) {
+    const selectableTiles = [...(preview?.tiles ?? []), ...(preview?.focusAnchors ?? [])];
+    if (!selectableTiles.length) {
       return false;
     }
 
@@ -165,8 +166,9 @@ export function useGalaxySurveyGenerationController({
     }
 
     const tile =
-      preview.tiles.find((entry) => Number(entry?.ring) === targetRing && entry.persisted) ||
-      preview.tiles.find((entry) => Number(entry?.ring) === targetRing);
+      selectableTiles.find((entry) => Number(entry?.ring) === targetRing && entry.persisted) ||
+      selectableTiles.find((entry) => Number(entry?.ring) === targetRing && entry.kind === "ring-anchor") ||
+      selectableTiles.find((entry) => Number(entry?.ring) === targetRing);
 
     if (!tile?.id) {
       return false;

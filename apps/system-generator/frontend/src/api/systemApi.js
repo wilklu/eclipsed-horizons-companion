@@ -63,6 +63,10 @@ function saveSystems(systems) {
   }
 }
 
+function shouldPersistSystemCache(options = {}) {
+  return options?.persistCache !== false;
+}
+
 function normalizeHexCoordinates(value) {
   const x = Number(value?.x ?? 0);
   const y = Number(value?.y ?? 0);
@@ -95,18 +99,20 @@ function normalizeSystem(system) {
   };
 }
 
-function mergeCachedSystems(nextSystems) {
+function mergeCachedSystems(nextSystems, options = {}) {
   const byId = new Map(loadSystems().map((system) => [String(system?.systemId || ""), normalizeSystem(system)]));
   for (const system of nextSystems) {
     const normalized = normalizeSystem(system);
     byId.set(normalized.systemId, normalized);
   }
   const merged = Array.from(byId.values()).filter((system) => system.systemId);
-  saveSystems(merged);
+  if (shouldPersistSystemCache(options)) {
+    saveSystems(merged);
+  }
   return merged;
 }
 
-function replaceCachedSystemsForSector(sectorId, nextSystems) {
+function replaceCachedSystemsForSector(sectorId, nextSystems, options = {}) {
   const retained = loadSystems()
     .map(normalizeSystem)
     .filter((system) => String(system?.sectorId) !== String(sectorId));
@@ -114,7 +120,9 @@ function replaceCachedSystemsForSector(sectorId, nextSystems) {
     .map(normalizeSystem)
     .filter((system) => system.systemId);
   const merged = retained.concat(normalized);
-  saveSystems(merged);
+  if (shouldPersistSystemCache(options)) {
+    saveSystems(merged);
+  }
   return normalized;
 }
 
@@ -140,13 +148,13 @@ export async function upsertSystem(system, options = {}) {
       body: JSON.stringify(payload),
       ...options,
     });
-    mergeCachedSystems([updated]);
+    mergeCachedSystems([updated], options);
     return normalizeSystem(updated);
   } catch (error) {
     if (isAbortError(error)) {
       throw error;
     }
-    mergeCachedSystems([payload]);
+    mergeCachedSystems([payload], options);
     return payload;
   }
 }
@@ -158,7 +166,7 @@ export async function upsertSystemStrict(system, options = {}) {
     body: JSON.stringify(payload),
     ...options,
   });
-  mergeCachedSystems([updated]);
+  mergeCachedSystems([updated], options);
   return normalizeSystem(updated);
 }
 
@@ -170,13 +178,13 @@ export async function updateSystem(systemId, updates, options = {}) {
       body: JSON.stringify(payload),
       ...options,
     });
-    mergeCachedSystems([updated]);
+    mergeCachedSystems([updated], options);
     return normalizeSystem(updated);
   } catch (error) {
     if (isAbortError(error)) {
       throw error;
     }
-    mergeCachedSystems([payload]);
+    mergeCachedSystems([payload], options);
     return payload;
   }
 }
@@ -189,7 +197,7 @@ export async function replaceSystemsForSector(sectorId, systems, options = {}) {
       body: JSON.stringify(payload),
       ...options,
     });
-    return replaceCachedSystemsForSector(sectorId, Array.isArray(updated) ? updated : []);
+    return replaceCachedSystemsForSector(sectorId, Array.isArray(updated) ? updated : [], options);
   } catch (error) {
     if (isAbortError(error)) {
       throw error;
@@ -198,7 +206,9 @@ export async function replaceSystemsForSector(sectorId, systems, options = {}) {
       .map(normalizeSystem)
       .filter((system) => String(system?.sectorId) !== String(sectorId));
     const merged = existing.concat(payload);
-    saveSystems(merged);
+    if (shouldPersistSystemCache(options)) {
+      saveSystems(merged);
+    }
     return payload;
   }
 }

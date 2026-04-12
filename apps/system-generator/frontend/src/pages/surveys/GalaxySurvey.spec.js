@@ -236,10 +236,31 @@ vi.mock("../../composables/useArchiveTransfer.js", () => ({
 
 vi.mock("../../utils/sectorLayoutGenerator.js", () => ({
   estimateGalaxySectorLayoutCount: vi.fn().mockReturnValue(3),
+  estimateGalaxySectorFootprint: vi.fn().mockReturnValue({
+    diameterParsecs: 30000,
+    width: 938,
+    height: 750,
+    footprintWidthPc: 30016,
+    footprintHeightPc: 30000,
+    gridRadius: 469,
+  }),
+  generateGalaxySectorLayoutWindow: vi.fn().mockReturnValue([]),
   generateGalaxySectorLayout: vi.fn().mockImplementation(() => [
-    { sectorId: "layout-0", densityClass: 3, metadata: { gridX: 0, gridY: 0, displayName: "Center" } },
-    { sectorId: "layout-1", densityClass: 3, metadata: { gridX: 1, gridY: 0, displayName: "Ring 1" } },
-    { sectorId: "layout-2", densityClass: 3, metadata: { gridX: 2, gridY: 0, displayName: "Ring 2" } },
+    {
+      sectorId: "layout-0",
+      densityClass: 3,
+      metadata: { gridX: 0, gridY: 0, gridWidth: 3, gridHeight: 1, displayName: "Center" },
+    },
+    {
+      sectorId: "layout-1",
+      densityClass: 3,
+      metadata: { gridX: 1, gridY: 0, gridWidth: 3, gridHeight: 1, displayName: "Ring 1" },
+    },
+    {
+      sectorId: "layout-2",
+      densityClass: 3,
+      metadata: { gridX: 2, gridY: 0, gridWidth: 3, gridHeight: 1, displayName: "Ring 2" },
+    },
   ]),
   iterateGalaxySectorLayout: vi.fn().mockImplementation(() => [
     { sectorId: "sec-0", densityClass: 3, metadata: { gridX: 0, gridY: 0, displayName: "Center" } },
@@ -307,6 +328,7 @@ describe("GalaxySurvey guided flow", () => {
         overlayMode: "frontier",
         statusFilter: "systems-pending",
         ringFilter: "2",
+        layerMode: "persisted-only",
       }),
     );
 
@@ -317,6 +339,75 @@ describe("GalaxySurvey guided flow", () => {
     expect(wrapper.vm.$.setupState.galaxyMapOverlayMode).toBe("frontier");
     expect(wrapper.vm.$.setupState.galaxyMapStatusFilter).toBe("systems-pending");
     expect(wrapper.vm.$.setupState.galaxyMapRingFilter).toBe("2");
+    expect(wrapper.vm.$.setupState.galaxyMapLayerMode).toBe("persisted-only");
+  });
+
+  it("cycles map controls and clears highlighted rings with keyboard shortcuts", async () => {
+    const wrapper = mount(GalaxySurvey);
+    await flushPromises();
+
+    expect(wrapper.vm.$.setupState.galaxyMapLayerMode).toBe("combined");
+    expect(wrapper.vm.$.setupState.galaxyMapRingFilter).toBe("all");
+    expect(wrapper.vm.$.setupState.galaxyMapShowHelp).toBe(false);
+
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "l" }));
+    await flushPromises();
+    expect(wrapper.vm.$.setupState.galaxyMapLayerMode).toBe("persisted-only");
+
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "L", shiftKey: true }));
+    await flushPromises();
+    expect(wrapper.vm.$.setupState.galaxyMapLayerMode).toBe("combined");
+
+    const nextRingFilter = wrapper.vm.$.setupState.galaxyMapRingFilterOptions[1].id;
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "r" }));
+    await flushPromises();
+    expect(wrapper.vm.$.setupState.galaxyMapRingFilter).toBe(nextRingFilter);
+
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "R", shiftKey: true }));
+    await flushPromises();
+    expect(wrapper.vm.$.setupState.galaxyMapRingFilter).toBe("all");
+
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "h" }));
+    await flushPromises();
+    expect(wrapper.vm.$.setupState.galaxyMapShowHelp).toBe(true);
+    expect(wrapper.text()).toContain("Ctrl+B opens bookmarks");
+
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "f" }));
+    await flushPromises();
+    expect(wrapper.get("[data-test='selected-ring']").text()).toBe("1");
+    expect(wrapper.vm.$.setupState.galaxyMapHighlightedRing).toBe(1);
+
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    await flushPromises();
+    expect(wrapper.vm.$.setupState.galaxyMapHighlightedRing).toBe(null);
+    expect(wrapper.vm.$.setupState.galaxyMapShowHelp).toBe(false);
+  });
+
+  it("labels the map as a preview and shows the actual galaxy footprint", async () => {
+    const wrapper = mount(GalaxySurvey);
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("Galaxy Map Preview");
+    expect(wrapper.text()).toContain("Actual footprint 938×750 sectors");
+  });
+
+  it("toggles selected ring highlighting when the same tile is clicked twice", async () => {
+    const wrapper = mount(GalaxySurvey);
+    await flushPromises();
+
+    const tile = wrapper.vm.$.setupState.galaxyMapRenderedTiles.find((entry) => entry.persisted && entry.ring === 1);
+    expect(tile).toBeTruthy();
+
+    wrapper.vm.$.setupState.selectGalaxyMapTile(tile);
+    await flushPromises();
+    expect(wrapper.vm.$.setupState.galaxyMapHighlightedRing).toBe(1);
+    expect(
+      wrapper.vm.$.setupState.galaxyMapRenderedTiles.filter((entry) => entry.isSelectedRing).length,
+    ).toBeGreaterThan(0);
+
+    wrapper.vm.$.setupState.selectGalaxyMapTile(tile);
+    await flushPromises();
+    expect(wrapper.vm.$.setupState.galaxyMapHighlightedRing).toBe(null);
   });
 
   it("advances the guided frontier, focuses the next ring, and announces the change", async () => {
@@ -338,8 +429,8 @@ describe("GalaxySurvey guided flow", () => {
     await flushPromises();
 
     expect(sectorStoreState.loadSectors).toHaveBeenCalledWith("gal-1");
-    expect(wrapper.get("[data-test='selected-ring']").text()).toBe("2");
-    expect(toastInfo).toHaveBeenCalledWith("Frontier advanced to ring 2.");
+    expect(wrapper.get("[data-test='selected-ring']").text()).toBe("1");
+    expect(toastInfo).not.toHaveBeenCalled();
     expect(toastSuccess).toHaveBeenCalledWith("Ring 1 processed: 1 sectors and 0 systems.");
     expect(runtimeErrors).toEqual([]);
   });

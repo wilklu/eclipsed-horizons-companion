@@ -79,12 +79,25 @@
 
     <div class="survey-content">
       <!-- Error Message Display -->
-      <div v-if="errorMessage" class="error-banner">
+      <div v-if="errorMessage" class="error-banner" role="alert" aria-live="assertive">
         <div class="error-content">
           <span class="error-icon">⚠️</span>
           <span>{{ errorMessage }}</span>
-          <button @click="clearError" class="error-close">✕</button>
+          <button @click="clearError" class="error-close" aria-label="Dismiss error">✕</button>
         </div>
+      </div>
+
+      <!-- Non-blocking workspace warm-up status strip (Items 1 & 2) -->
+      <div
+        v-if="galaxySurveyStatusVisible"
+        class="galaxy-survey-status-strip"
+        role="status"
+        aria-live="polite"
+        aria-atomic="false"
+      >
+        <span class="status-strip-spinner" aria-hidden="true"></span>
+        <span class="status-strip-message">{{ galaxySurveyStatusLabel }}</span>
+        <span class="status-strip-phase">{{ galaxySurveyStatusPhase }}</span>
       </div>
 
       <div class="galaxy-selector-bar">
@@ -95,6 +108,7 @@
             v-model="selectedGalaxyId"
             class="galaxy-selector-select"
             :disabled="!galaxies.length"
+            :aria-busy="galaxySurveyWarmupPending ? 'true' : 'false'"
           >
             <option v-if="!galaxies.length" value="">No galaxies available</option>
             <option v-for="galaxy in galaxies" :key="galaxy.galaxyId" :value="galaxy.galaxyId">
@@ -115,6 +129,21 @@
           <button v-if="currentGalaxy" type="button" class="btn btn-secondary" @click="exportGalaxy">📤 Export</button>
           <button type="button" class="btn btn-primary" @click="showNewGalaxyForm = true">➕ Create Galaxy</button>
           <button type="button" class="btn btn-secondary" @click="showImportForm = true">📥 Import Galaxy</button>
+          <!-- Item 6: Performance mode toggle -->
+          <button
+            v-if="currentGalaxy && (isGeneratingSectors || isGeneratingFullGalaxy)"
+            type="button"
+            class="btn btn-secondary"
+            :class="{ 'btn-active': galaxySurveyPerformanceMode }"
+            :title="
+              galaxySurveyPerformanceMode
+                ? 'Performance mode: fewer UI updates, faster generation. Click to switch to Balanced.'
+                : 'Balanced mode: smoother UI updates. Click to switch to Performance.'
+            "
+            @click="galaxySurveyPerformanceMode = !galaxySurveyPerformanceMode"
+          >
+            {{ galaxySurveyPerformanceMode ? "⚡ Perf" : "⚖️ Balanced" }}
+          </button>
         </div>
       </div>
 
@@ -383,11 +412,11 @@
           </section>
         </div>
 
-        <!-- Galaxy Sector Density Map -->
+        <!-- Galaxy Map Preview -->
         <div v-if="galaxyMapPreview" class="galaxy-density-map-wrapper">
-          <h3>🌌 Sector Density Map</h3>
+          <h3>{{ galaxyMapPreview.title }}</h3>
           <p class="density-map-hint">
-            Each tile = one sector (32×40 pc). Color = stellar density — dark = sparse, bright = dense.
+            {{ galaxyMapPreview.description }}
             <template v-if="currentGalaxy.type?.includes('Spiral')">
               Elevated arm-shaped zones show the spiral structure.
             </template>
@@ -440,7 +469,23 @@
                 {{ option.label }}
               </option>
             </select>
-            <span class="density-map-toolbar-meta">{{ galaxyMapVisibleTileCount.toLocaleString() }} tiles in view</span>
+            <span class="density-map-toolbar-label">Layers</span>
+            <div class="density-map-zoom-toggle" role="group" aria-label="Galaxy map layer mode">
+              <button
+                v-for="option in galaxyMapLayerOptions"
+                :key="option.id"
+                type="button"
+                class="density-map-zoom-btn density-map-layer-toggle"
+                :class="{ active: galaxyMapLayerMode === option.id }"
+                @click="galaxyMapLayerMode = option.id"
+              >
+                {{ option.label }}
+              </button>
+            </div>
+            <span class="density-map-toolbar-meta">
+              {{ galaxyMapVisibleTileCount.toLocaleString() }}
+              {{ galaxyMapPreview?.isDownscaledPreview ? "atlas cells" : "tiles" }} in view
+            </span>
             <div class="density-map-search">
               <input
                 v-model.trim="galaxyMapSearch"
@@ -448,6 +493,63 @@
                 type="search"
                 placeholder="Search sector id, name, or grid"
               />
+            </div>
+            <button
+              v-if="selectedGalaxyMapSectorRecord?.sectorId"
+              type="button"
+              class="density-map-help-toggle"
+              :title="
+                bookmarkedSectorIds.has(selectedGalaxyMapSectorRecord.sectorId)
+                  ? 'Remove bookmark'
+                  : 'Bookmark selected sector'
+              "
+              @click="toggleSectorBookmark(selectedGalaxyMapSectorRecord.sectorId)"
+            >
+              {{ bookmarkedSectorIds.has(selectedGalaxyMapSectorRecord.sectorId) ? "★ Bookmarked" : "☆ Bookmark" }}
+            </button>
+            <button
+              type="button"
+              class="density-map-help-toggle"
+              :aria-expanded="galaxyMapShowHelp ? 'true' : 'false'"
+              @click="toggleGalaxyMapHelp()"
+            >
+              Map Controls
+            </button>
+            <!-- Item 7: Jump to ring input -->
+            <div class="density-map-jump-ring" role="group" aria-label="Jump to ring">
+              <input
+                v-model.number="galaxyMapJumpRingInput"
+                class="density-map-jump-ring-input"
+                type="number"
+                min="0"
+                placeholder="Ring #"
+                aria-label="Ring number to jump to"
+                @keydown.enter="jumpToRingFromInput()"
+              />
+              <button
+                type="button"
+                class="density-map-jump-ring-btn"
+                :disabled="galaxyMapJumpRingInput === null || galaxyMapJumpRingInput === ''"
+                aria-label="Jump to ring"
+                @click="jumpToRingFromInput()"
+              >
+                ↗
+              </button>
+            </div>
+          </div>
+          <div v-if="galaxyMapShowHelp" class="density-map-help-panel" role="note" aria-label="Galaxy map controls">
+            <div class="density-map-help-section">
+              <span class="density-map-help-heading">Mouse</span>
+              <p>
+                Scroll to zoom, drag while zoomed in to pan, and click any atlas cell or persisted sector to inspect it.
+              </p>
+            </div>
+            <div class="density-map-help-section">
+              <span class="density-map-help-heading">Keyboard</span>
+              <p>
+                Z zooms, L changes layers, R cycles ring filters, F jumps to frontier, H toggles help, Esc clears.
+                <strong>Ctrl+B</strong> opens bookmarks with ↑↓ navigation.
+              </p>
             </div>
           </div>
           <div v-if="galaxyMapFrontierBanner" class="frontier-banner">
@@ -500,22 +602,27 @@
               :viewBox="galaxyMapPreview.viewBox"
               :width="galaxyMapPreview.svgSize"
               :height="galaxyMapPreview.svgSize"
+              role="img"
+              :aria-label="currentGalaxy ? `Galaxy map for ${currentGalaxy.name}` : 'Galaxy map'"
+              :aria-busy="galaxySurveyWarmupPending ? 'true' : 'false'"
             >
               <rect x="0" y="0" :width="galaxyMapPreview.svgSize" :height="galaxyMapPreview.svgSize" fill="#020209" />
               <rect
                 v-for="tile in galaxyMapRenderedTiles"
                 :key="tile.id"
-                :x="tile.px - galaxyMapPreview.renderTileHalf"
-                :y="tile.py - galaxyMapPreview.renderTileHalf"
-                :width="galaxyMapPreview.renderTileSize"
-                :height="galaxyMapPreview.renderTileSize"
+                :x="tile.renderX"
+                :y="tile.renderY"
+                :width="tile.renderWidth"
+                :height="tile.renderHeight"
                 :fill="tile.renderFill"
                 :opacity="tile.renderOpacity"
                 class="density-map-tile"
                 :class="{
                   'density-map-tile--active': selectedGalaxyMapTileId === tile.id,
                   'density-map-tile--persisted': tile.persisted,
+                  'density-map-tile--atlas': tile.kind === 'atlas',
                   'density-map-tile--dimmed': !tile.matchesFilter,
+                  'density-map-tile--selected-ring': tile.isSelectedRing,
                   'density-map-tile--frontier': tile.isFrontierRing,
                 }"
                 rx="1"
@@ -543,6 +650,105 @@
                 opacity="0.8"
               />
             </svg>
+
+            <!-- Compact mini-map panel (Item 9) -->
+            <div v-if="galaxyMapPreview && miniMapRingMetrics.length" class="galaxy-mini-map-panel">
+              <div class="galaxy-mini-map-header">
+                <span class="galaxy-mini-map-title">Rings</span>
+                <button
+                  type="button"
+                  class="galaxy-mini-map-toggle-labels"
+                  :title="miniMapShowRingLabels ? 'Hide ring labels' : 'Show ring labels'"
+                  @click="miniMapShowRingLabels = !miniMapShowRingLabels"
+                  aria-label="Toggle mini-map ring labels"
+                >
+                  {{ miniMapShowRingLabels ? "•" : "○" }}
+                </button>
+              </div>
+              <svg
+                class="galaxy-mini-map-svg"
+                :width="miniMapDimensions.size"
+                :height="miniMapDimensions.size"
+                role="img"
+                aria-label="Galaxy ring mini-map"
+              >
+                <!-- Concentric ring guide circles -->
+                <circle
+                  v-for="ring in miniMapRingMetrics"
+                  :key="`guide-${ring.ring}`"
+                  :cx="miniMapDimensions.centerX"
+                  :cy="miniMapDimensions.centerY"
+                  :r="ring.radius * miniMapDimensions.scale"
+                  class="galaxy-mini-map-ring-guide"
+                  :title="`Ring ${ring.ring} — ${ring.tileCount} tiles (${ring.persistedCount} persisted)`"
+                />
+
+                <!-- Ring zones (clickable) -->
+                <circle
+                  v-for="ring in miniMapRingMetrics"
+                  :key="`ring-${ring.ring}`"
+                  :cx="miniMapDimensions.centerX"
+                  :cy="miniMapDimensions.centerY"
+                  :r="ring.radius * miniMapDimensions.scale"
+                  class="galaxy-mini-map-ring-zone"
+                  :class="{
+                    'galaxy-mini-map-ring-zone--frontier': ring.isFrontier,
+                    'galaxy-mini-map-ring-zone--highlighted': ring.isHighlighted,
+                    'galaxy-mini-map-ring-zone--empty': ring.persistedCount === 0,
+                  }"
+                  @click="focusGalaxyMapRing(ring.ring, { zoom: true })"
+                  @keydown.enter="focusGalaxyMapRing(ring.ring, { zoom: true })"
+                  tabindex="0"
+                  :title="`Ring ${ring.ring}: ${ring.tileCount} tiles (${ring.persistedCount} persisted) - Click to focus`"
+                />
+
+                <!-- Center point indicator -->
+                <circle
+                  :cx="miniMapDimensions.centerX"
+                  :cy="miniMapDimensions.centerY"
+                  r="2"
+                  class="galaxy-mini-map-center"
+                />
+              </svg>
+              <div v-if="miniMapShowRingLabels" class="galaxy-mini-map-legend">
+                <span class="galaxy-mini-map-legend-item galaxy-mini-map-legend-frontier">Frontier</span>
+                <span class="galaxy-mini-map-legend-item galaxy-mini-map-legend-highlight">Selected</span>
+              </div>
+            </div>
+
+            <!-- Bookmarks dropdown menu (Item 8 - keyboard navigation) -->
+            <div v-if="showBookmarkDropdown && bookmarkedSectorRecords.length" class="galaxy-bookmarks-dropdown">
+              <div class="galaxy-bookmarks-header">
+                <span class="galaxy-bookmarks-title">{{ bookmarkedSectorRecords.length }} Bookmarks</span>
+                <button
+                  type="button"
+                  class="galaxy-bookmarks-close"
+                  @click="showBookmarkDropdown = false"
+                  aria-label="Close bookmarks"
+                >
+                  ✕
+                </button>
+              </div>
+              <div class="galaxy-bookmarks-list">
+                <button
+                  v-for="(sector, index) in bookmarkedSectorRecords"
+                  :key="sector.sectorId"
+                  type="button"
+                  class="galaxy-bookmarks-item"
+                  :class="{ active: bookmarkNavigationIndex === index }"
+                  @click="jumpToBookmark(sector.sectorId)"
+                  @keydown.enter="jumpToBookmark(sector.sectorId)"
+                >
+                  <span class="galaxy-bookmarks-star">★</span>
+                  <span class="galaxy-bookmarks-name">{{ sector.name || sector.sectorId }}</span>
+                  <span class="galaxy-bookmarks-grid"
+                    >{{ sector.metadata?.gridX || sector.x }},{{ sector.metadata?.gridY || sector.y }}</span
+                  >
+                </button>
+              </div>
+              <div class="galaxy-bookmarks-hint">↑↓ to navigate · Enter to select · Esc to close</div>
+            </div>
+
             <p class="density-map-gesture-hint">
               Scroll to zoom toward or away from the galactic center. Drag while zoomed in to pan across the map.
             </p>
@@ -558,6 +764,28 @@
                 />
               </div>
               <span class="legend-label">{{ galaxyMapLegendEntries.map((entry) => entry.label).join(" · ") }}</span>
+            </div>
+            <div class="density-map-layer-key">
+              <span class="density-map-layer-chip">
+                <span class="density-map-layer-chip-swatch density-map-layer-chip-swatch--atlas"></span>
+                Atlas Cell
+              </span>
+              <span class="density-map-layer-chip">
+                <span class="density-map-layer-chip-swatch density-map-layer-chip-swatch--sector"></span>
+                Persisted Sector
+              </span>
+            </div>
+            <div class="density-map-status-row">
+              <div v-if="highlightedRingBadgeLabel" class="density-map-ring-badge">
+                <span class="density-map-ring-badge-kicker">Ring</span>
+                <strong>{{ highlightedRingBadgeLabel }}</strong>
+                <button type="button" class="density-map-ring-badge-clear" @click="clearGalaxyMapHighlightedRing">
+                  Clear
+                </button>
+              </div>
+              <div class="density-map-shortcuts">
+                Shortcuts: Z zoom · L layers · R rings · F frontier · H help · Esc clear
+              </div>
             </div>
             <div v-if="galaxySectorSearchResults.length" class="density-map-search-results">
               <button
@@ -575,7 +803,7 @@
             </div>
             <GalaxySurveyMapInspector
               :selectedTile="selectedGalaxyMapTile"
-              :ringTileCount="selectedGalaxyMapRingTiles.length"
+              :ringTileCount="Number(selectedGalaxyMapRingSummary?.layoutCount || 0)"
               :ringPersistedSectors="selectedGalaxyMapRingPersistedSectors"
               :isGeneratingSectors="isGeneratingSectors"
               :isGeneratingFullGalaxy="isGeneratingFullGalaxy"
@@ -606,7 +834,7 @@
           <button
             @click="showSectorGenerateConfirm"
             class="btn btn-info"
-            :disabled="isGeneratingSectors || isGeneratingFullGalaxy"
+            :disabled="isGeneratingSectors || isGeneratingFullGalaxy || galaxySurveyInteractionLocked"
             :title="currentGalaxyGenerateTitle"
           >
             {{ isGeneratingSectors || isGeneratingFullGalaxy ? "Generating…" : currentGalaxyGenerateLabel }}
@@ -638,10 +866,32 @@
               {{ generationCancelRequested ? "Cancel Requested" : "Cancel After Current Sector" }}
             </button>
           </div>
-          <div class="progress-bar generation-progress-bar">
+          <div
+            class="progress-bar generation-progress-bar"
+            role="progressbar"
+            :aria-valuenow="generationProgress.current"
+            aria-valuemin="0"
+            :aria-valuemax="generationProgress.total"
+            :aria-label="generationProgress.label"
+          >
             <div class="progress-fill" :style="{ width: generationProgressPercent + '%' }">
               {{ generationProgressPercent }}%
             </div>
+          </div>
+          <!-- Item 4: Resume checkpoint button -->
+          <div v-if="generationRingCheckpoint" class="generation-resume-strip" role="status" aria-live="polite">
+            <span class="generation-resume-label">⏸ Last checkpoint: ring {{ generationRingCheckpoint.ring }}</span>
+            <button
+              type="button"
+              class="btn btn-secondary btn-sm"
+              :disabled="isGeneratingSectors || isGeneratingFullGalaxy"
+              @click="resumeGenerationFromCheckpoint()"
+            >
+              ▶ Resume from ring {{ generationRingCheckpoint.ring + 1 }}
+            </button>
+            <button type="button" class="btn btn-ghost btn-sm" @click="clearGenerationRingCheckpoint()">
+              ✕ Discard
+            </button>
           </div>
         </div>
       </div>
@@ -996,7 +1246,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watchEffect, watch, nextTick } from "vue";
+import { ref, computed, onMounted, onBeforeUnmount, watchEffect, watch, nextTick } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import { useGalaxyStore } from "../../stores/galaxyStore.js";
 import { useSectorStore } from "../../stores/sectorStore.js";
@@ -1005,6 +1255,7 @@ import { createSectorsBatch, deleteSector, getSectorStats, upsertSector } from "
 import { calculateHexOccupancyProbability } from "../../utils/sectorGeneration.js";
 import { generatePrimaryStar } from "../../utils/primaryStarGenerator.js";
 import { buildHexStarTypeMetadata, normalizeHexStarTypeRecord } from "../../utils/systemStarMetadata.js";
+import { generateGalaxySectorBatch } from "../../utils/galaxyGenerationBatch.js";
 import {
   buildGalaxyExportPayload,
   normalizeSectorStats as normalizeGalaxySectorStats,
@@ -1029,12 +1280,15 @@ import { generateGalaxyName, generatePhonotacticName } from "../../utils/nameGen
 import { usePreferencesStore } from "../../stores/preferencesStore.js";
 import { useArchiveTransfer } from "../../composables/useArchiveTransfer.js";
 import {
+  GalaxySurveyGenerationCancelledError,
   isGalaxySurveyGenerationCancelledError,
   useGalaxySurveyGenerationController,
 } from "../../composables/useGalaxySurveyGenerationController.js";
 import {
   estimateGalaxySectorLayoutCount,
+  estimateGalaxySectorFootprint,
   generateGalaxySectorLayout,
+  generateGalaxySectorLayoutWindow,
   iterateGalaxySectorLayout,
   iterateGalaxySectorLayoutByRing,
 } from "../../utils/sectorLayoutGenerator.js";
@@ -1084,8 +1338,11 @@ const galaxyMapZoomLevel = ref(persistedGalaxySurveyView.zoomLevel);
 const galaxyMapOverlayMode = ref(persistedGalaxySurveyView.overlayMode);
 const galaxyMapStatusFilter = ref(persistedGalaxySurveyView.statusFilter);
 const galaxyMapRingFilter = ref(persistedGalaxySurveyView.ringFilter);
+const galaxyMapLayerMode = ref(persistedGalaxySurveyView.layerMode);
 const galaxyMapSearch = ref("");
 const selectedGalaxyMapTileId = ref("");
+const galaxyMapHighlightedRing = ref(null);
+const galaxyMapShowHelp = ref(false);
 const galaxyMapPan = ref({ x: 0, y: 0 });
 const galaxyMapPanState = ref({
   isDragging: false,
@@ -1182,6 +1439,205 @@ const galaxyGenerationLedger = computed(() => {
   return ["Galaxy Registry", countLabel, progress.label || "Awaiting generation directive"];
 });
 
+const galaxySurveyWarmupPending = ref(false);
+const galaxySurveyWarmupVisible = ref(false);
+let galaxySurveyWarmupRequestId = 0;
+let galaxySurveyWarmupTimerId = null;
+
+function clearGalaxySurveyWarmupTimer() {
+  if (galaxySurveyWarmupTimerId !== null) {
+    window.clearTimeout(galaxySurveyWarmupTimerId);
+    galaxySurveyWarmupTimerId = null;
+  }
+}
+
+function scheduleGalaxySurveyWarmupOverlay() {
+  clearGalaxySurveyWarmupTimer();
+  galaxySurveyWarmupVisible.value = false;
+  galaxySurveyWarmupTimerId = window.setTimeout(() => {
+    galaxySurveyWarmupVisible.value = galaxySurveyWarmupPending.value;
+    galaxySurveyWarmupTimerId = null;
+  }, 180);
+}
+
+function hideGalaxySurveyWarmupOverlay() {
+  clearGalaxySurveyWarmupTimer();
+  galaxySurveyWarmupVisible.value = false;
+}
+
+const galaxySurveyWarmupOverlayVisible = computed(
+  () =>
+    galaxySurveyWarmupVisible.value &&
+    !isLoading.value &&
+    !importInProgress.value &&
+    !generationProgress.value.active &&
+    !Boolean(galaxyExportOverlayProps?.isVisible),
+);
+
+const galaxySurveyWarmupDiagnostics = computed(() => {
+  const rows = [{ label: "Galaxy", value: currentGalaxy.value?.name || currentGalaxy.value?.galaxyId || "Pending" }];
+
+  if (currentGalaxyLayoutCountPending.value) {
+    rows.push({ label: "Footprint", value: "Estimating true-scale layout" });
+  }
+
+  rows.push({
+    label: "Survey Stats",
+    value: isRefreshingSectorStats.value ? "Refreshing persisted metrics" : "Reconciling survey snapshot",
+  });
+
+  return rows;
+});
+
+const galaxySurveyWarmupLedger = computed(() => {
+  const lines = [
+    currentGalaxy.value?.name || currentGalaxy.value?.galaxyId || "Galaxy registry pending",
+    currentGalaxyLayoutCountPending.value ? "Mapping exact sector footprint" : "Footprint cache ready",
+    isRefreshingSectorStats.value ? "Refreshing survey statistics" : "Preparing Galaxy Survey workspace",
+  ];
+
+  return lines;
+});
+
+const galaxySurveyWarmupOverlayProps = computed(() => ({
+  isVisible: galaxySurveyWarmupOverlayVisible.value,
+  context: "galaxy",
+  tone: "sync",
+  kicker: "Survey Command",
+  stateLabel: "WORKSPACE PREP",
+  title: "Preparing Galaxy Survey",
+  message: currentGalaxyLayoutCountPending.value
+    ? "Calculating the true-scale footprint and loading survey state for the selected galaxy."
+    : "Loading survey statistics and restoring the active galaxy workspace.",
+  barLabel: currentGalaxyLayoutCountPending.value ? "Estimating galaxy footprint" : "Mounting galaxy survey workspace",
+  statusCode: "GAL-READY",
+  diagnostics: galaxySurveyWarmupDiagnostics.value,
+  ledger: galaxySurveyWarmupLedger.value,
+}));
+
+// ── Items 1 & 2: Non-blocking status strip (replaces full-page warm-up overlay) ──
+const galaxySurveyStatusPhase = computed(() => {
+  if (!galaxySurveyWarmupPending.value) return null;
+  if (currentGalaxyLayoutCountPending.value) return "Footprint";
+  if (isRefreshingSectorStats.value) return "Stats";
+  return "Finalizing";
+});
+
+const galaxySurveyStatusLabel = computed(() => {
+  const phase = galaxySurveyStatusPhase.value;
+  if (phase === "Footprint") return "Estimating galaxy sector footprint…";
+  if (phase === "Stats") return "Loading survey statistics…";
+  if (phase === "Finalizing") return "Finalizing workspace…";
+  return "";
+});
+
+const galaxySurveyStatusVisible = computed(
+  () =>
+    galaxySurveyWarmupPending.value && !isLoading.value && !importInProgress.value && !generationProgress.value.active,
+);
+
+const galaxySurveyInteractionLocked = computed(
+  () => galaxySurveyWarmupPending.value && !generationProgress.value.active && !importInProgress.value,
+);
+
+// ── Item 4: Cancel + resume by ring checkpoint ──
+const generationRingCheckpoint = ref(null); // { ring, mode, galaxyId } | null
+
+function clearGenerationRingCheckpoint() {
+  generationRingCheckpoint.value = null;
+}
+
+async function resumeGenerationFromCheckpoint() {
+  const checkpoint = generationRingCheckpoint.value;
+  if (!checkpoint || !currentGalaxy.value) return;
+  const { ring, mode } = checkpoint;
+  if (mode === "presence") {
+    galaxySurveyGenerationMode.value = "presence";
+  } else if (mode === "systems") {
+    galaxySurveyGenerationMode.value = "systems";
+  }
+  clearGenerationRingCheckpoint();
+  await runGuidedGenerationResumeAction({ mode, startFromRing: ring });
+}
+
+// ── Item 6: Performance mode toggle ──
+const galaxySurveyPerformanceMode = ref(false);
+const effectiveYieldStep = computed(() => (galaxySurveyPerformanceMode.value ? 20 : GENERATION_BROWSER_YIELD_STEP));
+const effectiveProgressStep = computed(() => (galaxySurveyPerformanceMode.value ? 100 : GENERATION_PROGRESS_STEP));
+
+// ── Item 7: Jump-to-ring input ──
+const galaxyMapJumpRingInput = ref(null);
+
+function jumpToRingFromInput() {
+  const ring = Number(galaxyMapJumpRingInput.value);
+  if (!Number.isFinite(ring) || ring < 0) return;
+  focusGalaxyMapRing(ring, { zoom: true });
+  galaxyMapJumpRingInput.value = null;
+}
+
+// ── Item 7: Bookmarks ──
+function loadBookmarkedSectorIds() {
+  try {
+    const raw = localStorage.getItem("galaxy-survey-bookmarks");
+    return raw ? new Set(JSON.parse(raw)) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+const bookmarkedSectorIds = ref(loadBookmarkedSectorIds());
+
+// Keyboard navigation for bookmarks/jump-ring
+const bookmarkNavigationIndex = ref(-1);
+const showBookmarkDropdown = ref(false);
+const miniMapZoomLevel = ref("fit");
+const miniMapShowRingLabels = ref(true);
+
+function toggleSectorBookmark(sectorId) {
+  const next = new Set(bookmarkedSectorIds.value);
+  if (next.has(sectorId)) {
+    next.delete(sectorId);
+  } else {
+    next.add(sectorId);
+  }
+  bookmarkedSectorIds.value = next;
+  try {
+    localStorage.setItem("galaxy-survey-bookmarks", JSON.stringify(Array.from(next)));
+  } catch {
+    // localStorage quota — bookmarks are best-effort
+  }
+}
+
+const bookmarkedSectorRecords = computed(() => {
+  if (!currentGalaxySectors.value) return [];
+  return currentGalaxySectors.value.filter((sector) => bookmarkedSectorIds.value.has(sector.sectorId));
+});
+
+function navigateBookmarks(direction) {
+  const bookmarks = bookmarkedSectorRecords.value;
+  if (!bookmarks.length) return;
+
+  showBookmarkDropdown.value = true;
+  let nextIndex = bookmarkNavigationIndex.value + direction;
+  if (nextIndex < 0) nextIndex = bookmarks.length - 1;
+  if (nextIndex >= bookmarks.length) nextIndex = 0;
+  bookmarkNavigationIndex.value = nextIndex;
+
+  const sector = bookmarks[nextIndex];
+  if (sector) {
+    focusGalaxyMapTile(`${sector.x}_${sector.y}`, { zoom: true });
+  }
+}
+
+function jumpToBookmark(sectorId) {
+  const sector = currentGalaxySectors.value?.find((s) => s.sectorId === sectorId);
+  if (sector) {
+    focusGalaxyMapTile(`${sector.x}_${sector.y}`, { zoom: true });
+  }
+  showBookmarkDropdown.value = false;
+  bookmarkNavigationIndex.value = -1;
+}
+
 const currentGalaxySectorStats = ref(normalizeGalaxySectorStats());
 
 const currentGalaxyGenerateLabel = computed(
@@ -1206,9 +1662,81 @@ const currentGalaxyGenerateTitle = computed(
     })[galaxySurveyGenerationMode.value] || "Generate sectors for this galaxy.",
 );
 
-const currentGalaxyLayoutCount = computed(() =>
-  currentGalaxy.value ? estimateGalaxySectorLayoutCount(currentGalaxy.value, { scale: "true" }) : 0,
-);
+const galaxyLayoutCountCache = new Map();
+const currentGalaxyLayoutCount = ref(0);
+const currentGalaxyLayoutCountPending = ref(false);
+let currentGalaxyLayoutCountRequestId = 0;
+
+function buildGalaxyLayoutCountCacheKey(galaxy) {
+  if (!galaxy) return "";
+
+  return JSON.stringify({
+    galaxyId: galaxy.galaxyId || null,
+    name: galaxy.name || null,
+    type: galaxy.type || null,
+    diameterInParsecs: galaxy?.galaxyDimensions?.diameterInParsecs ?? galaxy?.metadata?.diameterInParsecs ?? null,
+    bulgeRadius: galaxy?.morphology?.bulgeRadius ?? null,
+    diskThickness: galaxy?.morphology?.diskThickness ?? null,
+    coreDensity: galaxy?.morphology?.coreDensity ?? null,
+    armCount: galaxy?.morphology?.armCount ?? null,
+  });
+}
+
+function yieldToBrowser() {
+  return new Promise((resolve) => {
+    setTimeout(resolve, 0);
+  });
+}
+
+async function estimateGalaxyLayoutCountDeferred(galaxy, { chunkSize = 2000 } = {}) {
+  let count = 0;
+  let processed = 0;
+
+  for (const _sector of iterateGalaxySectorLayout(galaxy, { scale: "true" })) {
+    count += 1;
+    processed += 1;
+    if (processed % chunkSize === 0) {
+      await yieldToBrowser();
+    }
+  }
+
+  return count;
+}
+
+async function refreshCurrentGalaxyLayoutCount(galaxy) {
+  const requestId = ++currentGalaxyLayoutCountRequestId;
+
+  if (!galaxy) {
+    currentGalaxyLayoutCount.value = 0;
+    currentGalaxyLayoutCountPending.value = false;
+    return;
+  }
+
+  const cacheKey = buildGalaxyLayoutCountCacheKey(galaxy);
+  if (cacheKey && galaxyLayoutCountCache.has(cacheKey)) {
+    currentGalaxyLayoutCount.value = galaxyLayoutCountCache.get(cacheKey) || 0;
+    currentGalaxyLayoutCountPending.value = false;
+    return;
+  }
+
+  currentGalaxyLayoutCountPending.value = true;
+  await yieldToBrowser();
+
+  try {
+    const count = await estimateGalaxyLayoutCountDeferred(galaxy);
+    if (requestId !== currentGalaxyLayoutCountRequestId) {
+      return;
+    }
+    if (cacheKey) {
+      galaxyLayoutCountCache.set(cacheKey, count);
+    }
+    currentGalaxyLayoutCount.value = count;
+  } finally {
+    if (requestId === currentGalaxyLayoutCountRequestId) {
+      currentGalaxyLayoutCountPending.value = false;
+    }
+  }
+}
 
 const currentGalaxyCachedSystemCount = computed(
   () =>
@@ -1219,6 +1747,7 @@ const currentGalaxyCachedSystemCount = computed(
 
 const generationPlannerSummary = computed(() => {
   const totalLayout = currentGalaxyLayoutCount.value;
+  const layoutEstimatePending = currentGalaxyLayoutCountPending.value;
   const namedSectors = currentGalaxySectors.value.length;
   const generatedPresence = Number(currentGalaxySectorStats.value.generatedPresenceSectors || 0);
   const avgObjectsPerSector = Number(currentGalaxySectorStats.value.avgObjectsPerSector || 0);
@@ -1261,24 +1790,28 @@ const generationPlannerSummary = computed(() => {
     warningMessages.push("All layout sectors already have records. This run will mainly normalize naming metadata.");
   }
 
-  const estimatedSectorWrites =
-    mode === "names"
+  const estimatedSectorWrites = layoutEstimatePending
+    ? null
+    : mode === "names"
       ? Math.max(0, totalLayout - namedSectors) || Math.min(totalLayout, Math.max(1, sectorsTouched))
       : Math.max(1, sectorsTouched);
-  const estimatedSystemWrites =
-    mode === "names"
+  const estimatedSystemWrites = layoutEstimatePending
+    ? null
+    : mode === "names"
       ? 0
       : mode === "center"
         ? Math.max(1, Math.round(avgObjectsPerSector || 1))
         : Math.max(0, Math.round(sectorsTouched * avgObjectsPerSector));
-  const estimatedPresenceWrites =
-    mode === "systems"
+  const estimatedPresenceWrites = layoutEstimatePending
+    ? null
+    : mode === "systems"
       ? estimatedSectorWrites
       : mode === "presence" || mode === "expand" || mode === "center"
         ? estimatedSectorWrites
         : 0;
-  const runtimeTone =
-    estimatedSectorWrites > 50000 || estimatedSystemWrites > 500000
+  const runtimeTone = layoutEstimatePending
+    ? "none"
+    : estimatedSectorWrites > 50000 || estimatedSystemWrites > 500000
       ? "heavy"
       : estimatedSectorWrites > 5000 || estimatedSystemWrites > 50000
         ? "moderate"
@@ -1292,31 +1825,42 @@ const generationPlannerSummary = computed(() => {
     heavy: "Heavy",
   }[runtimeTone];
   const forecastRows = [
-    { label: "Sector Writes", value: `${estimatedSectorWrites.toLocaleString()} upserts` },
+    {
+      label: "Sector Writes",
+      value: layoutEstimatePending
+        ? "Estimating layout footprint..."
+        : `${estimatedSectorWrites.toLocaleString()} upserts`,
+    },
     {
       label: "Presence Writes",
-      value:
-        estimatedPresenceWrites > 0
+      value: layoutEstimatePending
+        ? "Waiting for exact footprint"
+        : estimatedPresenceWrites > 0
           ? `${estimatedPresenceWrites.toLocaleString()} metadata updates`
           : "No new presence writes",
     },
     {
       label: "System Rewrites",
-      value:
-        estimatedSystemWrites > 0 ? `~${estimatedSystemWrites.toLocaleString()} cached systems` : "No system rewrites",
+      value: layoutEstimatePending
+        ? "Waiting for exact footprint"
+        : estimatedSystemWrites > 0
+          ? `~${estimatedSystemWrites.toLocaleString()} cached systems`
+          : "No system rewrites",
     },
-    { label: "Likely Runtime", value: runtimeLabel, tone: runtimeTone },
+    { label: "Likely Runtime", value: layoutEstimatePending ? "Estimating" : runtimeLabel, tone: runtimeTone },
   ];
-  const forecastNote =
-    `Forecasts use ${avgObjectsPerSector.toFixed(2)} average objects per surveyed sector and current cached coverage. ` +
-    `Actual writes may vary by ring density and center anomaly seeding.`;
+  const forecastNote = layoutEstimatePending
+    ? "Galaxy Survey is computing the exact true-scale footprint in the background so the page stays responsive."
+    : `Forecasts use ${avgObjectsPerSector.toFixed(2)} average objects per surveyed sector and current cached coverage. Actual writes may vary by ring density and center anomaly seeding.`;
 
   return {
     modeLabel: currentGalaxyGenerateLabel.value,
     actionLabel,
-    layoutCountLabel: totalLayout.toLocaleString(),
-    sectorsTouchedLabel: sectorsTouched.toLocaleString(),
-    namedSectorsLabel: `${namedSectors.toLocaleString()} / ${totalLayout.toLocaleString()}`,
+    layoutCountLabel: layoutEstimatePending ? "Estimating..." : totalLayout.toLocaleString(),
+    sectorsTouchedLabel: layoutEstimatePending && mode !== "center" ? "Estimating..." : sectorsTouched.toLocaleString(),
+    namedSectorsLabel: layoutEstimatePending
+      ? `${namedSectors.toLocaleString()} / Estimating...`
+      : `${namedSectors.toLocaleString()} / ${totalLayout.toLocaleString()}`,
     presenceCoverageLabel: sectorGenerationCoverageLabel.value,
     cachedSystemsLabel: currentGalaxyCachedSystemCount.value.toLocaleString(),
     writeProfile,
@@ -1939,6 +2483,23 @@ async function persistCachedSectorStats(galaxy, stats) {
   await galaxyStore.updateGalaxy(galaxy.galaxyId, payload);
 }
 
+async function persistRunningSectorStats(galaxy, { processed, populatedSectorCount, totalSystems }) {
+  if (!galaxy?.galaxyId || !processed) return;
+
+  const stats = normalizeSectorStats({
+    totalSectors: processed,
+    populatedSectors: populatedSectorCount,
+    generatedPresenceSectors: processed,
+    emptySectors: Math.max(0, processed - populatedSectorCount),
+    totalObjects: totalSystems,
+    avgObjectsPerSector: processed > 0 ? totalSystems / processed : 0,
+    lastUpdated: new Date().toISOString(),
+  });
+
+  await persistCachedSectorStats(galaxy, stats);
+  currentGalaxySectorStats.value = stats;
+}
+
 async function loadCurrentGalaxySectorStats({
   galaxyId = currentGalaxy.value?.galaxyId,
   silent = false,
@@ -2055,6 +2616,12 @@ const GALAXY_MAP_OVERLAY_OPTIONS = Object.freeze([
   { id: "frontier", label: "Frontier" },
 ]);
 
+const GALAXY_MAP_LAYER_OPTIONS = Object.freeze([
+  { id: "combined", label: "Atlas + Sectors" },
+  { id: "persisted-only", label: "Sectors Only" },
+  { id: "atlas-only", label: "Atlas Only" },
+]);
+
 const GALAXY_MAP_STATUS_FILTER_OPTIONS = Object.freeze([
   { id: "all", label: "All Tiles" },
   { id: "persisted", label: "Persisted Only" },
@@ -2077,13 +2644,166 @@ const GALAXY_MAP_STATUS_COLORS = Object.freeze({
 
 const galaxyMapZoomOptions = computed(() => GALAXY_MAP_ZOOM_OPTIONS);
 const galaxyMapOverlayOptions = computed(() => GALAXY_MAP_OVERLAY_OPTIONS);
+const galaxyMapLayerOptions = computed(() => GALAXY_MAP_LAYER_OPTIONS);
 const galaxyMapStatusFilterOptions = computed(() => GALAXY_MAP_STATUS_FILTER_OPTIONS);
+
+const highlightedRingBadgeLabel = computed(() => {
+  const ring = Number(galaxyMapHighlightedRing.value);
+  if (!Number.isFinite(ring)) {
+    return "";
+  }
+
+  const ringSummary =
+    generationGuidance.value?.ringSummaries?.find((summary) => Number(summary?.ring) === ring) ?? null;
+  const layoutCount = Number(ringSummary?.layoutCount || 0);
+  const persistedCount = Number(ringSummary?.persistedCount || 0);
+  return `Ring ${ring} highlighted${layoutCount > 0 ? ` · ${persistedCount.toLocaleString()} / ${layoutCount.toLocaleString()} persisted` : ""}`;
+});
+
+function cycleOptionValue(options, currentValue, direction = 1) {
+  const list = Array.isArray(options) ? options : [];
+  if (!list.length) {
+    return currentValue;
+  }
+
+  const currentIndex = list.findIndex((option) => option.id === currentValue);
+  const safeIndex = currentIndex >= 0 ? currentIndex : 0;
+  const nextIndex = (safeIndex + direction + list.length) % list.length;
+  return list[nextIndex]?.id ?? currentValue;
+}
 
 function stepGalaxyMapZoom(direction) {
   const currentIndex = GALAXY_MAP_ZOOM_OPTIONS.findIndex((option) => option.id === galaxyMapZoomLevel.value);
   const safeIndex = currentIndex >= 0 ? currentIndex : 1;
   const nextIndex = Math.max(0, Math.min(GALAXY_MAP_ZOOM_OPTIONS.length - 1, safeIndex + direction));
   galaxyMapZoomLevel.value = GALAXY_MAP_ZOOM_OPTIONS[nextIndex].id;
+}
+
+function cycleGalaxyMapLayerMode(direction = 1) {
+  galaxyMapLayerMode.value = cycleOptionValue(GALAXY_MAP_LAYER_OPTIONS, galaxyMapLayerMode.value, direction);
+}
+
+function cycleGalaxyMapRingFilter(direction = 1) {
+  galaxyMapRingFilter.value = cycleOptionValue(galaxyMapRingFilterOptions.value, galaxyMapRingFilter.value, direction);
+}
+
+function focusCurrentFrontierRing({ zoom = true } = {}) {
+  const frontierRing = Number(generationGuidance.value?.recommendation?.ring);
+  if (!Number.isFinite(frontierRing)) {
+    return false;
+  }
+
+  return focusGalaxyMapRing(frontierRing, { zoom });
+}
+
+function toggleGalaxyMapHelp(force = null) {
+  galaxyMapShowHelp.value = typeof force === "boolean" ? force : !galaxyMapShowHelp.value;
+}
+
+function clearGalaxyMapHighlightedRing() {
+  galaxyMapHighlightedRing.value = null;
+}
+
+function shouldIgnoreGalaxyMapShortcut(event) {
+  if (!event || event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey) {
+    return true;
+  }
+
+  const target = event.target;
+  const tagName = String(target?.tagName || "").toLowerCase();
+  if (target?.isContentEditable) {
+    return true;
+  }
+
+  return tagName === "input" || tagName === "textarea" || tagName === "select" || tagName === "button";
+}
+
+function handleGalaxyMapKeydown(event) {
+  if (shouldIgnoreGalaxyMapShortcut(event)) {
+    return;
+  }
+
+  const key = String(event.key || "").toLowerCase();
+
+  // Ctrl+B: Toggle bookmark dropdown
+  if ((event.ctrlKey || event.metaKey) && key === "b") {
+    showBookmarkDropdown.value = !showBookmarkDropdown.value;
+    if (showBookmarkDropdown.value) {
+      bookmarkNavigationIndex.value = -1;
+    }
+    event.preventDefault();
+    return;
+  }
+
+  // Arrow Up/Down: Navigate bookmarks when dropdown is open
+  if (showBookmarkDropdown.value && (key === "arrowup" || key === "arrowdown")) {
+    navigateBookmarks(key === "arrowdown" ? 1 : -1);
+    event.preventDefault();
+    return;
+  }
+
+  // Enter: Confirm bookmark selection
+  if (showBookmarkDropdown.value && key === "enter") {
+    const bookmarks = bookmarkedSectorRecords.value;
+    if (bookmarks.length > 0 && bookmarkNavigationIndex.value >= 0) {
+      jumpToBookmark(bookmarks[bookmarkNavigationIndex.value].sectorId);
+    }
+    event.preventDefault();
+    return;
+  }
+
+  // Escape: Close bookmark dropdown
+  if (showBookmarkDropdown.value && key === "escape") {
+    showBookmarkDropdown.value = false;
+    bookmarkNavigationIndex.value = -1;
+    event.preventDefault();
+    return;
+  }
+
+  if (key === "z") {
+    stepGalaxyMapZoom(event.shiftKey ? -1 : 1);
+    event.preventDefault();
+    return;
+  }
+
+  if (key === "l") {
+    cycleGalaxyMapLayerMode(event.shiftKey ? -1 : 1);
+    event.preventDefault();
+    return;
+  }
+
+  if (key === "r") {
+    cycleGalaxyMapRingFilter(event.shiftKey ? -1 : 1);
+    event.preventDefault();
+    return;
+  }
+
+  if (key === "f") {
+    if (focusCurrentFrontierRing({ zoom: true })) {
+      event.preventDefault();
+    }
+    return;
+  }
+
+  if (key === "h" || key === "?") {
+    toggleGalaxyMapHelp();
+    event.preventDefault();
+    return;
+  }
+
+  if (key === "escape") {
+    const hadRing = Number.isFinite(Number(galaxyMapHighlightedRing.value));
+    const hadHelp = galaxyMapShowHelp.value;
+    if (hadRing) {
+      clearGalaxyMapHighlightedRing();
+    }
+    if (hadHelp) {
+      toggleGalaxyMapHelp(false);
+    }
+    if (hadRing || hadHelp) {
+      event.preventDefault();
+    }
+  }
 }
 
 function handleGalaxyMapWheel(event) {
@@ -2144,12 +2864,138 @@ function endGalaxyMapPan(event) {
 const SECTOR_WIDTH_PC = 32;
 const SECTOR_HEIGHT_PC = 40;
 
+function resolveGalaxyFootprintBounds(footprint) {
+  const width = Math.max(1, Number(footprint?.width) || 1);
+  const height = Math.max(1, Number(footprint?.height) || 1);
+  const minGridX = -Math.floor(width / 2);
+  const minGridY = -Math.floor(height / 2);
+
+  return {
+    width,
+    height,
+    minGridX,
+    minGridY,
+    maxGridX: minGridX + width - 1,
+    maxGridY: minGridY + height - 1,
+  };
+}
+
+function countGridPointsWithinSquare(radius, bounds) {
+  if (radius < 0) {
+    return 0;
+  }
+
+  const xMin = Math.max(bounds.minGridX, -radius);
+  const xMax = Math.min(bounds.maxGridX, radius);
+  const yMin = Math.max(bounds.minGridY, -radius);
+  const yMax = Math.min(bounds.maxGridY, radius);
+
+  if (xMin > xMax || yMin > yMax) {
+    return 0;
+  }
+
+  return (xMax - xMin + 1) * (yMax - yMin + 1);
+}
+
+function countGalaxyRingTiles(radius, bounds) {
+  return countGridPointsWithinSquare(radius, bounds) - countGridPointsWithinSquare(radius - 1, bounds);
+}
+
+function buildGalaxyRingSummaries({ footprint, persistedSectors = [] } = {}) {
+  const bounds = resolveGalaxyFootprintBounds(footprint);
+  const maxRing = Math.max(
+    Math.abs(bounds.minGridX),
+    Math.abs(bounds.maxGridX),
+    Math.abs(bounds.minGridY),
+    Math.abs(bounds.maxGridY),
+  );
+
+  const persistedByRing = new Map();
+  for (const sector of Array.isArray(persistedSectors) ? persistedSectors : []) {
+    const gridX = Number(sector?.metadata?.gridX ?? sector?.coordinates?.x ?? sector?.x ?? 0);
+    const gridY = Number(sector?.metadata?.gridY ?? sector?.coordinates?.y ?? sector?.y ?? 0);
+    const ring = Math.max(Math.abs(gridX), Math.abs(gridY));
+    const current = persistedByRing.get(ring) || {
+      persistedCount: 0,
+      presenceCompleteCount: 0,
+      systemsCompleteCount: 0,
+    };
+
+    current.persistedCount += 1;
+
+    const hasPresence = Boolean(sector?.metadata?.hexPresenceGenerated);
+    if (hasPresence) {
+      current.presenceCompleteCount += 1;
+    }
+
+    const occupiedHexCount = Array.isArray(sector?.metadata?.occupiedHexes) ? sector.metadata.occupiedHexes.length : 0;
+    const typedHexCount = sector?.metadata?.hexStarTypes ? Object.keys(sector.metadata.hexStarTypes).length : 0;
+    if (hasPresence && typedHexCount >= occupiedHexCount) {
+      current.systemsCompleteCount += 1;
+    }
+
+    persistedByRing.set(ring, current);
+  }
+
+  const summaries = [];
+  for (let ring = 0; ring <= maxRing; ring += 1) {
+    const layoutCount = countGalaxyRingTiles(ring, bounds);
+    if (layoutCount <= 0) {
+      continue;
+    }
+
+    const persisted = persistedByRing.get(ring) || {
+      persistedCount: 0,
+      presenceCompleteCount: 0,
+      systemsCompleteCount: 0,
+    };
+
+    summaries.push({
+      ring,
+      label: `Ring ${ring}`,
+      layoutCount,
+      persistedCount: persisted.persistedCount,
+      presenceCompleteCount: persisted.presenceCompleteCount,
+      systemsCompleteCount: persisted.systemsCompleteCount,
+      missingSectorCount: Math.max(0, layoutCount - persisted.persistedCount),
+      presencePendingCount: Math.max(0, layoutCount - persisted.presenceCompleteCount),
+      systemsPendingCount: Math.max(0, layoutCount - persisted.systemsCompleteCount),
+      isComplete:
+        layoutCount > 0 &&
+        persisted.presenceCompleteCount >= layoutCount &&
+        persisted.systemsCompleteCount >= layoutCount,
+    });
+  }
+
+  return summaries;
+}
+
+function buildGalaxyAtlasBucketBounds(index, total, minGrid, span) {
+  const safeTotal = Math.max(1, total);
+  const safeSpan = Math.max(1, span);
+  const start = minGrid + Math.floor((index * safeSpan) / safeTotal);
+  const end = minGrid + Math.floor(((index + 1) * safeSpan) / safeTotal) - 1;
+  return {
+    start,
+    end: Math.max(start, end),
+  };
+}
+
 const galaxyMapPreview = computed(() => {
   const galaxy = currentGalaxy.value;
   if (!galaxy) return null;
 
+  const footprint = estimateGalaxySectorFootprint(galaxy);
   const layout = generateGalaxySectorLayout(galaxy);
   if (!layout.length) return null;
+
+  const previewWidth = Number(layout[0]?.metadata?.gridWidth ?? footprint.width) || footprint.width;
+  const previewHeight = Number(layout[0]?.metadata?.gridHeight ?? footprint.height) || footprint.height;
+  const bounds = resolveGalaxyFootprintBounds(footprint);
+  const ringSummaries = buildGalaxyRingSummaries({
+    footprint,
+    persistedSectors: currentGalaxySectors.value,
+  });
 
   const persistedSectorsByGrid = new Map(
     currentGalaxySectors.value.map((sector) => [
@@ -2157,24 +3003,11 @@ const galaxyMapPreview = computed(() => {
       sector,
     ]),
   );
-
-  const xValues = layout.map((sector) => Number(sector?.metadata?.gridX ?? sector?.x ?? 0));
-  const yValues = layout.map((sector) => Number(sector?.metadata?.gridY ?? sector?.y ?? 0));
-  const minGridX = Math.min(...xValues);
-  const maxGridX = Math.max(...xValues);
-  const minGridY = Math.min(...yValues);
-  const maxGridY = Math.max(...yValues);
-  const gridWidth = maxGridX - minGridX + 1;
-  const gridHeight = maxGridY - minGridY + 1;
   const SVG_SIZE = 280;
   const PADDING = 12;
-  const step = Math.min((SVG_SIZE - PADDING * 2) / gridWidth, (SVG_SIZE - PADDING * 2) / gridHeight);
-  const tileSize = Math.max(2, step * 0.9);
-  const tileHalf = tileSize / 2;
-  const renderTileSize = Math.max(2.8, tileSize);
-  const renderTileHalf = renderTileSize / 2;
-  const offsetX = PADDING + step * 0.5 - minGridX * step;
-  const offsetY = PADDING + step * 0.5 - minGridY * step;
+  const step = Math.min((SVG_SIZE - PADDING * 2) / bounds.width, (SVG_SIZE - PADDING * 2) / bounds.height);
+  const offsetX = PADDING + step * 0.5 - bounds.minGridX * step;
+  const offsetY = PADDING + step * 0.5 - bounds.minGridY * step;
   const zoomMultiplier =
     GALAXY_MAP_ZOOM_OPTIONS.find((option) => option.id === galaxyMapZoomLevel.value)?.multiplier ?? 1;
   const zoomedViewSize = SVG_SIZE / zoomMultiplier;
@@ -2186,18 +3019,138 @@ const galaxyMapPreview = computed(() => {
   const viewOriginY = centeredViewOrigin + clampedPanY;
   const viewBox = `${viewOriginX} ${viewOriginY} ${zoomedViewSize} ${zoomedViewSize}`;
 
-  // Actual parsec coverage: each tile is one sector = 32×40 pc.
-  const widthPc = gridWidth * SECTOR_WIDTH_PC;
-  const heightPc = gridHeight * SECTOR_HEIGHT_PC;
+  const isDownscaledPreview = previewWidth !== footprint.width || previewHeight !== footprint.height;
   const zoomLabel = GALAXY_MAP_ZOOM_OPTIONS.find((option) => option.id === galaxyMapZoomLevel.value)?.label || "Fit";
-  const scaleLabel = `${gridWidth}×${gridHeight} sectors — ${widthPc.toLocaleString()} × ${heightPc.toLocaleString()} pc — ${zoomLabel} zoom`;
+  const title = isDownscaledPreview ? "🌌 Galaxy Map Preview" : "🌌 Galaxy Map";
+  const description = isDownscaledPreview
+    ? "Each background tile summarizes a region of the true galaxy footprint, while persisted sectors are overlaid at their exact coordinates. Color = stellar density — dark = sparse, bright = dense."
+    : "Each tile = one sector (32×40 pc). Color = stellar density — dark = sparse, bright = dense.";
+  const scaleLabel = isDownscaledPreview
+    ? `Atlas grid ${previewWidth}×${previewHeight} cells · Actual footprint ${footprint.width.toLocaleString()}×${footprint.height.toLocaleString()} sectors (${footprint.footprintWidthPc.toLocaleString()} × ${footprint.footprintHeightPc.toLocaleString()} pc) · ${zoomLabel} zoom`
+    : `${footprint.width.toLocaleString()}×${footprint.height.toLocaleString()} sectors · ${footprint.footprintWidthPc.toLocaleString()} × ${footprint.footprintHeightPc.toLocaleString()} pc · ${zoomLabel} zoom`;
+
+  const atlasTiles = [];
+  for (let row = 0; row < previewHeight; row += 1) {
+    const yBounds = buildGalaxyAtlasBucketBounds(row, previewHeight, bounds.minGridY, bounds.height);
+    for (let column = 0; column < previewWidth; column += 1) {
+      const xBounds = buildGalaxyAtlasBucketBounds(column, previewWidth, bounds.minGridX, bounds.width);
+      const centerGridX = Math.round((xBounds.start + xBounds.end) / 2);
+      const centerGridY = Math.round((yBounds.start + yBounds.end) / 2);
+      const sampledTile =
+        generateGalaxySectorLayoutWindow(galaxy, {
+          scale: "true",
+          xMin: centerGridX,
+          xMax: centerGridX,
+          yMin: centerGridY,
+          yMax: centerGridY,
+        })[0] ?? null;
+      const densityClass = Number(sampledTile?.densityClass ?? 0);
+      const renderWidth = Math.max(2.4, (xBounds.end - xBounds.start + 1) * step * 0.92);
+      const renderHeight = Math.max(2.4, (yBounds.end - yBounds.start + 1) * step * 0.92);
+      const px = offsetX + centerGridX * step;
+      const py = offsetY + centerGridY * step;
+
+      atlasTiles.push({
+        id: `atlas:${column},${row}`,
+        kind: "atlas",
+        sectorId: `atlas:${xBounds.start},${xBounds.end}:${yBounds.start},${yBounds.end}`,
+        displayName: `Atlas Cell ${column + 1},${row + 1}`,
+        gridX: centerGridX,
+        gridY: centerGridY,
+        ring: Math.max(Math.abs(centerGridX), Math.abs(centerGridY)),
+        persisted: false,
+        presenceGenerated: false,
+        occupiedHexCount: 0,
+        typedHexCount: 0,
+        px,
+        py,
+        renderX: px - renderWidth / 2,
+        renderY: py - renderHeight / 2,
+        renderWidth,
+        renderHeight,
+        color: DENSITY_COLORS[densityClass] ?? DENSITY_COLORS[0],
+        dc: densityClass,
+        opacity: densityClass > 0 ? 0.86 : 0.24,
+        tooltip:
+          `Atlas cell ${column + 1},${row + 1}\n` +
+          `Grid ${xBounds.start >= 0 ? "+" : ""}${xBounds.start}..${xBounds.end >= 0 ? "+" : ""}${xBounds.end}, ` +
+          `${yBounds.start >= 0 ? "+" : ""}${yBounds.start}..${yBounds.end >= 0 ? "+" : ""}${yBounds.end}\n` +
+          `Sample density ${densityClass}`,
+      });
+    }
+  }
+
+  const exactSectorTiles = currentGalaxySectors.value.map((sector) => {
+    const gridX = Number(sector?.metadata?.gridX ?? sector?.coordinates?.x ?? sector?.x ?? 0);
+    const gridY = Number(sector?.metadata?.gridY ?? sector?.coordinates?.y ?? sector?.y ?? 0);
+    const occupiedHexCount = Array.isArray(sector?.metadata?.occupiedHexes) ? sector.metadata.occupiedHexes.length : 0;
+    const typedHexCount = sector?.metadata?.hexStarTypes ? Object.keys(sector.metadata.hexStarTypes).length : 0;
+    const displayName =
+      String(sector?.metadata?.displayName || sector?.name || sector?.sectorId || "").trim() || "Unnamed Sector";
+    const renderWidth = Math.max(3.2, step * 0.96);
+    const renderHeight = Math.max(3.2, step * 0.96);
+    const px = offsetX + gridX * step;
+    const py = offsetY + gridY * step;
+
+    return {
+      id: `sector:${sector.sectorId}`,
+      kind: "sector",
+      sectorId: String(sector?.sectorId || `${galaxy.galaxyId}:${gridX},${gridY}`),
+      displayName,
+      gridX,
+      gridY,
+      ring: Math.max(Math.abs(gridX), Math.abs(gridY)),
+      persisted: true,
+      presenceGenerated: Boolean(sector?.metadata?.hexPresenceGenerated),
+      occupiedHexCount,
+      typedHexCount,
+      px,
+      py,
+      renderX: px - renderWidth / 2,
+      renderY: py - renderHeight / 2,
+      renderWidth,
+      renderHeight,
+      color: DENSITY_COLORS[Number(sector?.densityClass ?? 0)] ?? DENSITY_COLORS[0],
+      dc: Number(sector?.densityClass ?? 0),
+      tooltip:
+        `${displayName} (${String(sector?.sectorId || "persisted-sector")})\n` +
+        `Grid ${gridX >= 0 ? "+" : ""}${gridX}, ${gridY >= 0 ? "+" : ""}${gridY}\n` +
+        `Density ${Number(sector?.densityClass ?? 0)}\n` +
+        `Presence ${occupiedHexCount.toLocaleString()} · Typed ${typedHexCount.toLocaleString()}`,
+      persistedSector: sector,
+      opacity: 1,
+    };
+  });
+
+  const focusAnchors = ringSummaries.map((summary) => {
+    const anchorGridX = Math.min(bounds.maxGridX, Math.max(bounds.minGridX, summary.ring));
+    const anchorGridY = Math.min(bounds.maxGridY, Math.max(bounds.minGridY, 0));
+    const px = offsetX + anchorGridX * step;
+    const py = offsetY + anchorGridY * step;
+
+    return {
+      id: `ring:${summary.ring}`,
+      kind: "ring-anchor",
+      sectorId: `ring:${summary.ring}`,
+      displayName: `Ring ${summary.ring}`,
+      gridX: anchorGridX,
+      gridY: anchorGridY,
+      ring: summary.ring,
+      persisted: false,
+      presenceGenerated: false,
+      occupiedHexCount: 0,
+      typedHexCount: 0,
+      px,
+      py,
+      dc: 0,
+      tooltip: `Ring ${summary.ring}`,
+    };
+  });
 
   return {
+    title,
+    description,
     svgSize: SVG_SIZE,
-    tileSize,
-    tileHalf,
-    renderTileSize,
-    renderTileHalf,
     viewBox,
     zoomedViewSize,
     maxPanOffset,
@@ -2205,51 +3158,21 @@ const galaxyMapPreview = computed(() => {
     centerPx: offsetX,
     centerPy: offsetY,
     densityColors: DENSITY_COLORS,
+    isDownscaledPreview,
+    actualSectorWidth: footprint.width,
+    actualSectorHeight: footprint.height,
+    actualFootprintWidthPc: footprint.footprintWidthPc,
+    actualFootprintHeightPc: footprint.footprintHeightPc,
+    ringSummaries,
+    focusAnchors,
+    exactSectorTiles,
     scaleLabel,
-    tiles: layout.map((s) => {
-      const gridX = Number(s?.metadata?.gridX ?? s?.x ?? 0);
-      const gridY = Number(s?.metadata?.gridY ?? s?.y ?? 0);
-      const persistedSector = persistedSectorsByGrid.get(buildGalaxyGridKey(gridX, gridY)) ?? null;
-      const occupiedHexCount = Array.isArray(persistedSector?.metadata?.occupiedHexes)
-        ? persistedSector.metadata.occupiedHexes.length
-        : 0;
-      const typedHexCount = persistedSector?.metadata?.hexStarTypes
-        ? Object.keys(persistedSector.metadata.hexStarTypes).length
-        : 0;
-      const displayName =
-        String(
-          persistedSector?.metadata?.displayName ||
-            persistedSector?.name ||
-            s?.metadata?.displayName ||
-            s?.sectorId ||
-            "",
-        ).trim() || String(s?.sectorId || "Unnamed Sector");
-
-      return {
-        id: `${gridX}_${gridY}`,
-        sectorId: String(persistedSector?.sectorId || s?.sectorId || `${galaxy.galaxyId}:${gridX},${gridY}`),
-        displayName,
-        gridX,
-        gridY,
-        ring: Math.max(Math.abs(gridX), Math.abs(gridY)),
-        persisted: Boolean(persistedSector),
-        presenceGenerated: Boolean(persistedSector?.metadata?.hexPresenceGenerated),
-        occupiedHexCount,
-        typedHexCount,
-        px: offsetX + gridX * step,
-        py: offsetY + gridY * step,
-        color: DENSITY_COLORS[s.densityClass] ?? DENSITY_COLORS[0],
-        dc: s.densityClass,
-        tooltip: `${displayName} (${String(persistedSector?.sectorId || s?.sectorId || "layout-only")})\nGrid ${gridX >= 0 ? "+" : ""}${gridX}, ${gridY >= 0 ? "+" : ""}${gridY}\nDensity ${s.densityClass}\nPresence ${occupiedHexCount.toLocaleString()} · Typed ${typedHexCount.toLocaleString()}`,
-        persistedSector,
-        opacity: tileSize < 3 ? 0.82 : 1,
-      };
-    }),
+    tiles: [...atlasTiles, ...exactSectorTiles],
   };
 });
 
 const generationGuidance = computed(() =>
-  buildGalaxyGenerationGuidance({ tiles: galaxyMapPreview.value?.tiles ?? [] }),
+  buildGalaxyGenerationGuidance({ ringSummaries: galaxyMapPreview.value?.ringSummaries ?? [] }),
 );
 
 function isGalaxyMapTileSystemsComplete(tile) {
@@ -2345,7 +3268,8 @@ function matchesGalaxyMapFilters(tile, { frontierRing, selectedRing }) {
 }
 
 const galaxyMapRingFilterOptions = computed(() => {
-  const rings = Array.from(new Set((galaxyMapPreview.value?.tiles ?? []).map((tile) => Number(tile?.ring))))
+  const rings = (galaxyMapPreview.value?.ringSummaries ?? [])
+    .map((summary) => Number(summary?.ring))
     .filter((ring) => Number.isFinite(ring))
     .sort((left, right) => left - right);
 
@@ -2360,15 +3284,38 @@ watch(galaxyMapRingFilterOptions, (options) => {
 });
 
 const galaxyMapRenderedTiles = computed(() => {
+  const preview = galaxyMapPreview.value;
+  const selectableTiles = [...(preview?.tiles ?? []), ...(preview?.focusAnchors ?? [])];
   const guidance = generationGuidance.value;
   const frontierRing = Number(guidance?.recommendation?.ring);
   const frontierMode = guidance?.recommendation?.mode || null;
-  const selectedRing = Number(
-    galaxyMapPreview.value?.tiles.find((tile) => tile.id === selectedGalaxyMapTileId.value)?.ring,
-  );
+  const highlightedRing = Number(galaxyMapHighlightedRing.value);
+  const selectedRing = Number.isFinite(highlightedRing)
+    ? highlightedRing
+    : Number(selectableTiles.find((tile) => tile.id === selectedGalaxyMapTileId.value)?.ring);
 
-  return (galaxyMapPreview.value?.tiles ?? []).map((tile) => {
+  const deferAtlasLayer = galaxySurveyWarmupPending.value || currentGalaxyLayoutCountPending.value;
+
+  return (preview?.tiles ?? []).map((tile) => {
     const status = resolveGalaxyMapTileStatus(tile);
+    const hideAtlas =
+      (galaxyMapLayerMode.value === "persisted-only" && tile.kind === "atlas") ||
+      (deferAtlasLayer && tile.kind === "atlas");
+    const hidePersisted = galaxyMapLayerMode.value === "atlas-only" && tile.kind === "sector";
+    if (hideAtlas || hidePersisted) {
+      return {
+        ...tile,
+        statusKey: status.key,
+        statusLabel: status.label,
+        renderFill: tile.color,
+        renderOpacity: 0,
+        matchesFilter: false,
+        isSelectedRing: Number.isFinite(highlightedRing) && Number(tile?.ring) === highlightedRing,
+        isFrontierRing: Number(frontierRing) === Number(tile?.ring),
+        frontierMode,
+      };
+    }
+
     const matchesFilter = matchesGalaxyMapFilters(tile, { frontierRing, selectedRing });
     const overlay = resolveGalaxyMapTileOverlay(tile, {
       overlayMode: galaxyMapOverlayMode.value,
@@ -2383,6 +3330,7 @@ const galaxyMapRenderedTiles = computed(() => {
       renderFill: overlay.fill,
       renderOpacity: matchesFilter ? tile.opacity : 0.1,
       matchesFilter,
+      isSelectedRing: Number.isFinite(highlightedRing) && Number(tile?.ring) === highlightedRing,
       isFrontierRing: Number(frontierRing) === Number(tile?.ring),
       frontierMode,
       tooltip:
@@ -2392,22 +3340,29 @@ const galaxyMapRenderedTiles = computed(() => {
   });
 });
 
+const galaxyMapSelectableTiles = computed(() => [
+  ...galaxyMapRenderedTiles.value,
+  ...(galaxyMapPreview.value?.focusAnchors ?? []),
+]);
+
 const selectedGalaxyMapTile = computed(
-  () => galaxyMapRenderedTiles.value.find((tile) => tile.id === selectedGalaxyMapTileId.value) ?? null,
+  () => galaxyMapSelectableTiles.value.find((tile) => tile.id === selectedGalaxyMapTileId.value) ?? null,
 );
 
 const selectedGalaxyMapSectorRecord = computed(() => selectedGalaxyMapTile.value?.persistedSector ?? null);
 
-const selectedGalaxyMapRingTiles = computed(() => {
+const selectedGalaxyMapRingSummary = computed(() => {
   const ring = Number(selectedGalaxyMapTile.value?.ring);
   if (!Number.isFinite(ring)) {
-    return [];
+    return null;
   }
-  return galaxyMapRenderedTiles.value.filter((tile) => Number(tile?.ring) === ring);
+  return generationGuidance.value?.ringSummaries?.find((summary) => Number(summary?.ring) === ring) ?? null;
 });
 
 const selectedGalaxyMapRingPersistedSectors = computed(() =>
-  selectedGalaxyMapRingTiles.value.map((tile) => tile.persistedSector).filter(Boolean),
+  currentGalaxySectors.value.filter(
+    (sector) => sectorRingDistance(sector) === Number(selectedGalaxyMapTile.value?.ring),
+  ),
 );
 
 const galaxyMapLegendEntries = computed(() => {
@@ -2445,7 +3400,7 @@ const galaxyMapLegendEntries = computed(() => {
 });
 
 const galaxyMapVisibleTileCount = computed(
-  () => galaxyMapRenderedTiles.value.filter((tile) => tile.matchesFilter).length,
+  () => galaxyMapRenderedTiles.value.filter((tile) => tile.matchesFilter && tile.kind === "atlas").length,
 );
 
 const galaxyMapFrontierBanner = computed(() => {
@@ -2472,6 +3427,7 @@ const galaxySectorSearchResults = computed(() => {
   }
 
   return galaxyMapRenderedTiles.value
+    .filter((tile) => tile.kind === "sector")
     .filter((tile) => {
       if (!tile.matchesFilter) {
         return false;
@@ -2490,6 +3446,55 @@ const galaxySectorSearchResults = computed(() => {
     })
     .sort((left, right) => Number(right.persisted) - Number(left.persisted) || left.ring - right.ring)
     .slice(0, 8);
+});
+
+// Compact mini-map panel for ring navigation and overview
+const miniMapRingMetrics = computed(() => {
+  const bounds = galaxyMapPreview.value ? resolveGalaxyFootprintBounds(galaxyMapPreview.value.footprint) : null;
+  if (!bounds) return [];
+
+  const maxRing = Math.max(
+    Math.abs(bounds.minGridX),
+    Math.abs(bounds.maxGridX),
+    Math.abs(bounds.minGridY),
+    Math.abs(bounds.maxGridY),
+  );
+
+  const guidance = generationGuidance.value;
+  const frontierRing = Number(guidance?.recommendation?.ring);
+  const highlightedRing = Number(galaxyMapHighlightedRing.value);
+
+  const rings = [];
+  for (let ring = 0; ring <= maxRing; ring++) {
+    const tileCount = countGalaxyRingTiles(ring, bounds);
+    const persistedInRing = (galaxyMapPreview.value?.ringSummaries ?? []).find((s) => Number(s?.ring) === ring);
+    const persistedCount = Number(persistedInRing?.persistedCount || 0);
+    const isFrontier = Number.isFinite(frontierRing) && ring === frontierRing;
+    const isHighlighted = Number.isFinite(highlightedRing) && ring === highlightedRing;
+
+    rings.push({
+      ring,
+      tileCount,
+      persistedCount,
+      isFrontier,
+      isHighlighted,
+      radius: ring,
+    });
+  }
+
+  return rings;
+});
+
+const miniMapDimensions = computed(() => {
+  const rings = miniMapRingMetrics.value;
+  const maxRing = rings.length > 0 ? rings[rings.length - 1].ring : 0;
+  const size = 140;
+  const margin = 10;
+  const centerX = size / 2;
+  const centerY = size / 2;
+  const scale = maxRing > 0 ? (size - margin * 2) / (2 * maxRing) : size / 2;
+
+  return { size, margin, centerX, centerY, scale, maxRing };
 });
 
 function formatSignedDelta(value, precision = 0, suffix = "") {
@@ -2517,6 +3522,7 @@ function loadGalaxySurveyViewState() {
     overlayMode: "density",
     statusFilter: "all",
     ringFilter: "all",
+    layerMode: "combined",
   };
 
   try {
@@ -2526,11 +3532,17 @@ function loadGalaxySurveyViewState() {
     }
 
     const parsed = JSON.parse(raw);
+    const layerMode = String(parsed?.layerMode || "").trim();
+    const fallbackLayerMode = parsed?.showAtlasBackground === false ? "persisted-only" : defaults.layerMode;
     return {
       zoomLevel: String(parsed?.zoomLevel || defaults.zoomLevel),
       overlayMode: String(parsed?.overlayMode || defaults.overlayMode),
       statusFilter: String(parsed?.statusFilter || defaults.statusFilter),
       ringFilter: String(parsed?.ringFilter || defaults.ringFilter),
+      layerMode:
+        layerMode === "combined" || layerMode === "persisted-only" || layerMode === "atlas-only"
+          ? layerMode
+          : fallbackLayerMode,
     };
   } catch {
     return defaults;
@@ -2546,6 +3558,7 @@ function persistGalaxySurveyViewState() {
         overlayMode: galaxyMapOverlayMode.value,
         statusFilter: galaxyMapStatusFilter.value,
         ringFilter: galaxyMapRingFilter.value,
+        layerMode: galaxyMapLayerMode.value,
       }),
     );
   } catch {
@@ -2566,39 +3579,104 @@ watchEffect(() => {
 watch(
   currentGalaxy,
   async (galaxy) => {
+    const requestId = ++galaxySurveyWarmupRequestId;
+    galaxySurveyWarmupPending.value = Boolean(galaxy);
+    if (galaxy) {
+      scheduleGalaxySurveyWarmupOverlay();
+    } else {
+      hideGalaxySurveyWarmupOverlay();
+    }
     syncGalaxyEditForm(galaxy);
     isEditingGalaxy.value = false;
     galaxyMapSearch.value = "";
     selectedGalaxyMapTileId.value = "0_0";
+    galaxyMapHighlightedRing.value = 0;
     galaxyMapPan.value = { x: 0, y: 0 };
-    await loadCurrentGalaxySectorStats({ galaxyId: galaxy?.galaxyId, silent: true });
+    try {
+      await Promise.all([
+        refreshCurrentGalaxyLayoutCount(galaxy),
+        loadCurrentGalaxySectorStats({ galaxyId: galaxy?.galaxyId, silent: true }),
+      ]);
+    } finally {
+      if (requestId === galaxySurveyWarmupRequestId) {
+        galaxySurveyWarmupPending.value = false;
+        hideGalaxySurveyWarmupOverlay();
+      }
+    }
   },
   { immediate: true },
 );
 
-watch([galaxyMapZoomLevel, galaxyMapOverlayMode, galaxyMapStatusFilter, galaxyMapRingFilter], () => {
-  persistGalaxySurveyViewState();
+watch(
+  [galaxyMapZoomLevel, galaxyMapOverlayMode, galaxyMapStatusFilter, galaxyMapRingFilter, galaxyMapLayerMode],
+  () => {
+    persistGalaxySurveyViewState();
+  },
+);
+
+watch(generationCancelRequested, (requested) => {
+  if (requested) {
+    stopActiveGalaxyGenerationWorker(new GalaxySurveyGenerationCancelledError(generationCancelMessage.value));
+  }
+});
+
+// ── Item 3: Background prefetch — pre-warm generation guidance after warm-up ──
+watch(galaxySurveyWarmupPending, (isPending, wasPending) => {
+  if (wasPending && !isPending && currentGalaxy.value) {
+    nextTick(() => {
+      // Access generationGuidance to ensure Vue computes and caches it
+      // before the user's first interaction with the frontier/guidance panel.
+      void generationGuidance.value;
+    });
+  }
 });
 
 watch(
   galaxyMapPreview,
   (preview) => {
-    if (!preview?.tiles?.length) {
+    const selectableTiles = [...(preview?.tiles ?? []), ...(preview?.focusAnchors ?? [])];
+    if (!selectableTiles.length) {
       selectedGalaxyMapTileId.value = "";
+      galaxyMapHighlightedRing.value = null;
       return;
     }
 
-    const hasSelected = preview.tiles.some((tile) => tile.id === selectedGalaxyMapTileId.value);
+    const hasSelected = selectableTiles.some((tile) => tile.id === selectedGalaxyMapTileId.value);
     if (!hasSelected) {
-      const centerTile = preview.tiles.find((tile) => tile.gridX === 0 && tile.gridY === 0) ?? preview.tiles[0];
+      const centerTile =
+        preview.exactSectorTiles?.find((tile) => tile.gridX === 0 && tile.gridY === 0) ??
+        preview.focusAnchors?.find((tile) => tile.ring === 0) ??
+        preview.tiles?.find((tile) => tile.gridX === 0 && tile.gridY === 0) ??
+        selectableTiles[0];
       selectedGalaxyMapTileId.value = centerTile?.id || "";
+      galaxyMapHighlightedRing.value = Number.isFinite(Number(centerTile?.ring)) ? Number(centerTile.ring) : null;
+      return;
+    }
+
+    const availableRings = new Set(
+      selectableTiles.map((tile) => Number(tile?.ring)).filter((ring) => Number.isFinite(ring)),
+    );
+    if (!availableRings.has(Number(galaxyMapHighlightedRing.value))) {
+      galaxyMapHighlightedRing.value = Number.isFinite(
+        selectedRingFromTileId(selectableTiles, selectedGalaxyMapTileId.value),
+      )
+        ? selectedRingFromTileId(selectableTiles, selectedGalaxyMapTileId.value)
+        : null;
     }
   },
   { immediate: true },
 );
 
+function selectedRingFromTileId(selectableTiles, tileId) {
+  const tile = (selectableTiles || []).find((entry) => entry.id === tileId);
+  const ring = Number(tile?.ring);
+  return Number.isFinite(ring) ? ring : null;
+}
+
 // Handle route errors and ensure galaxy state is synced before navigation.
 onMounted(async () => {
+  window.addEventListener("keydown", handleGalaxyMapKeydown);
+
   const errorCode = route.query.error;
   if (errorCode === "invalid-galaxy") {
     errorMessage.value = "⚠️ Invalid galaxy selected. Please select a valid galaxy before proceeding.";
@@ -2625,6 +3703,12 @@ onMounted(async () => {
   } catch (err) {
     toastService.error(`Failed to load galaxies: ${err.message}`);
   }
+});
+
+onBeforeUnmount(() => {
+  hideGalaxySurveyWarmupOverlay();
+  stopActiveGalaxyGenerationWorker(new GalaxySurveyGenerationCancelledError("Galaxy Survey generation cancelled."));
+  window.removeEventListener("keydown", handleGalaxyMapKeydown);
 });
 
 function clearError() {
@@ -2984,21 +4068,35 @@ function selectGalaxyMapTile(tile) {
   if (!tile?.id) {
     return;
   }
+  const targetRing = Number(tile?.ring);
+  const shouldToggleHighlightedRingOff =
+    tile.id === selectedGalaxyMapTileId.value &&
+    Number.isFinite(targetRing) &&
+    Number(galaxyMapHighlightedRing.value) === targetRing;
+
+  if (tile.kind === "atlas" && tile.ring !== undefined) {
+    selectedGalaxyMapTileId.value = `ring:${tile.ring}`;
+    galaxyMapHighlightedRing.value = shouldToggleHighlightedRingOff ? null : targetRing;
+    return;
+  }
   selectedGalaxyMapTileId.value = tile.id;
+  galaxyMapHighlightedRing.value = shouldToggleHighlightedRingOff ? null : targetRing;
 }
 
 function focusGalaxyMapTile(tileId, { zoom = false } = {}) {
   const preview = galaxyMapPreview.value;
-  if (!preview?.tiles?.length) {
+  const selectableTiles = [...(preview?.tiles ?? []), ...(preview?.focusAnchors ?? [])];
+  if (!selectableTiles.length) {
     return;
   }
 
-  const tile = preview.tiles.find((entry) => entry.id === tileId);
+  const tile = selectableTiles.find((entry) => entry.id === tileId);
   if (!tile) {
     return;
   }
 
   selectedGalaxyMapTileId.value = tile.id;
+  galaxyMapHighlightedRing.value = Number.isFinite(Number(tile?.ring)) ? Number(tile.ring) : null;
   if (zoom) {
     galaxyMapZoomLevel.value = "detail";
   }
@@ -3163,6 +4261,11 @@ async function generateRingByNumber({ ring, mode = "systems", reason = "manual" 
     );
   } catch (err) {
     if (isGalaxySurveyGenerationCancelledError(err)) {
+      generationRingCheckpoint.value = {
+        ring: targetRing,
+        mode,
+        galaxyId: galaxy?.galaxyId || null,
+      };
       return;
     }
     toastService.error(`Failed to generate selected ring: ${err.message}`);
@@ -3171,10 +4274,17 @@ async function generateRingByNumber({ ring, mode = "systems", reason = "manual" 
     clearGenerationRequestScope();
     resetGenerationProgress();
   }
+
+  clearGenerationRingCheckpoint();
 }
 
 async function runGuidedGenerationStepAction({ mode = "systems" } = {}) {
   await runGuidedGenerationStep({ mode, generateRing: generateRingByNumber });
+}
+
+async function runGuidedGenerationResumeAction({ mode = "systems", startFromRing = 0 } = {}) {
+  const nextRing = Math.max(0, Number(startFromRing) + 1);
+  await generateRingByNumber({ ring: nextRing, mode, reason: "resume" });
 }
 
 async function generateSelectedRing({ mode = "systems" } = {}) {
@@ -3474,6 +4584,108 @@ const HEX_PRESENCE_COLS = 32;
 const HEX_PRESENCE_ROWS = 40;
 const HEX_PRESENCE_MORPHOLOGY_SCALE = 0.15;
 const GENERATION_PROGRESS_STEP = 25;
+const GENERATION_BROWSER_YIELD_STEP = 5;
+const GALAXY_GENERATION_WORKER_URL = new URL("../../workers/galaxyGenerationWorker.js", import.meta.url);
+
+let activeGalaxyGenerationWorker = null;
+let activeGalaxyGenerationWorkerReject = null;
+let activeGalaxyGenerationWorkerRequestId = 0;
+
+function getBulkGenerationRequestOptions() {
+  return {
+    ...getGenerationRequestOptions(),
+    persistCache: false,
+  };
+}
+
+function clearActiveGalaxyGenerationWorkerTask() {
+  activeGalaxyGenerationWorkerReject = null;
+}
+
+function stopActiveGalaxyGenerationWorker(error = null) {
+  const reject = activeGalaxyGenerationWorkerReject;
+  activeGalaxyGenerationWorkerReject = null;
+  if (activeGalaxyGenerationWorker) {
+    activeGalaxyGenerationWorker.terminate();
+    activeGalaxyGenerationWorker = null;
+  }
+  if (typeof reject === "function") {
+    reject(error || new GalaxySurveyGenerationCancelledError(generationCancelMessage.value));
+  }
+}
+
+function createGalaxyGenerationWorker() {
+  if (typeof Worker !== "function") {
+    return null;
+  }
+
+  stopActiveGalaxyGenerationWorker();
+  activeGalaxyGenerationWorker = new Worker(GALAXY_GENERATION_WORKER_URL, { type: "module" });
+  return activeGalaxyGenerationWorker;
+}
+
+function disposeGalaxyGenerationWorker(worker) {
+  clearActiveGalaxyGenerationWorkerTask();
+  if (worker && activeGalaxyGenerationWorker === worker) {
+    worker.terminate();
+    activeGalaxyGenerationWorker = null;
+  }
+}
+
+function runGalaxyGenerationBatch({ worker, mode, galaxy, sectors }) {
+  const entries = Array.isArray(sectors) ? sectors : [];
+  if (!entries.length) {
+    return Promise.resolve({ results: [] });
+  }
+
+  if (!worker) {
+    return Promise.resolve(generateGalaxySectorBatch({ mode, galaxy, sectors: entries }));
+  }
+
+  return new Promise((resolve, reject) => {
+    const requestId = ++activeGalaxyGenerationWorkerRequestId;
+
+    const cleanup = () => {
+      worker.removeEventListener("message", handleMessage);
+      worker.removeEventListener("error", handleError);
+      clearActiveGalaxyGenerationWorkerTask();
+    };
+
+    const handleMessage = (event) => {
+      const payload = event.data || {};
+      if (payload.requestId !== requestId) {
+        return;
+      }
+
+      cleanup();
+      if (!payload.ok) {
+        reject(new Error(String(payload.error || "Galaxy generation worker failed.")));
+        return;
+      }
+
+      resolve(payload.result || { results: [] });
+    };
+
+    const handleError = (event) => {
+      cleanup();
+      reject(
+        event?.error instanceof Error
+          ? event.error
+          : new Error(String(event?.message || "Galaxy generation worker failed.")),
+      );
+    };
+
+    activeGalaxyGenerationWorkerReject = reject;
+    worker.addEventListener("message", handleMessage);
+    worker.addEventListener("error", handleError);
+    worker.postMessage({
+      requestId,
+      mode,
+      galaxy,
+      sectors: entries,
+    });
+  });
+}
 
 function sectorHexCoord(col, row) {
   return `${String(col).padStart(2, "0")}${String(row).padStart(2, "0")}`;
@@ -3734,7 +4946,7 @@ async function createTrueScaleSectorsInChunks(galaxy, { chunkSize = 1000 } = {})
       ...sector,
       metadata: ensureSectorNamingMetadata(sector, sector.metadata ?? {}),
     }));
-    const result = await createSectorsBatch(chunk, getGenerationRequestOptions());
+    const result = await createSectorsBatch(chunk, getBulkGenerationRequestOptions());
     if (Array.isArray(result)) {
       created += result.length;
     } else {
@@ -3790,7 +5002,7 @@ async function generateNamedSectorsForGalaxy(galaxy, { progressLabel = "Naming s
     await flushGenerationProgressUi();
     assertGenerationNotCancelled();
 
-    const result = await createSectorsBatch(chunk, getGenerationRequestOptions());
+    const result = await createSectorsBatch(chunk, getBulkGenerationRequestOptions());
     if (Array.isArray(result)) {
       created += result.length;
     } else {
@@ -3811,7 +5023,7 @@ async function generateNamedSectorsForGalaxy(galaxy, { progressLabel = "Naming s
     await flushGenerationProgressUi();
     assertGenerationNotCancelled();
 
-    const result = await createSectorsBatch(chunk, getGenerationRequestOptions());
+    const result = await createSectorsBatch(chunk, getBulkGenerationRequestOptions());
     if (Array.isArray(result)) {
       created += result.length;
     } else {
@@ -3870,80 +5082,104 @@ async function generateSectorPresenceForSectors(
   let processed = 0;
   let currentRing = null;
   let ringPopulatedCount = 0;
+  let ringProcessedCount = 0;
   const nowIso = new Date().toISOString();
+  const worker = createGalaxyGenerationWorker();
 
-  for (const sector of targetSectors) {
-    assertGenerationNotCancelled();
-    const ring = sectorRingDistance(sector);
-    if (stopAfterEmptyRing && currentRing !== null && ring !== currentRing && ringPopulatedCount === 0) {
-      break;
-    }
-    if (ring !== currentRing) {
-      currentRing = ring;
-      ringPopulatedCount = 0;
-    }
-
-    const dc = Math.min(5, Math.max(0, Number(sector.densityClass ?? 3)));
-    const baseRate = SECTOR_HEX_PRESENCE_RATE[dc];
-    const occupiedHexes = [];
-
-    for (let c = 1; c <= HEX_PRESENCE_COLS; c++) {
-      for (let r = 1; r <= HEX_PRESENCE_ROWS; r++) {
-        const prob = calculateHexOccupancyProbability({
-          baseRate,
-          col: c,
-          row: r,
-          cols: HEX_PRESENCE_COLS,
-          rows: HEX_PRESENCE_ROWS,
-          galaxyType: galaxy.type,
-          morphology: galaxy.morphology,
-          realismScale: 1,
-          morphologyScale: HEX_PRESENCE_MORPHOLOGY_SCALE,
-        });
-        if (Math.random() < prob) {
-          occupiedHexes.push(sectorHexCoord(c, r));
+  try {
+    for (const sector of targetSectors) {
+      assertGenerationNotCancelled();
+      const ring = sectorRingDistance(sector);
+      if (stopAfterEmptyRing && currentRing !== null && ring !== currentRing && ringPopulatedCount === 0) {
+        break;
+      }
+      if (ring !== currentRing) {
+        if (currentRing !== null && ringProcessedCount > 0) {
+          await persistRunningSectorStats(galaxy, {
+            processed,
+            populatedSectorCount,
+            totalSystems,
+          });
         }
+        currentRing = ring;
+        ringPopulatedCount = 0;
+        ringProcessedCount = 0;
+      }
+
+      generationRingCheckpoint.value = {
+        ring,
+        mode: "presence",
+        galaxyId: galaxy?.galaxyId || null,
+      };
+
+      const computation = await runGalaxyGenerationBatch({
+        worker,
+        mode: "presence",
+        galaxy,
+        sectors: [sector],
+      });
+      const seeded = computation.results?.[0] || {
+        occupiedHexes: [],
+        hexStarTypes: null,
+        systemCount: 0,
+        isGalacticCenterSector: false,
+        centerAnomalyType: null,
+        centerAnomaly: null,
+        centralAnomalyHex: null,
+      };
+
+      totalSystems += Number(seeded.systemCount || 0);
+      if (Number(seeded.systemCount || 0) > 0) {
+        populatedSectorCount += 1;
+        ringPopulatedCount += 1;
+      }
+
+      const persistedSector = await upsertSector(
+        {
+          ...sector,
+          metadata: ensureSectorNamingMetadata(sector, {
+            ...(sector.metadata ?? {}),
+            systemCount: Number(seeded.systemCount || 0),
+            hexPresenceGenerated: true,
+            hexPresenceGeneratedAt: nowIso,
+            occupiedHexes: seeded.occupiedHexes,
+            isGalacticCenterSector: seeded.isGalacticCenterSector,
+            centralAnomalyType: seeded.centerAnomalyType,
+            centralAnomaly: seeded.centerAnomaly,
+            centralAnomalyHex: seeded.centralAnomalyHex,
+          }),
+        },
+        getBulkGenerationRequestOptions(),
+      );
+
+      await systemStore.replaceSectorSystems(
+        persistedSector.sectorId,
+        buildPersistedSystemRecordsForSector(persistedSector, seeded.hexStarTypes),
+        getBulkGenerationRequestOptions(),
+      );
+
+      processed += 1;
+      ringProcessedCount += 1;
+      if (processed % effectiveYieldStep.value === 0) {
+        await yieldToBrowser();
+        assertGenerationNotCancelled();
+      }
+      if (processed % effectiveProgressStep.value === 0 || processed === resolvedTotal) {
+        updateGenerationProgress(processed, resolvedTotal, progressLabel);
+        await flushGenerationProgressUi();
+        assertGenerationNotCancelled();
       }
     }
 
-    const seeded = ensureCenterAnomalyPresence({ galaxy, sector, occupiedHexes, hexStarTypes: null });
-    const systemCount = seeded.occupiedHexes.length;
-    totalSystems += systemCount;
-    if (systemCount > 0) {
-      populatedSectorCount += 1;
-      ringPopulatedCount += 1;
+    if (ringProcessedCount > 0) {
+      await persistRunningSectorStats(galaxy, {
+        processed,
+        populatedSectorCount,
+        totalSystems,
+      });
     }
-
-    const persistedSector = await upsertSector(
-      {
-        ...sector,
-        metadata: ensureSectorNamingMetadata(sector, {
-          ...(sector.metadata ?? {}),
-          systemCount,
-          hexPresenceGenerated: true,
-          hexPresenceGeneratedAt: nowIso,
-          occupiedHexes: seeded.occupiedHexes,
-          isGalacticCenterSector: seeded.isGalacticCenterSector,
-          centralAnomalyType: seeded.centerAnomalyType,
-          centralAnomaly: seeded.centerAnomaly,
-          centralAnomalyHex: seeded.centerAnomaly?.coord,
-        }),
-      },
-      getGenerationRequestOptions(),
-    );
-
-    await systemStore.replaceSectorSystems(
-      persistedSector.sectorId,
-      buildPersistedSystemRecordsForSector(persistedSector, seeded.hexStarTypes),
-      getGenerationRequestOptions(),
-    );
-
-    processed += 1;
-    if (processed % GENERATION_PROGRESS_STEP === 0 || processed === resolvedTotal) {
-      updateGenerationProgress(processed, resolvedTotal, progressLabel);
-      await flushGenerationProgressUi();
-      assertGenerationNotCancelled();
-    }
+  } finally {
+    disposeGalaxyGenerationWorker(worker);
   }
 
   const generatedSectorCount = processed;
@@ -3959,6 +5195,7 @@ async function generateSectorPresenceForSectors(
 
   await persistCachedSectorStats(galaxy, stats);
   currentGalaxySectorStats.value = stats;
+  clearGenerationRingCheckpoint();
 
   return {
     estimatedLayoutCount: resolvedTotal,
@@ -4048,9 +5285,12 @@ function showFullGalaxyConfirm() {
     return;
   }
   const name = currentGalaxy.value.name || currentGalaxy.value.galaxyId;
-  const layoutCount = estimateGalaxySectorLayoutCount(currentGalaxy.value, { scale: "true" });
+  const layoutCount = currentGalaxyLayoutCount.value;
+  const layoutLabel = currentGalaxyLayoutCountPending.value
+    ? "the full mapped footprint"
+    : `${layoutCount.toLocaleString()} sector tiles`;
   fullGalaxyDialog.value.message =
-    `This will generate all ${layoutCount.toLocaleString()} sector tiles for "${name}" and generate systems in sector ` +
+    `This will generate ${layoutLabel} for "${name}" and generate systems in sector ` +
     `for every occupied hex (up to 32×40 per sector). This may take a moment for larger galaxies. ` +
     `Existing sector system assignments will be re-rolled.`;
   fullGalaxyDialog.value.isOpen = true;
@@ -4096,98 +5336,105 @@ async function generateSectorSystemsForSectors(
   let processed = 0;
   let currentRing = null;
   let ringPopulatedCount = 0;
+  let ringProcessedCount = 0;
   const nowIso = new Date().toISOString();
+  const worker = createGalaxyGenerationWorker();
 
-  for (const sector of targetSectors) {
-    assertGenerationNotCancelled();
-    const ring = sectorRingDistance(sector);
-    if (stopAfterEmptyRing && currentRing !== null && ring !== currentRing && ringPopulatedCount === 0) {
-      break;
-    }
-    if (ring !== currentRing) {
-      currentRing = ring;
-      ringPopulatedCount = 0;
-    }
-
-    const dc = Math.min(5, Math.max(0, Number(sector.densityClass ?? 3)));
-    const baseRate = SECTOR_HEX_PRESENCE_RATE[dc];
-    const occupiedHexes = [];
-    const hexStarTypes = {};
-
-    for (let c = 1; c <= HEX_PRESENCE_COLS; c++) {
-      for (let r = 1; r <= HEX_PRESENCE_ROWS; r++) {
-        const coord = sectorHexCoord(c, r);
-        const prob = calculateHexOccupancyProbability({
-          baseRate,
-          col: c,
-          row: r,
-          cols: HEX_PRESENCE_COLS,
-          rows: HEX_PRESENCE_ROWS,
-          galaxyType: galaxy.type,
-          morphology: galaxy.morphology,
-          realismScale: 1,
-          morphologyScale: HEX_PRESENCE_MORPHOLOGY_SCALE,
-        });
-
-        if (Math.random() < prob) {
-          const primary = generatePrimaryStar();
-          const primaryType = primary.designation || primary.spectralType || primary.persistedSpectralClass || "G2V";
-          const starMetadata = buildHexStarTypeMetadata({
-            generatedStars: [{ ...primary }],
-            primary,
-            fallbackStarType: primaryType,
+  try {
+    for (const sector of targetSectors) {
+      assertGenerationNotCancelled();
+      const ring = sectorRingDistance(sector);
+      if (stopAfterEmptyRing && currentRing !== null && ring !== currentRing && ringPopulatedCount === 0) {
+        break;
+      }
+      if (ring !== currentRing) {
+        if (currentRing !== null && ringProcessedCount > 0) {
+          await persistRunningSectorStats(galaxy, {
+            processed,
+            populatedSectorCount,
+            totalSystems,
           });
-          occupiedHexes.push(coord);
-          hexStarTypes[coord] = {
-            starType: starMetadata.starType,
-            starClass: spectralClassToCssClass(primary.spectralType || primary.persistedSpectralClass || primaryType),
-            secondaryStars: starMetadata.secondaryStars,
-            generatedStars: starMetadata.generatedStars.map((star) => ({ ...star })),
-            anomalyType: starMetadata.anomalyType,
-          };
         }
+        currentRing = ring;
+        ringPopulatedCount = 0;
+        ringProcessedCount = 0;
+      }
+
+      generationRingCheckpoint.value = {
+        ring,
+        mode: "systems",
+        galaxyId: galaxy?.galaxyId || null,
+      };
+
+      const computation = await runGalaxyGenerationBatch({
+        worker,
+        mode: "systems",
+        galaxy,
+        sectors: [sector],
+      });
+      const seeded = computation.results?.[0] || {
+        occupiedHexes: [],
+        hexStarTypes: {},
+        systemCount: 0,
+        isGalacticCenterSector: false,
+        centerAnomalyType: null,
+        centerAnomaly: null,
+        centralAnomalyHex: null,
+      };
+
+      totalSystems += Number(seeded.systemCount || 0);
+      if (Number(seeded.systemCount || 0) > 0) {
+        populatedSectorCount += 1;
+        ringPopulatedCount += 1;
+      }
+
+      const persistedSector = await upsertSector(
+        {
+          ...sector,
+          metadata: ensureSectorNamingMetadata(sector, {
+            ...(sector.metadata ?? {}),
+            systemCount: Number(seeded.systemCount || 0),
+            hexPresenceGenerated: true,
+            hexPresenceGeneratedAt: nowIso,
+            occupiedHexes: seeded.occupiedHexes,
+            hexStarTypes: seeded.hexStarTypes,
+            isGalacticCenterSector: seeded.isGalacticCenterSector,
+            centralAnomalyType: seeded.centerAnomalyType,
+            centralAnomaly: seeded.centerAnomaly,
+            centralAnomalyHex: seeded.centralAnomalyHex,
+          }),
+        },
+        getBulkGenerationRequestOptions(),
+      );
+
+      await systemStore.replaceSectorSystems(
+        persistedSector.sectorId,
+        buildPersistedSystemRecordsForSector(persistedSector, seeded.hexStarTypes),
+        getBulkGenerationRequestOptions(),
+      );
+
+      processed += 1;
+      ringProcessedCount += 1;
+      if (processed % effectiveYieldStep.value === 0) {
+        await yieldToBrowser();
+        assertGenerationNotCancelled();
+      }
+      if (processed % effectiveProgressStep.value === 0 || processed === resolvedTotal) {
+        updateGenerationProgress(processed, resolvedTotal, progressLabel);
+        await flushGenerationProgressUi();
+        assertGenerationNotCancelled();
       }
     }
 
-    const seeded = ensureCenterAnomalyPresence({ galaxy, sector, occupiedHexes, hexStarTypes });
-    const systemCount = seeded.occupiedHexes.length;
-    totalSystems += systemCount;
-    if (systemCount > 0) {
-      populatedSectorCount += 1;
-      ringPopulatedCount += 1;
+    if (ringProcessedCount > 0) {
+      await persistRunningSectorStats(galaxy, {
+        processed,
+        populatedSectorCount,
+        totalSystems,
+      });
     }
-
-    const persistedSector = await upsertSector(
-      {
-        ...sector,
-        metadata: ensureSectorNamingMetadata(sector, {
-          ...(sector.metadata ?? {}),
-          systemCount,
-          hexPresenceGenerated: true,
-          hexPresenceGeneratedAt: nowIso,
-          occupiedHexes: seeded.occupiedHexes,
-          hexStarTypes: seeded.hexStarTypes,
-          isGalacticCenterSector: seeded.isGalacticCenterSector,
-          centralAnomalyType: seeded.centerAnomalyType,
-          centralAnomaly: seeded.centerAnomaly,
-          centralAnomalyHex: seeded.centerAnomaly?.coord,
-        }),
-      },
-      getGenerationRequestOptions(),
-    );
-
-    await systemStore.replaceSectorSystems(
-      persistedSector.sectorId,
-      buildPersistedSystemRecordsForSector(persistedSector, seeded.hexStarTypes),
-      getGenerationRequestOptions(),
-    );
-
-    processed += 1;
-    if (processed % GENERATION_PROGRESS_STEP === 0 || processed === resolvedTotal) {
-      updateGenerationProgress(processed, resolvedTotal, progressLabel);
-      await flushGenerationProgressUi();
-      assertGenerationNotCancelled();
-    }
+  } finally {
+    disposeGalaxyGenerationWorker(worker);
   }
 
   const generatedSectorCount = processed;
@@ -4203,6 +5450,7 @@ async function generateSectorSystemsForSectors(
 
   await persistCachedSectorStats(galaxy, stats);
   currentGalaxySectorStats.value = stats;
+  clearGenerationRingCheckpoint();
 
   return {
     estimatedLayoutCount: resolvedTotal,
@@ -4713,6 +5961,47 @@ function formatNumber(num) {
 
 .error-close:hover {
   color: #dc2626;
+}
+
+.galaxy-survey-status-strip {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0 0 1rem;
+  padding: 0.55rem 0.8rem;
+  border: 1px solid rgba(86, 191, 231, 0.32);
+  border-radius: 0.45rem;
+  background: linear-gradient(120deg, rgba(8, 31, 44, 0.9), rgba(11, 42, 57, 0.85));
+  color: #d3f3ff;
+  font-size: 0.82rem;
+}
+
+.status-strip-spinner {
+  width: 0.68rem;
+  height: 0.68rem;
+  border-radius: 50%;
+  border: 2px solid rgba(163, 228, 255, 0.28);
+  border-top-color: rgba(163, 228, 255, 0.95);
+  animation: galaxy-survey-spin 0.85s linear infinite;
+}
+
+.status-strip-message {
+  flex: 1 1 auto;
+}
+
+.status-strip-phase {
+  font-family: monospace;
+  color: #96d9f5;
+  font-size: 0.76rem;
+}
+
+@keyframes galaxy-survey-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .control-panel {
@@ -5249,6 +6538,35 @@ function formatNumber(num) {
   max-width: 320px;
 }
 
+.density-map-jump-ring {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.density-map-jump-ring-input {
+  width: 84px;
+  border: 1px solid #2d5872;
+  background: #10182a;
+  color: #d9efff;
+  border-radius: 999px;
+  padding: 0.35rem 0.65rem;
+}
+
+.density-map-jump-ring-btn {
+  border: 1px solid rgba(143, 179, 201, 0.32);
+  border-radius: 999px;
+  padding: 0.35rem 0.65rem;
+  background: rgba(8, 23, 37, 0.76);
+  color: #d9f7ff;
+  cursor: pointer;
+}
+
+.density-map-jump-ring-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .density-map-filter-select {
   border: 1px solid #2d5872;
   background: #10182a;
@@ -5260,6 +6578,60 @@ function formatNumber(num) {
 .density-map-toolbar-meta {
   color: #8fb3c9;
   font-size: 0.78rem;
+}
+
+.density-map-help-toggle {
+  border: 1px solid rgba(143, 179, 201, 0.32);
+  border-radius: 999px;
+  padding: 0.38rem 0.82rem;
+  background: rgba(8, 23, 37, 0.76);
+  color: #d9f7ff;
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 600;
+  transition:
+    border-color 0.2s ease,
+    color 0.2s ease,
+    background 0.2s ease;
+}
+
+.density-map-help-toggle:hover,
+.density-map-help-toggle[aria-expanded="true"] {
+  border-color: rgba(0, 217, 255, 0.56);
+  background: rgba(9, 33, 52, 0.9);
+  color: #f5fdff;
+}
+
+.density-map-help-panel {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.8rem;
+  margin: 0 0 0.9rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid rgba(73, 200, 255, 0.22);
+  border-radius: 0.6rem;
+  background: linear-gradient(135deg, rgba(8, 22, 36, 0.92), rgba(14, 32, 46, 0.9));
+}
+
+.density-map-help-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.density-map-help-heading {
+  color: #7fe3ff;
+  font-size: 0.73rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.density-map-help-section p {
+  margin: 0;
+  color: #c6dfed;
+  font-size: 0.82rem;
+  line-height: 1.5;
 }
 
 .density-map-search-input {
@@ -5308,6 +6680,11 @@ function formatNumber(num) {
   background: #00d9ff;
   color: #04111a;
   box-shadow: 0 0 10px rgba(0, 217, 255, 0.35);
+}
+
+.density-map-layer-toggle {
+  border: 1px solid rgba(0, 217, 255, 0.22);
+  background: rgba(8, 23, 37, 0.72);
 }
 
 .density-map-container {
@@ -5373,29 +6750,67 @@ function formatNumber(num) {
 
 .density-map-tile {
   cursor: pointer;
-  stroke: transparent;
-  stroke-width: 1.3;
+  stroke: rgba(255, 255, 255, 0.08);
+  stroke-width: 0.75;
   transition:
     stroke 0.18s ease,
-    opacity 0.18s ease;
+    stroke-width 0.18s ease,
+    opacity 0.18s ease,
+    fill 0.18s ease;
+}
+
+.density-map-tile--atlas {
+  stroke: rgba(111, 159, 187, 0.22);
+  stroke-width: 0.55;
+  stroke-dasharray: 1.2 1.8;
 }
 
 .density-map-tile:hover,
 .density-map-tile--active {
   stroke: #f0f7ff;
+  stroke-width: 1.4;
 }
 
 .density-map-tile--persisted {
   opacity: 1;
+  stroke: rgba(138, 225, 255, 0.9);
+  stroke-width: 1.15;
+  filter: drop-shadow(0 0 3px rgba(76, 196, 255, 0.28));
+}
+
+.density-map-tile--persisted:hover,
+.density-map-tile--persisted.density-map-tile--active {
+  stroke: #fff6c4;
+  stroke-width: 1.8;
+  filter: drop-shadow(0 0 5px rgba(255, 225, 133, 0.42));
+}
+
+.density-map-tile--selected-ring {
+  stroke: rgba(255, 196, 87, 0.9);
+  stroke-width: 1.45;
+}
+
+.density-map-tile--atlas.density-map-tile--selected-ring {
+  stroke: rgba(255, 207, 120, 0.72);
+  stroke-width: 1.1;
+  stroke-dasharray: 2.1 1.4;
+}
+
+.density-map-tile--persisted.density-map-tile--selected-ring {
+  stroke: rgba(255, 240, 176, 0.95);
+  stroke-width: 1.9;
+  filter: drop-shadow(0 0 6px rgba(255, 208, 107, 0.38));
 }
 
 .density-map-tile--dimmed {
   stroke-opacity: 0.25;
+  filter: none;
 }
 
 .density-map-tile--frontier {
   stroke: rgba(125, 229, 255, 0.95);
   stroke-width: 1.6;
+  filter: drop-shadow(0 0 5px rgba(125, 229, 255, 0.26));
 }
 
 .density-map-svg.pannable {
@@ -5420,6 +6835,93 @@ function formatNumber(num) {
   gap: 0.5rem;
   font-size: 0.75rem;
   color: #888;
+}
+
+.density-map-layer-key {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.density-map-layer-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+  padding: 0.28rem 0.55rem;
+  border: 1px solid rgba(113, 159, 187, 0.22);
+  border-radius: 999px;
+  background: rgba(8, 22, 36, 0.64);
+  color: #9fc4d6;
+  font-size: 0.72rem;
+  letter-spacing: 0.02em;
+}
+
+.density-map-layer-chip-swatch {
+  width: 0.8rem;
+  height: 0.8rem;
+  border-radius: 0.2rem;
+  display: inline-block;
+}
+
+.density-map-layer-chip-swatch--atlas {
+  background: rgba(88, 131, 156, 0.34);
+  border: 1px dashed rgba(136, 180, 206, 0.44);
+}
+
+.density-map-layer-chip-swatch--sector {
+  background: rgba(68, 165, 210, 0.78);
+  border: 1px solid rgba(234, 247, 255, 0.9);
+  box-shadow: 0 0 6px rgba(76, 196, 255, 0.24);
+}
+
+.density-map-status-row {
+  width: min(100%, 640px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.density-map-ring-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.38rem 0.6rem;
+  border: 1px solid rgba(255, 196, 87, 0.34);
+  border-radius: 999px;
+  background: rgba(36, 24, 8, 0.68);
+  color: #ffe8b4;
+  font-size: 0.74rem;
+}
+
+.density-map-ring-badge-kicker {
+  color: #ffd78a;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.density-map-ring-badge strong {
+  color: #fff6d9;
+  font-weight: 600;
+}
+
+.density-map-ring-badge-clear {
+  border: none;
+  border-radius: 999px;
+  background: rgba(255, 214, 136, 0.16);
+  color: #fff3d2;
+  padding: 0.18rem 0.48rem;
+  cursor: pointer;
+  font-size: 0.7rem;
+}
+
+.density-map-shortcuts {
+  color: #88a9be;
+  font-size: 0.72rem;
 }
 
 .density-map-search-results {
@@ -5508,6 +7010,23 @@ function formatNumber(num) {
   height: 18px;
 }
 
+.generation-resume-strip {
+  margin-top: 0.6rem;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  padding: 0.5rem 0.65rem;
+  border: 1px dashed rgba(169, 199, 214, 0.45);
+  border-radius: 0.4rem;
+  background: rgba(19, 40, 55, 0.5);
+}
+
+.generation-resume-label {
+  color: #cbe7f3;
+  font-size: 0.78rem;
+}
+
 .btn {
   padding: 0.75rem 1.5rem;
   border: none;
@@ -5539,6 +7058,20 @@ function formatNumber(num) {
 
 .btn-secondary:hover {
   background: #888;
+}
+
+.btn-active {
+  box-shadow: 0 0 0 2px rgba(92, 230, 255, 0.35);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: #d0e7f3;
+  border: 1px solid rgba(187, 215, 230, 0.35);
+}
+
+.btn-ghost:hover {
+  background: rgba(120, 164, 187, 0.22);
 }
 
 .btn-danger {
@@ -5799,5 +7332,255 @@ function formatNumber(num) {
 
 .form-actions button {
   flex: 1;
+}
+
+/* ── Mini-map panel (Item 9) ── */
+.galaxy-mini-map-panel {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: rgba(8, 22, 36, 0.92);
+  border: 1px solid rgba(0, 217, 255, 0.24);
+  border-radius: 0.4rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+  padding: 0.6rem;
+  z-index: 20;
+  max-width: 160px;
+}
+
+.galaxy-mini-map-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+  margin-bottom: 0.4rem;
+  font-size: 0.75rem;
+  color: #9fc4d6;
+  font-weight: bold;
+}
+
+.galaxy-mini-map-title {
+  letter-spacing: 0.05em;
+}
+
+.galaxy-mini-map-toggle-labels {
+  background: transparent;
+  border: none;
+  color: #7495ab;
+  cursor: pointer;
+  padding: 0;
+  font-size: 0.85rem;
+  transition: color 0.2s;
+}
+
+.galaxy-mini-map-toggle-labels:hover {
+  color: #9fc4d6;
+}
+
+.galaxy-mini-map-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.galaxy-mini-map-ring-guide {
+  fill: none;
+  stroke: rgba(119, 149, 175, 0.18);
+  stroke-width: 0.5;
+}
+
+.galaxy-mini-map-ring-zone {
+  fill: rgba(68, 165, 210, 0.12);
+  stroke: rgba(119, 180, 215, 0.4);
+  stroke-width: 0.8;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.galaxy-mini-map-ring-zone:hover {
+  fill: rgba(68, 165, 210, 0.25);
+  stroke: rgba(119, 180, 215, 0.7);
+}
+
+.galaxy-mini-map-ring-zone--frontier {
+  fill: rgba(125, 229, 255, 0.18);
+  stroke: rgba(125, 229, 255, 0.6);
+  stroke-width: 1.2;
+}
+
+.galaxy-mini-map-ring-zone--frontend:hover {
+  fill: rgba(125, 229, 255, 0.3);
+}
+
+.galaxy-mini-map-ring-zone--highlighted {
+  fill: rgba(255, 208, 107, 0.22);
+  stroke: rgba(255, 208, 107, 0.7);
+  stroke-width: 1.2;
+}
+
+.galaxy-mini-map-ring-zone--highlighted:hover {
+  fill: rgba(255, 208, 107, 0.35);
+}
+
+.galaxy-mini-map-ring-zone--empty {
+  opacity: 0.5;
+}
+
+.galaxy-mini-map-center {
+  fill: rgba(255, 208, 107, 0.8);
+}
+
+.galaxy-mini-map-legend {
+  margin-top: 0.45rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.65rem;
+  color: #7495ab;
+}
+
+.galaxy-mini-map-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.galaxy-mini-map-legend-frontier::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border: 1px solid rgba(125, 229, 255, 0.6);
+  background: rgba(125, 229, 255, 0.18);
+  border-radius: 50%;
+}
+
+.galaxy-mini-map-legend-highlight::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border: 1px solid rgba(255, 208, 107, 0.7);
+  background: rgba(255, 208, 107, 0.22);
+  border-radius: 50%;
+}
+
+/* ── Bookmarks dropdown (Item 8) ── */
+.galaxy-bookmarks-dropdown {
+  position: absolute;
+  top: 160px;
+  right: 12px;
+  background: rgba(8, 22, 36, 0.95);
+  border: 1px solid rgba(0, 217, 255, 0.3);
+  border-radius: 0.4rem;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.8);
+  max-width: 240px;
+  z-index: 21;
+  max-height: 320px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.galaxy-bookmarks-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem;
+  border-bottom: 1px solid rgba(0, 217, 255, 0.15);
+  background: rgba(2, 10, 18, 0.6);
+}
+
+.galaxy-bookmarks-title {
+  font-size: 0.8rem;
+  color: #9fc4d6;
+  font-weight: bold;
+  letter-spacing: 0.05em;
+}
+
+.galaxy-bookmarks-close {
+  background: transparent;
+  border: none;
+  color: #7495ab;
+  cursor: pointer;
+  padding: 0;
+  font-size: 0.9rem;
+  transition: color 0.2s;
+}
+
+.galaxy-bookmarks-close:hover {
+  color: #9fc4d6;
+}
+
+.galaxy-bookmarks-list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.galaxy-bookmarks-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.6rem;
+  border: none;
+  background: transparent;
+  color: #b8d4e8;
+  font-size: 0.75rem;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.2s;
+  border-bottom: 1px solid rgba(119, 159, 187, 0.1);
+}
+
+.galaxy-bookmarks-item:hover,
+.galaxy-bookmarks-item.active {
+  background: rgba(0, 217, 255, 0.12);
+}
+
+.galaxy-bookmarks-star {
+  color: #ffd050;
+  font-size: 0.85rem;
+}
+
+.galaxy-bookmarks-name {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+}
+
+.galaxy-bookmarks-grid {
+  color: #7495ab;
+  font-family: monospace;
+  font-size: 0.7rem;
+  flex-shrink: 0;
+}
+
+.galaxy-bookmarks-hint {
+  padding: 0.5rem 0.6rem;
+  background: rgba(2, 10, 18, 0.6);
+  border-top: 1px solid rgba(119, 159, 187, 0.1);
+  color: #5a7a96;
+  font-size: 0.65rem;
+  line-height: 1.3;
+}
+
+/* Keyboard focus enhancements */
+.density-map-jump-ring-input:focus,
+.btn:focus {
+  outline: 2px solid rgba(0, 217, 255, 0.6);
+  outline-offset: 2px;
+}
+
+.galaxy-mini-map-ring-zone:focus {
+  outline: 2px solid rgba(0, 217, 255, 0.6);
+  outline-offset: 1px;
+}
+
+.galaxy-bookmarks-item:focus {
+  outline: 2px solid rgba(0, 217, 255, 0.6);
+  outline-offset: -2px;
 }
 </style>

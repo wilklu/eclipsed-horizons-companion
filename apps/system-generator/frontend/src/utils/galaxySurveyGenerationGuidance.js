@@ -77,8 +77,10 @@ export function findNextGalaxyGenerationRing(ringSummaries = [], mode = "presenc
   );
 }
 
-export function buildGalaxyGenerationGuidance({ tiles = [] } = {}) {
-  const ringSummaries = summarizeGalaxyGenerationRings(tiles);
+export function buildGalaxyGenerationGuidance({ tiles = [], ringSummaries: providedRingSummaries = null } = {}) {
+  const ringSummaries = Array.isArray(providedRingSummaries)
+    ? providedRingSummaries
+    : summarizeGalaxyGenerationRings(tiles);
   const nextPresenceRing = findNextGalaxyGenerationRing(ringSummaries, "presence");
   const nextSystemsRing = findNextGalaxyGenerationRing(ringSummaries, "systems");
   const completedRingCount = ringSummaries.filter((summary) => summary.isComplete).length;

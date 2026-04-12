@@ -39,26 +39,58 @@ function estimateGalaxyDiameterParsecs(galaxy) {
   return 30000;
 }
 
+export function estimateGalaxySectorFootprint(galaxy) {
+  const diameterParsecs = estimateGalaxyDiameterParsecs(galaxy);
+  const width = Math.max(1, Math.ceil(diameterParsecs / SECTOR_WIDTH_PC));
+  const height = Math.max(1, Math.ceil(diameterParsecs / SECTOR_HEIGHT_PC));
+
+  return {
+    diameterParsecs,
+    width,
+    height,
+    footprintWidthPc: width * SECTOR_WIDTH_PC,
+    footprintHeightPc: height * SECTOR_HEIGHT_PC,
+    gridRadius: Math.max(Math.floor(width / 2), Math.floor(height / 2)),
+  };
+}
+
+function resolvePreviewDimension(size, scaleFactor, maxSize) {
+  const scaled = Math.max(3, Math.round(size * scaleFactor));
+  return Math.min(maxSize, scaled);
+}
+
 function resolveGrid(galaxy, options = {}) {
   const trueScale = options?.scale === "true" || options?.scale === true;
-  const diameterParsecs = estimateGalaxyDiameterParsecs(galaxy);
+  const footprint = estimateGalaxySectorFootprint(galaxy);
 
   if (trueScale) {
-    const width = Math.max(1, Math.ceil(diameterParsecs / SECTOR_WIDTH_PC));
-    const height = Math.max(1, Math.ceil(diameterParsecs / SECTOR_HEIGHT_PC));
     return {
-      width,
-      height,
-      gridRadius: Math.max(Math.floor(width / 2), Math.floor(height / 2)),
+      width: footprint.width,
+      height: footprint.height,
+      gridRadius: footprint.gridRadius,
     };
   }
 
-  const previewRadius = Math.max(3, Math.min(10, Math.round(diameterParsecs / 12000)));
-  const size = previewRadius * 2 + 1;
+  const previewRadius = Math.max(3, Math.min(10, Math.round(footprint.diameterParsecs / 12000)));
+  const maxPreviewSize = previewRadius * 2 + 1;
+  const dominantDimension = Math.max(footprint.width, footprint.height);
+
+  if (dominantDimension <= maxPreviewSize) {
+    return {
+      width: footprint.width,
+      height: footprint.height,
+      gridRadius: footprint.gridRadius,
+    };
+  }
+
+  const scaleFactor = maxPreviewSize / dominantDimension;
+  const width = resolvePreviewDimension(footprint.width, scaleFactor, maxPreviewSize);
+  const height = resolvePreviewDimension(footprint.height, scaleFactor, maxPreviewSize);
+
   return {
-    width: size,
-    height: size,
-    gridRadius: previewRadius,
+    width,
+    height,
+    gridRadius: Math.max(Math.floor(width / 2), Math.floor(height / 2)),
   };
 }
 
