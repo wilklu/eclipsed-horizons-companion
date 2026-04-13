@@ -357,6 +357,33 @@ export async function getSector(sectorId) {
   }
 }
 
+export async function getSectorStrict(sectorId, options = {}) {
+  const sector = await request(`/sectors/${encodeURIComponent(sectorId)}`, options);
+  return replaceCachedSector(sector);
+}
+
+export async function createSectorStrict(sector, options = {}) {
+  const payload = normalizeSectorPayload(sector);
+  const created = await request("/sectors", {
+    method: "POST",
+    body: JSON.stringify(payload),
+    ...options,
+  });
+  mergeCachedSectors([created], options);
+  return normalizeSector(created);
+}
+
+export async function updateSectorStrict(sectorId, payload, options = {}) {
+  const body = normalizeSectorPayload({ ...payload, sectorId });
+  const updated = await request(`/sectors/${encodeURIComponent(sectorId)}`, {
+    method: "PUT",
+    body: JSON.stringify(body),
+    ...options,
+  });
+  mergeCachedSectors([updated], options);
+  return normalizeSector(updated);
+}
+
 export async function createSector(sector, options = {}) {
   const payload = normalizeSectorPayload(sector);
   try {
@@ -393,6 +420,17 @@ export async function upsertSector(sector, options = {}) {
     mergeCachedSectors([payload], options);
     return normalizeSector(payload);
   }
+}
+
+export async function upsertSectorStrict(sector, options = {}) {
+  const payload = normalizeSectorPayload(sector);
+  const updated = await request("/sectors/upsert", {
+    method: "POST",
+    body: JSON.stringify(payload),
+    ...options,
+  });
+  mergeCachedSectors([updated], options);
+  return normalizeSector(updated);
 }
 
 export async function updateSector(sectorId, payload, options = {}) {

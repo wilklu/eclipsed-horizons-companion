@@ -59,7 +59,12 @@ const sectorSurveyRoute = computed(() => {
   }
 
   const currentSectorId = String(sectorStore.currentSectorId || "").trim();
-  return currentSectorId && currentSectorId.startsWith(`${galaxyId.value}:`)
+  const currentSectorRecord = sectorStore.sectors.find((sector) => String(sector?.sectorId || "") === currentSectorId);
+  const belongsToCurrentGalaxy =
+    (currentSectorRecord && String(currentSectorRecord?.galaxyId || "") === String(galaxyId.value || "")) ||
+    currentSectorId.startsWith(`${galaxyId.value}:`);
+
+  return currentSectorId && belongsToCurrentGalaxy
     ? {
         name: "SectorSurvey",
         params: { galaxyId: galaxyId.value },

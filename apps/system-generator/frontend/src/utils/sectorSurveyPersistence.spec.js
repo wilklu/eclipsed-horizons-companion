@@ -100,6 +100,47 @@ describe("sectorSurveyPersistence", () => {
     });
   });
 
+  it("prefers populated/generated sectors for fallback when no explicit or current sector is available", () => {
+    const result = resolveSectorSurveyInitialSelection({
+      sectors: [
+        {
+          sectorId: "sector-empty",
+          metadata: {
+            gridX: 0,
+            gridY: 0,
+            systemCount: 0,
+            hexPresenceGenerated: false,
+            lastModified: "2026-04-08T00:00:00.000Z",
+          },
+        },
+        {
+          sectorId: "sector-generated",
+          metadata: {
+            gridX: 1,
+            gridY: 1,
+            systemCount: 9,
+            occupiedHexes: ["0101", "0102"],
+            hexPresenceGenerated: true,
+            lastModified: "2026-04-09T00:00:00.000Z",
+          },
+        },
+      ],
+      currentSectorId: null,
+      requestedSectorId: "",
+    });
+
+    expect(result).toEqual({
+      mode: "load",
+      sectorId: "sector-generated",
+      reason: "fallback-sector",
+      viewport: {
+        scope: null,
+        subsector: null,
+        subsectorName: null,
+      },
+    });
+  });
+
   it("prefers explicit return routes before atlas or galaxy fallbacks", () => {
     const explicitReturnRoute = { name: "OrbitalView", params: { galaxyId: "gal-1" }, query: { hex: "0101" } };
 
@@ -346,6 +387,40 @@ describe("sectorSurveyPersistence", () => {
           notes: "Generated subsector H (March)",
           displayName: "Deneb",
           systemCount: 12,
+        },
+      },
+    });
+  });
+
+  it("uses fallback coordinates for create mutations when requested grid is unavailable", () => {
+    const createMutation = buildSectorSurveyGenerationMutation({
+      generatedName: "Core Reach",
+      requestedGrid: null,
+      fallbackCoordinates: { x: -1, y: 2 },
+      galaxyId: "gal-1",
+      densityClass: 3,
+      densityVariation: 45,
+      sharedMetadata: { displayName: "Core Reach" },
+      createSectorId: (_name, coordinates) => `gal-1:${coordinates.x},${coordinates.y}`,
+      nowIso: "2026-04-08T00:00:00.000Z",
+    });
+
+    expect(createMutation).toEqual({
+      mode: "create",
+      sectorId: "gal-1:-1,2",
+      payload: {
+        sectorId: "gal-1:-1,2",
+        galaxyId: "gal-1",
+        coordinates: { x: -1, y: 2 },
+        densityClass: 3,
+        densityVariation: 45,
+        metadata: {
+          createdAt: "2026-04-08T00:00:00.000Z",
+          explorationStatus: "unexplored",
+          gridX: -1,
+          gridY: 2,
+          notes: "Generated sector",
+          displayName: "Core Reach",
         },
       },
     });

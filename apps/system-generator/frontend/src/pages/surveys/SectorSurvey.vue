@@ -967,7 +967,7 @@ import { usePreferencesStore } from "../../stores/preferencesStore.js";
 import { useArchiveTransfer } from "../../composables/useArchiveTransfer.js";
 import { getRequestedSurveyViewport, useSectorSurveyViewMode } from "../../composables/useSectorSurveyViewMode.js";
 import { SUBSECTOR_LETTERS, getSubsectorViewportBounds } from "../../utils/subsector.js";
-import { upsertSystemStrict } from "../../api/systemApi.js";
+import { getSystemsBySectorStrict, replaceSystemsForSectorStrict, upsertSystemStrict } from "../../api/systemApi.js";
 import {
   buildSectorSurveyHexTitle,
   buildSectorSurveyProgress,
@@ -2996,7 +2996,9 @@ async function replaceGeneratedSystemsForScope(sectorId, scopeHexes) {
     return { systemCount: 0, worldCount: 0 };
   }
 
-  await systemStore.loadSystems(props.galaxyId, sectorId);
+  const persistedSystems = await getSystemsBySectorStrict(sectorId);
+  const nonTargetSystems = systemStore.systems.filter((system) => String(system?.sectorId) !== String(sectorId));
+  systemStore.systems = nonTargetSystems.concat(persistedSystems);
 
   const scopeCoords = new Set(
     (Array.isArray(scopeHexes) ? scopeHexes : [])
@@ -3005,7 +3007,7 @@ async function replaceGeneratedSystemsForScope(sectorId, scopeHexes) {
       .filter(Boolean),
   );
 
-  const retainedSystems = systemStore.systems.filter((system) => !scopeCoords.has(systemCoordFromRecord(system)));
+  const retainedSystems = persistedSystems.filter((system) => !scopeCoords.has(systemCoordFromRecord(system)));
   const generatedSystems = (Array.isArray(scopeHexes) ? scopeHexes : [])
     .map((hex) => normalizeHexToSectorCoord(hex))
     .filter((hex) => hex?.hasSystem && !hex?.presenceOnly && hex?.starType)
@@ -3025,8 +3027,9 @@ async function replaceGeneratedSystemsForScope(sectorId, scopeHexes) {
       return generatedSystem;
     });
 
-  await systemStore.replaceSectorSystems(sectorId, retainedSystems.concat(generatedSystems));
-  await systemStore.loadSystems(props.galaxyId, sectorId);
+  const persisted = await replaceSystemsForSectorStrict(sectorId, retainedSystems.concat(generatedSystems));
+  const otherSystems = systemStore.systems.filter((system) => String(system?.sectorId) !== String(sectorId));
+  systemStore.systems = otherSystems.concat(persisted);
 
   return {
     systemCount: generatedSystems.length,
@@ -3086,7 +3089,9 @@ async function upsertGeneratedSystemsForScope(sectorId, scopeHexes) {
 
   const otherSystems = systemStore.systems.filter((system) => String(system?.sectorId) !== String(sectorId));
   systemStore.systems = otherSystems.concat(persistedSystems);
-  await systemStore.loadSystems(props.galaxyId, sectorId);
+  const reloadedSectorSystems = await getSystemsBySectorStrict(sectorId);
+  const retained = systemStore.systems.filter((system) => String(system?.sectorId) !== String(sectorId));
+  systemStore.systems = retained.concat(reloadedSectorSystems);
   setGenerationStatus(
     `Persisted ${generatedSystems.length.toLocaleString()} system(s) for sector ${sectorId}.`,
     "success",
@@ -3279,7 +3284,13 @@ async function ensureCurrentSectorRecord({ showToast = false } = {}) {
     createSectorId,
   });
 
-  const persisted = await sectorStore.createSector(payload);
+  const persisted = await sectorApi.createSectorStrict(payload);
+  const sectorIndex = sectorStore.sectors.findIndex((entry) => entry.sectorId === persisted.sectorId);
+  if (sectorIndex >= 0) {
+    sectorStore.sectors[sectorIndex] = persisted;
+  } else {
+    sectorStore.sectors.unshift(persisted);
+  }
   selectedSectorId.value = persisted.sectorId;
   sectorStore.setCurrentSector(persisted.sectorId);
   await loadPersistedSector(persisted.sectorId, false);
@@ -3410,17 +3421,18 @@ async function generateSectorPresence() {
       nextMetadata,
     });
 
-    await sectorStore.updateSector(currentSector.sectorId, payload);
+    const updatedSector = await sectorApi.updateSectorStrict(currentSector.sectorId, payload);
+    const updatedSectorIndex = sectorStore.sectors.findIndex((entry) => entry.sectorId === updatedSector.sectorId);
+    if (updatedSectorIndex >= 0) {
+      sectorStore.sectors[updatedSectorIndex] = updatedSector;
+    } else {
+      sectorStore.sectors.unshift(updatedSector);
+    }
 
     // Remove any existing persisted systems that fall inside the newly generated presence-area.
     // Passing the generated hexes will result in generatedSystems === [] (presenceOnly true),
     // so replaceGeneratedSystemsForScope will delete any systems at those coords.
-    try {
-      await replaceGeneratedSystemsForScope(currentSector.sectorId, hexes);
-    } catch (err) {
-      // Non-fatal: if persistence fails, leave metadata updated and surface an error toast below
-      console.warn("Failed to replace persisted systems for presence generation:", err);
-    }
+    await replaceGeneratedSystemsForScope(currentSector.sectorId, hexes);
 
     const previewScope = resolvePreviewScope();
     const { cols: previewCols, rows: previewRows } = resolvePreviewDimensions(previewScope);
@@ -3807,7 +3819,13 @@ async function persistSectorName({ showToast = false } = {}) {
   }
 
   try {
-    const updatedSector = await sectorStore.updateSector(sector.sectorId, nameUpdate.updatePayload);
+    const updatedSector = await sectorApi.updateSectorStrict(sector.sectorId, nameUpdate.updatePayload);
+    const sectorIndex = sectorStore.sectors.findIndex((entry) => entry.sectorId === updatedSector.sectorId);
+    if (sectorIndex >= 0) {
+      sectorStore.sectors[sectorIndex] = updatedSector;
+    } else {
+      sectorStore.sectors.unshift(updatedSector);
+    }
 
     if (generatedSector.value?.sectorId === updatedSector.sectorId) {
       generatedSector.value = buildSectorSurveySavedPreviewState({
@@ -4082,14 +4100,28 @@ async function generateSector() {
     });
 
     if (generationMutation.mode === "update") {
-      await sectorStore.updateSector(existingSectorId, generationMutation.payload);
+      const updatedSector = await sectorApi.updateSectorStrict(existingSectorId, generationMutation.payload);
+      const sectorIndex = sectorStore.sectors.findIndex((entry) => entry.sectorId === updatedSector.sectorId);
+      if (sectorIndex >= 0) {
+        sectorStore.sectors[sectorIndex] = updatedSector;
+      } else {
+        sectorStore.sectors.unshift(updatedSector);
+      }
       finalSectorId = existingSectorId;
     } else {
-      const persistedSector = await sectorStore.createSector(generationMutation.payload);
+      const persistedSector = await sectorApi.createSectorStrict(generationMutation.payload);
+      const sectorIndex = sectorStore.sectors.findIndex((entry) => entry.sectorId === persistedSector.sectorId);
+      if (sectorIndex >= 0) {
+        sectorStore.sectors[sectorIndex] = persistedSector;
+      } else {
+        sectorStore.sectors.unshift(persistedSector);
+      }
       finalSectorId = persistedSector.sectorId;
       selectedSectorId.value = finalSectorId;
       sectorStore.setCurrentSector(finalSectorId);
     }
+
+    await sectorApi.getSectorStrict(finalSectorId);
 
     const persistedSurveyTotals = await replaceGeneratedSystemsForScope(finalSectorId, hexes);
 

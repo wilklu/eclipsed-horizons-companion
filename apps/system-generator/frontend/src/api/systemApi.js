@@ -140,6 +140,11 @@ export async function getSystemsBySector(sectorId, options = {}) {
   }
 }
 
+export async function getSystemsBySectorStrict(sectorId, options = {}) {
+  const systems = await request(`/sectors/${encodeURIComponent(sectorId)}/systems`, options);
+  return replaceCachedSystemsForSector(sectorId, Array.isArray(systems) ? systems : [], options);
+}
+
 export async function upsertSystem(system, options = {}) {
   const payload = normalizeSystem(system);
   try {
@@ -211,4 +216,14 @@ export async function replaceSystemsForSector(sectorId, systems, options = {}) {
     }
     return payload;
   }
+}
+
+export async function replaceSystemsForSectorStrict(sectorId, systems, options = {}) {
+  const payload = Array.isArray(systems) ? systems.map(normalizeSystem) : [];
+  const updated = await request(`/sectors/${encodeURIComponent(sectorId)}/systems/replace`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+    ...options,
+  });
+  return replaceCachedSystemsForSector(sectorId, Array.isArray(updated) ? updated : [], options);
 }

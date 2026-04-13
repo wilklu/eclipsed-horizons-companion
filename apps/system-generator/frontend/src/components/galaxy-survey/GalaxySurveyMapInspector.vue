@@ -9,8 +9,16 @@
     </div>
     <div class="density-map-inspector-grid">
       <div class="density-map-inspector-item">
+        <span>Tile Type</span>
+        <strong>{{ selectedTile.kind === "atlas" ? "Atlas Cell (Overview)" : "Persisted Sector" }}</strong>
+      </div>
+      <div class="density-map-inspector-item">
         <span>Sector ID</span>
         <strong>{{ selectedTile.sectorId }}</strong>
+      </div>
+      <div v-if="selectedTile.gridSpanLabel" class="density-map-inspector-item">
+        <span>Atlas Coverage</span>
+        <strong>{{ selectedTile.gridSpanLabel }}</strong>
       </div>
       <div class="density-map-inspector-item">
         <span>Grid</span>
@@ -30,14 +38,14 @@
       </div>
       <div class="density-map-inspector-item">
         <span>Ring Distance</span>
-        <strong>{{ selectedTile.ring }}</strong>
+        <strong>{{ selectedTile.ringLabel || `Ring ${selectedTile.ring}` }}</strong>
       </div>
     </div>
     <div class="density-map-inspector-ring-copy">
-      Ring {{ selectedTile.ring }} contains {{ ringTileCount.toLocaleString() }} layout tile{{
-        ringTileCount === 1 ? "" : "s"
-      }}
-      and {{ ringPersistedCount.toLocaleString() }} persisted sector{{ ringPersistedCount === 1 ? "" : "s" }}.
+      {{ selectedTile.ringLabel || `Ring ${selectedTile.ring}` }} contains {{ ringTileCount.toLocaleString() }} layout
+      tile{{ ringTileCount === 1 ? "" : "s" }} and {{ ringPersistedCount.toLocaleString() }} persisted sector{{
+        ringPersistedCount === 1 ? "" : "s"
+      }}.
     </div>
     <div class="density-map-inspector-actions">
       <button

@@ -16,6 +16,48 @@ function normalizeRequestedViewport(requestedViewport = {}) {
   };
 }
 
+function scoreSectorForFallback(sector = {}) {
+  const metadata = sector?.metadata && typeof sector.metadata === "object" ? sector.metadata : {};
+  const systemCount = Number(metadata?.systemCount ?? 0);
+  const occupiedHexes = Array.isArray(metadata?.occupiedHexes) ? metadata.occupiedHexes.length : 0;
+  const typedHexes =
+    metadata?.hexStarTypes && typeof metadata.hexStarTypes === "object" ? Object.keys(metadata.hexStarTypes).length : 0;
+  const generatedPresence = Boolean(metadata?.hexPresenceGenerated) ? 1 : 0;
+  const evidenceScore = Math.max(systemCount, occupiedHexes, typedHexes);
+  const lastModifiedAt = Date.parse(
+    String(metadata?.lastModified || metadata?.hexPresenceGeneratedAt || metadata?.lastUpdated || ""),
+  );
+
+  return {
+    evidenceScore,
+    generatedPresence,
+    lastModifiedAt: Number.isFinite(lastModifiedAt) ? lastModifiedAt : 0,
+  };
+}
+
+function choosePreferredFallbackSector(sectors = []) {
+  const entries = Array.isArray(sectors) ? sectors : [];
+  if (!entries.length) {
+    return null;
+  }
+
+  return [...entries].sort((left, right) => {
+    const a = scoreSectorForFallback(left);
+    const b = scoreSectorForFallback(right);
+
+    if (a.evidenceScore !== b.evidenceScore) {
+      return b.evidenceScore - a.evidenceScore;
+    }
+    if (a.generatedPresence !== b.generatedPresence) {
+      return b.generatedPresence - a.generatedPresence;
+    }
+    if (a.lastModifiedAt !== b.lastModifiedAt) {
+      return b.lastModifiedAt - a.lastModifiedAt;
+    }
+    return 0;
+  })[0];
+}
+
 export function resolveSectorSurveyInitialSelection({
   sectors = [],
   currentSectorId = null,
@@ -27,7 +69,7 @@ export function resolveSectorSurveyInitialSelection({
   const viewport = normalizeRequestedViewport(requestedViewport);
   const normalizedRequestedSectorId = String(requestedSectorId || "").trim();
   const currentSector = availableSectors.find((sector) => sector?.sectorId === currentSectorId) ?? null;
-  const fallbackSector = availableSectors[0] ?? null;
+  const fallbackSector = choosePreferredFallbackSector(availableSectors);
   const requestedSector = normalizedRequestedSectorId
     ? (availableSectors.find((sector) => sector?.sectorId === normalizedRequestedSectorId) ?? null)
     : null;
@@ -312,24 +354,26 @@ export function buildSectorSurveyGenerationMutation({
     };
   }
 
+  const resolvedCoordinates = {
+    x: Number(requestedGrid?.x ?? fallbackCoordinates?.x ?? 0),
+    y: Number(requestedGrid?.y ?? fallbackCoordinates?.y ?? 0),
+  };
+
   const normalizedSubsectorName = String(subsectorName || "").trim();
   return {
     mode: "create",
-    sectorId: createSectorId(generatedName, requestedGrid),
+    sectorId: createSectorId(generatedName, resolvedCoordinates),
     payload: {
-      sectorId: createSectorId(generatedName, requestedGrid),
+      sectorId: createSectorId(generatedName, resolvedCoordinates),
       galaxyId,
-      coordinates: {
-        x: requestedGrid?.x ?? fallbackCoordinates?.x ?? 0,
-        y: requestedGrid?.y ?? fallbackCoordinates?.y ?? 0,
-      },
+      coordinates: resolvedCoordinates,
       densityClass,
       densityVariation,
       metadata: {
         createdAt: nowIso,
         explorationStatus: "unexplored",
-        gridX: requestedGrid?.x ?? null,
-        gridY: requestedGrid?.y ?? null,
+        gridX: resolvedCoordinates.x,
+        gridY: resolvedCoordinates.y,
         notes:
           scope === "subsector"
             ? `Generated subsector ${selectedSubsector}${normalizedSubsectorName ? ` (${normalizedSubsectorName})` : ""}`

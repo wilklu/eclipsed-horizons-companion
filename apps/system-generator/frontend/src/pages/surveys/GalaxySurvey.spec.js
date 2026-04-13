@@ -135,6 +135,18 @@ vi.mock("../../api/sectorApi.js", () => ({
     ...sector,
     sectorId: sector.sectorId || `sec-${sector.metadata?.gridX ?? 0}`,
   })),
+  upsertSectorStrict: vi.fn().mockImplementation(async (sector) => ({
+    ...sector,
+    sectorId: sector.sectorId || `sec-${sector.metadata?.gridX ?? 0}`,
+  })),
+  updateSectorStrict: vi.fn().mockImplementation(async (sectorId, payload) => ({
+    ...payload,
+    sectorId,
+  })),
+}));
+
+vi.mock("../../api/systemApi.js", () => ({
+  replaceSystemsForSectorStrict: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock("../../utils/sectorGeneration.js", () => ({

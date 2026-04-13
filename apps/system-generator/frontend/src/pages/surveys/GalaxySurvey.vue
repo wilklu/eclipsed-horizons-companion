@@ -674,6 +674,23 @@
                       stroke-width="1.5"
                       opacity="0.8"
                     />
+                    <!-- Ring number labels (fit zoom only, pointer-events disabled) -->
+                    <text
+                      v-for="label in galaxyMapRingSvgLabels"
+                      :key="`rl-${label.ring}`"
+                      :x="label.x"
+                      :y="label.y"
+                      dominant-baseline="central"
+                      text-anchor="start"
+                      font-size="4.5"
+                      font-family="monospace"
+                      pointer-events="none"
+                      :fill="label.isFrontier ? '#49c8ff' : label.hasAny ? '#9accd8' : '#4a6e82'"
+                      :opacity="label.isFrontier ? 0.92 : 0.52"
+                      aria-hidden="true"
+                    >
+                      {{ label.label }}
+                    </text>
                   </svg>
                 </div>
               </div>
@@ -794,7 +811,7 @@
                   v-for="entry in galaxyMapLegendEntries"
                   :key="entry.label"
                   class="legend-swatch"
-                  :style="{ background: entry.color }"
+                  :style="{ background: entry.color, opacity: entry.opacity ?? 1 }"
                   :title="entry.label"
                 />
               </div>
@@ -817,6 +834,10 @@
                 <button type="button" class="density-map-ring-badge-clear" @click="clearGalaxyMapHighlightedRing">
                   Clear
                 </button>
+              </div>
+              <div v-if="selectedGalaxyMapTile" class="density-map-selected-context">
+                {{ selectedGalaxyMapTile.ringLabel || `Ring ${selectedGalaxyMapTile.ring}` }} ·
+                {{ formatTileGrid(selectedGalaxyMapTile.gridX, selectedGalaxyMapTile.gridY) }}
               </div>
               <div class="density-map-shortcuts">
                 Shortcuts: Z zoom · L layers · R rings · F frontier · H help · Esc clear
@@ -1299,7 +1320,14 @@ import { useRouter, useRoute } from "vue-router";
 import { useGalaxyStore } from "../../stores/galaxyStore.js";
 import { useSectorStore } from "../../stores/sectorStore.js";
 import { useSystemStore } from "../../stores/systemStore.js";
-import { createSectorsBatch, deleteSector, getSectorStats, upsertSector } from "../../api/sectorApi.js";
+import {
+  createSectorsBatch,
+  deleteSector,
+  getSectorStats,
+  updateSectorStrict,
+  upsertSectorStrict,
+} from "../../api/sectorApi.js";
+import { replaceSystemsForSectorStrict } from "../../api/systemApi.js";
 import { calculateHexOccupancyProbability } from "../../utils/sectorGeneration.js";
 import { generatePrimaryStar } from "../../utils/primaryStarGenerator.js";
 import { buildHexStarTypeMetadata, normalizeHexStarTypeRecord } from "../../utils/systemStarMetadata.js";
@@ -2702,6 +2730,11 @@ const highlightedRingBadgeLabel = computed(() => {
     return "";
   }
 
+  const selectedTile = selectedGalaxyMapTile.value;
+  if (selectedTile && Number(selectedTile?.ring) === ring && String(selectedTile?.ringLabel || "").trim()) {
+    return `${selectedTile.ringLabel}${selectedTile.kind === "atlas" ? " (selected atlas cell)" : " highlighted"}`;
+  }
+
   const ringSummary =
     generationGuidance.value?.ringSummaries?.find((summary) => Number(summary?.ring) === ring) ?? null;
   const layoutCount = Number(ringSummary?.layoutCount || 0);
@@ -3079,6 +3112,8 @@ const galaxyMapPreview = computed(() => {
     : `${footprint.width.toLocaleString()}×${footprint.height.toLocaleString()} sectors · ${footprint.footprintWidthPc.toLocaleString()} × ${footprint.footprintHeightPc.toLocaleString()} pc · ${zoomLabel} zoom`;
 
   const atlasTiles = [];
+  const previewCenterColumn = Math.floor(previewWidth / 2);
+  const previewCenterRow = Math.floor(previewHeight / 2);
   for (let row = 0; row < previewHeight; row += 1) {
     const yBounds = buildGalaxyAtlasBucketBounds(row, previewHeight, bounds.minGridY, bounds.height);
     for (let column = 0; column < previewWidth; column += 1) {
@@ -3098,6 +3133,9 @@ const galaxyMapPreview = computed(() => {
       const renderHeight = Math.max(2.4, (yBounds.end - yBounds.start + 1) * step * 0.92);
       const px = offsetX + centerGridX * step;
       const py = offsetY + centerGridY * step;
+      const trueRing = Math.max(Math.abs(centerGridX), Math.abs(centerGridY));
+      const previewRing = Math.max(Math.abs(column - previewCenterColumn), Math.abs(row - previewCenterRow));
+      const gridSpanLabel = `${xBounds.start >= 0 ? "+" : ""}${xBounds.start}..${xBounds.end >= 0 ? "+" : ""}${xBounds.end}, ${yBounds.start >= 0 ? "+" : ""}${yBounds.start}..${yBounds.end >= 0 ? "+" : ""}${yBounds.end}`;
 
       atlasTiles.push({
         id: `atlas:${column},${row}`,
@@ -3106,7 +3144,10 @@ const galaxyMapPreview = computed(() => {
         displayName: `Atlas Cell ${column + 1},${row + 1}`,
         gridX: centerGridX,
         gridY: centerGridY,
-        ring: Math.max(Math.abs(centerGridX), Math.abs(centerGridY)),
+        ring: trueRing,
+        previewRing,
+        ringLabel: `Preview Ring ${previewRing} · True Ring ${trueRing}`,
+        gridSpanLabel,
         persisted: false,
         presenceGenerated: false,
         occupiedHexCount: 0,
@@ -3122,8 +3163,8 @@ const galaxyMapPreview = computed(() => {
         opacity: densityClass > 0 ? 0.86 : 0.24,
         tooltip:
           `Atlas cell ${column + 1},${row + 1}\n` +
-          `Grid ${xBounds.start >= 0 ? "+" : ""}${xBounds.start}..${xBounds.end >= 0 ? "+" : ""}${xBounds.end}, ` +
-          `${yBounds.start >= 0 ? "+" : ""}${yBounds.start}..${yBounds.end >= 0 ? "+" : ""}${yBounds.end}\n` +
+          `Grid ${gridSpanLabel}\n` +
+          `Preview ring ${previewRing} · True ring ${trueRing}\n` +
           `Sample density ${densityClass}`,
       });
     }
@@ -3149,6 +3190,7 @@ const galaxyMapPreview = computed(() => {
       gridX,
       gridY,
       ring: Math.max(Math.abs(gridX), Math.abs(gridY)),
+      ringLabel: `Ring ${Math.max(Math.abs(gridX), Math.abs(gridY))}`,
       persisted: true,
       presenceGenerated: Boolean(sector?.metadata?.hexPresenceGenerated),
       occupiedHexCount,
@@ -3212,6 +3254,7 @@ const galaxyMapPreview = computed(() => {
     actualSectorHeight: footprint.height,
     actualFootprintWidthPc: footprint.footprintWidthPc,
     actualFootprintHeightPc: footprint.footprintHeightPc,
+    bounds,
     ringSummaries,
     focusAnchors,
     exactSectorTiles,
@@ -3394,6 +3437,37 @@ const galaxyMapSelectableTiles = computed(() => [
   ...(galaxyMapPreview.value?.focusAnchors ?? []),
 ]);
 
+const galaxyMapRingSvgLabels = computed(() => {
+  const preview = galaxyMapPreview.value;
+  if (!preview?.focusAnchors?.length || galaxyMapZoomLevel.value !== "fit") return [];
+
+  const frontierRing = Number(generationGuidance.value?.recommendation?.ring);
+  const allRings = preview.focusAnchors.filter((anchor) => anchor.ring > 0);
+  const maxRing = allRings.reduce((m, a) => Math.max(m, a.ring), 0);
+
+  // Pick a label step to render ~10-15 visible labels
+  const rawStep = Math.max(1, maxRing / 12);
+  const magnitude = Math.pow(10, Math.floor(Math.log10(Math.max(1, rawStep))));
+  const normalized = rawStep / magnitude;
+  const labelStep = magnitude * (normalized < 1.5 ? 1 : normalized < 3.5 ? 2 : normalized < 7.5 ? 5 : 10);
+
+  return allRings
+    .filter((anchor) => anchor.ring % labelStep === 0 || anchor.ring === frontierRing)
+    .map((anchor) => {
+      const summary = preview.ringSummaries?.find((s) => s.ring === anchor.ring);
+      const isFrontier = anchor.ring === frontierRing;
+      const hasAny = Number(summary?.persistedCount || 0) > 0;
+      return {
+        ring: anchor.ring,
+        x: anchor.px + 2.5,
+        y: anchor.py + 1.5,
+        label: isFrontier ? `★${anchor.ring}` : String(anchor.ring),
+        isFrontier,
+        hasAny,
+      };
+    });
+});
+
 const selectedGalaxyMapTile = computed(
   () => galaxyMapSelectableTiles.value.find((tile) => tile.id === selectedGalaxyMapTileId.value) ?? null,
 );
@@ -3417,10 +3491,10 @@ const selectedGalaxyMapRingPersistedSectors = computed(() =>
 const galaxyMapLegendEntries = computed(() => {
   if (galaxyMapOverlayMode.value === "density") {
     return [
-      { label: "Void", color: DENSITY_COLORS[0] },
-      { label: "Sparse", color: DENSITY_COLORS[1] },
-      { label: "Inter-arm", color: DENSITY_COLORS[3] },
-      { label: "Dense Core", color: DENSITY_COLORS[5] },
+      { label: "Void", color: DENSITY_COLORS[0], opacity: 0.24 },
+      { label: "Sparse", color: DENSITY_COLORS[1], opacity: 0.86 },
+      { label: "Inter-arm", color: DENSITY_COLORS[3], opacity: 0.86 },
+      { label: "Dense Core", color: DENSITY_COLORS[5], opacity: 0.86 },
     ];
   }
 
@@ -3499,7 +3573,7 @@ const galaxySectorSearchResults = computed(() => {
 
 // Compact mini-map panel for ring navigation and overview
 const miniMapRingMetrics = computed(() => {
-  const bounds = galaxyMapPreview.value ? resolveGalaxyFootprintBounds(galaxyMapPreview.value.footprint) : null;
+  const bounds = galaxyMapPreview.value?.bounds ?? null;
   if (!bounds) return [];
 
   const maxRing = Math.max(
@@ -4124,11 +4198,6 @@ function selectGalaxyMapTile(tile) {
     Number.isFinite(targetRing) &&
     Number(galaxyMapHighlightedRing.value) === targetRing;
 
-  if (tile.kind === "atlas" && tile.ring !== undefined) {
-    selectedGalaxyMapTileId.value = `ring:${tile.ring}`;
-    galaxyMapHighlightedRing.value = shouldToggleHighlightedRingOff ? null : targetRing;
-    return;
-  }
   selectedGalaxyMapTileId.value = tile.id;
   galaxyMapHighlightedRing.value = shouldToggleHighlightedRingOff ? null : targetRing;
 }
@@ -4239,18 +4308,21 @@ async function generateRingByNumber({ ring, mode = "systems", reason = "manual" 
   const targetRing = Number(ring);
   if (!galaxy?.galaxyId || !Number.isFinite(targetRing)) {
     toastService.error("Select a ring tile first.");
-    return;
+    errorMessage.value = "Select a valid ring tile before running generation.";
+    return false;
   }
 
   const ringSectors = getRingLayoutSectors(galaxy, targetRing);
   if (!ringSectors.length) {
     toastService.warning("No sectors were found for the selected ring.");
-    return;
+    errorMessage.value = `Ring ${targetRing} has no layout sectors to process.`;
+    return false;
   }
 
   focusGalaxyMapRing(targetRing, { zoom: true });
 
   const startedAt = Date.now();
+  let generationSucceeded = false;
   isGeneratingSectors.value = true;
   beginGenerationRequestScope();
   try {
@@ -4278,37 +4350,40 @@ async function generateRingByNumber({ ring, mode = "systems", reason = "manual" 
           durationMs: Date.now() - startedAt,
         }),
       });
+      errorMessage.value = "";
       toastService.success(
         `Ring ${targetRing} processed: ${result.namedSectorCount.toLocaleString()} sectors and ${result.totalSystems.toLocaleString()} occupied hexes.`,
       );
-      return;
+      generationSucceeded = true;
+    } else {
+      result = await generateSectorSystemsForSectors(galaxy, ringSectors, {
+        progressLabel: `Generating ring ${targetRing} systems`,
+        totalCount: ringSectors.length,
+      });
+      await sectorStore.loadSectors(galaxy.galaxyId);
+      await syncGenerationFrontierSelection({ preferMode: "systems", announce: true });
+      recordGalaxySurveyHistory({
+        galaxyId: galaxy.galaxyId,
+        label: `Generated Ring ${targetRing} Systems`,
+        detail:
+          reason === "frontier"
+            ? `Guided frontier run processed ring ${targetRing} and generated ${result.totalSystems.toLocaleString()} systems.`
+            : `Processed ring ${targetRing} and generated ${result.totalSystems.toLocaleString()} systems.`,
+        metrics: buildHistoryMetrics({
+          mode: "systems",
+          scope: `ring ${targetRing}`,
+          sectors: result.namedSectorCount,
+          populatedSectors: result.populatedSectorCount,
+          systems: result.totalSystems,
+          durationMs: Date.now() - startedAt,
+        }),
+      });
+      errorMessage.value = "";
+      toastService.success(
+        `Ring ${targetRing} processed: ${result.namedSectorCount.toLocaleString()} sectors and ${result.totalSystems.toLocaleString()} systems.`,
+      );
+      generationSucceeded = true;
     }
-
-    result = await generateSectorSystemsForSectors(galaxy, ringSectors, {
-      progressLabel: `Generating ring ${targetRing} systems`,
-      totalCount: ringSectors.length,
-    });
-    await sectorStore.loadSectors(galaxy.galaxyId);
-    await syncGenerationFrontierSelection({ preferMode: "systems", announce: true });
-    recordGalaxySurveyHistory({
-      galaxyId: galaxy.galaxyId,
-      label: `Generated Ring ${targetRing} Systems`,
-      detail:
-        reason === "frontier"
-          ? `Guided frontier run processed ring ${targetRing} and generated ${result.totalSystems.toLocaleString()} systems.`
-          : `Processed ring ${targetRing} and generated ${result.totalSystems.toLocaleString()} systems.`,
-      metrics: buildHistoryMetrics({
-        mode: "systems",
-        scope: `ring ${targetRing}`,
-        sectors: result.namedSectorCount,
-        populatedSectors: result.populatedSectorCount,
-        systems: result.totalSystems,
-        durationMs: Date.now() - startedAt,
-      }),
-    });
-    toastService.success(
-      `Ring ${targetRing} processed: ${result.namedSectorCount.toLocaleString()} sectors and ${result.totalSystems.toLocaleString()} systems.`,
-    );
   } catch (err) {
     if (isGalaxySurveyGenerationCancelledError(err)) {
       generationRingCheckpoint.value = {
@@ -4316,20 +4391,39 @@ async function generateRingByNumber({ ring, mode = "systems", reason = "manual" 
         mode,
         galaxyId: galaxy?.galaxyId || null,
       };
-      return;
+      return false;
     }
+    errorMessage.value = `Run ${mode === "presence" ? "Presence" : "Systems"} failed for ring ${targetRing}: ${err.message}`;
     toastService.error(`Failed to generate selected ring: ${err.message}`);
+    return false;
   } finally {
     isGeneratingSectors.value = false;
     clearGenerationRequestScope();
     resetGenerationProgress();
+    if (generationSucceeded) {
+      clearGenerationRingCheckpoint();
+    }
   }
-
-  clearGenerationRingCheckpoint();
+  return generationSucceeded;
 }
 
 async function runGuidedGenerationStepAction({ mode = "systems" } = {}) {
-  await runGuidedGenerationStep({ mode, generateRing: generateRingByNumber });
+  const handled = await runGuidedGenerationStep({ mode, generateRing: generateRingByNumber });
+  if (handled) {
+    return;
+  }
+  if (errorMessage.value) {
+    return;
+  }
+  if (mode === "presence" && !generationGuidance.value?.nextPresenceRing) {
+    errorMessage.value = "No pending presence frontier remains for this galaxy.";
+    return;
+  }
+  if (mode === "systems" && !generationGuidance.value?.nextSystemsRing) {
+    errorMessage.value = "No pending systems frontier remains for this galaxy.";
+    return;
+  }
+  errorMessage.value = `Run ${mode === "presence" ? "Presence" : "Systems"} did not complete. Check API connectivity and retry.`;
 }
 
 async function runGuidedGenerationResumeAction({ mode = "systems", startFromRing = 0 } = {}) {
@@ -4674,6 +4768,26 @@ function createGalaxyGenerationWorker() {
   return activeGalaxyGenerationWorker;
 }
 
+function toWorkerCloneable(value) {
+  if (value === null || value === undefined) {
+    return value;
+  }
+
+  if (typeof structuredClone === "function") {
+    try {
+      return structuredClone(value);
+    } catch {
+      // Fall back to JSON serialization for payloads containing proxies.
+    }
+  }
+
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch {
+    throw new Error("Galaxy generation payload could not be serialized for worker execution.");
+  }
+}
+
 function disposeGalaxyGenerationWorker(worker) {
   clearActiveGalaxyGenerationWorkerTask();
   if (worker && activeGalaxyGenerationWorker === worker) {
@@ -4694,6 +4808,19 @@ function runGalaxyGenerationBatch({ worker, mode, galaxy, sectors }) {
 
   return new Promise((resolve, reject) => {
     const requestId = ++activeGalaxyGenerationWorkerRequestId;
+    let workerPayload = null;
+
+    try {
+      workerPayload = toWorkerCloneable({
+        requestId,
+        mode,
+        galaxy,
+        sectors: entries,
+      });
+    } catch {
+      resolve(generateGalaxySectorBatch({ mode, galaxy, sectors: entries }));
+      return;
+    }
 
     const cleanup = () => {
       worker.removeEventListener("message", handleMessage);
@@ -4728,12 +4855,7 @@ function runGalaxyGenerationBatch({ worker, mode, galaxy, sectors }) {
     activeGalaxyGenerationWorkerReject = reject;
     worker.addEventListener("message", handleMessage);
     worker.addEventListener("error", handleError);
-    worker.postMessage({
-      requestId,
-      mode,
-      galaxy,
-      sectors: entries,
-    });
+    worker.postMessage(workerPayload);
   });
 }
 
@@ -4956,7 +5078,7 @@ async function seedGalacticCenterSector(galaxy) {
     hexStarTypes: {},
   });
 
-  const persistedSector = await upsertSector(
+  const persistedSector = await upsertSectorStrict(
     {
       ...centerSector,
       metadata: ensureSectorNamingMetadata(centerSector, {
@@ -4975,11 +5097,15 @@ async function seedGalacticCenterSector(galaxy) {
     getGenerationRequestOptions(),
   );
 
-  await systemStore.replaceSectorSystems(
+  const persistedSystems = await replaceSystemsForSectorStrict(
     persistedSector.sectorId,
     buildPersistedSystemRecordsForSector(persistedSector, seeded.hexStarTypes),
     getGenerationRequestOptions(),
   );
+  const retainedSystems = systemStore.systems.filter(
+    (system) => String(system?.sectorId) !== String(persistedSector.sectorId),
+  );
+  systemStore.systems = retainedSystems.concat(persistedSystems);
 
   return true;
 }
@@ -5184,7 +5310,7 @@ async function generateSectorPresenceForSectors(
         ringPopulatedCount += 1;
       }
 
-      const persistedSector = await upsertSector(
+      const persistedSector = await upsertSectorStrict(
         {
           ...sector,
           metadata: ensureSectorNamingMetadata(sector, {
@@ -5202,11 +5328,15 @@ async function generateSectorPresenceForSectors(
         getBulkGenerationRequestOptions(),
       );
 
-      await systemStore.replaceSectorSystems(
+      const persistedSystems = await replaceSystemsForSectorStrict(
         persistedSector.sectorId,
         buildPersistedSystemRecordsForSector(persistedSector, seeded.hexStarTypes),
         getBulkGenerationRequestOptions(),
       );
+      const retainedSystems = systemStore.systems.filter(
+        (system) => String(system?.sectorId) !== String(persistedSector.sectorId),
+      );
+      systemStore.systems = retainedSystems.concat(persistedSystems);
 
       processed += 1;
       ringProcessedCount += 1;
@@ -5438,7 +5568,7 @@ async function generateSectorSystemsForSectors(
         ringPopulatedCount += 1;
       }
 
-      const persistedSector = await upsertSector(
+      const persistedSector = await upsertSectorStrict(
         {
           ...sector,
           metadata: ensureSectorNamingMetadata(sector, {
@@ -5457,11 +5587,15 @@ async function generateSectorSystemsForSectors(
         getBulkGenerationRequestOptions(),
       );
 
-      await systemStore.replaceSectorSystems(
+      const persistedSystems = await replaceSystemsForSectorStrict(
         persistedSector.sectorId,
         buildPersistedSystemRecordsForSector(persistedSector, seeded.hexStarTypes),
         getBulkGenerationRequestOptions(),
       );
+      const retainedSystems = systemStore.systems.filter(
+        (system) => String(system?.sectorId) !== String(persistedSector.sectorId),
+      );
+      systemStore.systems = retainedSystems.concat(persistedSystems);
 
       processed += 1;
       ringProcessedCount += 1;
@@ -5947,11 +6081,22 @@ async function resetGalaxyGeneratedContent({ level = "systems", sectorIds = null
               hexPresenceGenerated: occupiedHexes.length > 0,
             });
 
-      await sectorStore.updateSector(sector.sectorId, {
+      const updatedSector = await updateSectorStrict(sector.sectorId, {
         ...sector,
         metadata: nextMetadata,
       });
-      await systemStore.replaceSectorSystems(sector.sectorId, []);
+      const sectorIndex = sectorStore.sectors.findIndex(
+        (entry) => String(entry?.sectorId) === String(updatedSector?.sectorId),
+      );
+      if (sectorIndex >= 0) {
+        sectorStore.sectors[sectorIndex] = updatedSector;
+      } else {
+        sectorStore.sectors.unshift(updatedSector);
+      }
+      await replaceSystemsForSectorStrict(sector.sectorId, []);
+      systemStore.systems = systemStore.systems.filter(
+        (system) => String(system?.sectorId) !== String(sector.sectorId),
+      );
     }
 
     await sectorStore.loadSectors(galaxy.galaxyId);
@@ -6816,6 +6961,11 @@ function formatNumber(num) {
   line-height: 1.45;
 }
 
+.frontier-banner-note {
+  color: #9fc8dd;
+  font-size: 0.76rem;
+}
+
 .frontier-banner-kicker {
   color: #77d8ff;
   font-size: 0.72rem;
@@ -7021,6 +7171,12 @@ function formatNumber(num) {
 .density-map-shortcuts {
   color: #88a9be;
   font-size: 0.72rem;
+}
+
+.density-map-selected-context {
+  color: #b8d9ea;
+  font-size: 0.74rem;
+  font-family: monospace;
 }
 
 .density-map-search-results {

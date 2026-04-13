@@ -225,8 +225,8 @@ export function useGalaxySurveyGenerationController({
       return false;
     }
 
-    await generateRing({ ring: ringSummary.ring, mode, reason: "frontier" });
-    return true;
+    const result = await generateRing({ ring: ringSummary.ring, mode, reason: "frontier" });
+    return result !== false;
   }
 
   return {
