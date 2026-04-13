@@ -646,6 +646,11 @@
               </div>
             </div>
             <div class="inspector-field-help">{{ atlasGenerationAction.description }}</div>
+            <div class="inspector-tier-policy" :class="`inspector-tier-policy--${atlasGenerationPolicyBadge.tier}`">
+              <span class="inspector-tier-policy__tier">{{ atlasGenerationPolicyBadge.tierLabel }}</span>
+              <span class="inspector-tier-policy__rule">{{ atlasGenerationPolicyBadge.rule }}</span>
+              <span class="inspector-tier-policy__mode">{{ atlasGenerationPolicyBadge.modeLabel }}</span>
+            </div>
             <button
               class="btn btn-primary"
               :disabled="isGeneratingInspectorSector"
@@ -693,6 +698,11 @@
               </select>
             </div>
             <div class="inspector-field-help">{{ hierarchyGenerationAction.description }}</div>
+            <div class="inspector-tier-policy" :class="`inspector-tier-policy--${hierarchyGenerationPolicyBadge.tier}`">
+              <span class="inspector-tier-policy__tier">{{ hierarchyGenerationPolicyBadge.tierLabel }}</span>
+              <span class="inspector-tier-policy__rule">{{ hierarchyGenerationPolicyBadge.rule }}</span>
+              <span class="inspector-tier-policy__mode">{{ hierarchyGenerationPolicyBadge.modeLabel }}</span>
+            </div>
             <button
               class="btn btn-primary"
               :disabled="isGeneratingInspectorSector"
@@ -1019,6 +1029,11 @@
               </div>
             </div>
             <div class="inspector-field-help">{{ atlasGenerationAction.description }}</div>
+            <div class="inspector-tier-policy" :class="`inspector-tier-policy--${atlasGenerationPolicyBadge.tier}`">
+              <span class="inspector-tier-policy__tier">{{ atlasGenerationPolicyBadge.tierLabel }}</span>
+              <span class="inspector-tier-policy__rule">{{ atlasGenerationPolicyBadge.rule }}</span>
+              <span class="inspector-tier-policy__mode">{{ atlasGenerationPolicyBadge.modeLabel }}</span>
+            </div>
             <button
               class="btn btn-primary"
               :disabled="isGeneratingInspectorSector"
@@ -1182,6 +1197,21 @@
           Void: Beyond
         </span>
       </div>
+      <div class="status-policy-legend" title="Generation policy by space tier.">
+        <span class="status-policy-label">Policy:</span>
+        <span class="status-policy-chip status-policy-chip--surveyed">
+          <span class="tier-badge tier-badge--surveyed">S</span>
+          Full systems
+        </span>
+        <span class="status-policy-chip status-policy-chip--frontier">
+          <span class="tier-badge tier-badge--frontier">F</span>
+          Selected mode
+        </span>
+        <span class="status-policy-chip status-policy-chip--void">
+          <span class="tier-badge tier-badge--void">∞</span>
+          Presence-safe
+        </span>
+      </div>
       <div class="status-layer-controls" v-if="currentLod === 'hex' || currentLod === 'detail'">
         <button class="status-toggle-chip" :class="{ active: layerRoutes }" @click="layerRoutes = !layerRoutes">
           Routes
@@ -1234,6 +1264,8 @@ import { SUBSECTOR_LETTERS, getSubsectorLetterForHex } from "../../utils/subsect
 import * as toastService from "../../utils/toast.js";
 import {
   toSectorCoordKey,
+  calculateSpaceTier,
+  resolveGenerationModeForSpaceTier,
   buildSurveyedCoordKeySet,
   buildKnownSpaceCoordKeySet,
   buildFrontierCoordKeySet,
@@ -3456,6 +3488,36 @@ const atlasGenerationAction = computed(() => {
   };
 });
 
+function buildGenerationPolicyBadge(requestedMode, spaceTier) {
+  const requested = String(requestedMode || "name-presence");
+  const tier = String(spaceTier || "void");
+  const effective = resolveGenerationModeForSpaceTier(requested, tier);
+  const adjusted = effective !== requested;
+
+  const rule =
+    tier === "surveyed"
+      ? "Surveyed targets always run full Name + Systems generation."
+      : tier === "frontier"
+        ? "Frontier targets use the selected generation mode."
+        : "Void targets are limited to presence-safe generation until surveyed.";
+
+  return {
+    tier,
+    tierLabel: `Tier: ${tier.charAt(0).toUpperCase()}${tier.slice(1)}`,
+    rule,
+    modeLabel: adjusted ? `Mode adjusted: ${requested} -> ${effective}` : `Mode: ${effective}`,
+  };
+}
+
+const atlasGenerationPolicyBadge = computed(() => {
+  const target = resolveInspectorSector();
+  const sx = Number(target?.coordinates?.x);
+  const sy = Number(target?.coordinates?.y);
+  const tier =
+    Number.isFinite(sx) && Number.isFinite(sy) ? calculateSpaceTier(sx, sy, surveyedCoordKeySet.value) : "void";
+  return buildGenerationPolicyBadge(atlasGenerationMode.value, tier);
+});
+
 const hierarchyGenerationAction = computed(() => {
   const areaScope = inferHierarchyAreaScope(inspectorHierarchy.value);
   const areaLabel = getAtlasGenerationAreaLabel(areaScope);
@@ -3463,6 +3525,15 @@ const hierarchyGenerationAction = computed(() => {
   return {
     label: `${modeMeta.icon} ${modeMeta.shortLabel} · ${areaLabel}`,
     description: `${modeMeta.description} Applies to the selected ${areaLabel.toLowerCase()}.`,
+  };
+});
+
+const hierarchyGenerationPolicyBadge = computed(() => {
+  return {
+    tier: "mixed",
+    tierLabel: "Tier: Mixed",
+    rule: "Targets are evaluated individually as Surveyed, Frontier, or Void.",
+    modeLabel: "Mode is auto-adjusted per target by tier policy.",
   };
 });
 
@@ -4534,18 +4605,25 @@ function getGenerationTargetsForSector(sector, areaScope) {
 }
 
 async function applyAtlasGenerationModeToSector(target, generationMode) {
-  switch (generationMode) {
+  const sx = Number(target?.coordinates?.x);
+  const sy = Number(target?.coordinates?.y);
+  const spaceTier =
+    Number.isFinite(sx) && Number.isFinite(sy) ? calculateSpaceTier(sx, sy, surveyedCoordKeySet.value) : "void";
+  const effectiveMode = resolveGenerationModeForSpaceTier(generationMode, spaceTier);
+
+  switch (effectiveMode) {
     case "name":
       await generateSectorNameOnlyInternal(target);
-      return;
+      return { requestedMode: generationMode, effectiveMode, spaceTier };
     case "presence":
       await generateInspectorSectorPresenceInternalWithOptions(target, { includeNames: false });
-      return;
+      return { requestedMode: generationMode, effectiveMode, spaceTier };
     case "name-systems":
       await generateInspectorSectorSystemsInternalWithOptions(target, { includeNames: true });
-      return;
+      return { requestedMode: generationMode, effectiveMode, spaceTier };
     default:
       await generateInspectorSectorPresenceInternalWithOptions(target, { includeNames: true });
+      return { requestedMode: generationMode, effectiveMode, spaceTier };
   }
 }
 
@@ -4563,19 +4641,27 @@ async function runInspectorGenerationAction() {
     let generatedCount = 0;
     let legacyReconstructedCount = 0;
     let legacyHierarchyUnknownCount = 0;
+    let adjustedByTierCount = 0;
     for (const target of targets) {
       const legacySummary = summarizeSectorLegacyProgress(target);
       legacyReconstructedCount += legacySummary.legacyReconstructedCount;
       legacyHierarchyUnknownCount += legacySummary.legacyHierarchyUnknownCount;
-      await applyAtlasGenerationModeToSector(target, atlasGenerationMode.value);
+      const generationResult = await applyAtlasGenerationModeToSector(target, atlasGenerationMode.value);
+      if (generationResult?.effectiveMode !== generationResult?.requestedMode) {
+        adjustedByTierCount += 1;
+      }
       generatedCount += 1;
       updateAtlasGenerationProgress(generatedCount, modeMeta.progressLabel, Math.max(1, targets.length), {
         legacyReconstructedCount,
         legacyHierarchyUnknownCount,
       });
     }
+    const adjustedSummary =
+      adjustedByTierCount > 0
+        ? ` Tier policy adjusted ${adjustedByTierCount.toLocaleString()} target${adjustedByTierCount !== 1 ? "s" : ""}.`
+        : "";
     toastService.success(
-      `${modeMeta.shortLabel} completed for ${generatedCount.toLocaleString()} sector${generatedCount !== 1 ? "s" : ""} in the selected ${areaLabel}.`,
+      `${modeMeta.shortLabel} completed for ${generatedCount.toLocaleString()} sector${generatedCount !== 1 ? "s" : ""} in the selected ${areaLabel}.${adjustedSummary}`,
     );
   } catch (err) {
     toastService.error(`Failed to generate selected ${areaLabel}: ${err.message}`);
@@ -4611,19 +4697,27 @@ async function runHierarchyGenerationAction() {
     let generatedCount = 0;
     let legacyReconstructedCount = 0;
     let legacyHierarchyUnknownCount = 0;
+    let adjustedByTierCount = 0;
     for (const target of targets) {
       const legacySummary = summarizeSectorLegacyProgress(target);
       legacyReconstructedCount += legacySummary.legacyReconstructedCount;
       legacyHierarchyUnknownCount += legacySummary.legacyHierarchyUnknownCount;
-      await applyAtlasGenerationModeToSector(target, atlasGenerationMode.value);
+      const generationResult = await applyAtlasGenerationModeToSector(target, atlasGenerationMode.value);
+      if (generationResult?.effectiveMode !== generationResult?.requestedMode) {
+        adjustedByTierCount += 1;
+      }
       generatedCount += 1;
       updateAtlasGenerationProgress(generatedCount, modeMeta.progressLabel, Math.max(1, targets.length), {
         legacyReconstructedCount,
         legacyHierarchyUnknownCount,
       });
     }
+    const adjustedSummary =
+      adjustedByTierCount > 0
+        ? ` Tier policy adjusted ${adjustedByTierCount.toLocaleString()} target${adjustedByTierCount !== 1 ? "s" : ""}.`
+        : "";
     toastService.success(
-      `${modeMeta.shortLabel} completed for ${generatedCount.toLocaleString()} sectors in the selected ${areaType}.`,
+      `${modeMeta.shortLabel} completed for ${generatedCount.toLocaleString()} sectors in the selected ${areaType}.${adjustedSummary}`,
     );
   } catch (err) {
     toastService.error(`Failed to generate selected ${areaType}: ${err.message}`);
@@ -5660,6 +5754,50 @@ watch(
   line-height: 1.35;
 }
 
+.inspector-tier-policy {
+  display: grid;
+  gap: 0.16rem;
+  padding: 0.42rem 0.5rem;
+  border-radius: 0.45rem;
+  border: 1px solid rgba(123, 205, 245, 0.34);
+  background: rgba(8, 19, 38, 0.9);
+}
+
+.inspector-tier-policy--surveyed {
+  border-color: rgba(91, 194, 255, 0.45);
+  background: rgba(10, 36, 55, 0.9);
+}
+
+.inspector-tier-policy--frontier {
+  border-color: rgba(115, 214, 145, 0.45);
+  background: rgba(11, 36, 27, 0.9);
+}
+
+.inspector-tier-policy--void {
+  border-color: rgba(171, 150, 255, 0.44);
+  background: rgba(28, 22, 45, 0.9);
+}
+
+.inspector-tier-policy--mixed {
+  border-color: rgba(228, 188, 96, 0.45);
+  background: rgba(45, 35, 18, 0.9);
+}
+
+.inspector-tier-policy__tier {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #ddf1ff;
+}
+
+.inspector-tier-policy__rule,
+.inspector-tier-policy__mode {
+  font-size: 0.72rem;
+  line-height: 1.3;
+  color: #b7c5d6;
+}
+
 /* ── Star swatch ──────────────────────────────────────────────────────────── */
 .star-inline {
   display: flex;
@@ -6111,13 +6249,41 @@ watch(
   font-size: 0.66rem;
 }
 
+.status-policy-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: #7da7cb;
+  font-size: 0.66rem;
+}
+
 .space-tier-label {
   font-weight: 700;
   color: #99b4d0;
   letter-spacing: 0.02em;
 }
 
+.status-policy-label {
+  font-weight: 700;
+  color: #99b4d0;
+  letter-spacing: 0.02em;
+}
+
 .space-tier-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  background: rgba(14, 25, 46, 0.88);
+  color: #8ab8d8;
+  border: 1px solid rgba(52, 84, 126, 0.7);
+  border-radius: 999px;
+  padding: 0.12rem 0.42rem;
+  font-size: 0.64rem;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.status-policy-chip {
   display: inline-flex;
   align-items: center;
   gap: 0.28rem;
@@ -6140,6 +6306,18 @@ watch(
 }
 
 .space-tier-void {
+  border-color: rgba(180, 120, 200, 0.6);
+}
+
+.status-policy-chip--surveyed {
+  border-color: rgba(84, 200, 255, 0.6);
+}
+
+.status-policy-chip--frontier {
+  border-color: rgba(116, 206, 160, 0.6);
+}
+
+.status-policy-chip--void {
   border-color: rgba(180, 120, 200, 0.6);
 }
 

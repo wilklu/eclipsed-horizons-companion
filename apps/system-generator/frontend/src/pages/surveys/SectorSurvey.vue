@@ -225,7 +225,12 @@
 
               <div class="subsector-select-actions" style="margin-top: 0.6rem">
                 <div class="control-inline-row control-inline-row--generation">
-                  <button class="btn btn-primary" @click="generateAllSubsectorSystems" :disabled="isLoading">
+                  <button
+                    class="btn btn-primary"
+                    @click="generateAllSubsectorSystems"
+                    :disabled="isLoading || fullGenerationBlockedByTier"
+                    :title="fullGenerationBlockedByTier ? fullGenerationBlockedReason : ''"
+                  >
                     {{ isLoading ? "Generating..." : "⭐ Generate All Subsector Systems" }}
                   </button>
                 </div>
@@ -416,6 +421,11 @@
               </div>
               <div class="control-help control-help--multiline">
                 {{ generationAction?.description }}
+              </div>
+              <div class="tier-policy-badge" :class="`tier-policy-badge--${generationPolicyBadge.tier}`">
+                <span class="tier-policy-badge__tier">{{ generationPolicyBadge.tierLabel }}</span>
+                <span class="tier-policy-badge__rule">{{ generationPolicyBadge.rule }}</span>
+                <span class="tier-policy-badge__mode">{{ generationPolicyBadge.modeLabel }}</span>
               </div>
               <div class="control-inline-row control-inline-row--generation">
                 <span class="survey-action-label">{{ generationAction?.label }}</span>
@@ -825,7 +835,8 @@
             <div class="subsector-sidebar-actions" style="margin-bottom: 0.4rem">
               <button
                 class="btn btn-primary subsector-sidebar-btn"
-                :disabled="isLoading"
+                :disabled="isLoading || fullGenerationBlockedByTier"
+                :title="fullGenerationBlockedByTier ? fullGenerationBlockedReason : ''"
                 @click="generateAllSubsectorSystems"
               >
                 {{ isLoading ? "Generating..." : "⭐ Generate All Subsector Systems" }}
@@ -914,7 +925,12 @@
                 }}</span>
               </div>
               <div v-if="hasLockedHexSelection" class="orbital-preview-actions">
-                <button class="btn btn-secondary" @click="generateSystemForSelectedHex" :disabled="isLoading">
+                <button
+                  class="btn btn-secondary"
+                  @click="generateSystemForSelectedHex"
+                  :disabled="isLoading || fullGenerationBlockedByTier"
+                  :title="fullGenerationBlockedByTier ? fullGenerationBlockedReason : ''"
+                >
                   ⚙ Generate System
                 </button>
                 <button class="btn btn-primary" @click="proceedToStarSystem">🔭 Stellar Survey →</button>
@@ -931,7 +947,12 @@
                 <span class="orbital-preview-detail">{{ orbitalPreview.message }}</span>
               </div>
               <div v-if="selectedHexData?.presenceOnly" class="orbital-preview-actions">
-                <button class="btn btn-primary" @click="generateSystemForSelectedHex" :disabled="isLoading">
+                <button
+                  class="btn btn-primary"
+                  @click="generateSystemForSelectedHex"
+                  :disabled="isLoading || fullGenerationBlockedByTier"
+                  :title="fullGenerationBlockedByTier ? fullGenerationBlockedReason : ''"
+                >
                   ⚙ Generate System
                 </button>
               </div>
@@ -997,6 +1018,11 @@ import {
   summarizeGeneratedStars,
 } from "../../utils/systemStarMetadata.js";
 import { generateMultipleStarSystemWbh } from "../../utils/wbh/starGenerationWbh.js";
+import {
+  buildSurveyedCoordKeySet,
+  calculateSpaceTier,
+  resolveGenerationModeForSpaceTier,
+} from "../../utils/spaceClassification.js";
 
 const props = defineProps({
   galaxyId: { type: String, default: null },
@@ -1533,6 +1559,30 @@ const activeSectorRecord = computed(() => {
   return sectorStore.sectors.find((entry) => entry.sectorId === selectedSectorId.value) ?? null;
 });
 const activeSectorMetadata = computed(() => activeSectorRecord.value?.metadata ?? {});
+const activeSectorCoordinates = computed(() => {
+  const recordCoords = activeSectorRecord.value?.coordinates;
+  if (Number.isFinite(recordCoords?.x) && Number.isFinite(recordCoords?.y)) {
+    return { x: Math.trunc(Number(recordCoords.x)), y: Math.trunc(Number(recordCoords.y)) };
+  }
+
+  const generatedCoords = generatedSector.value?.coordinates;
+  if (Number.isFinite(generatedCoords?.x) && Number.isFinite(generatedCoords?.y)) {
+    return { x: Math.trunc(Number(generatedCoords.x)), y: Math.trunc(Number(generatedCoords.y)) };
+  }
+
+  const requestedGrid = getRequestedGridCoordinates();
+  if (Number.isFinite(requestedGrid?.x) && Number.isFinite(requestedGrid?.y)) {
+    return { x: Math.trunc(Number(requestedGrid.x)), y: Math.trunc(Number(requestedGrid.y)) };
+  }
+
+  return null;
+});
+const surveyedCoordKeySet = computed(() => buildSurveyedCoordKeySet(sectorStore.sectors));
+const currentSectorSpaceTier = computed(() => {
+  const coords = activeSectorCoordinates.value;
+  if (!coords) return "void";
+  return calculateSpaceTier(coords.x, coords.y, surveyedCoordKeySet.value);
+});
 
 watch(
   [selectedSubsector, activeSectorMetadata, scope],
@@ -1588,6 +1638,14 @@ const defaultGenerationMode = computed(() => {
   return "name-systems";
 });
 const effectiveGenerationMode = computed(() => generationMode.value || defaultGenerationMode.value);
+const tierAwareGenerationMode = computed(() =>
+  resolveGenerationModeForSpaceTier(effectiveGenerationMode.value, currentSectorSpaceTier.value),
+);
+const fullGenerationBlockedByTier = computed(() => currentSectorSpaceTier.value === "void");
+const fullGenerationBlockedReason = computed(() => {
+  if (!fullGenerationBlockedByTier.value) return "";
+  return "Void tier sectors are presence-only until they are promoted to Frontier or Surveyed.";
+});
 const generationModeOptions = computed(() => [
   { id: "name", label: "Name Only" },
   { id: "name-presence", label: "Name + Presence" },
@@ -1595,50 +1653,72 @@ const generationModeOptions = computed(() => [
   { id: "name-systems", label: "Name + Systems + Worlds" },
 ]);
 const generationAction = computed(() => {
+  const modeForTier = tierAwareGenerationMode.value;
+  const policyAdjusted = modeForTier !== effectiveGenerationMode.value;
+  const policyPrefix = policyAdjusted
+    ? `Space tier policy (${currentSectorSpaceTier.value}) adjusted this action. `
+    : "";
   const scopeLabel = scope.value === "subsector" ? "Subsector" : "Sector";
-  if (effectiveGenerationMode.value === "name") {
+  if (modeForTier === "name") {
     return {
       id: "name",
       label: "💾 Save Sector Name",
-      description:
-        "Create or update the sector record and name only. No system presence or stellar systems are rolled.",
+      description: `${policyPrefix}Create or update the sector record and name only. No system presence or stellar systems are rolled.`,
     };
   }
-  if (effectiveGenerationMode.value === "name-presence") {
+  if (modeForTier === "name-presence") {
     return {
       id: "name-presence",
       label: "⚡ Name + Presence",
-      description:
-        "Save the current sector name, then roll occupied hexes without generating full stellar system data.",
+      description: `${policyPrefix}Save the current sector name, then roll occupied hexes without generating full stellar system data.`,
     };
   }
-  if (effectiveGenerationMode.value === "presence") {
+  if (modeForTier === "presence") {
     return {
       id: "presence",
       label: "🗺 Presence Only",
-      description: "Roll occupied hexes only. Full stellar system data is not generated.",
+      description: `${policyPrefix}Roll occupied hexes only. Full stellar system data is not generated.`,
     };
   }
   if (scopeTypedHexCount.value > 0 && scopeTypedHexCount.value === scopePresenceCount.value) {
     return {
       id: "name-systems",
       label: "⭐ Name + Systems + Worlds",
-      description:
-        "Use the existing surveyed stellar data in the current viewport to persist stellar systems and generated world profiles without rerolling presence or primary stars.",
+      description: `${policyPrefix}Use the existing surveyed stellar data in the current viewport to persist stellar systems and generated world profiles without rerolling presence or primary stars.`,
     };
   }
   if (scopePresenceCount.value > 0 && scopeTypedHexCount.value < scopePresenceCount.value) {
     return {
       id: "name-systems",
       label: "⭐ Name + Systems + Worlds",
-      description:
-        "Preserve the current sector name and convert existing occupied hexes into persisted stellar systems with generated world profiles.",
+      description: `${policyPrefix}Preserve the current sector name and convert existing occupied hexes into persisted stellar systems with generated world profiles.`,
     };
   }
   return {
     id: "name-systems",
     label: `⭐ Name + Systems + Worlds`,
-    description: `Generate a full ${scopeLabel.toLowerCase()} survey in one step, including occupied hexes, stellar systems, and world profiles.`,
+    description: `${policyPrefix}Generate a full ${scopeLabel.toLowerCase()} survey in one step, including occupied hexes, stellar systems, and world profiles.`,
+  };
+});
+const generationPolicyBadge = computed(() => {
+  const tier = String(currentSectorSpaceTier.value || "void");
+  const modeForTier = tierAwareGenerationMode.value;
+  const requestedMode = effectiveGenerationMode.value;
+  const wasAdjusted = modeForTier !== requestedMode;
+
+  const rule =
+    tier === "surveyed"
+      ? "Surveyed sectors always run full Name + Systems + Worlds generation."
+      : tier === "frontier"
+        ? "Frontier sectors use your selected generation mode."
+        : "Void sectors limit generation to presence-safe modes until surveyed.";
+
+  return {
+    tier,
+    tierLabel: `Tier: ${tier.charAt(0).toUpperCase()}${tier.slice(1)}`,
+    rule,
+    wasAdjusted,
+    modeLabel: wasAdjusted ? `Mode adjusted: ${requestedMode} -> ${modeForTier}` : `Mode: ${modeForTier}`,
   };
 });
 
@@ -3570,15 +3650,24 @@ async function generateSystemsFromExistingSurvey() {
 }
 
 async function runSurveyAction() {
-  if (effectiveGenerationMode.value === "name") {
+  const requestedMode = effectiveGenerationMode.value;
+  const modeForTier = tierAwareGenerationMode.value;
+
+  if (modeForTier !== requestedMode) {
+    toastService.info(
+      `Space tier policy (${currentSectorSpaceTier.value}) adjusted generation mode from ${requestedMode} to ${modeForTier}.`,
+    );
+  }
+
+  if (modeForTier === "name") {
     await generateSectorNameOnly();
     return;
   }
-  if (effectiveGenerationMode.value === "name-presence") {
+  if (modeForTier === "name-presence") {
     await generateSectorPresence();
     return;
   }
-  if (effectiveGenerationMode.value === "presence") {
+  if (modeForTier === "presence") {
     await generateSectorPresence();
     return;
   }
@@ -4239,6 +4328,11 @@ function regenerateSector() {
 }
 
 async function generateAllSubsectorSystems() {
+  if (fullGenerationBlockedByTier.value) {
+    toastService.info(fullGenerationBlockedReason.value);
+    return;
+  }
+
   if (scopeTypedHexCount.value > 0 && scopeTypedHexCount.value === scopePresenceCount.value) {
     await generateSystemsFromExistingSurvey();
     return;
@@ -4333,6 +4427,11 @@ function proceedToStarSystem() {
 }
 
 async function generateSystemForSelectedHex({ openAfter = false } = {}) {
+  if (fullGenerationBlockedByTier.value) {
+    toastService.info(fullGenerationBlockedReason.value);
+    return;
+  }
+
   if (!props.galaxyId) {
     toastService.error("No galaxy selected. Please create/select a galaxy first.");
     return;
@@ -4590,6 +4689,49 @@ async function generateSystemForSelectedHex({ openAfter = false } = {}) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.tier-policy-badge {
+  display: grid;
+  gap: 0.22rem;
+  padding: 0.5rem 0.68rem;
+  border-radius: 0.62rem;
+  border: 1px solid rgba(125, 210, 245, 0.34);
+  background: rgba(9, 23, 37, 0.94);
+}
+
+.tier-policy-badge--surveyed {
+  border-color: rgba(89, 194, 255, 0.45);
+  background: rgba(10, 38, 58, 0.92);
+}
+
+.tier-policy-badge--frontier {
+  border-color: rgba(112, 212, 143, 0.45);
+  background: rgba(11, 39, 28, 0.92);
+}
+
+.tier-policy-badge--void {
+  border-color: rgba(174, 148, 255, 0.45);
+  background: rgba(28, 22, 45, 0.9);
+}
+
+.tier-policy-badge__tier {
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: #dff5ff;
+}
+
+.tier-policy-badge__rule {
+  font-size: 0.75rem;
+  line-height: 1.32;
+  color: #b9ccd9;
+}
+
+.tier-policy-badge__mode {
+  font-size: 0.72rem;
+  line-height: 1.3;
+  color: #9bc0d6;
 }
 
 .control-inline-select {

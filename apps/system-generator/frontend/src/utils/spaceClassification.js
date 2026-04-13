@@ -94,6 +94,41 @@ export function calculateSpaceTier(sx, sy, surveyedCoordKeySet) {
 }
 
 /**
+ * Resolves generation mode based on phase-3 space tier policy.
+ * Policy:
+ * - surveyed -> full systems
+ * - frontier -> user-selected mode
+ * - void -> presence-only (or name+presence)
+ * @param {string} requestedMode - One of: name | presence | name-presence | name-systems
+ * @param {string} spaceTier - One of: surveyed | frontier | void
+ * @returns {string} Effective generation mode after policy enforcement
+ */
+export function resolveGenerationModeForSpaceTier(requestedMode, spaceTier) {
+  const mode = String(requestedMode || "name-presence")
+    .trim()
+    .toLowerCase();
+  const tier = String(spaceTier || "void")
+    .trim()
+    .toLowerCase();
+
+  if (tier === "surveyed") {
+    return "name-systems";
+  }
+
+  if (tier === "frontier") {
+    return mode;
+  }
+
+  if (tier === "void") {
+    if (mode === "name-systems") return "name-presence";
+    if (mode === "name") return "presence";
+    return mode;
+  }
+
+  return mode;
+}
+
+/**
  * Builds the complete set of surveyed sector coordinate keys from sector list
  * @param {Array<Object>} sectors - Array of sector objects
  * @returns {Set<string>} Set of coordinate keys for surveyed sectors

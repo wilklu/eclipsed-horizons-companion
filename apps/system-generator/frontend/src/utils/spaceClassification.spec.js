@@ -5,6 +5,7 @@ import {
   isSurveyedSector,
   isAdjacentToSurveyed,
   calculateSpaceTier,
+  resolveGenerationModeForSpaceTier,
   buildSurveyedCoordKeySet,
   buildFrontierCoordKeySet,
   buildKnownSpaceCoordKeySet,
@@ -106,6 +107,27 @@ describe("spaceClassification", () => {
 
     it("returns 'void' for non-adjacent sector", () => {
       expect(calculateSpaceTier(5, 5, surveyed)).toBe("void");
+    });
+  });
+
+  describe("resolveGenerationModeForSpaceTier", () => {
+    it("forces surveyed sectors to full systems mode", () => {
+      expect(resolveGenerationModeForSpaceTier("name", "surveyed")).toBe("name-systems");
+      expect(resolveGenerationModeForSpaceTier("presence", "surveyed")).toBe("name-systems");
+      expect(resolveGenerationModeForSpaceTier("name-presence", "surveyed")).toBe("name-systems");
+    });
+
+    it("preserves user mode in frontier sectors", () => {
+      expect(resolveGenerationModeForSpaceTier("name", "frontier")).toBe("name");
+      expect(resolveGenerationModeForSpaceTier("presence", "frontier")).toBe("presence");
+      expect(resolveGenerationModeForSpaceTier("name-systems", "frontier")).toBe("name-systems");
+    });
+
+    it("downgrades void sectors away from full systems", () => {
+      expect(resolveGenerationModeForSpaceTier("name-systems", "void")).toBe("name-presence");
+      expect(resolveGenerationModeForSpaceTier("name", "void")).toBe("presence");
+      expect(resolveGenerationModeForSpaceTier("presence", "void")).toBe("presence");
+      expect(resolveGenerationModeForSpaceTier("name-presence", "void")).toBe("name-presence");
     });
   });
 
