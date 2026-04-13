@@ -71,6 +71,24 @@ export function buildSectorHexesFromMetadata(metadata, { cols = 32, rows = 40 } 
         continue;
       }
 
+      // Presence-only hexes (occupied with no typed stellar metadata) should
+      // remain untyped so downstream builders can generate explicitly.
+      if (!saved || typeof saved !== "object") {
+        hexes.push({
+          coord,
+          hasSystem: true,
+          presenceOnly: true,
+          starType: "",
+          starClass: "",
+          secondaryStars: [],
+          generatedStars: [],
+          anomalyType: null,
+          legacyReconstructed: false,
+          legacyHierarchyUnknown: false,
+        });
+        continue;
+      }
+
       const starType = normalizeStarTypeValue(saved?.starType, "");
       const starMetadata = buildHexStarTypeMetadata({
         generatedStars: saved?.generatedStars,

@@ -120,6 +120,22 @@
         >
           Polity
         </button>
+        <button
+          class="tb-toggle"
+          :class="{ active: layerKnownSpace }"
+          @click="layerKnownSpace = !layerKnownSpace"
+          title="Highlight Known Space (generated sectors plus one-ring frontier)"
+        >
+          Known Space
+        </button>
+        <button
+          class="tb-toggle"
+          :class="{ active: activeKnownSpaceOnly }"
+          @click="activeKnownSpaceOnly = !activeKnownSpaceOnly"
+          title="Only show Known Space sectors"
+        >
+          Known Only
+        </button>
         <button class="tb-toggle tb-toggle--utility" @click="resetAtlasLayers" title="Restore Atlas layer defaults">
           Reset
         </button>
@@ -258,6 +274,15 @@
                 'sector-tile--highlighted': sectorHasPoliticalFilter && politicalHeatMatches(tile.sectorId),
                 'sector-tile--dimmed': sectorHasPoliticalFilter && !politicalHeatMatches(tile.sectorId),
               }"
+            />
+            <rect
+              v-if="layerKnownSpace && tile.isKnownSpace"
+              :x="tile.wx"
+              :y="tile.wy"
+              :width="SECTOR_PX_W - 1"
+              :height="SECTOR_PX_H - 1"
+              class="known-space-overlay"
+              :class="{ 'known-space-overlay--frontier': tile.isKnownSpaceFrontier }"
             />
             <rect
               v-if="showPoliticalHeat && politicalHeatForSector(tile.sectorId)"
@@ -1142,6 +1167,21 @@
       >
         view|scope
       </span>
+      <div class="status-space-tier" v-if="spaceTierCounts">
+        <span class="space-tier-label">Space Tiers:</span>
+        <span class="space-tier-chip space-tier-surveyed">
+          <span class="tier-badge tier-badge--surveyed">S</span>
+          Surveyed: {{ spaceTierCounts.surveyed }}
+        </span>
+        <span class="space-tier-chip space-tier-frontier">
+          <span class="tier-badge tier-badge--frontier">F</span>
+          Frontier: {{ spaceTierCounts.frontier }}
+        </span>
+        <span class="space-tier-chip space-tier-void">
+          <span class="tier-badge tier-badge--void">∞</span>
+          Void: Beyond
+        </span>
+      </div>
       <div class="status-layer-controls" v-if="currentLod === 'hex' || currentLod === 'detail'">
         <button class="status-toggle-chip" :class="{ active: layerRoutes }" @click="layerRoutes = !layerRoutes">
           Routes
@@ -1182,7 +1222,7 @@ import {
 } from "../../utils/starDisplay.js";
 import { serializeReturnRoute } from "../../utils/returnRoute.js";
 import { calculateHexOccupancyProbability } from "../../utils/sectorGeneration.js";
-import { generateGalaxySectorLayoutWindow } from "../../utils/sectorLayoutGenerator.js";
+import { estimateGalaxySectorFootprint, generateGalaxySectorLayoutWindow } from "../../utils/sectorLayoutGenerator.js";
 import { summarizeSystemRecord } from "../../utils/systemSummary.js";
 import {
   buildGeneratedStars,
@@ -1192,6 +1232,14 @@ import {
 } from "../../utils/systemStarMetadata.js";
 import { SUBSECTOR_LETTERS, getSubsectorLetterForHex } from "../../utils/subsector.js";
 import * as toastService from "../../utils/toast.js";
+import {
+  toSectorCoordKey,
+  buildSurveyedCoordKeySet,
+  buildKnownSpaceCoordKeySet,
+  buildFrontierCoordKeySet,
+  countSpaceTiers,
+  calculatePlanningRegionCapacity,
+} from "../../utils/spaceClassification.js";
 
 const router = useRouter();
 const galaxyStore = useGalaxyStore();
@@ -1259,7 +1307,9 @@ const SECTOR_COLS = 32;
 const SECTOR_ROWS = 40;
 const ROUTE_MAX_DISTANCE = HEX_STEP_X * 8;
 const ROUTE_NEIGHBOR_LIMIT = 2;
-const SELECTED_GALAXY_WINDOW_RADIUS = 12;
+const SELECTED_GALAXY_WINDOW_DEFAULT_RADIUS = 12;
+const SELECTED_GALAXY_WINDOW_MIN_RADIUS = 32;
+const SELECTED_GALAXY_WINDOW_MAX_RADIUS = 64;
 const REGION_SECTORS = 4;
 const QUADRANT_REGIONS = 4;
 const QUADRANT_SECTORS = REGION_SECTORS * QUADRANT_REGIONS;
@@ -1376,6 +1426,8 @@ const layerRoutes = ref(Boolean(preferencesStore.atlasLayerRoutes));
 const layerAnomalies = ref(Boolean(preferencesStore.atlasLayerAnomalies));
 const layerBadges = ref(Boolean(preferencesStore.atlasLayerBadges));
 const layerPolity = ref(Boolean(preferencesStore.atlasLayerPolity));
+const layerKnownSpace = ref(true);
+const activeKnownSpaceOnly = ref(false);
 const activePoliticalHeatFilter = ref(null);
 const activeRouteFilter = ref(null);
 
@@ -1548,10 +1600,10 @@ function mergeAtlasSectorsWithGalaxyLayout(galaxy, persistedSectors = [], bounds
 
   const layoutSectors = generateGalaxySectorLayoutWindow(galaxy, {
     scale: "true",
-    xMin: bounds.xMin ?? -SELECTED_GALAXY_WINDOW_RADIUS,
-    xMax: bounds.xMax ?? SELECTED_GALAXY_WINDOW_RADIUS,
-    yMin: bounds.yMin ?? -SELECTED_GALAXY_WINDOW_RADIUS,
-    yMax: bounds.yMax ?? SELECTED_GALAXY_WINDOW_RADIUS,
+    xMin: bounds.xMin ?? -SELECTED_GALAXY_WINDOW_DEFAULT_RADIUS,
+    xMax: bounds.xMax ?? SELECTED_GALAXY_WINDOW_DEFAULT_RADIUS,
+    yMin: bounds.yMin ?? -SELECTED_GALAXY_WINDOW_DEFAULT_RADIUS,
+    yMax: bounds.yMax ?? SELECTED_GALAXY_WINDOW_DEFAULT_RADIUS,
   }).map(toAtlasSectorRecord);
   const merged = new Map(layoutSectors.map((sector) => [sector.sectorId, sector]));
 
@@ -1595,6 +1647,37 @@ function mergeAtlasSectorsWithGalaxyLayout(galaxy, persistedSectors = [], bounds
   }
 
   return Array.from(merged.values());
+}
+
+function resolveSelectedGalaxyLayoutBounds(galaxy) {
+  if (!galaxy) {
+    return {
+      xMin: -SELECTED_GALAXY_WINDOW_DEFAULT_RADIUS,
+      xMax: SELECTED_GALAXY_WINDOW_DEFAULT_RADIUS,
+      yMin: -SELECTED_GALAXY_WINDOW_DEFAULT_RADIUS,
+      yMax: SELECTED_GALAXY_WINDOW_DEFAULT_RADIUS,
+    };
+  }
+
+  const footprint = estimateGalaxySectorFootprint(galaxy);
+  const radius = Math.max(
+    SELECTED_GALAXY_WINDOW_MIN_RADIUS,
+    Math.min(SELECTED_GALAXY_WINDOW_MAX_RADIUS, Number(footprint?.gridRadius) || SELECTED_GALAXY_WINDOW_DEFAULT_RADIUS),
+  );
+
+  return {
+    xMin: -radius,
+    xMax: radius,
+    yMin: -radius,
+    yMax: radius,
+  };
+}
+
+function resolveSelectedGalaxyWindowLimit(bounds) {
+  const width = Math.max(1, Number(bounds?.xMax) - Number(bounds?.xMin) + 1);
+  const height = Math.max(1, Number(bounds?.yMax) - Number(bounds?.yMin) + 1);
+  const estimatedWindowCells = width * height;
+  return Math.min(10000, Math.max(2500, estimatedWindowCells));
 }
 
 const sectorByCoord = computed(() => {
@@ -1899,6 +1982,52 @@ const continuousHexSectorTiles = computed(() => {
   return tiles;
 });
 
+function toSectorCoordKey(x, y) {
+  const sx = Number(x);
+  const sy = Number(y);
+  if (!Number.isFinite(sx) || !Number.isFinite(sy)) return "";
+  return `${Math.trunc(sx)}:${Math.trunc(sy)}`;
+}
+
+function isAtlasGeneratedSectorRecord(sector) {
+  const metadata = sector?.metadata && typeof sector.metadata === "object" ? sector.metadata : {};
+  const typedHexCount =
+    metadata?.hexStarTypes && typeof metadata.hexStarTypes === "object" ? Object.keys(metadata.hexStarTypes).length : 0;
+  return Boolean(metadata?.hexPresenceGenerated) || Number(metadata?.systemCount || 0) > 0 || typedHexCount > 0;
+}
+
+// ── Space Classification System ────────────────────────────────────────
+// Dynamic three-tier space model: Surveyed (generated), Frontier (adjacent), Void (beyond)
+const surveyedCoordKeySet = computed(() => {
+  return buildSurveyedCoordKeySet(sectors.value);
+});
+
+const generatedSectorCoordKeySet = computed(() => {
+  // Backward compat alias
+  return surveyedCoordKeySet.value;
+});
+
+const frontierCoordKeySet = computed(() => {
+  return buildFrontierCoordKeySet(surveyedCoordKeySet.value);
+});
+
+const knownSpaceCoordKeySet = computed(() => {
+  return buildKnownSpaceCoordKeySet(surveyedCoordKeySet.value);
+});
+
+const spaceTierCounts = computed(() => {
+  return countSpaceTiers(surveyedCoordKeySet.value);
+});
+
+const planningRegionInfo = computed(() => {
+  // TODO: When planning window is implemented, derive center from current sector
+  return calculatePlanningRegionCapacity({
+    centerX: 0,
+    centerY: 0,
+    planningRadius: 5, // 11x11 grid = 121 sectors
+  });
+});
+
 const starDataEnabled = computed(() => renderStars.value || hexGridVisible.value || inspectorMode.value === "star");
 
 const effectiveStarR = computed(() => {
@@ -1912,13 +2041,34 @@ const visibleSectorTiles = computed(() => {
   if (!sectorTilesEnabled.value || !sectors.value.length) return [];
   const b = viewBounds.value;
 
+  const decorateKnownSpaceTile = (tile) => {
+    const coordKey = toSectorCoordKey(tile?.sx, tile?.sy);
+    const isGenerated = generatedSectorCoordKeySet.value.has(coordKey);
+    const isKnownSpace = knownSpaceCoordKeySet.value.has(coordKey);
+    return {
+      ...tile,
+      isGeneratedSector: isGenerated,
+      isKnownSpace,
+      isKnownSpaceFrontier: isKnownSpace && !isGenerated,
+    };
+  };
+
+  const finalizeTiles = (tiles) => {
+    const decorated = tiles.map(decorateKnownSpaceTile);
+    if (!activeKnownSpaceOnly.value) {
+      return decorated;
+    }
+    return decorated.filter((tile) => tile.isKnownSpace);
+  };
+
   if (sectors.value.length <= 5000) {
-    return sectors.value
+    const inView = sectors.value
       .map(toSectorTile)
       .filter(
         (tile) =>
           tile && tile.wx + SECTOR_PX_W >= b.x0 && tile.wx <= b.x1 && tile.wy + SECTOR_PX_H >= b.y0 && tile.wy <= b.y1,
       );
+    return finalizeTiles(inView);
   }
 
   const xStart = Math.max(gridBounds.value.minX, Math.floor(b.x0 / SECTOR_PX_W) + minSX.value);
@@ -1937,7 +2087,7 @@ const visibleSectorTiles = computed(() => {
     }
   }
 
-  return tiles;
+  return finalizeTiles(tiles);
 });
 
 const loadedSectorTiles = computed(() => sectors.value.map(toSectorTile).filter(Boolean));
@@ -3194,6 +3344,8 @@ function resetAtlasLayers() {
   layerAnomalies.value = Boolean(PREFERENCE_DEFAULTS.atlasLayerAnomalies);
   layerBadges.value = Boolean(PREFERENCE_DEFAULTS.atlasLayerBadges);
   layerPolity.value = Boolean(PREFERENCE_DEFAULTS.atlasLayerPolity);
+  layerKnownSpace.value = true;
+  activeKnownSpaceOnly.value = false;
   activePoliticalHeatFilter.value = null;
   activeRouteFilter.value = null;
 }
@@ -4671,18 +4823,13 @@ async function handleGalaxyChange() {
       await nextTick();
       resetView();
     } else {
-      const layoutBounds = {
-        xMin: -SELECTED_GALAXY_WINDOW_RADIUS,
-        xMax: SELECTED_GALAXY_WINDOW_RADIUS,
-        yMin: -SELECTED_GALAXY_WINDOW_RADIUS,
-        yMax: SELECTED_GALAXY_WINDOW_RADIUS,
-      };
+      const layoutBounds = resolveSelectedGalaxyLayoutBounds(currentGalaxy.value);
       const loadedSectors = await sectorApi.getSectorsWindow(selectedGalaxyId.value, {
         xMin: layoutBounds.xMin,
         xMax: layoutBounds.xMax,
         yMin: layoutBounds.yMin,
         yMax: layoutBounds.yMax,
-        limit: 2500,
+        limit: resolveSelectedGalaxyWindowLimit(layoutBounds),
       });
       sectorStore.sectors = Array.isArray(loadedSectors) ? [...loadedSectors] : [];
 
@@ -5063,6 +5210,20 @@ watch(
 .sector-heat-overlay {
   pointer-events: none;
   mix-blend-mode: screen;
+}
+
+.known-space-overlay {
+  fill: rgba(84, 168, 255, 0.08);
+  stroke: rgba(130, 204, 255, 0.46);
+  stroke-width: 0.95;
+  pointer-events: none;
+}
+
+.known-space-overlay--frontier {
+  fill: rgba(116, 206, 160, 0.08);
+  stroke: rgba(144, 228, 190, 0.72);
+  stroke-width: 1.05;
+  stroke-dasharray: 5 2;
 }
 
 .sector-border {
@@ -5940,6 +6101,73 @@ watch(
 .route-legend-sample--hazard {
   border-top-color: rgba(255, 178, 92, 0.82);
   border-top-style: dashed;
+}
+
+.status-space-tier {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #7da7cb;
+  font-size: 0.66rem;
+}
+
+.space-tier-label {
+  font-weight: 700;
+  color: #99b4d0;
+  letter-spacing: 0.02em;
+}
+
+.space-tier-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  background: rgba(14, 25, 46, 0.88);
+  color: #8ab8d8;
+  border: 1px solid rgba(52, 84, 126, 0.7);
+  border-radius: 999px;
+  padding: 0.12rem 0.42rem;
+  font-size: 0.64rem;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.space-tier-surveyed {
+  border-color: rgba(84, 200, 255, 0.6);
+}
+
+.space-tier-frontier {
+  border-color: rgba(116, 206, 160, 0.6);
+}
+
+.space-tier-void {
+  border-color: rgba(180, 120, 200, 0.6);
+}
+
+.tier-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.2rem;
+  height: 1rem;
+  border-radius: 3px;
+  font-weight: 700;
+  font-size: 0.58rem;
+  letter-spacing: 0.05em;
+}
+
+.tier-badge--surveyed {
+  background: rgba(84, 200, 255, 0.25);
+  color: #54c8ff;
+}
+
+.tier-badge--frontier {
+  background: rgba(116, 206, 160, 0.25);
+  color: #74cea0;
+}
+
+.tier-badge--void {
+  background: rgba(180, 120, 200, 0.25);
+  color: #b478c8;
 }
 
 .status-legend-key {

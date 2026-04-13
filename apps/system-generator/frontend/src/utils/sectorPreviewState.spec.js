@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { buildFullSectorPreviewState, buildSectorPreviewState } from "./sectorPreviewState.js";
+import {
+  buildFullSectorPreviewState,
+  buildSectorHexesFromMetadata,
+  buildSectorPreviewState,
+} from "./sectorPreviewState.js";
 
 describe("sectorPreviewState", () => {
   it("summarizes legacy markers from regenerated preview hexes", () => {
@@ -59,5 +63,23 @@ describe("sectorPreviewState", () => {
     expect(preview.legacyReconstructedCount).toBe(1);
     expect(preview.legacyHierarchyUnknownCount).toBe(1);
     expect(preview.metadata.hexStarTypes["0101"].legacyReconstructed).toBe(true);
+  });
+
+  it("keeps occupied hexes presence-only when star metadata is missing", () => {
+    const metadata = {
+      occupiedHexes: ["0101"],
+      hexStarTypes: {},
+    };
+
+    const hexes = buildSectorHexesFromMetadata(metadata, { cols: 2, rows: 2 });
+    const hex0101 = hexes.find((hex) => hex.coord === "0101");
+
+    expect(hex0101).toMatchObject({
+      coord: "0101",
+      hasSystem: true,
+      presenceOnly: true,
+      starType: "",
+      starClass: "",
+    });
   });
 });
