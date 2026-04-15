@@ -140,6 +140,7 @@
                   <th>#</th>
                   <th>Name</th>
                   <th>Type</th>
+                  <th>UWP</th>
                   <th>Composition</th>
                   <th>Orbit (AU)</th>
                   <th>Zone</th>
@@ -166,6 +167,7 @@
                     <div v-if="planet.parentWorldName" class="planet-parent">of {{ planet.parentWorldName }}</div>
                   </td>
                   <td>{{ describePlanetType(planet) }}</td>
+                  <td>{{ planet.uwp || "—" }}</td>
                   <td>{{ planet.composition || "Unknown" }}</td>
                   <td>{{ planet.orbitAU }}</td>
                   <td>
