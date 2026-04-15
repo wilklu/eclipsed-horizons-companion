@@ -990,6 +990,11 @@ import {
 } from "../../utils/systemStarMetadata.js";
 import { generateMultipleStarSystemWbh } from "../../utils/wbh/starGenerationWbh.js";
 import {
+  isSpeechSynthesisSupported,
+  speakTextWithPreferences,
+  stopSpeechSynthesis,
+} from "../../utils/speechSynthesis.js";
+import {
   buildSurveyedCoordKeySet,
   calculateSpaceTier,
   resolveGenerationModeForSpaceTier,
@@ -1033,7 +1038,7 @@ const hoveredHex = ref(null);
 const coordJumpInput = ref("");
 const sectorSurveyFilterMode = ref("all");
 const activeReviewQueue = ref("presence");
-const supportsSpeechSynthesis = typeof window !== "undefined" && "speechSynthesis" in window;
+const supportsSpeechSynthesis = isSpeechSynthesisSupported();
 const SECTOR_SURVEY_WORKSPACE_STORAGE_KEY = "eclipsed-horizons-sector-survey-workspace";
 let gridWrapperResizeObserver = null;
 let applyingWorkspaceState = false;
@@ -4444,36 +4449,36 @@ function selectHex(hex) {
 
 function stopSectorNameSpeech() {
   if (!supportsSpeechSynthesis) return;
-  window.speechSynthesis.cancel();
+  stopSpeechSynthesis();
   isSpeakingSectorName.value = false;
   isSpeakingSubsectorName.value = false;
 }
 
 function speakName(text, target) {
-  window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.rate = Math.min(1.5, Math.max(0.5, Number(preferencesStore.ttsRate) || 1));
-  utterance.pitch = Math.min(1.5, Math.max(0.5, Number(preferencesStore.ttsPitch) || 1));
-  const preferredVoiceURI = String(preferencesStore.ttsVoiceURI || "").trim();
-  if (preferredVoiceURI) {
-    const voice = window.speechSynthesis.getVoices().find((entry) => entry.voiceURI === preferredVoiceURI);
-    if (voice) {
-      utterance.voice = voice;
-    }
-  }
-  utterance.onend = () => {
+  const clearSpeakingState = () => {
     isSpeakingSectorName.value = false;
     isSpeakingSubsectorName.value = false;
-  };
-  utterance.onerror = () => {
-    isSpeakingSectorName.value = false;
-    isSpeakingSubsectorName.value = false;
-    toastService.error(`Unable to play ${target} name audio.`);
   };
 
   isSpeakingSectorName.value = target === "sector";
   isSpeakingSubsectorName.value = target === "subsector";
-  window.speechSynthesis.speak(utterance);
+
+  const result = speakTextWithPreferences(text, {
+    rate: preferencesStore.ttsRate,
+    pitch: preferencesStore.ttsPitch,
+    voiceURI: preferencesStore.ttsVoiceURI,
+    onEnd: clearSpeakingState,
+    onError: clearSpeakingState,
+  });
+
+  if (!result.ok) {
+    clearSpeakingState();
+    toastService.error(
+      result.reason === "unsupported"
+        ? "Text to speech is not supported in this browser."
+        : `Unable to play ${target} name audio.`,
+    );
+  }
 }
 
 function toggleSectorNameSpeech() {

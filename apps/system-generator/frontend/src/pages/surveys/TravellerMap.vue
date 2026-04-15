@@ -285,8 +285,8 @@
             />
             <rect
               v-if="layerKnownSpace && tile.isKnownSpace"
-              :x="tile.wx"
-              :y="tile.wy"
+              :x="tile.wx + gridBiasX"
+              :y="tile.wy + gridBiasY"
               :width="SECTOR_PX_W - 1"
               :height="SECTOR_PX_H - 1"
               class="known-space-overlay"
@@ -294,8 +294,8 @@
             />
             <rect
               v-if="planningWindowVisible && tile.isInPlanningWindow"
-              :x="tile.wx"
-              :y="tile.wy"
+              :x="tile.wx + gridBiasX"
+              :y="tile.wy + gridBiasY"
               :width="SECTOR_PX_W - 1"
               :height="SECTOR_PX_H - 1"
               class="planning-window-overlay"
@@ -4374,7 +4374,13 @@ function parseHexCoordinates(coord) {
 }
 
 function normalizeGeneratedStarType(star) {
-  const normalized = String(star?.designation || star?.spectralType || star?.spectralClass || "").trim();
+  const rawValue =
+    typeof star === "string"
+      ? star
+      : star && typeof star === "object"
+        ? star.designation || star.spectralType || star.spectralClass || star.starType || star.anomalyType || ""
+        : "";
+  const normalized = String(rawValue || "").trim();
   if (!normalized) {
     return "G2V";
   }

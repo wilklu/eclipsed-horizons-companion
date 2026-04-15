@@ -207,6 +207,12 @@ import { useGalaxyStore } from "../../stores/galaxyStore.js";
 import { useSectorStore } from "../../stores/sectorStore.js";
 import { useSystemStore } from "../../stores/systemStore.js";
 import { pruneDefaultSectors, resetUniverseData } from "../../api/sectorApi.js";
+import {
+  getSpeechSynthesisVoices,
+  isSpeechSynthesisSupported,
+  speakTextWithPreferences,
+  stopSpeechSynthesis,
+} from "../../utils/speechSynthesis.js";
 
 const preferencesStore = usePreferencesStore();
 const galaxyStore = useGalaxyStore();
@@ -214,7 +220,7 @@ const sectorStore = useSectorStore();
 const systemStore = useSystemStore();
 const statusMessage = ref("");
 const ttsVoiceOptions = ref([]);
-const supportsSpeechSynthesis = typeof window !== "undefined" && "speechSynthesis" in window;
+const supportsSpeechSynthesis = isSpeechSynthesisSupported();
 const isTestingVoice = ref(false);
 const isPruningDefaultSectors = ref(false);
 const isResettingUniverse = ref(false);
@@ -228,7 +234,7 @@ function stopVoicePreview() {
     return;
   }
 
-  window.speechSynthesis.cancel();
+  stopSpeechSynthesis();
   isTestingVoice.value = false;
 }
 
@@ -238,7 +244,7 @@ function readSpeechVoices() {
     return;
   }
 
-  const voices = window.speechSynthesis.getVoices();
+  const voices = getSpeechSynthesisVoices();
   ttsVoiceOptions.value = voices.map((voice) => ({
     voiceURI: voice.voiceURI,
     label: `${voice.name}${voice.lang ? ` (${voice.lang})` : ""}${voice.default ? " • default" : ""}`,
@@ -251,7 +257,11 @@ onMounted(() => {
   }
 
   readSpeechVoices();
-  window.speechSynthesis.addEventListener("voiceschanged", readSpeechVoices);
+  if (typeof window.speechSynthesis?.addEventListener === "function") {
+    window.speechSynthesis.addEventListener("voiceschanged", readSpeechVoices);
+  } else {
+    window.speechSynthesis.onvoiceschanged = readSpeechVoices;
+  }
 });
 
 onBeforeUnmount(() => {
@@ -260,7 +270,11 @@ onBeforeUnmount(() => {
   }
 
   stopVoicePreview();
-  window.speechSynthesis.removeEventListener("voiceschanged", readSpeechVoices);
+  if (typeof window.speechSynthesis?.removeEventListener === "function") {
+    window.speechSynthesis.removeEventListener("voiceschanged", readSpeechVoices);
+  } else if (window.speechSynthesis?.onvoiceschanged === readSpeechVoices) {
+    window.speechSynthesis.onvoiceschanged = null;
+  }
 });
 
 function toggleVoicePreview() {
@@ -275,30 +289,27 @@ function toggleVoicePreview() {
     return;
   }
 
-  window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance("Eclipsed Horizons sector name preview.");
-  utterance.rate = Math.min(1.5, Math.max(0.5, Number(draft.ttsRate) || PREFERENCE_DEFAULTS.ttsRate));
-  utterance.pitch = Math.min(1.5, Math.max(0.5, Number(draft.ttsPitch) || PREFERENCE_DEFAULTS.ttsPitch));
-
-  const selectedVoiceURI = String(draft.ttsVoiceURI || "").trim();
-  if (selectedVoiceURI) {
-    const selectedVoice = window.speechSynthesis.getVoices().find((voice) => voice.voiceURI === selectedVoiceURI);
-    if (selectedVoice) {
-      utterance.voice = selectedVoice;
-    }
-  }
-
-  utterance.onend = () => {
-    isTestingVoice.value = false;
-  };
-  utterance.onerror = () => {
-    isTestingVoice.value = false;
-    statusMessage.value = "Unable to play voice preview.";
-  };
-
   isTestingVoice.value = true;
   statusMessage.value = "Playing voice preview.";
-  window.speechSynthesis.speak(utterance);
+
+  const result = speakTextWithPreferences("Eclipsed Horizons sector name preview.", {
+    rate: Number(draft.ttsRate) || PREFERENCE_DEFAULTS.ttsRate,
+    pitch: Number(draft.ttsPitch) || PREFERENCE_DEFAULTS.ttsPitch,
+    voiceURI: String(draft.ttsVoiceURI || "").trim(),
+    onEnd: () => {
+      isTestingVoice.value = false;
+    },
+    onError: () => {
+      isTestingVoice.value = false;
+      statusMessage.value = "Unable to play voice preview.";
+    },
+  });
+
+  if (!result.ok) {
+    isTestingVoice.value = false;
+    statusMessage.value =
+      result.reason === "unsupported" ? "Text to speech is not supported in this browser." : "Unable to play voice preview.";
+  }
 }
 
 function createDraft(source) {
