@@ -4385,7 +4385,13 @@ function normalizeGeneratedStarType(star) {
     typeof star === "string"
       ? star
       : star && typeof star === "object"
-        ? star.designation || star.spectralType || star.spectralClass || star.starType || star.anomalyType || ""
+        ? star.spectralClass ||
+          star.spectralType ||
+          star.typeSubtype ||
+          star.starType ||
+          star.anomalyType ||
+          star.designation ||
+          ""
         : "";
   const normalized = String(rawValue || "").trim();
   if (!normalized) {

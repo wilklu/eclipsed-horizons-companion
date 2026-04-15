@@ -39,6 +39,20 @@ describe("systemStarMetadata", () => {
     expect(stars[1].spectralClass).toBe("K7 V");
   });
 
+  it("preserves typeSubtype-based primary and companion star records from saved system surveys", () => {
+    const stars = resolveGeneratedStarsFromSystem({
+      stars: [
+        { designation: "A", typeSubtype: "K2 V", lumClass: "V" },
+        { designation: "B", typeSubtype: "M4 V", lumClass: "V" },
+      ],
+    });
+    const summary = summarizeGeneratedStars(stars);
+
+    expect(stars).toHaveLength(2);
+    expect(summary.primaryDesignation).toBe("K2 V");
+    expect(summary.secondaryStars).toEqual(["M4 V"]);
+  });
+
   it("builds hex star metadata from generated stars without trusting stale flat labels", () => {
     const metadata = buildHexStarTypeMetadata({
       generatedStars: [
