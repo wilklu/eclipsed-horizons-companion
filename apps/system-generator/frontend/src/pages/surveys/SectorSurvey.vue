@@ -3222,7 +3222,7 @@ function resolveSurveySeedSpectralType(value) {
   return match ? match[0].toUpperCase() : undefined;
 }
 
-function buildSurveyGeneratedStars({ saved = null, anomalyType = null, fallbackStarType = "G2V" } = {}) {
+function buildSurveyGeneratedStars({ saved = null, anomalyType = null, fallbackStarType = "" } = {}) {
   const existingGeneratedStars = Array.isArray(saved?.generatedStars) ? saved.generatedStars : [];
   if (existingGeneratedStars.length) {
     return buildGeneratedStarsForHex({ existingGeneratedStars });
@@ -3232,10 +3232,13 @@ function buildSurveyGeneratedStars({ saved = null, anomalyType = null, fallbackS
     return buildGeneratedStarsForHex({ anomalyType });
   }
 
-  return generateMultipleStarSystemWbh({
-    spectralType: resolveSurveySeedSpectralType(saved?.starType || fallbackStarType),
-    maxStars: 3,
-  })
+  const seedSpectralType = resolveSurveySeedSpectralType(saved?.starType || fallbackStarType);
+  const generationParams = { maxStars: 3 };
+  if (seedSpectralType) {
+    generationParams.spectralType = seedSpectralType;
+  }
+
+  return generateMultipleStarSystemWbh(generationParams)
     .slice(0, 3)
     .map((star) => ({ ...star }));
 }
@@ -3252,7 +3255,7 @@ function buildGeneratedSystemHexFromSurveyHex(hex, existingTypes = activeSectorM
   const generatedStars = buildSurveyGeneratedStars({
     saved,
     anomalyType,
-    fallbackStarType: saved?.starType || "G2V",
+    fallbackStarType: saved?.starType || "",
   });
   const { primaryDesignation, primaryCode, secondaryStars } = summarizeGeneratedStars(generatedStars);
   const starType = normalizeStarTypeValue(saved?.starType, primaryDesignation || "G2V");

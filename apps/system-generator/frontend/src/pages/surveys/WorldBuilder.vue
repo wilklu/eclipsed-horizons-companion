@@ -108,7 +108,7 @@
             <div class="prop-list">
               <div class="prop-row">
                 <span class="prop-label">Size:</span>
-                <span class="prop-value">{{ world.size }} ({{ world.diameterKm.toLocaleString() }} km)</span>
+                <span class="prop-value">{{ world.size ?? "—" }} ({{ formatDistanceKm(world.diameterKm) }})</span>
               </div>
               <div class="prop-row">
                 <span class="prop-label">Atmosphere:</span>
@@ -214,15 +214,15 @@
               and can be refined further in the Sophont Generator.
             </div>
             <div v-else class="world-note">
-              No native sophont life developed on this world. Census values reflect current settlement assumptions for
-              the surveyed mainworld profile.
+              No native sophont life developed on this world. World Survey keeps population, government, law, tech, and
+              starport at the uninhabited baseline.
             </div>
           </section>
 
           <!-- Trade Codes -->
           <section class="world-section">
             <h3>🏷️ Trade Codes</h3>
-            <div v-if="world.tradeCodes.length" class="trade-codes">
+            <div v-if="Array.isArray(world.tradeCodes) && world.tradeCodes.length" class="trade-codes">
               <span v-for="code in world.tradeCodes" :key="code" class="trade-badge">{{ code }}</span>
             </div>
             <div v-else class="empty-state">No trade codes applicable.</div>
@@ -262,6 +262,7 @@ import {
   generateAutomaticWorldName,
   generateWorldProfile,
   normalizeWorldStarClass,
+  renamePlanetaryCatalogEntry,
 } from "../../utils/worldProfileGenerator.js";
 import {
   auToFractionalOrbit,
@@ -500,13 +501,20 @@ function toHex(n) {
   return String.fromCharCode(65 + n - 10);
 }
 
+function formatDistanceKm(value) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? `${numeric.toLocaleString()} km` : "Unknown";
+}
+
 function formatPop(pop) {
-  if (pop >= 1e12) return (pop / 1e12).toFixed(1) + " trillion";
-  if (pop >= 1e9) return (pop / 1e9).toFixed(1) + " billion";
-  if (pop >= 1e6) return (pop / 1e6).toFixed(1) + " million";
-  if (pop >= 1e3) return (pop / 1e3).toFixed(1) + " thousand";
-  if (pop === 0) return "Uninhabited";
-  return pop.toLocaleString();
+  const numeric = Number(pop);
+  if (!Number.isFinite(numeric)) return "Unknown";
+  if (numeric >= 1e12) return (numeric / 1e12).toFixed(1) + " trillion";
+  if (numeric >= 1e9) return (numeric / 1e9).toFixed(1) + " billion";
+  if (numeric >= 1e6) return (numeric / 1e6).toFixed(1) + " million";
+  if (numeric >= 1e3) return (numeric / 1e3).toFixed(1) + " thousand";
+  if (numeric === 0) return "Uninhabited";
+  return numeric.toLocaleString();
 }
 
 function normalizeIncomingStarClass(value) {
@@ -614,7 +622,14 @@ function hydrateStoredWorldProfile() {
 }
 
 function generateRandomWorldName() {
-  return generateAutomaticWorldName({ mode: preferencesStore.worldNameMode });
+  const selectedPlanet = getSelectedPlanetRecord();
+  return generateAutomaticWorldName({
+    mode: preferencesStore.worldNameMode,
+    isMoon: Boolean(selectedPlanet?.isMoon || selectedPlanet?.parentWorldName),
+    parentWorldName: selectedPlanet?.parentWorldName,
+    moonOrdinal: selectedPlanet?.moonOrdinal,
+    orbitalSlot: selectedPlanet?.orbitalSlot,
+  });
 }
 
 function applyGeneratedWorldName() {
@@ -641,25 +656,7 @@ async function syncWorldNameToPlanetaryCatalog(nextName = worldName.value) {
     return true;
   }
 
-  const nextPlanets = persistedSystem.planets.map((planet, index) => {
-    if (index !== worldIndex) {
-      return planet;
-    }
-
-    const renamedPlanet = {
-      ...planet,
-      name: normalizedName,
-    };
-
-    if (!world.value) {
-      return renamedPlanet;
-    }
-
-    return applyWorldProfileToPlanet(renamedPlanet, {
-      ...world.value,
-      name: normalizedName,
-    });
-  });
+  const nextPlanets = renamePlanetaryCatalogEntry(persistedSystem.planets, worldIndex, normalizedName, world.value);
 
   const updatedSystem = await systemStore.updateSystem(persistedSystem.systemId, {
     planets: nextPlanets,
@@ -682,8 +679,11 @@ async function persistWorldProfileToPlanetaryCatalog(nextWorld = world.value) {
     return false;
   }
 
-  const nextPlanets = persistedSystem.planets.map((planet, index) =>
-    index === worldIndex ? applyWorldProfileToPlanet(planet, nextWorld) : planet,
+  const nextPlanets = renamePlanetaryCatalogEntry(
+    persistedSystem.planets,
+    worldIndex,
+    String(nextWorld?.name || persistedSystem.planets[worldIndex]?.name || "").trim(),
+    nextWorld,
   );
 
   const updatedSystem = await systemStore.updateSystem(persistedSystem.systemId, {

@@ -2723,7 +2723,8 @@ function deriveSocialUwp({ world, isMainworld = true, mainworldPopulationCode = 
     hydrographics,
     avgTempC: Number(world?.avgTempC ?? 0),
   });
-  const nativeSophontLife = Boolean(world?.nativeSophontLife);
+  const hasNativeSophontLifeAssessment = typeof world?.nativeSophontLife === "boolean";
+  const nativeSophontLife = world?.nativeSophontLife === true;
   const colonySupportBonus =
     (nativeSophontLife ? 1 : 0) +
     (Boolean(world?.isMoon) && candidateScore >= 6 ? 1 : 0) +
@@ -2734,7 +2735,9 @@ function deriveSocialUwp({ world, isMainworld = true, mainworldPopulationCode = 
       : 0);
 
   let populationCode;
-  if (isMainworld) {
+  if (hasNativeSophontLifeAssessment && !nativeSophontLife) {
+    populationCode = 0;
+  } else if (isMainworld) {
     const habitabilityDm = candidateScore >= 10 ? 1 : candidateScore <= 2 ? -2 : 0;
     populationCode = clamp(d6() + d6() - 2 + habitabilityDm, 0, 10);
   } else {
@@ -3000,6 +3003,8 @@ function resolveWorldStarClass(starClass) {
   return RANDOM_WORLD_STARS[Math.floor(Math.random() * RANDOM_WORLD_STARS.length)];
 }
 
+const MOON_NAME_SUFFIXES = Object.freeze("abcdefghijklmnopqrstuvwxyz".split(""));
+
 function withRomanDuplicateSuffix(baseName, reserved) {
   const normalizedBase = String(baseName || "").trim() || "World";
   if (!reserved?.has(normalizedBase)) {
@@ -3018,11 +3023,29 @@ function withRomanDuplicateSuffix(baseName, reserved) {
   return candidate;
 }
 
-export function generateAutomaticWorldName({ mode = "list", usedNames } = {}) {
+export function buildMoonDisplayName(parentWorldName = "", ordinal = 1) {
+  const normalizedParent = String(parentWorldName || "").trim() || "Moon";
+  const normalizedOrdinal = Math.max(1, Math.trunc(Number(ordinal) || 1));
+  const suffix = MOON_NAME_SUFFIXES[normalizedOrdinal - 1] || `${normalizedOrdinal}`;
+  return `${normalizedParent} ${suffix}`;
+}
+
+export function generateAutomaticWorldName({
+  mode = "list",
+  usedNames,
+  isMoon = false,
+  parentWorldName = "",
+  moonOrdinal = null,
+  orbitalSlot = null,
+} = {}) {
   const normalizedMode = String(mode || "list")
     .trim()
     .toLowerCase();
   const reserved = usedNames instanceof Set ? usedNames : null;
+
+  if (isMoon && String(parentWorldName || "").trim()) {
+    return withRomanDuplicateSuffix(buildMoonDisplayName(parentWorldName, moonOrdinal ?? orbitalSlot ?? 1), reserved);
+  }
 
   const buildCandidate = () => {
     if (normalizedMode === "phonotactic" || normalizedMode === "normalized") {
@@ -3147,4 +3170,54 @@ export function applyWorldProfileToPlanet(planet, worldProfile) {
     economics:
       worldProfile?.economics && typeof worldProfile.economics === "object" ? { ...worldProfile.economics } : undefined,
   };
+}
+
+export function renamePlanetaryCatalogEntry(planets = [], targetIndex = -1, nextName = "", worldProfile = null) {
+  const planetList = Array.isArray(planets) ? planets : [];
+  const normalizedName = String(nextName || "").trim();
+  if (!planetList.length || !normalizedName || targetIndex < 0 || targetIndex >= planetList.length) {
+    return planetList.map((planet) => (planet && typeof planet === "object" ? { ...planet } : planet));
+  }
+
+  const selectedPlanet =
+    planetList[targetIndex] && typeof planetList[targetIndex] === "object" ? planetList[targetIndex] : {};
+  const previousName = String(selectedPlanet?.name || "").trim();
+
+  return planetList.map((planet, index) => {
+    if (!planet || typeof planet !== "object") {
+      return planet;
+    }
+
+    if (index === targetIndex) {
+      const renamedPlanet = { ...planet, name: normalizedName };
+      return worldProfile && typeof worldProfile === "object"
+        ? applyWorldProfileToPlanet(renamedPlanet, { ...worldProfile, name: normalizedName })
+        : renamedPlanet;
+    }
+
+    const isDependentMoon = previousName && String(planet?.parentWorldName || "").trim() === previousName;
+    if (!isDependentMoon) {
+      return { ...planet };
+    }
+
+    const nextMoonName =
+      planet?.isMoon ||
+      String(planet?.type || "")
+        .toLowerCase()
+        .includes("moon")
+        ? buildMoonDisplayName(normalizedName, planet?.moonOrdinal ?? planet?.orbitalSlot ?? 1)
+        : String(planet?.name || "").trim() || normalizedName;
+    const nextRemarks = Array.isArray(planet?.remarks)
+      ? planet.remarks.map((remark) =>
+          String(remark || "").trim() === `Orbits ${previousName}` ? `Orbits ${normalizedName}` : remark,
+        )
+      : planet?.remarks;
+
+    return {
+      ...planet,
+      name: nextMoonName,
+      parentWorldName: normalizedName,
+      ...(Array.isArray(nextRemarks) ? { remarks: [...nextRemarks] } : {}),
+    };
+  });
 }

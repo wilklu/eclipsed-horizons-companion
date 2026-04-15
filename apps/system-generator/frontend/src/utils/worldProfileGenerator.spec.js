@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildMoonDisplayName,
   deriveDiscretionaryEnforcementProfile,
   SOCIAL_WBH_RULES,
   applySystemWorldSocialProfiles,
@@ -21,7 +22,9 @@ import {
   deriveSecondaryWorldLawLevel,
   deriveTechLevelPocketProfile,
   deriveUrbanizationProfile,
+  generateAutomaticWorldName,
   generateWorldProfile,
+  renamePlanetaryCatalogEntry,
 } from "./worldProfileGenerator.js";
 
 describe("worldProfileGenerator", () => {
@@ -73,6 +76,58 @@ describe("worldProfileGenerator", () => {
 
     expect(worlds.filter((world) => world.isMainworld).length).toBe(1);
     expect(worlds.some((world) => world.populationCode > 0)).toBe(true);
+  });
+
+  it("keeps World Survey social values at zero when native sophont life is absent", () => {
+    const [world] = applySystemWorldSocialProfiles([
+      {
+        name: "Silent Reach",
+        size: 6,
+        atmosphereCode: 6,
+        hydrographics: 7,
+        avgTempC: 18,
+        orbitNumber: 3.1,
+        hzco: 3,
+        nativeSophontLife: false,
+      },
+    ]);
+
+    expect(world.nativeSophontLife).toBe(false);
+    expect(world.populationCode).toBe(0);
+    expect(world.population).toBe(0);
+    expect(world.governmentCode).toBe(0);
+    expect(world.lawLevel).toBe(0);
+    expect(world.techLevel).toBe(0);
+    expect(world.starport).toBe("X");
+  });
+
+  it("builds regenerated moon names from the parent world plus suffix", () => {
+    expect(buildMoonDisplayName("Tethys", 2)).toBe("Tethys b");
+    expect(
+      generateAutomaticWorldName({
+        mode: "list",
+        isMoon: true,
+        parentWorldName: "Tethys",
+        moonOrdinal: 2,
+      }),
+    ).toBe("Tethys b");
+  });
+
+  it("renames dependent moons when the parent world name changes", () => {
+    const renamed = renamePlanetaryCatalogEntry(
+      [
+        { name: "Tethys", type: "Gas Giant" },
+        { name: "Tethys a", type: "Gas Giant Moon", isMoon: true, parentWorldName: "Tethys", moonOrdinal: 1 },
+        { name: "Tethys b", type: "Gas Giant Moon", isMoon: true, parentWorldName: "Tethys", orbitalSlot: 2 },
+      ],
+      0,
+      "Caledon",
+    );
+
+    expect(renamed[0].name).toBe("Caledon");
+    expect(renamed[1].parentWorldName).toBe("Caledon");
+    expect(renamed[1].name).toBe("Caledon a");
+    expect(renamed[2].name).toBe("Caledon b");
   });
 
   it("allows significant moons to become the system mainworld", () => {
@@ -160,7 +215,10 @@ describe("worldProfileGenerator", () => {
         },
       ]);
 
-      expect(nonNativeWorld.techLevel).toBeGreaterThan(nativeWorld.techLevel);
+      expect(nonNativeWorld.populationCode).toBe(0);
+      expect(nonNativeWorld.techLevel).toBe(0);
+      expect(nonNativeWorld.starport).toBe("X");
+      expect(nativeWorld.techLevel).toBeGreaterThan(0);
     } finally {
       Math.random = originalRandom;
     }

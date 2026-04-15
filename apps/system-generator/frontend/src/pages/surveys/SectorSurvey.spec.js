@@ -4,6 +4,21 @@ import { reactive } from "vue";
 import { flushPromises, mount } from "@vue/test-utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("../../utils/wbh/starGenerationWbh.js", async () => {
+  const actual = await vi.importActual("../../utils/wbh/starGenerationWbh.js");
+  return {
+    ...actual,
+    generateMultipleStarSystemWbh: vi.fn((params = {}) => {
+      const seed =
+        String(params?.spectralType || "K")
+          .trim()
+          .charAt(0)
+          .toUpperCase() || "K";
+      return [{ designation: `${seed}2V`, spectralClass: `${seed}2V`, orbitType: null }];
+    }),
+  };
+});
+
 const hoisted = vi.hoisted(() => ({
   routerPush: vi.fn(),
   routerReplace: vi.fn(),
@@ -255,6 +270,19 @@ describe("SectorSurvey page regressions", () => {
 
     expect(wrapper.vm.$.setupState.occupancyRealism).toBeCloseTo(0.65, 5);
     expect(wrapper.text()).toContain("Occupancy Realism: 65%");
+  });
+
+  it("keeps fresh sector generation from defaulting every primary star to G-type", async () => {
+    const wrapper = mountSectorSurvey({ galaxyId: "gal-1", viewMode: "sector" });
+    await flushPromises();
+    await flushPromises();
+
+    const generated = wrapper.vm.$.setupState.buildGeneratedSystemHexFromSurveyHex(
+      { coord: "0104", hasSystem: true },
+      {},
+    );
+
+    expect(generated.starType).toBe("K2V");
   });
 
   it("lets Sector Survey realism vary without changing the Galaxy standard", async () => {
