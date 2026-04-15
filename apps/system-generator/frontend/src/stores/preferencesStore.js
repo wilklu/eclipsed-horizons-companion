@@ -16,6 +16,8 @@ export const PREFERENCE_DEFAULTS = Object.freeze({
   ttsVoiceURI: "",
   atlasGridBiasX: 0,
   atlasGridBiasY: 0,
+  atlasPlanningBiasX: 0,
+  atlasPlanningBiasY: 0,
   atlasLayerHexGrid: true,
   atlasLayerNames: true,
   atlasLayerSectorNames: false,

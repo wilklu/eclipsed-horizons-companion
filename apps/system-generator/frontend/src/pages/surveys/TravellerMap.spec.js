@@ -76,6 +76,8 @@ const preferencesStoreState = reactive({
   atlasLayerPolity: true,
   atlasGridBiasX: 0,
   atlasGridBiasY: 0,
+  atlasPlanningBiasX: 0,
+  atlasPlanningBiasY: 0,
   $state: {},
   set: vi.fn((key, value) => {
     preferencesStoreState[key] = value;
@@ -114,6 +116,8 @@ vi.mock("../../stores/preferencesStore.js", () => ({
     atlasLayerPolity: true,
     atlasGridBiasX: 0,
     atlasGridBiasY: 0,
+    atlasPlanningBiasX: 0,
+    atlasPlanningBiasY: 0,
   },
   usePreferencesStore: () => preferencesStoreState,
 }));
@@ -146,6 +150,8 @@ describe("TravellerMap anomaly display", () => {
     hoisted.toastInfo.mockReset();
     preferencesStoreState.atlasGridBiasX = 0;
     preferencesStoreState.atlasGridBiasY = 0;
+    preferencesStoreState.atlasPlanningBiasX = 0;
+    preferencesStoreState.atlasPlanningBiasY = 0;
     sectorStoreState.sectors = [createAnomalySector()];
     systemStoreState.systems = [];
     localStorage.clear();
@@ -171,9 +177,11 @@ describe("TravellerMap anomaly display", () => {
     expect(anomalyStar.starType).toBe("Black Hole");
   });
 
-  it("applies grid bias to planning window overlays", async () => {
+  it("applies dedicated planning bias on top of the atlas grid bias", async () => {
     preferencesStoreState.atlasGridBiasX = 18;
     preferencesStoreState.atlasGridBiasY = 12;
+    preferencesStoreState.atlasPlanningBiasX = 4;
+    preferencesStoreState.atlasPlanningBiasY = -6;
 
     const wrapper = mount(TravellerMap, {
       global: {
@@ -188,7 +196,7 @@ describe("TravellerMap anomaly display", () => {
 
     const planningOverlay = wrapper.find(".planning-window-overlay");
     expect(planningOverlay.exists()).toBe(true);
-    expect(Number(planningOverlay.attributes("x"))).toBe(18);
-    expect(Number(planningOverlay.attributes("y"))).toBe(12);
+    expect(Number(planningOverlay.attributes("x"))).toBe(22);
+    expect(Number(planningOverlay.attributes("y"))).toBe(6);
   });
 });

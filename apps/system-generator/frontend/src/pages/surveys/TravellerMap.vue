@@ -294,8 +294,8 @@
             />
             <rect
               v-if="planningWindowVisible && tile.isInPlanningWindow"
-              :x="tile.wx + gridBiasX"
-              :y="tile.wy + gridBiasY"
+              :x="tile.wx + planningOverlayBiasX"
+              :y="tile.wy + planningOverlayBiasY"
               :width="SECTOR_PX_W - 1"
               :height="SECTOR_PX_H - 1"
               class="planning-window-overlay"
@@ -1389,6 +1389,10 @@ const SECTOR_PX_H = SECTOR_ROWS * HEX_STEP_Y;
 // Manual alignment bias for sector/subsector overlays against hex lattice (from preferences).
 const gridBiasX = computed(() => Number(preferencesStore.atlasGridBiasX) || 0);
 const gridBiasY = computed(() => Number(preferencesStore.atlasGridBiasY) || 0);
+const planningBiasX = computed(() => Number(preferencesStore.atlasPlanningBiasX) || 0);
+const planningBiasY = computed(() => Number(preferencesStore.atlasPlanningBiasY) || 0);
+const planningOverlayBiasX = computed(() => gridBiasX.value + planningBiasX.value);
+const planningOverlayBiasY = computed(() => gridBiasY.value + planningBiasY.value);
 
 // ── LOD zoom thresholds ────────────────────────────────────────────────────
 const LOD_GALAXY = 0.055; // below: sector tiles only
@@ -1908,7 +1912,10 @@ const parsecBadge = computed(() => {
   if (p >= 10) return `${p.toFixed(1)} pc`;
   return `${p.toFixed(2)} pc`;
 });
-const biasReadout = computed(() => `Bias X ${Math.round(gridBiasX.value)} Y ${Math.round(gridBiasY.value)}`);
+const biasReadout = computed(
+  () =>
+    `Grid X ${Math.round(gridBiasX.value)} Y ${Math.round(gridBiasY.value)} · Planning X ${Math.round(planningBiasX.value)} Y ${Math.round(planningBiasY.value)}`,
+);
 const sectorTilesEnabled = computed(() => parsecsPerHex.value <= 250);
 const showStars = computed(() => parsecsPerHex.value <= 40);
 const renderStars = computed(() => showStars.value && (!dragging.value || parsecsPerHex.value <= 10));
@@ -5125,8 +5132,12 @@ function syncAtlasPreferencesFromStorage() {
     const parsed = JSON.parse(raw);
     const x = Number(parsed?.atlasGridBiasX);
     const y = Number(parsed?.atlasGridBiasY);
+    const planningX = Number(parsed?.atlasPlanningBiasX);
+    const planningY = Number(parsed?.atlasPlanningBiasY);
     if (Number.isFinite(x)) preferencesStore.set("atlasGridBiasX", x);
     if (Number.isFinite(y)) preferencesStore.set("atlasGridBiasY", y);
+    if (Number.isFinite(planningX)) preferencesStore.set("atlasPlanningBiasX", planningX);
+    if (Number.isFinite(planningY)) preferencesStore.set("atlasPlanningBiasY", planningY);
     layerHexGrid.value = coerceBooleanPreference(parsed?.atlasLayerHexGrid, layerHexGrid.value);
     layerNames.value = coerceBooleanPreference(parsed?.atlasLayerNames, layerNames.value);
     layerSectorNames.value = coerceBooleanPreference(parsed?.atlasLayerSectorNames, layerSectorNames.value);

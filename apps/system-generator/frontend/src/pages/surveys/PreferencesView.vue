@@ -151,6 +151,21 @@
             <span>Grid bias Y</span>
             <input v-model.number="draft.atlasGridBiasY" type="number" step="0.1" />
           </label>
+
+          <p class="section-copy section-copy--compact">
+            Planning bias adds an extra nudge to the planning window overlay only, without disturbing the main atlas
+            grid alignment.
+          </p>
+
+          <label class="field">
+            <span>Planning bias X</span>
+            <input v-model.number="draft.atlasPlanningBiasX" type="number" step="0.1" />
+          </label>
+
+          <label class="field">
+            <span>Planning bias Y</span>
+            <input v-model.number="draft.atlasPlanningBiasY" type="number" step="0.1" />
+          </label>
         </section>
 
         <section class="card">
@@ -308,7 +323,9 @@ function toggleVoicePreview() {
   if (!result.ok) {
     isTestingVoice.value = false;
     statusMessage.value =
-      result.reason === "unsupported" ? "Text to speech is not supported in this browser." : "Unable to play voice preview.";
+      result.reason === "unsupported"
+        ? "Text to speech is not supported in this browser."
+        : "Unable to play voice preview.";
   }
 }
 
@@ -327,6 +344,8 @@ function createDraft(source) {
     ttsVoiceURI: String(source.ttsVoiceURI || PREFERENCE_DEFAULTS.ttsVoiceURI),
     atlasGridBiasX: Number(source.atlasGridBiasX),
     atlasGridBiasY: Number(source.atlasGridBiasY),
+    atlasPlanningBiasX: Number(source.atlasPlanningBiasX),
+    atlasPlanningBiasY: Number(source.atlasPlanningBiasY),
   };
 }
 
@@ -376,6 +395,8 @@ function savePreferences() {
     ttsVoiceURI: String(draft.ttsVoiceURI || ""),
     atlasGridBiasX: Number(draft.atlasGridBiasX) || 0,
     atlasGridBiasY: Number(draft.atlasGridBiasY) || 0,
+    atlasPlanningBiasX: Number(draft.atlasPlanningBiasX) || 0,
+    atlasPlanningBiasY: Number(draft.atlasPlanningBiasY) || 0,
   });
 
   applyDraft(preferencesStore.$state);

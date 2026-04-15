@@ -270,7 +270,11 @@ import {
 } from "../../utils/wbh/systemGenerationWbh.js";
 import { generateWorldPhysicalCharacteristicsWbh } from "../../utils/wbh/worldPhysicalCharacteristicsWbh.js";
 import { usePreferencesStore } from "../../stores/preferencesStore.js";
-import { isSpeechSynthesisSupported, speakTextWithPreferences, stopSpeechSynthesis } from "../../utils/speechSynthesis.js";
+import {
+  isSpeechSynthesisSupported,
+  speakTextWithPreferences,
+  stopSpeechSynthesis,
+} from "../../utils/speechSynthesis.js";
 import { useSystemStore } from "../../stores/systemStore.js";
 import * as toastService from "../../utils/toast.js";
 
