@@ -123,8 +123,8 @@ describe("spaceClassification", () => {
       expect(resolveGenerationModeForSpaceTier("name-systems", "frontier")).toBe("name-systems");
     });
 
-    it("downgrades void sectors away from full systems while preserving name-only saves", () => {
-      expect(resolveGenerationModeForSpaceTier("name-systems", "void")).toBe("name-presence");
+    it("preserves explicit void-sector generation choices while still blocking auto-upgrades in surveyed space", () => {
+      expect(resolveGenerationModeForSpaceTier("name-systems", "void")).toBe("name-systems");
       expect(resolveGenerationModeForSpaceTier("name", "void")).toBe("name");
       expect(resolveGenerationModeForSpaceTier("presence", "void")).toBe("presence");
       expect(resolveGenerationModeForSpaceTier("name-presence", "void")).toBe("name-presence");

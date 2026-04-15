@@ -1722,11 +1722,8 @@ const effectiveGenerationMode = computed(() => generationMode.value || defaultGe
 const tierAwareGenerationMode = computed(() =>
   resolveGenerationModeForSpaceTier(effectiveGenerationMode.value, currentSectorSpaceTier.value),
 );
-const fullGenerationBlockedByTier = computed(() => currentSectorSpaceTier.value === "void");
-const fullGenerationBlockedReason = computed(() => {
-  if (!fullGenerationBlockedByTier.value) return "";
-  return "Void tier sectors are presence-only until they are promoted to Frontier or Surveyed.";
-});
+const fullGenerationBlockedByTier = computed(() => false);
+const fullGenerationBlockedReason = computed(() => "");
 const generationModeOptions = computed(() => [
   { id: "name", label: "Name Only" },
   { id: "name-presence", label: "Name + Presence" },
@@ -1802,9 +1799,7 @@ const generationPolicyBadge = computed(() => {
   const rule =
     tier === "surveyed"
       ? "Surveyed sectors always run full Name + Systems + Worlds generation."
-      : tier === "frontier"
-        ? "Frontier sectors use your selected generation mode."
-        : "Void sectors allow Name Only plus presence-safe generation until surveyed.";
+      : "This tier uses your selected generation mode.";
 
   return {
     tier,

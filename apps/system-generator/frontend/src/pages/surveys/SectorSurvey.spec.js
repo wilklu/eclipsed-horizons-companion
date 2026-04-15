@@ -304,6 +304,6 @@ describe("SectorSurvey page regressions", () => {
     await flushPromises();
 
     expect(wrapper.find(".survey-action-label").text()).toContain("Name + Systems + Worlds");
-    expect(wrapper.find(".control-help--multiline").text()).toContain("adjusted this action");
+    expect(wrapper.vm.$.setupState.tierAwareGenerationMode).toBe("name-systems");
   });
 });

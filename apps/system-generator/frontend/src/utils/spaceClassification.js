@@ -98,7 +98,7 @@ export function calculateSpaceTier(sx, sy, surveyedCoordKeySet) {
  * Policy:
  * - surveyed -> full systems
  * - frontier -> user-selected mode
- * - void -> name-only and presence-safe modes only
+ * - void -> user-selected mode
  * @param {string} requestedMode - One of: name | presence | name-presence | name-systems
  * @param {string} spaceTier - One of: surveyed | frontier | void
  * @returns {string} Effective generation mode after policy enforcement
@@ -120,7 +120,6 @@ export function resolveGenerationModeForSpaceTier(requestedMode, spaceTier) {
   }
 
   if (tier === "void") {
-    if (mode === "name-systems") return "name-presence";
     return mode;
   }
 
