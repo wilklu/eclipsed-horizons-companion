@@ -32,7 +32,7 @@ function createAnomalySector() {
       gridX: 0,
       gridY: 0,
       displayName: "Core Sector",
-      occupiedHexes: ["1619"],
+      occupiedHexes: ["1619", "1720"],
       hexPresenceGenerated: true,
       centralAnomalyType: "Black Hole",
       hexStarTypes: {
@@ -41,6 +41,12 @@ function createAnomalySector() {
           starClass: "anomaly-core",
           anomalyType: "Black Hole",
           generatedStars: [{ designation: "BH", spectralClass: "Black Hole" }],
+        },
+        1720: {
+          starType: "B2V",
+          starClass: "spectral-b",
+          secondaryStars: [],
+          generatedStars: [{ designation: "B2V", spectralClass: "B2V" }],
         },
       },
     },
@@ -157,7 +163,7 @@ describe("TravellerMap anomaly display", () => {
     localStorage.clear();
   });
 
-  it("keeps anomaly markers labeled as anomalies instead of falling back to G2V", async () => {
+  it("uses the primary star color for normal stars and purple for anomalies", async () => {
     const wrapper = mount(TravellerMap, {
       global: {
         stubs: {
@@ -171,10 +177,16 @@ describe("TravellerMap anomaly display", () => {
 
     const markers = wrapper.vm.$.setupState.loadedRouteStarMarkers;
     const anomalyStar = markers.find((entry) => entry.coord === "1619");
+    const blueStar = markers.find((entry) => entry.coord === "1720");
 
     expect(anomalyStar).toBeTruthy();
     expect(anomalyStar.anomalyType).toBe("Black Hole");
     expect(anomalyStar.starType).toBe("Black Hole");
+    expect(anomalyStar.color).toBe("#c77dff");
+
+    expect(blueStar).toBeTruthy();
+    expect(blueStar.starType).toBe("B2V");
+    expect(blueStar.color).toBe("#aabfff");
   });
 
   it("applies dedicated planning bias on top of the atlas grid bias", async () => {

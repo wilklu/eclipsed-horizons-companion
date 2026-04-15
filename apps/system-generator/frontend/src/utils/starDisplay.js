@@ -15,7 +15,9 @@ export function normalizeStarDescriptor(value, fallback = "G2V") {
 export function resolveStarDescriptorToken(value, fallback = "G") {
   const normalized = normalizeStarDescriptor(value, fallback);
   const upper = normalized.toUpperCase();
+  const spectralClassMatch = upper.match(/SPECTRAL-([OBAFGKM])/);
 
+  if (spectralClassMatch) return spectralClassMatch[1];
   if (/BLACK\s+HOLE/.test(upper) || /^BH\b/.test(upper)) return "BH";
   if (/PULSAR/.test(upper) || /^PSR\b/.test(upper)) return "PSR";
   if (/NEUTRON/.test(upper) || /^NS\b/.test(upper)) return "NS";
@@ -108,7 +110,7 @@ export function starDescriptorToColor(value, fallback = "#8fe9ff") {
     case "NB":
     case "CLUSTER":
     case "ANOMALY":
-      return "#f7b1ff";
+      return "#c77dff";
     default:
       return fallback;
   }

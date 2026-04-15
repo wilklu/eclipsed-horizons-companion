@@ -3830,7 +3830,7 @@ function toSectorTile(sector) {
 }
 
 function starTypeToColor(starType, starClass) {
-  return starDescriptorToColor(starClass || starType, "#ffd575");
+  return starDescriptorToColor(starType || starClass, "#ffd575");
 }
 
 function starTypeToCssClass(starType, starClass) {
