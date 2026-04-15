@@ -429,7 +429,7 @@ function buildWorldRemarks(world = {}, overlay = {}) {
   if (overlay?.habitability === "Excellent") remarks.push("Prime Candidate");
   if (overlay?.habitability === "Hostile") remarks.push("Hostile Environment");
   if (overlay?.resourceRating === "Abundant") remarks.push("Resource Rich");
-  if (world?.nativeSophontLife) remarks.push("Native Life");
+  if (!isGasGiantWorld(world) && world?.nativeSophontLife) remarks.push("Native Life");
   if (overlay?.isMainworld) remarks.push("Mainworld");
   if (overlay?.populationConcentration?.eligible) {
     remarks.push(`PCR ${overlay.populationConcentration.rating} ${overlay.populationConcentration.label}`);
@@ -472,9 +472,45 @@ function normalizeMoonWorldType(type) {
     : "Significant Moon";
 }
 
+function isGasGiantWorld(world = {}) {
+  const type = String(world?.type || world?.worldType || "")
+    .trim()
+    .toLowerCase();
+
+  return !Boolean(world?.isMoon) && (type === "gas giant" || (type.includes("gas giant") && !type.includes("moon")));
+}
+
+function normalizeNativeSophontWorldState(world = {}) {
+  const normalizedWorld = world && typeof world === "object" ? { ...world } : {};
+
+  if (isGasGiantWorld(normalizedWorld)) {
+    normalizedWorld.nativeSophontLife = false;
+    normalizedWorld.nativeLifeform = "0000";
+    return normalizedWorld;
+  }
+
+  const hasHabitableZoneData =
+    Boolean(String(normalizedWorld?.zone || "").trim()) ||
+    (Number.isFinite(Number(normalizedWorld?.orbitAU ?? normalizedWorld?.orbitAu ?? NaN)) &&
+      Number.isFinite(Number(normalizedWorld?.hzco ?? NaN)) &&
+      Number(normalizedWorld?.hzco ?? NaN) > 0);
+
+  if (
+    normalizedWorld.nativeSophontLife === true &&
+    hasHabitableZoneData &&
+    !hasHabitableZoneClassification(normalizedWorld)
+  ) {
+    normalizedWorld.nativeSophontLife = false;
+    normalizedWorld.nativeLifeform = "0000";
+  }
+
+  return normalizedWorld;
+}
+
 function flattenWorldWithMoons(world = {}) {
-  const entries = [{ ...world, isMoon: Boolean(world?.isMoon) }];
-  const moons = Array.isArray(world?.moonsData) ? world.moonsData : [];
+  const normalizedWorld = normalizeNativeSophontWorldState(world);
+  const entries = [{ ...normalizedWorld, isMoon: Boolean(normalizedWorld?.isMoon) }];
+  const moons = Array.isArray(normalizedWorld?.moonsData) ? normalizedWorld.moonsData : [];
 
   moons.forEach((moon, index) => {
     if (!moon || moon.type !== "significant" || moon.ring) {
@@ -520,7 +556,7 @@ function buildWorldUwpFromOverlay(world = {}, overlay = {}) {
 }
 
 function normalizeStoredWorldProfile(worldProfile = {}) {
-  const baseProfile = worldProfile && typeof worldProfile === "object" ? { ...worldProfile } : {};
+  const baseProfile = normalizeNativeSophontWorldState(worldProfile);
 
   if (baseProfile.nativeSophontLife !== false) {
     return {
@@ -2747,19 +2783,20 @@ function rollTechLevel({
 }
 
 function deriveSocialUwp({ world, isMainworld = true, mainworldPopulationCode = null, mainworldOverlay = null } = {}) {
-  const size = Number(world?.size ?? 0);
-  const atmosphereCode = Number(world?.atmosphereCode ?? 0);
-  const hydrographics = Number(world?.hydrographics ?? 0);
-  const candidateScore = scoreMainworldCandidateWbh(world, { hzco: world?.hzco });
+  const normalizedWorld = normalizeNativeSophontWorldState(world);
+  const size = Number(normalizedWorld?.size ?? 0);
+  const atmosphereCode = Number(normalizedWorld?.atmosphereCode ?? 0);
+  const hydrographics = Number(normalizedWorld?.hydrographics ?? 0);
+  const candidateScore = scoreMainworldCandidateWbh(normalizedWorld, { hzco: normalizedWorld?.hzco });
   const habitability = determineHabitabilityRating({
     candidateScore,
     size,
     atmosphereCode,
     hydrographics,
-    avgTempC: Number(world?.avgTempC ?? 0),
+    avgTempC: Number(normalizedWorld?.avgTempC ?? 0),
   });
-  const hasNativeSophontLifeAssessment = typeof world?.nativeSophontLife === "boolean";
-  const nativeSophontLife = world?.nativeSophontLife === true;
+  const hasNativeSophontLifeAssessment = typeof normalizedWorld?.nativeSophontLife === "boolean";
+  const nativeSophontLife = normalizedWorld?.nativeSophontLife === true;
   const colonySupportBonus =
     (nativeSophontLife ? 1 : 0) +
     (Boolean(world?.isMoon) && candidateScore >= 6 ? 1 : 0) +
@@ -2961,9 +2998,9 @@ function deriveSocialUwp({ world, isMainworld = true, mainworldPopulationCode = 
     techLevelPockets,
     houseRulesApplied,
     habitability,
-    resourceRating: determineResourceRating(world),
+    resourceRating: determineResourceRating(normalizedWorld),
     importance: deriveImportance({ tradeCodes, starport, techLevel, populationCode }),
-    nativeLifeform: buildNativeLifeProfile(world),
+    nativeLifeform: buildNativeLifeProfile(normalizedWorld),
   };
 }
 
@@ -3145,12 +3182,13 @@ export function generateWorldProfile({
       }),
   });
 
-  const atmosphereCode = Number(generatedWorld.atmosphereCode ?? 0);
-  const hydrographics = Number(generatedWorld.hydrographics ?? 0);
-  const worldSizeForUwp = Number(generatedWorld.size ?? resolvedSizeCode ?? 0);
+  const normalizedGeneratedWorld = normalizeNativeSophontWorldState(generatedWorld);
+  const atmosphereCode = Number(normalizedGeneratedWorld.atmosphereCode ?? 0);
+  const hydrographics = Number(normalizedGeneratedWorld.hydrographics ?? 0);
+  const worldSizeForUwp = Number(normalizedGeneratedWorld.size ?? resolvedSizeCode ?? 0);
   const socialOverlay = deriveSocialUwp({
     world: {
-      ...generatedWorld,
+      ...normalizedGeneratedWorld,
       orbitNumber,
       hzco,
     },
@@ -3162,10 +3200,10 @@ export function generateWorldProfile({
     resourceRating: socialOverlay.resourceRating,
     habitability: socialOverlay.habitability,
   };
-  const remarks = buildWorldRemarks(generatedWorld, socialOverlay);
+  const remarks = buildWorldRemarks(normalizedGeneratedWorld, socialOverlay);
 
   return {
-    ...generatedWorld,
+    ...normalizedGeneratedWorld,
     name: resolvedWorldName,
     uwp,
     size: generatedWorld.size ?? resolvedSizeCode,

@@ -2007,8 +2007,36 @@ const subsectorSurveyPercentLabel = computed(() => {
 });
 
 function hasNativeLifeInSurveyRecord(record) {
+  const type = String(record?.type || record?.worldType || "")
+    .trim()
+    .toLowerCase();
+  const isGasGiant =
+    !Boolean(record?.isMoon) && (type === "gas giant" || (type.includes("gas giant") && !type.includes("moon")));
+  if (isGasGiant) {
+    return false;
+  }
+
+  const zone = String(record?.zone || "")
+    .trim()
+    .toLowerCase();
+  if (zone.includes("inner") || zone.includes("outer")) {
+    return false;
+  }
+
+  const orbitAU = Number(record?.orbitAU ?? record?.orbitAu ?? NaN);
+  const hzco = Number(record?.hzco ?? NaN);
+  if (Number.isFinite(orbitAU) && Number.isFinite(hzco) && hzco > 0) {
+    if (orbitAU < hzco * 0.75 || orbitAU > hzco * 1.5) {
+      return false;
+    }
+  }
+
   if (record?.nativeSophontLife === true) {
     return true;
+  }
+
+  if (record?.nativeSophontLife === false) {
+    return false;
   }
 
   const nativeLifeform = String(record?.nativeLifeform ?? "")

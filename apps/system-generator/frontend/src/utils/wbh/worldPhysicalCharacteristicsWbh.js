@@ -1199,8 +1199,56 @@ export function determineTidalLockPressure({
   return { dm, risk };
 }
 
-export function rollNativeSophontLife({ size, atmosphereCode, hydrographics, avgTempC }) {
-  if (size <= 0) return false;
+function isGasGiantNativeLifeCandidate({ type = "", isMoon = false } = {}) {
+  const normalizedType = String(type || "")
+    .trim()
+    .toLowerCase();
+
+  return (
+    !Boolean(isMoon) &&
+    (normalizedType === "gas giant" || (normalizedType.includes("gas giant") && !normalizedType.includes("moon")))
+  );
+}
+
+function isNativeSophontHabitableZoneCandidate({ orbitNumber = null, hzco = null, zone = "" } = {}) {
+  const zoneToken = String(zone || "")
+    .trim()
+    .toLowerCase();
+
+  if (zoneToken.includes("habitable")) {
+    return true;
+  }
+  if (zoneToken.includes("inner") || zoneToken.includes("outer")) {
+    return false;
+  }
+
+  const numericOrbit = Number(orbitNumber);
+  const numericHzco = Number(hzco);
+  if (!Number.isFinite(numericOrbit) || !Number.isFinite(numericHzco) || numericHzco <= 0) {
+    return null;
+  }
+
+  const lowerBound = numericHzco >= 1 ? Math.max(0.01, numericHzco - 1) : Math.max(0.01, numericHzco - 0.1);
+  const upperBound = numericHzco >= 1 ? numericHzco + 1 : numericHzco + 0.1;
+  return numericOrbit >= lowerBound && numericOrbit <= upperBound;
+}
+
+export function rollNativeSophontLife({
+  size,
+  atmosphereCode,
+  hydrographics,
+  avgTempC,
+  type,
+  isMoon = false,
+  orbitNumber = null,
+  hzco = null,
+  zone = "",
+  rollDie = createRandomRoller(),
+}) {
+  if (size <= 0 || isGasGiantNativeLifeCandidate({ type, isMoon })) return false;
+
+  const habitableZoneCandidate = isNativeSophontHabitableZoneCandidate({ orbitNumber, hzco, zone });
+  if (habitableZoneCandidate === false) return false;
 
   let habitabilityScore = 0;
   if (atmosphereCode >= 4 && atmosphereCode <= 9) habitabilityScore += 2;
@@ -1213,10 +1261,11 @@ export function rollNativeSophontLife({ size, atmosphereCode, hydrographics, avg
   else if (avgTempC >= -30 && avgTempC <= 60) habitabilityScore += 1;
 
   if (size >= 4) habitabilityScore += 1;
-  if (habitabilityScore < 3) return false;
+  if (habitableZoneCandidate === true) habitabilityScore += 1;
+  if (habitabilityScore < 4) return false;
 
-  const threshold = habitabilityScore >= 6 ? 8 : habitabilityScore >= 4 ? 10 : 12;
-  return Number(rollTotalOrDice(2, 6));
+  const threshold = habitabilityScore >= 7 ? 8 : habitabilityScore >= 5 ? 10 : 12;
+  return rollTotalOrDice(2, 6, rollDie) >= threshold;
 }
 
 function rollTotalOrDice(count, sides, rollDie = createRandomRoller()) {
@@ -1228,9 +1277,17 @@ export function determineNativeSophontLife({
   atmosphereCode,
   hydrographics,
   avgTempC,
+  type,
+  isMoon = false,
+  orbitNumber = null,
+  hzco = null,
+  zone = "",
   rollDie = createRandomRoller(),
 } = {}) {
-  if (size <= 0) return false;
+  if (size <= 0 || isGasGiantNativeLifeCandidate({ type, isMoon })) return false;
+
+  const habitableZoneCandidate = isNativeSophontHabitableZoneCandidate({ orbitNumber, hzco, zone });
+  if (habitableZoneCandidate === false) return false;
 
   let habitabilityScore = 0;
   if (atmosphereCode >= 4 && atmosphereCode <= 9) habitabilityScore += 2;
@@ -1243,14 +1300,18 @@ export function determineNativeSophontLife({
   else if (avgTempC >= -30 && avgTempC <= 60) habitabilityScore += 1;
 
   if (size >= 4) habitabilityScore += 1;
-  if (habitabilityScore < 3) return false;
+  if (habitableZoneCandidate === true) habitabilityScore += 1;
+  if (habitabilityScore < 4) return false;
 
-  const threshold = habitabilityScore >= 6 ? 8 : habitabilityScore >= 4 ? 10 : 12;
+  const threshold = habitabilityScore >= 7 ? 8 : habitabilityScore >= 5 ? 10 : 12;
   return rollDice(rollDie, 2, 6) >= threshold;
 }
 
 export function buildNativeLifeProfile(world = {}) {
-  if (!world?.nativeSophontLife) {
+  if (
+    !world?.nativeSophontLife ||
+    isGasGiantNativeLifeCandidate({ type: world?.type || world?.worldType, isMoon: world?.isMoon })
+  ) {
     return "0000";
   }
 
@@ -1799,15 +1860,21 @@ export function buildWbhEnvironmentalProfile(params = {}) {
         atmosphereCode,
         rollTotal: params.magnetosphereRoll ?? rollDice(rollDie, 2, 6),
       }),
-    nativeSophontLife:
-      params.nativeSophontLife ??
-      determineNativeSophontLife({
-        size: Number(size) || 0,
-        atmosphereCode,
-        hydrographics,
-        avgTempC,
-        rollDie,
-      }),
+    nativeSophontLife: isGasGiantNativeLifeCandidate({ type: params.type, isMoon: params.isMoon })
+      ? false
+      : (params.nativeSophontLife ??
+        determineNativeSophontLife({
+          size: Number(size) || 0,
+          atmosphereCode,
+          hydrographics,
+          avgTempC,
+          type: params.type,
+          isMoon: params.isMoon,
+          orbitNumber: params.orbitNumber,
+          hzco: params.hzco,
+          zone: params.zone,
+          rollDie,
+        })),
   };
 }
 

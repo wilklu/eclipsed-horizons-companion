@@ -130,6 +130,48 @@ describe("worldProfileGenerator", () => {
     expect(renamed[2].name).toBe("Caledon b");
   });
 
+  it("prevents gas giants from carrying native sophont life while allowing their moons", () => {
+    const worlds = applySystemWorldSocialProfiles([
+      {
+        name: "Giant Alpha",
+        type: "Gas Giant",
+        size: 14,
+        atmosphereCode: 15,
+        hydrographics: 0,
+        avgTempC: 18,
+        orbitNumber: 3.2,
+        hzco: 3.1,
+        nativeSophontLife: true,
+        nativeLifeform: "2201",
+        moonsData: [
+          {
+            name: "Giant Alpha b",
+            type: "significant",
+            size: 6,
+            orbitalSlot: 2,
+            ring: false,
+            worldProfile: {
+              size: 6,
+              atmosphereCode: 6,
+              hydrographics: 7,
+              avgTempC: 20,
+              nativeSophontLife: true,
+              nativeLifeform: "2201",
+            },
+          },
+        ],
+      },
+    ]);
+
+    const gasGiant = worlds.find((world) => world.name === "Giant Alpha");
+    const moon = worlds.find((world) => world.name === "Giant Alpha b");
+
+    expect(gasGiant?.nativeSophontLife).toBe(false);
+    expect(gasGiant?.populationCode).toBe(0);
+    expect(gasGiant?.starport).toBe("X");
+    expect(moon?.nativeSophontLife).toBe(true);
+  });
+
   it("allows significant moons to become the system mainworld", () => {
     const worlds = applySystemWorldSocialProfiles([
       {

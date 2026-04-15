@@ -13,6 +13,7 @@ import {
   calculateOxygenPartialPressureBar,
   determineHydrographicsDetailed,
   determineHydrographicsPercent,
+  determineNativeSophontLife,
   determineRunawayGreenhouse,
   determineSurfaceDistribution,
   describeHydrosphere,
@@ -196,6 +197,32 @@ describe("worldPhysicalCharacteristicsWbh", () => {
     expect(determineResourceRating({ type: "Gas Giant", size: 14, atmosphereCode: 15, hydrographics: 0 })).toBe(
       "Abundant",
     );
+  });
+
+  it("limits native sophont life to habitable-zone candidates", () => {
+    expect(
+      determineNativeSophontLife({
+        size: 6,
+        atmosphereCode: 6,
+        hydrographics: 7,
+        avgTempC: 20,
+        orbitNumber: 6.4,
+        hzco: 3.1,
+        rollDie: createSequenceRoller([6, 6]),
+      }),
+    ).toBe(false);
+
+    expect(
+      determineNativeSophontLife({
+        size: 6,
+        atmosphereCode: 6,
+        hydrographics: 7,
+        avgTempC: 20,
+        orbitNumber: 3.2,
+        hzco: 3.1,
+        rollDie: createSequenceRoller([6, 6]),
+      }),
+    ).toBe(true);
   });
 
   it("applies WBH atmosphere rules for small-world vacuum, pressure, and zone temperature", () => {

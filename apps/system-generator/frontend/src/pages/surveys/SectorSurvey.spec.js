@@ -340,9 +340,9 @@ describe("SectorSurvey page regressions", () => {
         hexCoordinates: { x: 1, y: 1 },
         nativeLifeform: "2201",
         planets: [
-          { name: "A", nativeSophontLife: true, nativeLifeform: "2201" },
-          { name: "B", nativeSophontLife: false, nativeLifeform: "0000" },
-          { name: "C" },
+          { name: "A", type: "Terrestrial Planet", nativeSophontLife: true, nativeLifeform: "2201" },
+          { name: "B", type: "Gas Giant", nativeSophontLife: true, nativeLifeform: "2201" },
+          { name: "C", nativeSophontLife: false, nativeLifeform: "2201" },
         ],
       },
       {
