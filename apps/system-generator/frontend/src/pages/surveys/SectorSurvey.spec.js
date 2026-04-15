@@ -268,4 +268,42 @@ describe("SectorSurvey page regressions", () => {
     expect(wrapper.text()).toContain("Subsector Survey");
     expect(wrapper.findAll(".subsector-grid--sidebar .subsector-btn").length).toBeGreaterThan(0);
   });
+
+  it("keeps the execute label aligned with the selected survey option even in void-tier space", async () => {
+    sectorStoreState.sectors = [
+      {
+        ...createSectorRecord(),
+        metadata: {
+          ...createSectorRecord().metadata,
+          occupiedHexes: [],
+          hexStarTypes: {},
+          hexPresenceGenerated: false,
+          systemCount: 0,
+        },
+      },
+    ];
+
+    const wrapper = mountSectorSurvey({ galaxyId: "gal-1", viewMode: "sector" });
+    await flushPromises();
+    await flushPromises();
+
+    const optionButtons = wrapper.findAll(".survey-option-btn");
+    const nameOnlyButton = optionButtons.find((entry) => entry.text().includes("Name Only"));
+    const fullSurveyButton = optionButtons.find((entry) => entry.text().includes("Systems + Worlds"));
+
+    expect(nameOnlyButton).toBeTruthy();
+    expect(fullSurveyButton).toBeTruthy();
+
+    await nameOnlyButton.trigger("click");
+    await flushPromises();
+
+    expect(wrapper.find(".survey-action-label").text()).toContain("Save Sector Name");
+    expect(wrapper.find(".survey-action-label").text()).not.toContain("Presence Only");
+
+    await fullSurveyButton.trigger("click");
+    await flushPromises();
+
+    expect(wrapper.find(".survey-action-label").text()).toContain("Name + Systems + Worlds");
+    expect(wrapper.find(".control-help--multiline").text()).toContain("adjusted this action");
+  });
 });

@@ -1734,50 +1734,60 @@ const generationModeOptions = computed(() => [
   { id: "name-systems", label: "Name + Systems + Worlds" },
 ]);
 const generationAction = computed(() => {
+  const requestedMode = effectiveGenerationMode.value;
   const modeForTier = tierAwareGenerationMode.value;
-  const policyAdjusted = modeForTier !== effectiveGenerationMode.value;
+  const policyAdjusted = modeForTier !== requestedMode;
   const policyPrefix = policyAdjusted
     ? `Space tier policy (${currentSectorSpaceTier.value}) adjusted this action. `
     : "";
   const scopeLabel = scope.value === "subsector" ? "Subsector" : "Sector";
+  const requestedLabel =
+    requestedMode === "name"
+      ? "💾 Save Sector Name"
+      : requestedMode === "name-presence"
+        ? "⚡ Name + Presence"
+        : requestedMode === "presence"
+          ? "🗺 Presence Only"
+          : "⭐ Name + Systems + Worlds";
+
   if (modeForTier === "name") {
     return {
-      id: "name",
-      label: "💾 Save Sector Name",
+      id: requestedMode,
+      label: requestedLabel,
       description: `${policyPrefix}Create or update the sector record and name only. No system presence or stellar systems are rolled.`,
     };
   }
   if (modeForTier === "name-presence") {
     return {
-      id: "name-presence",
-      label: "⚡ Name + Presence",
+      id: requestedMode,
+      label: requestedLabel,
       description: `${policyPrefix}Save the current sector name, then roll occupied hexes without generating full stellar system data.`,
     };
   }
   if (modeForTier === "presence") {
     return {
-      id: "presence",
-      label: "🗺 Presence Only",
+      id: requestedMode,
+      label: requestedLabel,
       description: `${policyPrefix}Roll occupied hexes only. Full stellar system data is not generated.`,
     };
   }
   if (scopeTypedHexCount.value > 0 && scopeTypedHexCount.value === scopePresenceCount.value) {
     return {
-      id: "name-systems",
-      label: "⭐ Name + Systems + Worlds",
+      id: requestedMode,
+      label: requestedLabel,
       description: `${policyPrefix}Use the existing surveyed stellar data in the current viewport to persist stellar systems and generated world profiles without rerolling presence or primary stars.`,
     };
   }
   if (scopePresenceCount.value > 0 && scopeTypedHexCount.value < scopePresenceCount.value) {
     return {
-      id: "name-systems",
-      label: "⭐ Name + Systems + Worlds",
+      id: requestedMode,
+      label: requestedLabel,
       description: `${policyPrefix}Preserve the current sector name and convert existing occupied hexes into persisted stellar systems with generated world profiles.`,
     };
   }
   return {
-    id: "name-systems",
-    label: `⭐ Name + Systems + Worlds`,
+    id: requestedMode,
+    label: requestedLabel,
     description: `${policyPrefix}Generate a full ${scopeLabel.toLowerCase()} survey in one step, including occupied hexes, stellar systems, and world profiles.`,
   };
 });
@@ -1794,7 +1804,7 @@ const generationPolicyBadge = computed(() => {
       ? "Surveyed sectors always run full Name + Systems + Worlds generation."
       : tier === "frontier"
         ? "Frontier sectors use your selected generation mode."
-        : "Void sectors limit generation to presence-safe modes until surveyed.";
+        : "Void sectors allow Name Only plus presence-safe generation until surveyed.";
 
   return {
     tier,
