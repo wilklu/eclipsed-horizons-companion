@@ -515,6 +515,41 @@ function computePopulationValue(populationCode) {
   return 10 ** populationCode;
 }
 
+function buildWorldUwpFromOverlay(world = {}, overlay = {}) {
+  return `${overlay.starport}${toHex(Number(world?.size ?? 0))}${toHex(Number(world?.atmosphereCode ?? 0))}${toHex(Number(world?.hydrographics ?? 0))}${toHex(overlay.populationCode)}${toHex(overlay.governmentCode)}${toHex(overlay.lawLevel)}-${toHex(overlay.techLevel)}`;
+}
+
+function normalizeStoredWorldProfile(worldProfile = {}) {
+  const baseProfile = worldProfile && typeof worldProfile === "object" ? { ...worldProfile } : {};
+
+  if (baseProfile.nativeSophontLife !== false) {
+    return {
+      ...baseProfile,
+      tradeCodes: Array.isArray(baseProfile.tradeCodes) ? [...baseProfile.tradeCodes] : [],
+      remarks: Array.isArray(baseProfile.remarks) ? [...baseProfile.remarks] : [],
+      economics:
+        baseProfile.economics && typeof baseProfile.economics === "object" ? { ...baseProfile.economics } : undefined,
+    };
+  }
+
+  const overlay = deriveSocialUwp({
+    world: baseProfile,
+    isMainworld: baseProfile.isMainworld !== false,
+  });
+
+  return {
+    ...baseProfile,
+    ...overlay,
+    uwp: buildWorldUwpFromOverlay(baseProfile, overlay),
+    economics: {
+      importance: overlay.importance,
+      resourceRating: overlay.resourceRating,
+      habitability: overlay.habitability,
+    },
+    remarks: buildWorldRemarks(baseProfile, overlay),
+  };
+}
+
 const POPULATION_CONCENTRATION_LABELS = Object.freeze({
   0: "Extremely Dispersed",
   1: "Highly Dispersed",
@@ -2956,7 +2991,7 @@ export function applySystemWorldSocialProfiles(worlds = []) {
             mainworldPopulationCode: mainworldOverlay.populationCode,
             mainworldOverlay,
           });
-    const uwp = `${overlay.starport}${toHex(Number(world?.size ?? 0))}${toHex(Number(world?.atmosphereCode ?? 0))}${toHex(Number(world?.hydrographics ?? 0))}${toHex(overlay.populationCode)}${toHex(overlay.governmentCode)}${toHex(overlay.lawLevel)}-${toHex(overlay.techLevel)}`;
+    const uwp = buildWorldUwpFromOverlay(world, overlay);
     const economics = {
       importance: overlay.importance,
       resourceRating: overlay.resourceRating,
@@ -3121,7 +3156,7 @@ export function generateWorldProfile({
     },
     isMainworld: true,
   });
-  const uwp = `${socialOverlay.starport}${toHex(worldSizeForUwp)}${toHex(atmosphereCode)}${toHex(hydrographics)}${toHex(socialOverlay.populationCode)}${toHex(socialOverlay.governmentCode)}${toHex(socialOverlay.lawLevel)}-${toHex(socialOverlay.techLevel)}`;
+  const uwp = buildWorldUwpFromOverlay({ size: worldSizeForUwp, atmosphereCode, hydrographics }, socialOverlay);
   const economics = {
     importance: socialOverlay.importance,
     resourceRating: socialOverlay.resourceRating,
@@ -3153,22 +3188,28 @@ export function extractStoredWorldProfile(record) {
     return null;
   }
 
-  return WORLD_PROFILE_FIELDS.reduce((profile, key) => {
+  const extracted = WORLD_PROFILE_FIELDS.reduce((profile, key) => {
     if (record[key] !== undefined) {
       profile[key] = Array.isArray(record[key]) ? [...record[key]] : record[key];
     }
     return profile;
   }, {});
+
+  return normalizeStoredWorldProfile(extracted);
 }
 
 export function applyWorldProfileToPlanet(planet, worldProfile) {
+  const normalizedWorldProfile = normalizeStoredWorldProfile(worldProfile);
+
   return {
     ...(planet && typeof planet === "object" ? planet : {}),
-    ...(worldProfile && typeof worldProfile === "object" ? worldProfile : {}),
-    tradeCodes: Array.isArray(worldProfile?.tradeCodes) ? [...worldProfile.tradeCodes] : [],
-    remarks: Array.isArray(worldProfile?.remarks) ? [...worldProfile.remarks] : [],
+    ...normalizedWorldProfile,
+    tradeCodes: Array.isArray(normalizedWorldProfile?.tradeCodes) ? [...normalizedWorldProfile.tradeCodes] : [],
+    remarks: Array.isArray(normalizedWorldProfile?.remarks) ? [...normalizedWorldProfile.remarks] : [],
     economics:
-      worldProfile?.economics && typeof worldProfile.economics === "object" ? { ...worldProfile.economics } : undefined,
+      normalizedWorldProfile?.economics && typeof normalizedWorldProfile.economics === "object"
+        ? { ...normalizedWorldProfile.economics }
+        : undefined,
   };
 }
 

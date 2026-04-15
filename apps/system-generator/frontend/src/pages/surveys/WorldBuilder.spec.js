@@ -136,4 +136,47 @@ describe("WorldBuilder", () => {
     expect(wrapper.text()).toContain("Unknown");
     expect(wrapper.text()).toContain("No trade codes applicable.");
   });
+
+  it("keeps stale census values at the uninhabited baseline when native sophont life is absent", async () => {
+    const staleSystem = createSystemRecord();
+    staleSystem.planets = [
+      {
+        ...staleSystem.planets[0],
+        nativeSophontLife: false,
+        populationCode: 7,
+        population: 10000000,
+        governmentCode: 9,
+        governmentDesc: "Impersonal Bureaucracy",
+        lawLevel: 8,
+        lawDesc: "Long bladed weapons controlled",
+        techLevel: 10,
+        techDesc: "High Stellar",
+        starport: "B",
+        starportDesc: "Good",
+        uwp: "B867798-A",
+      },
+    ];
+    systemStoreState.systems = [staleSystem];
+    systemStoreState.getCurrentSystem = staleSystem;
+
+    const wrapper = mount(WorldBuilder, {
+      global: {
+        stubs: {
+          LoadingSpinner: { template: "<div data-test='loading-spinner' />" },
+          SurveyNavigation: { template: "<div data-test='survey-navigation' />" },
+        },
+      },
+    });
+
+    await flushPromises();
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("Native Sophont Life:");
+    expect(wrapper.text()).toContain("Absent");
+    expect(wrapper.text()).toContain("0 — Uninhabited");
+    expect(wrapper.text()).toContain("0 — No Government");
+    expect(wrapper.text()).toContain("0 — No Law");
+    expect(wrapper.text()).toContain("0 — Primitive");
+    expect(wrapper.text()).toContain("X — No starport");
+  });
 });
