@@ -198,9 +198,10 @@ function ensureCenterAnomalyPresence({ galaxy, sector, occupiedHexes, hexStarTyp
   };
 }
 
-function generateSectorPresenceComputation(galaxy, sector) {
+function generateSectorPresenceComputation(galaxy, sector, realismScale = 1) {
   const dc = Math.min(5, Math.max(0, Number(sector?.densityClass ?? 3)));
   const baseRate = SECTOR_HEX_PRESENCE_RATE[dc];
+  const normalizedRealismScale = clamp(Number(realismScale) || 1, 0, 2);
   const occupiedHexes = [];
 
   for (let col = 1; col <= HEX_PRESENCE_COLS; col += 1) {
@@ -213,7 +214,7 @@ function generateSectorPresenceComputation(galaxy, sector) {
         rows: HEX_PRESENCE_ROWS,
         galaxyType: galaxy?.type,
         morphology: galaxy?.morphology,
-        realismScale: 1,
+        realismScale: normalizedRealismScale,
         morphologyScale: HEX_PRESENCE_MORPHOLOGY_SCALE,
       });
       if (Math.random() < prob) {
@@ -234,9 +235,10 @@ function generateSectorPresenceComputation(galaxy, sector) {
   };
 }
 
-function generateSectorSystemsComputation(galaxy, sector) {
+function generateSectorSystemsComputation(galaxy, sector, realismScale = 1) {
   const dc = Math.min(5, Math.max(0, Number(sector?.densityClass ?? 3)));
   const baseRate = SECTOR_HEX_PRESENCE_RATE[dc];
+  const normalizedRealismScale = clamp(Number(realismScale) || 1, 0, 2);
   const occupiedHexes = [];
   const hexStarTypes = {};
 
@@ -251,7 +253,7 @@ function generateSectorSystemsComputation(galaxy, sector) {
         rows: HEX_PRESENCE_ROWS,
         galaxyType: galaxy?.type,
         morphology: galaxy?.morphology,
-        realismScale: 1,
+        realismScale: normalizedRealismScale,
         morphologyScale: HEX_PRESENCE_MORPHOLOGY_SCALE,
       });
 
@@ -287,12 +289,12 @@ function generateSectorSystemsComputation(galaxy, sector) {
   };
 }
 
-export function generateGalaxySectorBatch({ mode = "systems", galaxy, sectors = [] } = {}) {
+export function generateGalaxySectorBatch({ mode = "systems", galaxy, sectors = [], realismScale = 1 } = {}) {
   const entries = Array.isArray(sectors) ? sectors : [];
   const results = entries.map((sector) =>
     mode === "presence"
-      ? generateSectorPresenceComputation(galaxy, sector)
-      : generateSectorSystemsComputation(galaxy, sector),
+      ? generateSectorPresenceComputation(galaxy, sector, realismScale)
+      : generateSectorSystemsComputation(galaxy, sector, realismScale),
   );
 
   return { results };

@@ -114,6 +114,20 @@ const systemStoreState = reactive({
 });
 hoisted.systemStoreState = systemStoreState;
 
+const preferencesStoreState = reactive({
+  sectorNameMode: "list",
+  worldNameMode: "list",
+  asteroidBeltNameMode: "list",
+  galaxyMythicTheme: "all",
+  ttsRate: 1,
+  ttsPitch: 1,
+  ttsVoiceURI: "",
+  surveyOccupancyRealism: 1,
+  set: vi.fn((key, value) => {
+    preferencesStoreState[key] = value;
+  }),
+});
+
 vi.mock("vue-router", () => ({
   useRouter: () => ({ push: hoisted.routerPush, replace: hoisted.routerReplace }),
   useRoute: () => hoisted.routeState,
@@ -128,15 +142,7 @@ vi.mock("../../stores/systemStore.js", () => ({
 }));
 
 vi.mock("../../stores/preferencesStore.js", () => ({
-  usePreferencesStore: () => ({
-    sectorNameMode: "list",
-    worldNameMode: "list",
-    asteroidBeltNameMode: "list",
-    galaxyMythicTheme: "all",
-    ttsRate: 1,
-    ttsPitch: 1,
-    ttsVoiceURI: "",
-  }),
+  usePreferencesStore: () => preferencesStoreState,
 }));
 
 vi.mock("../../api/galaxyApi.js", () => ({
@@ -203,6 +209,8 @@ describe("SectorSurvey page regressions", () => {
     sectorStoreState.currentSectorId = "sector-a";
     sectorStoreState.loadSectors.mockClear();
     sectorStoreState.setCurrentSector.mockClear();
+    preferencesStoreState.surveyOccupancyRealism = 1;
+    preferencesStoreState.set.mockClear();
     systemStoreState.systems = [];
     systemStoreState.loadSystems.mockClear();
     localStorage.clear();
@@ -236,6 +244,33 @@ describe("SectorSurvey page regressions", () => {
     expect(wrapper.find(".skip-link").exists()).toBe(true);
     expect(wrapper.get("#sector-grid-live-status").text()).toContain("Sector survey Aquila Verge.");
     expect(wrapper.get(".hex-grid-wrapper").attributes("aria-describedby")).toContain("sector-grid-keyboard-help");
+  });
+
+  it("shows the shared Galaxy Survey realism value in the Sector slider", async () => {
+    preferencesStoreState.surveyOccupancyRealism = 0.65;
+
+    const wrapper = mountSectorSurvey({ galaxyId: "gal-1", viewMode: "sector" });
+    await flushPromises();
+    await flushPromises();
+
+    expect(wrapper.vm.$.setupState.occupancyRealism).toBeCloseTo(0.65, 5);
+    expect(wrapper.text()).toContain("Occupancy Realism: 65%");
+  });
+
+  it("lets Sector Survey realism vary without changing the Galaxy standard", async () => {
+    preferencesStoreState.surveyOccupancyRealism = 0.65;
+
+    const wrapper = mountSectorSurvey({ galaxyId: "gal-1", viewMode: "sector" });
+    await flushPromises();
+    await flushPromises();
+
+    const realismSlider = wrapper.get(".control-group--slider .range-input");
+    await realismSlider.setValue("0.85");
+    await flushPromises();
+
+    expect(wrapper.vm.$.setupState.occupancyRealism).toBeCloseTo(0.85, 5);
+    expect(preferencesStoreState.surveyOccupancyRealism).toBeCloseTo(0.65, 5);
+    expect(preferencesStoreState.set).not.toHaveBeenCalled();
   });
 
   it("renders checklist and advances the guided review queue from the page controls", async () => {

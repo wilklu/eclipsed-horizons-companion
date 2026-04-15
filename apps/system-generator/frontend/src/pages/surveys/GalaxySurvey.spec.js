@@ -103,6 +103,16 @@ const systemStoreState = reactive({
   replaceSectorSystems: vi.fn().mockResolvedValue(),
 });
 
+const preferencesStoreState = reactive({
+  galaxyNameMode: "normalized",
+  galaxyMythicTheme: "all",
+  sectorNameMode: "list",
+  surveyOccupancyRealism: 1,
+  set: vi.fn((key, value) => {
+    preferencesStoreState[key] = value;
+  }),
+});
+
 vi.mock("vue-router", () => ({
   useRouter: () => ({ push: routerPush, replace: routerReplace }),
   useRoute: () => ({ query: { galaxyId: "gal-1" } }),
@@ -231,11 +241,7 @@ vi.mock("../../utils/nameGenerator.js", () => ({
 }));
 
 vi.mock("../../stores/preferencesStore.js", () => ({
-  usePreferencesStore: () => ({
-    galaxyNameMode: "normalized",
-    galaxyMythicTheme: "all",
-    sectorNameMode: "list",
-  }),
+  usePreferencesStore: () => preferencesStoreState,
 }));
 
 vi.mock("../../composables/useArchiveTransfer.js", () => ({
@@ -310,6 +316,7 @@ vi.mock("../../components/galaxy-survey/GalaxySurveyMapInspector.vue", () => ({
   },
 }));
 
+import { calculateHexOccupancyProbability } from "../../utils/sectorGeneration.js";
 import GalaxySurvey from "./GalaxySurvey.vue";
 
 describe("GalaxySurvey guided flow", () => {
@@ -327,6 +334,8 @@ describe("GalaxySurvey guided flow", () => {
     galaxyStoreState.updateGalaxy.mockClear();
     sectorStoreState.sectors = initialSectors.map((sector) => ({ ...sector, metadata: { ...sector.metadata } }));
     sectorStoreState.loadSectors.mockClear();
+    preferencesStoreState.surveyOccupancyRealism = 1;
+    preferencesStoreState.set.mockClear();
     systemStoreState.systems = [];
     systemStoreState.replaceSectorSystems.mockClear();
     localStorage.clear();
@@ -420,6 +429,23 @@ describe("GalaxySurvey guided flow", () => {
     wrapper.vm.$.setupState.selectGalaxyMapTile(tile);
     await flushPromises();
     expect(wrapper.vm.$.setupState.galaxyMapHighlightedRing).toBe(null);
+  });
+
+  it("uses one shared realism slider value for ring generation", async () => {
+    const wrapper = mount(GalaxySurvey);
+    await flushPromises();
+
+    const realismSlider = wrapper.get("[data-test='galaxy-realism-slider']");
+    await realismSlider.setValue("1.35");
+    calculateHexOccupancyProbability.mockClear();
+
+    await wrapper.vm.$.setupState.generateSelectedRing({ mode: "presence" });
+    await flushPromises();
+
+    expect(wrapper.vm.$.setupState.galaxyOccupancyRealism).toBe(1.35);
+    expect(preferencesStoreState.surveyOccupancyRealism).toBe(1.35);
+    expect(calculateHexOccupancyProbability).toHaveBeenCalled();
+    expect(calculateHexOccupancyProbability.mock.calls[0][0].realismScale).toBe(1.35);
   });
 
   it("advances the guided frontier, focuses the next ring, and announces the change", async () => {

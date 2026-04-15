@@ -914,6 +914,26 @@
             {{ isDeletingGalaxy ? "Deleting…" : "🗑️ Delete Galaxy" }}
           </button>
         </div>
+        <div class="generation-realism-panel">
+          <label class="generation-realism-label" for="galaxy-realism-slider">
+            <span>Occupancy Realism</span>
+            <strong>{{ galaxyOccupancyRealismPercent }}%</strong>
+          </label>
+          <input
+            id="galaxy-realism-slider"
+            v-model.number="galaxyOccupancyRealism"
+            data-test="galaxy-realism-slider"
+            class="generation-realism-slider"
+            type="range"
+            min="0"
+            max="2"
+            step="0.05"
+            :disabled="isGeneratingSectors || isGeneratingFullGalaxy"
+          />
+          <div class="generation-realism-help">
+            {{ galaxyOccupancyRealismHelp }} Applies to all rings and guided runs for this galaxy.
+          </div>
+        </div>
         <div v-if="generationProgress.active" class="generation-progress">
           <div class="generation-progress-header">
             <span>{{ generationProgress.label }}</span>
@@ -1411,6 +1431,9 @@ const isDeletingGalaxy = ref(false);
 const GALAXY_SURVEY_VIEW_STORAGE_KEY = "eclipsed-horizons-galaxy-survey-view";
 const galaxySurveyGenerationMode = ref("names");
 const persistedGalaxySurveyView = loadGalaxySurveyViewState();
+const galaxyOccupancyRealism = ref(
+  clamp(Number(preferencesStore.surveyOccupancyRealism ?? persistedGalaxySurveyView.realism) || 1, 0, 2),
+);
 const galaxyMapZoomLevel = ref(persistedGalaxySurveyView.zoomLevel);
 const galaxyMapOverlayMode = ref(persistedGalaxySurveyView.overlayMode);
 const galaxyMapStatusFilter = ref(persistedGalaxySurveyView.statusFilter);
@@ -1821,6 +1844,20 @@ const currentGalaxyCachedSystemCount = computed(
       (system) => String(system?.galaxyId || "") === String(currentGalaxy.value?.galaxyId || ""),
     ).length,
 );
+
+const galaxyOccupancyRealismPercent = computed(() =>
+  Math.round(clamp(Number(galaxyOccupancyRealism.value) || 1, 0, 2) * 100),
+);
+const galaxyOccupancyRealismHelp = computed(() => {
+  const value = clamp(Number(galaxyOccupancyRealism.value) || 1, 0, 2);
+  if (value < 0.85) {
+    return "Lower values keep generation quieter and more frontier-like.";
+  }
+  if (value > 1.2) {
+    return "Higher values make every ring denser and more populated.";
+  }
+  return "Balanced, canonical density for a standard Traveller-style sweep.";
+});
 
 const generationPlannerSummary = computed(() => {
   const totalLayout = currentGalaxyLayoutCount.value;
@@ -3640,6 +3677,27 @@ function deltaClass(value) {
   return numeric > 0 ? "preview-delta-up" : "preview-delta-down";
 }
 
+function normalizeSharedOccupancyRealism(value, fallback = 1) {
+  const fallbackValue = Number.isFinite(Number(fallback)) ? Number(fallback) : 1;
+  const numeric = Number(value);
+  return clamp(Number.isFinite(numeric) ? numeric : fallbackValue, 0, 2);
+}
+
+function persistSharedOccupancyRealism(value) {
+  const normalized = normalizeSharedOccupancyRealism(value, galaxyOccupancyRealism.value);
+  const currentPreference = normalizeSharedOccupancyRealism(preferencesStore?.surveyOccupancyRealism, normalized);
+  if (Math.abs(currentPreference - normalized) <= 0.0001) {
+    return;
+  }
+
+  if (typeof preferencesStore?.set === "function") {
+    preferencesStore.set("surveyOccupancyRealism", normalized);
+    return;
+  }
+
+  preferencesStore.surveyOccupancyRealism = normalized;
+}
+
 function loadGalaxySurveyViewState() {
   const defaults = {
     zoomLevel: "fit",
@@ -3647,6 +3705,7 @@ function loadGalaxySurveyViewState() {
     statusFilter: "all",
     ringFilter: "all",
     layerMode: "combined",
+    realism: 1,
   };
 
   try {
@@ -3667,6 +3726,7 @@ function loadGalaxySurveyViewState() {
         layerMode === "combined" || layerMode === "persisted-only" || layerMode === "atlas-only"
           ? layerMode
           : fallbackLayerMode,
+      realism: clamp(Number(parsed?.realism ?? defaults.realism) || defaults.realism, 0, 2),
     };
   } catch {
     return defaults;
@@ -3683,6 +3743,7 @@ function persistGalaxySurveyViewState() {
         statusFilter: galaxyMapStatusFilter.value,
         ringFilter: galaxyMapRingFilter.value,
         layerMode: galaxyMapLayerMode.value,
+        realism: clamp(Number(galaxyOccupancyRealism.value) || 1, 0, 2),
       }),
     );
   } catch {
@@ -3732,10 +3793,36 @@ watch(
 );
 
 watch(
-  [galaxyMapZoomLevel, galaxyMapOverlayMode, galaxyMapStatusFilter, galaxyMapRingFilter, galaxyMapLayerMode],
+  [
+    galaxyMapZoomLevel,
+    galaxyMapOverlayMode,
+    galaxyMapStatusFilter,
+    galaxyMapRingFilter,
+    galaxyMapLayerMode,
+    galaxyOccupancyRealism,
+  ],
   () => {
     persistGalaxySurveyViewState();
   },
+);
+
+watch(
+  () => preferencesStore.surveyOccupancyRealism,
+  (value) => {
+    const normalized = normalizeSharedOccupancyRealism(value, galaxyOccupancyRealism.value);
+    if (Math.abs(normalized - galaxyOccupancyRealism.value) > 0.0001) {
+      galaxyOccupancyRealism.value = normalized;
+    }
+  },
+  { immediate: true },
+);
+
+watch(
+  galaxyOccupancyRealism,
+  (value) => {
+    persistSharedOccupancyRealism(value);
+  },
+  { immediate: true },
 );
 
 watch(generationCancelRequested, (requested) => {
@@ -4796,14 +4883,14 @@ function disposeGalaxyGenerationWorker(worker) {
   }
 }
 
-function runGalaxyGenerationBatch({ worker, mode, galaxy, sectors }) {
+function runGalaxyGenerationBatch({ worker, mode, galaxy, sectors, realismScale = galaxyOccupancyRealism.value }) {
   const entries = Array.isArray(sectors) ? sectors : [];
   if (!entries.length) {
     return Promise.resolve({ results: [] });
   }
 
   if (!worker) {
-    return Promise.resolve(generateGalaxySectorBatch({ mode, galaxy, sectors: entries }));
+    return Promise.resolve(generateGalaxySectorBatch({ mode, galaxy, sectors: entries, realismScale }));
   }
 
   return new Promise((resolve, reject) => {
@@ -4816,9 +4903,10 @@ function runGalaxyGenerationBatch({ worker, mode, galaxy, sectors }) {
         mode,
         galaxy,
         sectors: entries,
+        realismScale,
       });
     } catch {
-      resolve(generateGalaxySectorBatch({ mode, galaxy, sectors: entries }));
+      resolve(generateGalaxySectorBatch({ mode, galaxy, sectors: entries, realismScale }));
       return;
     }
 
@@ -5293,6 +5381,7 @@ async function generateSectorPresenceForSectors(
         mode: "presence",
         galaxy,
         sectors: [sector],
+        realismScale: galaxyOccupancyRealism.value,
       });
       const seeded = computation.results?.[0] || {
         occupiedHexes: [],
@@ -5551,6 +5640,7 @@ async function generateSectorSystemsForSectors(
         mode: "systems",
         galaxy,
         sectors: [sector],
+        realismScale: galaxyOccupancyRealism.value,
       });
       const seeded = computation.results?.[0] || {
         occupiedHexes: [],
@@ -7232,6 +7322,35 @@ function formatNumber(num) {
   margin-top: 1.2rem;
   padding-top: 1.2rem;
   border-top: 2px solid #333;
+}
+
+.generation-realism-panel {
+  margin-top: 0.85rem;
+  padding: 0.8rem 0.95rem;
+  border: 1px solid rgba(0, 217, 255, 0.18);
+  border-radius: 0.45rem;
+  background: rgba(7, 23, 42, 0.5);
+}
+
+.generation-realism-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  color: #dff6ff;
+  font-weight: 600;
+}
+
+.generation-realism-slider {
+  width: 100%;
+  margin-top: 0.45rem;
+  accent-color: #4dc2ff;
+}
+
+.generation-realism-help {
+  margin-top: 0.35rem;
+  color: #9dc3d8;
+  font-size: 0.78rem;
 }
 
 .generation-progress {

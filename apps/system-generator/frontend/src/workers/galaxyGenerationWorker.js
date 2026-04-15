@@ -1,13 +1,14 @@
 import { generateGalaxySectorBatch } from "../utils/galaxyGenerationBatch.js";
 
 self.onmessage = (event) => {
-  const { requestId, mode, galaxy, sectors } = event.data || {};
+  const { requestId, mode, galaxy, sectors, realismScale } = event.data || {};
 
   try {
     const result = generateGalaxySectorBatch({
       mode,
       galaxy,
       sectors,
+      realismScale,
     });
 
     self.postMessage({

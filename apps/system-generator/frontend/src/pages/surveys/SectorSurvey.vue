@@ -258,7 +258,8 @@
               <label>Occupancy Realism: {{ Math.round(occupancyRealism * 100) }}%</label>
               <input v-model.number="occupancyRealism" class="range-input" type="range" min="0" max="2" step="0.05" />
               <div class="control-help">
-                {{ occupancyRealismHelp }}
+                {{ occupancyRealismHelp }} Galaxy Survey sets the default, and this page can override it for sector
+                variance.
               </div>
             </div>
 
@@ -1022,7 +1023,7 @@ const selectedHex = ref(null);
 const isLoading = ref(false);
 const loadingMode = ref("generate");
 const galaxyProfile = ref(null);
-const occupancyRealism = ref(1);
+const occupancyRealism = ref(Math.min(2, Math.max(0, Number(preferencesStore.surveyOccupancyRealism ?? 1))));
 const isMappingSectors = ref(false);
 const gridSizeMode = ref("fit");
 const isSpeakingSectorName = ref(false);
@@ -1051,6 +1052,12 @@ const { currentViewMode, currentSurveyRouteName, surveyPageLabel, switchSurveyPa
   selectedSubsector,
   subsectorName,
 });
+
+function normalizeSharedSurveyOccupancyRealism(value, fallback = 1) {
+  const fallbackValue = Number.isFinite(Number(fallback)) ? Number(fallback) : 1;
+  const numeric = Number(value);
+  return Math.min(2, Math.max(0, Number.isFinite(numeric) ? numeric : fallbackValue));
+}
 
 function getSectorSurveyWorkspaceStorageBucket() {
   if (typeof window === "undefined") {
@@ -1188,6 +1195,17 @@ watch(
   () => {
     persistSectorSurveyWorkspaceState();
   },
+);
+
+watch(
+  () => preferencesStore.surveyOccupancyRealism,
+  (value) => {
+    const normalized = normalizeSharedSurveyOccupancyRealism(value, occupancyRealism.value);
+    if (Math.abs(normalized - occupancyRealism.value) > 0.0001) {
+      occupancyRealism.value = normalized;
+    }
+  },
+  { immediate: true },
 );
 
 // ── Computed ─────────────────────────────────────────────────────────────────
@@ -4007,7 +4025,10 @@ async function loadPersistedSector(sectorId, showToast = false) {
 
     scope.value = currentViewMode.value;
     density.value = densityFromClass(sector.densityClass);
-    occupancyRealism.value = Math.min(2, Math.max(0, Number(sector?.metadata?.occupancyRealism ?? 1)));
+    occupancyRealism.value = normalizeSharedSurveyOccupancyRealism(
+      preferencesStore?.surveyOccupancyRealism ?? sector?.metadata?.occupancyRealism,
+      occupancyRealism.value ?? 1,
+    );
     selectedSubsector.value =
       String(sector?.metadata?.subsector || "A")
         .charAt(0)
