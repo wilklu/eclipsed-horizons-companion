@@ -1,5 +1,9 @@
 <template>
-  <div class="sector-survey" :class="{ 'sector-survey--subsector': currentViewMode === 'subsector' }">
+  <div class="sector-survey" :class="{ 'sector-survey--subsector': showSubsectorSidebar }">
+    <a v-if="generatedSector" class="skip-link" href="#sector-grid-region">Skip to sector grid</a>
+    <div id="sector-grid-live-status" class="sr-only" role="status" aria-live="polite">
+      {{ sectorGridAccessibilityStatus }}
+    </div>
     <LoadingSpinner :isVisible="isLoading" context="sector" tone="sync" :message="loadingMessage" />
     <LoadingSpinner v-bind="sectorExportOverlayProps" />
     <SurveyNavigation
@@ -11,7 +15,7 @@
     />
 
     <div class="survey-content">
-      <div class="survey-workspace" :class="{ 'survey-workspace--subsector': currentViewMode === 'subsector' }">
+      <div class="survey-workspace" :class="{ 'survey-workspace--subsector': showSubsectorSidebar }">
         <aside class="control-panel">
           <section
             v-if="generatedSector && currentViewMode === 'subsector'"
@@ -175,121 +179,9 @@
               v-if="scope === 'subsector' && currentViewMode !== 'subsector'"
               class="control-group control-group--span-2"
             >
-              <label>Select Subsector:</label>
-              <div class="subsector-grid">
-                <button
-                  v-for="letter in SUBSECTOR_LETTERS"
-                  :key="letter"
-                  :class="['subsector-btn', { active: selectedSubsector === letter }]"
-                  @click="selectSubsector(letter)"
-                >
-                  {{ letter }}
-                </button>
-              </div>
-
-              <div class="subsector-nav" aria-label="Subsector directional navigation">
-                <button
-                  class="btn btn-secondary subsector-nav-btn"
-                  type="button"
-                  :disabled="subsectorDirectionalTargets.north === selectedSubsector"
-                  @click="moveSubsectorSelection(0, -1)"
-                >
-                  ↑
-                </button>
-                <button
-                  class="btn btn-secondary subsector-nav-btn"
-                  type="button"
-                  :disabled="subsectorDirectionalTargets.west === selectedSubsector"
-                  @click="moveSubsectorSelection(-1, 0)"
-                >
-                  ←
-                </button>
-                <span class="subsector-nav-current">{{ currentSubsectorSummary || selectedSubsector }}</span>
-                <button
-                  class="btn btn-secondary subsector-nav-btn"
-                  type="button"
-                  :disabled="subsectorDirectionalTargets.east === selectedSubsector"
-                  @click="moveSubsectorSelection(1, 0)"
-                >
-                  →
-                </button>
-                <button
-                  class="btn btn-secondary subsector-nav-btn"
-                  type="button"
-                  :disabled="subsectorDirectionalTargets.south === selectedSubsector"
-                  @click="moveSubsectorSelection(0, 1)"
-                >
-                  ↓
-                </button>
-              </div>
-
-              <div class="subsector-select-actions" style="margin-top: 0.6rem">
-                <div class="control-inline-row control-inline-row--generation">
-                  <button
-                    class="btn btn-primary"
-                    @click="generateAllSubsectorSystems"
-                    :disabled="isLoading || fullGenerationBlockedByTier"
-                    :title="fullGenerationBlockedByTier ? fullGenerationBlockedReason : ''"
-                  >
-                    {{ isLoading ? "Generating..." : "⭐ Generate All Subsector Systems" }}
-                  </button>
-                </div>
-                <div v-if="generationStatusMessage" class="control-help control-help--multiline generation-status-copy">
-                  {{ generationStatusMessage }}
-                </div>
-              </div>
-            </div>
-
-            <div v-if="scope === 'subsector' && currentViewMode !== 'subsector'" class="control-group">
-              <label>Subsector Name:</label>
-              <div class="name-row">
-                <input
-                  v-model="subsectorName"
-                  placeholder="Enter subsector name…"
-                  class="text-input"
-                  @blur="persistSectorName()"
-                  @keydown.enter.prevent="persistSectorName({ showToast: true })"
-                />
-                <button
-                  class="btn btn-secondary"
-                  @click="randomizeSubsectorName"
-                  title="Random subsector name"
-                  aria-label="Random subsector name"
-                >
-                  🎲
-                </button>
-                <button
-                  class="btn btn-secondary"
-                  type="button"
-                  :disabled="!supportsSpeechSynthesis"
-                  :title="
-                    supportsSpeechSynthesis
-                      ? isSpeakingSubsectorName
-                        ? 'Stop subsector name audio'
-                        : 'Speak subsector name'
-                      : 'Text to speech not supported in this browser'
-                  "
-                  :aria-label="
-                    supportsSpeechSynthesis
-                      ? isSpeakingSubsectorName
-                        ? 'Stop subsector name audio'
-                        : 'Speak subsector name'
-                      : 'Text to speech not supported in this browser'
-                  "
-                  @mousedown.prevent
-                  @click="toggleSubsectorNameSpeech"
-                >
-                  {{ isSpeakingSubsectorName ? "■" : "🔊" }}
-                </button>
-                <button
-                  class="btn btn-secondary"
-                  @click="persistSectorName({ showToast: true })"
-                  :disabled="!canPersistSectorName"
-                  title="Save subsector name"
-                  aria-label="Save subsector name"
-                >
-                  💾
-                </button>
+              <label>Subsector Tools</label>
+              <div class="control-help control-help--multiline">
+                Naming, navigation, and batch generation are pinned in the right-hand tools column.
               </div>
             </div>
 
@@ -432,6 +324,67 @@
                 <button class="btn btn-primary" :disabled="isLoading" @click="runSurveyAction">
                   {{ isLoading ? "Generating..." : generationAction?.label || "Generate" }}
                 </button>
+              </div>
+            </div>
+
+            <div v-if="generatedSector" class="control-group control-group--span-2">
+              <label>Progress Checklist</label>
+              <div class="survey-checklist-card">
+                <div class="survey-checklist-summary">
+                  <span class="survey-checklist-summary__count">
+                    {{ surveyChecklist.completeCount }} / {{ surveyChecklist.totalCount }} complete
+                  </span>
+                  <span class="survey-checklist-summary__next">{{ surveyChecklist.nextAction }}</span>
+                </div>
+                <div class="survey-checklist-list" role="list" aria-label="Sector survey progress checklist">
+                  <div
+                    v-for="item in surveyChecklist.items"
+                    :key="item.id"
+                    class="survey-checklist-item"
+                    :class="`survey-checklist-item--${item.status}`"
+                    role="listitem"
+                  >
+                    <span class="survey-checklist-item__icon" aria-hidden="true">
+                      {{ item.status === "complete" ? "✓" : item.status === "active" ? "•" : "○" }}
+                    </span>
+                    <span class="survey-checklist-item__copy">
+                      <span class="survey-checklist-item__label">{{ item.label }}</span>
+                      <span class="survey-checklist-item__detail">{{ item.detail }}</span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div v-if="generatedSector" class="control-group control-group--span-2">
+              <label>Guided Review Queue</label>
+              <div class="review-queue-card">
+                <div class="review-queue-copy">
+                  Step through the highest-value follow-up targets in the current viewport without manually scanning the
+                  grid.
+                </div>
+                <div class="review-queue-grid" role="group" aria-label="Guided review queue">
+                  <button
+                    v-for="option in reviewQueueOptions"
+                    :key="option.id"
+                    type="button"
+                    class="survey-option-btn review-queue-btn"
+                    :class="{ active: activeReviewQueue === option.id }"
+                    :aria-pressed="activeReviewQueue === option.id"
+                    @click="jumpToReviewQueue(option.id)"
+                  >
+                    <span>{{ option.label }}</span>
+                    <span class="review-queue-badge">{{ option.count }}</span>
+                  </button>
+                </div>
+                <div class="control-inline-row control-inline-row--generation">
+                  <span class="survey-action-label">
+                    {{ activeReviewQueueMeta?.label || "Review" }} · {{ activeReviewQueueMeta?.count || 0 }} queued
+                  </span>
+                  <button class="btn btn-secondary" :disabled="!canAdvanceReviewQueue" @click="jumpToReviewQueue()">
+                    Next Target
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -669,25 +622,29 @@
               </div>
             </div>
 
-            <div class="sector-grid-toolbar-meta">
+            <div id="sector-grid-keyboard-help" class="sector-grid-toolbar-meta" role="note">
               <span>{{ surveyProgress.completedPercent }}% mapped</span>
               <span>{{ surveyProgress.typedCount.toLocaleString() }} typed</span>
               <span>{{ surveyProgress.presenceOnlyCount.toLocaleString() }} presence only</span>
-              <span>Arrow keys move, Enter locks, G opens Stellar Survey, / focuses jump.</span>
+              <span class="sector-grid-toolbar-help">{{ sectorGridKeyboardHelp }}</span>
             </div>
 
             <div
+              id="sector-grid-region"
               ref="gridWrapperRef"
               class="hex-grid-wrapper"
               :class="`hex-grid-wrapper--${gridSizeMode}`"
               tabindex="0"
               role="grid"
               aria-label="Sector hex grid"
+              aria-describedby="sector-grid-keyboard-help sector-grid-live-status"
+              :aria-activedescendant="selectedHex ? `sector-hex-${selectedHex}` : undefined"
               @keydown="handleGridKeydown"
             >
               <div class="hex-grid" :key="gridRenderKey" :style="gridStyle">
                 <div
                   v-for="hex in displayedSector.hexes"
+                  :id="`sector-hex-${hex.coord}`"
                   :key="hex.coord"
                   class="hex-cell"
                   :class="{
@@ -701,6 +658,13 @@
                   }"
                   :data-hex-coord="hex.coord"
                   :title="buildSectorSurveyHexTitle(hex)"
+                  role="gridcell"
+                  :aria-label="
+                    buildSectorSurveyHexAriaLabel(hex, {
+                      isSelected: hex.coord === selectedHex,
+                      isFilteredOut: sectorSurveyFilterMode !== 'all' && !doesHexMatchFilter(hex),
+                    })
+                  "
                   :aria-selected="hex.coord === selectedHex"
                   @click="selectHex(hex)"
                   @mouseenter="hoverHex(hex)"
@@ -718,7 +682,7 @@
           </div>
         </section>
 
-        <aside v-if="currentViewMode === 'subsector'" class="subsector-sidebar">
+        <aside v-if="showSubsectorSidebar" class="subsector-sidebar">
           <section
             v-if="scope === 'subsector'"
             class="control-card subsector-sidebar-card subsector-sidebar-card--naming"
@@ -990,9 +954,14 @@ import { getRequestedSurveyViewport, useSectorSurveyViewMode } from "../../compo
 import { SUBSECTOR_LETTERS, getSubsectorViewportBounds } from "../../utils/subsector.js";
 import { getSystemsBySectorStrict, replaceSystemsForSectorStrict, upsertSystemStrict } from "../../api/systemApi.js";
 import {
+  buildSectorSurveyAccessibilityStatus,
+  buildSectorSurveyChecklist,
+  buildSectorSurveyHexAriaLabel,
   buildSectorSurveyHexTitle,
   buildSectorSurveyProgress,
+  buildSectorSurveyReviewQueue,
   describeSectorSurveyHexBadge,
+  findNextSectorSurveyReviewCoord,
   moveSectorSurveyCoord,
   moveSectorSurveySubsector,
   normalizeSectorSurveyCoord,
@@ -1006,9 +975,11 @@ import {
   buildSectorSurveyReturnRoute,
   buildSectorSurveySavedPreviewState,
   buildSectorSurveySavePayload,
+  buildSectorSurveyWorkspaceState,
   resolveSectorSurveyNameUpdate,
   resolveSectorSurveyBackRoute,
   resolveSectorSurveyInitialSelection,
+  resolveSectorSurveyWorkspaceState,
 } from "../../utils/sectorSurveyPersistence.js";
 import {
   buildGeneratedStars,
@@ -1061,8 +1032,12 @@ const gridRenderNonce = ref(0);
 const hoveredHex = ref(null);
 const coordJumpInput = ref("");
 const sectorSurveyFilterMode = ref("all");
+const activeReviewQueue = ref("presence");
 const supportsSpeechSynthesis = typeof window !== "undefined" && "speechSynthesis" in window;
+const SECTOR_SURVEY_WORKSPACE_STORAGE_KEY = "eclipsed-horizons-sector-survey-workspace";
 let gridWrapperResizeObserver = null;
+let applyingWorkspaceState = false;
+let workspaceStateHydrated = false;
 const { currentViewMode, currentSurveyRouteName, surveyPageLabel, switchSurveyPage } = useSectorSurveyViewMode({
   props,
   route,
@@ -1071,6 +1046,91 @@ const { currentViewMode, currentSurveyRouteName, surveyPageLabel, switchSurveyPa
   selectedSubsector,
   subsectorName,
 });
+
+function getSectorSurveyWorkspaceStorageBucket() {
+  if (typeof window === "undefined") {
+    return {};
+  }
+
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(SECTOR_SURVEY_WORKSPACE_STORAGE_KEY) || "{}");
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function readSectorSurveyWorkspaceState() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const galaxyKey = String(props.galaxyId || "").trim() || "default";
+  return getSectorSurveyWorkspaceStorageBucket()[galaxyKey] ?? null;
+}
+
+function persistSectorSurveyWorkspaceState() {
+  if (typeof window === "undefined" || !props.galaxyId || applyingWorkspaceState || !workspaceStateHydrated) {
+    return;
+  }
+
+  const galaxyKey = String(props.galaxyId || "").trim() || "default";
+  const bucket = getSectorSurveyWorkspaceStorageBucket();
+  bucket[galaxyKey] = buildSectorSurveyWorkspaceState({
+    galaxyId: props.galaxyId,
+    selectedSectorId: selectedSectorId.value || generatedSector.value?.sectorId || "",
+    scope: scope.value,
+    selectedSubsector: selectedSubsector.value,
+    gridSizeMode: gridSizeMode.value,
+    sectorSurveyFilterMode: sectorSurveyFilterMode.value,
+    activeReviewQueue: activeReviewQueue.value,
+    selectedHex: selectedHex.value || coordJumpInput.value,
+  });
+
+  try {
+    window.localStorage.setItem(SECTOR_SURVEY_WORKSPACE_STORAGE_KEY, JSON.stringify(bucket));
+  } catch {
+    // Best-effort workspace persistence only.
+  }
+}
+
+function applySectorSurveyWorkspaceState({ restoreSelection = false, availableHexes = [] } = {}) {
+  const restoredState = resolveSectorSurveyWorkspaceState({
+    persistedState: readSectorSurveyWorkspaceState(),
+    sectorOptions: sectorStore.sectors,
+    availableHexes,
+    defaultScope: scope.value,
+    defaultSubsector: selectedSubsector.value,
+  });
+  const hasRequestedScope = Boolean(String(route.query.viewScope || "").trim());
+  const hasRequestedSubsector = Boolean(String(route.query.subsector || "").trim());
+
+  applyingWorkspaceState = true;
+  try {
+    if (!hasRequestedScope) {
+      scope.value = restoredState.scope;
+    }
+    gridSizeMode.value = restoredState.gridSizeMode;
+    sectorSurveyFilterMode.value = restoredState.sectorSurveyFilterMode;
+    activeReviewQueue.value = restoredState.activeReviewQueue;
+    if (!hasRequestedSubsector) {
+      selectedSubsector.value = restoredState.selectedSubsector;
+    }
+
+    if (restoreSelection && restoredState.selectedSectorId && !String(route.query.sectorId || "").trim()) {
+      selectedSectorId.value = restoredState.selectedSectorId;
+    }
+
+    if (restoredState.selectedHex) {
+      setSelectedHexCoord(restoredState.selectedHex, { focus: false });
+    }
+  } finally {
+    applyingWorkspaceState = false;
+    workspaceStateHydrated = true;
+  }
+
+  return restoredState;
+}
 
 // Update page title dynamically
 watchEffect(() => {
@@ -1106,6 +1166,22 @@ watch(
     }
     stopSectorNameSpeech();
     await initializeSectorSelectionSafely(props.galaxyId);
+  },
+);
+
+watch(
+  [
+    () => props.galaxyId,
+    scope,
+    selectedSubsector,
+    selectedSectorId,
+    gridSizeMode,
+    sectorSurveyFilterMode,
+    activeReviewQueue,
+    selectedHex,
+  ],
+  () => {
+    persistSectorSurveyWorkspaceState();
   },
 );
 
@@ -1700,6 +1776,8 @@ const generationAction = computed(() => {
     description: `${policyPrefix}Generate a full ${scopeLabel.toLowerCase()} survey in one step, including occupied hexes, stellar systems, and world profiles.`,
   };
 });
+const showSubsectorSidebar = computed(() => scope.value === "subsector");
+
 const generationPolicyBadge = computed(() => {
   const tier = String(currentSectorSpaceTier.value || "void");
   const modeForTier = tierAwareGenerationMode.value;
@@ -1792,6 +1870,61 @@ const surveyProgress = computed(() =>
   }),
 );
 const surveyFilterCounts = computed(() => summarizeSectorSurveyFilters(displayedSector.value?.hexes ?? []));
+const reviewQueueCounts = computed(() => buildSectorSurveyReviewQueue(displayedSector.value?.hexes ?? []));
+const surveyChecklist = computed(() =>
+  buildSectorSurveyChecklist({
+    sectorName: generatedSector.value?.name || sectorName.value,
+    totalHexes: displayedTotalHexCount.value,
+    systemCount: displayedOccupiedHexCount.value,
+    presenceOnlyCount: displayedPresenceOnlyCount.value,
+    typedCount: displayedTypedHexCount.value,
+    reviewQueueCounts: reviewQueueCounts.value,
+  }),
+);
+const reviewQueueOptions = computed(() => [
+  {
+    id: "presence",
+    label: "Needs Systems",
+    count: reviewQueueCounts.value.presence,
+    emptyLabel: "No presence-only hexes remain",
+  },
+  {
+    id: "anomaly",
+    label: "Anomalies",
+    count: reviewQueueCounts.value.anomaly,
+    emptyLabel: "No anomaly hexes in the current viewport",
+  },
+  {
+    id: "habitable",
+    label: "Habitable",
+    count: reviewQueueCounts.value.habitable,
+    emptyLabel: "No high-habitability candidates found",
+  },
+  {
+    id: "legacy",
+    label: "Legacy",
+    count: reviewQueueCounts.value.legacy,
+    emptyLabel: "No legacy star records need review",
+  },
+]);
+const activeReviewQueueMeta = computed(
+  () => reviewQueueOptions.value.find((entry) => entry.id === activeReviewQueue.value) ?? reviewQueueOptions.value[0],
+);
+const canAdvanceReviewQueue = computed(() => Number(activeReviewQueueMeta.value?.count ?? 0) > 0);
+
+watch(
+  reviewQueueCounts,
+  (counts) => {
+    if ((counts?.[activeReviewQueue.value] || 0) > 0) {
+      return;
+    }
+
+    const fallback = ["presence", "anomaly", "habitable", "legacy"].find((entry) => (counts?.[entry] || 0) > 0);
+    activeReviewQueue.value = fallback || "presence";
+  },
+  { immediate: true },
+);
+
 const surveyFilterOptions = computed(() => [
   { id: "all", label: "All", count: Number(displayedSector.value?.hexes?.length ?? 0) },
   { id: "surveyed", label: "Surveyed", count: surveyFilterCounts.value.surveyed },
@@ -1814,6 +1947,22 @@ const subsectorDirectionalTargets = computed(() => {
 });
 const canJumpToHex = computed(() =>
   Boolean(normalizeSectorSurveyCoord(coordJumpInput.value, { cols: gridColumnCount.value, rows: gridRowCount.value })),
+);
+const sectorGridKeyboardHelp = computed(
+  () =>
+    "Arrow keys move, Enter locks the current hex, N jumps the review queue, G opens Stellar Survey, and slash focuses the jump field.",
+);
+const sectorGridAccessibilityStatus = computed(() =>
+  buildSectorSurveyAccessibilityStatus({
+    currentViewMode: currentViewMode.value,
+    sectorName: generatedSector.value?.name || sectorName.value,
+    selectedHex: selectedHexData.value,
+    surveyProgress: surveyProgress.value,
+    activeReviewQueueLabel: activeReviewQueueMeta.value?.label,
+    activeReviewQueueCount: activeReviewQueueMeta.value?.count,
+    nextAction: surveyChecklist.value?.nextAction,
+    generationStatusMessage: generationStatusMessage.value,
+  }),
 );
 const subsectorSurveyPercentLabel = computed(() => {
   const totalHexes = displayedTotalHexCount.value;
@@ -2542,6 +2691,31 @@ function jumpToHexCoord({ showToast = true } = {}) {
   return setSelectedHexCoord(normalized, { focus: true });
 }
 
+function jumpToReviewQueue(queueId = activeReviewQueue.value, { showToast = true } = {}) {
+  const queue = String(queueId || activeReviewQueue.value || "presence").trim() || "presence";
+  activeReviewQueue.value = queue;
+
+  const nextCoord = findNextSectorSurveyReviewCoord(
+    displayedSector.value?.hexes ?? [],
+    queue,
+    selectedHex.value || hoveredHex.value || coordJumpInput.value,
+  );
+
+  if (!nextCoord) {
+    if (showToast) {
+      toastService.info(activeReviewQueueMeta.value?.emptyLabel || "No queued hexes found in this viewport.");
+    }
+    return false;
+  }
+
+  const targetLabel = reviewQueueOptions.value.find((entry) => entry.id === queue)?.label || "Review";
+  const moved = setSelectedHexCoord(nextCoord, { focus: true });
+  if (moved && showToast) {
+    toastService.info(`${targetLabel}: queued hex ${nextCoord}.`);
+  }
+  return moved;
+}
+
 function moveGridSelection(columnDelta, rowDelta) {
   const seed =
     selectedHex.value ||
@@ -2597,6 +2771,12 @@ function handleGridKeydown(event) {
 
   if (key === "g" && selectedHexData.value?.hasSystem && !selectedHexData.value?.presenceOnly) {
     proceedToStarSystem();
+    event.preventDefault();
+    return;
+  }
+
+  if (key === "n") {
+    jumpToReviewQueue(activeReviewQueue.value, { showToast: false });
     event.preventDefault();
     return;
   }
@@ -3955,6 +4135,7 @@ async function initializeSectorSelectionSafely(galaxyId) {
 }
 
 async function initializeSectorSelection(galaxyId) {
+  workspaceStateHydrated = false;
   generatedSector.value = null;
   selectedHex.value = null;
   selectedSectorId.value = "";
@@ -3993,12 +4174,19 @@ async function initializeSectorSelection(galaxyId) {
     return;
   }
 
+  const restoredWorkspaceState = resolveSectorSurveyWorkspaceState({
+    persistedState: readSectorSurveyWorkspaceState(),
+    sectorOptions: sectorStore.sectors,
+    defaultScope: currentViewMode.value,
+    defaultSubsector: selectedSubsector.value,
+  });
+
   const initialSelection = resolveSectorSurveyInitialSelection({
     sectors: sectorStore.sectors,
-    currentSectorId: sectorStore.currentSectorId,
+    currentSectorId: sectorStore.currentSectorId || restoredWorkspaceState.selectedSectorId || null,
     requestedSectorId: route.query.sectorId,
     requestedGrid: getRequestedGridCoordinates(),
-    requestedViewport,
+    requestedViewport: requestedViewport?.scope ? requestedViewport : restoredWorkspaceState,
   });
 
   if (initialSelection.mode === "load" && initialSelection.sectorId) {
@@ -4013,8 +4201,13 @@ async function initializeSectorSelection(galaxyId) {
     if (initialSelection.viewport?.scope === "subsector" && initialSelection.viewport?.subsectorName) {
       subsectorName.value = initialSelection.viewport.subsectorName;
     }
+
+    applySectorSurveyWorkspaceState({
+      availableHexes: displayedSector.value?.hexes ?? [],
+    });
   } else {
     initializeAtlasRequestedSector();
+    applySectorSurveyWorkspaceState({ restoreSelection: true, availableHexes: displayedSector.value?.hexes ?? [] });
   }
 }
 
@@ -4888,6 +5081,150 @@ async function generateSystemForSelectedHex({ openAfter = false } = {}) {
   border-color: rgba(250, 204, 21, 0.26);
 }
 
+.survey-checklist-card,
+.review-queue-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  padding: 0.85rem 0.9rem;
+  border: 1px solid rgba(0, 217, 255, 0.18);
+  border-radius: 0.65rem;
+  background: rgba(7, 18, 28, 0.88);
+}
+
+.survey-checklist-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.survey-checklist-summary__count {
+  color: #e6faff;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.survey-checklist-summary__next {
+  color: #9bc0d6;
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.survey-checklist-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.survey-checklist-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  padding: 0.5rem 0.55rem;
+  border-radius: 0.6rem;
+  border: 1px solid rgba(143, 179, 201, 0.18);
+  background: rgba(10, 18, 28, 0.62);
+}
+
+.survey-checklist-item--complete {
+  border-color: rgba(52, 211, 153, 0.26);
+  background: rgba(16, 76, 60, 0.16);
+}
+
+.survey-checklist-item--active {
+  border-color: rgba(250, 204, 21, 0.28);
+  background: rgba(110, 82, 15, 0.15);
+}
+
+.survey-checklist-item__icon {
+  color: #dff7ff;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.survey-checklist-item__copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.14rem;
+}
+
+.survey-checklist-item__label {
+  color: #e6faff;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.survey-checklist-item__detail {
+  color: #9bc0d6;
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.skip-link {
+  position: absolute;
+  top: 0.5rem;
+  left: 0.75rem;
+  z-index: 50;
+  padding: 0.45rem 0.7rem;
+  border-radius: 0.5rem;
+  background: #0b2234;
+  color: #e6faff;
+  border: 1px solid rgba(0, 217, 255, 0.35);
+  transform: translateY(-150%);
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+.sector-grid-toolbar-help {
+  font-weight: 600;
+}
+
+.review-queue-copy {
+  color: #9bc0d6;
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.review-queue-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.review-queue-btn {
+  justify-content: space-between;
+  gap: 0.45rem;
+  text-align: left;
+}
+
+.review-queue-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.75rem;
+  min-height: 1.25rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  background: rgba(5, 14, 22, 0.72);
+  color: #dff7ff;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
 /* Galaxy Position Minimap */
 .galaxy-position-group {
   border-top: 1px solid rgba(0 217 255 / 0.15);
@@ -5163,6 +5500,20 @@ async function generateSystemForSelectedHex({ openAfter = false } = {}) {
 .orbital-preview-actions .btn {
   flex: 1 1 auto;
   padding: 8px 10px;
+}
+
+.view-toggle-btn:focus-visible,
+.survey-option-btn:focus-visible,
+.btn:focus-visible,
+.text-input:focus-visible,
+.select-input:focus-visible,
+.range-input:focus-visible,
+.hex-grid-wrapper:focus-visible,
+.subsector-btn:focus-visible,
+.subsector-nav-btn:focus-visible {
+  outline: 2px solid rgba(143, 233, 255, 0.95);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 3px rgba(0, 217, 255, 0.18);
 }
 
 .orbital-preview-title {

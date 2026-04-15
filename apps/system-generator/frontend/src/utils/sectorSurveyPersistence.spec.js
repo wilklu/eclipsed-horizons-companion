@@ -8,9 +8,11 @@ import {
   buildSectorSurveyReturnRoute,
   buildSectorSurveySavedPreviewState,
   buildSectorSurveySavePayload,
+  buildSectorSurveyWorkspaceState,
   resolveSectorSurveyNameUpdate,
   resolveSectorSurveyBackRoute,
   resolveSectorSurveyInitialSelection,
+  resolveSectorSurveyWorkspaceState,
 } from "./sectorSurveyPersistence.js";
 
 describe("sectorSurveyPersistence", () => {
@@ -186,6 +188,69 @@ describe("sectorSurveyPersistence", () => {
         subsector: "F",
         subsectorName: "Drift",
       },
+    });
+  });
+
+  it("normalizes and restores persisted workspace state for a saved sector", () => {
+    const persistedState = buildSectorSurveyWorkspaceState({
+      galaxyId: "gal-7",
+      selectedSectorId: "sector-b",
+      scope: "subsector",
+      selectedSubsector: "f",
+      gridSizeMode: "large",
+      sectorSurveyFilterMode: "legacy",
+      activeReviewQueue: "anomaly",
+      selectedHex: "0810",
+    });
+
+    expect(
+      resolveSectorSurveyWorkspaceState({
+        persistedState,
+        sectorOptions: sectors,
+        availableHexes: ["0809", "0810"],
+        defaultScope: "sector",
+        defaultSubsector: "A",
+      }),
+    ).toEqual({
+      galaxyId: "gal-7",
+      selectedSectorId: "sector-b",
+      scope: "subsector",
+      selectedSubsector: "F",
+      gridSizeMode: "large",
+      sectorSurveyFilterMode: "legacy",
+      activeReviewQueue: "anomaly",
+      selectedHex: "0810",
+      coordJumpInput: "0810",
+    });
+  });
+
+  it("drops invalid persisted workspace state back to safe defaults", () => {
+    expect(
+      resolveSectorSurveyWorkspaceState({
+        persistedState: {
+          selectedSectorId: "missing-sector",
+          scope: "unknown",
+          selectedSubsector: "!",
+          gridSizeMode: "huge",
+          sectorSurveyFilterMode: "mystery",
+          activeReviewQueue: "other",
+          selectedHex: "9999",
+        },
+        sectorOptions: sectors,
+        availableHexes: ["0101"],
+        defaultScope: "sector",
+        defaultSubsector: "C",
+      }),
+    ).toEqual({
+      galaxyId: null,
+      selectedSectorId: "",
+      scope: "sector",
+      selectedSubsector: "C",
+      gridSizeMode: "fit",
+      sectorSurveyFilterMode: "all",
+      activeReviewQueue: "presence",
+      selectedHex: "",
+      coordJumpInput: "",
     });
   });
 

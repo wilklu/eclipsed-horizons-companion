@@ -109,6 +109,62 @@ export function summarizeSectorSurveyFilters(hexes = []) {
   );
 }
 
+export function resolveSectorSurveyReviewMatch(hex, reviewMode = "presence") {
+  const mode =
+    String(reviewMode || "presence")
+      .trim()
+      .toLowerCase() || "presence";
+  const hasSystem = Boolean(hex?.hasSystem);
+  const presenceOnly = Boolean(hex?.presenceOnly);
+  const anomaly = Boolean(String(hex?.anomalyType || "").trim());
+  const legacy = Boolean(hex?.legacyReconstructed || hex?.legacyHierarchyUnknown);
+  const habitability = String(hex?.habitability || "")
+    .trim()
+    .toLowerCase();
+  const habitabilityMatch = habitability.match(/-?\d+/);
+  const habitabilityScore = habitabilityMatch ? Number(habitabilityMatch[0]) : null;
+  const habitable =
+    hasSystem &&
+    !presenceOnly &&
+    Boolean(habitability) &&
+    (/garden|habitable|excellent|good|temperate|ideal|pleasant|favorable/.test(habitability) ||
+      (Number.isFinite(habitabilityScore) && habitabilityScore >= 7));
+
+  switch (mode) {
+    case "anomaly":
+      return anomaly;
+    case "habitable":
+      return habitable;
+    case "legacy":
+      return legacy;
+    case "presence":
+    default:
+      return hasSystem && presenceOnly;
+  }
+}
+
+export function buildSectorSurveyReviewQueue(hexes = []) {
+  const items = Array.isArray(hexes) ? hexes : [];
+  const modes = ["presence", "anomaly", "habitable", "legacy"];
+  return Object.fromEntries(
+    modes.map((mode) => [mode, items.filter((hex) => resolveSectorSurveyReviewMatch(hex, mode)).length]),
+  );
+}
+
+export function findNextSectorSurveyReviewCoord(hexes = [], reviewMode = "presence", currentCoord = "") {
+  const items = (Array.isArray(hexes) ? hexes : []).filter((hex) => resolveSectorSurveyReviewMatch(hex, reviewMode));
+  if (!items.length) {
+    return "";
+  }
+
+  const normalizedCurrent = String(currentCoord || "").trim();
+  const currentIndex = normalizedCurrent
+    ? items.findIndex((hex) => String(hex?.coord || "").trim() === normalizedCurrent)
+    : -1;
+  const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % items.length : 0;
+  return String(items[nextIndex]?.coord || "").trim();
+}
+
 export function buildSectorSurveyProgress({ systemCount = 0, presenceOnlyCount = 0, totalHexes = 0 } = {}) {
   const safeTotal = Math.max(0, Math.trunc(Number(totalHexes) || 0));
   const safeSystemCount = Math.max(0, Math.trunc(Number(systemCount) || 0));
@@ -126,6 +182,94 @@ export function buildSectorSurveyProgress({ systemCount = 0, presenceOnlyCount =
     presencePercent: buildPercent(safePresenceOnlyCount, safeTotal),
     emptyPercent: buildPercent(emptyCount, safeTotal),
     completedPercent: buildPercent(safeSystemCount, safeTotal),
+  };
+}
+
+export function buildSectorSurveyChecklist({
+  sectorName = "",
+  totalHexes = 0,
+  systemCount = 0,
+  presenceOnlyCount = 0,
+  typedCount = 0,
+  reviewQueueCounts = {},
+} = {}) {
+  const hasName = Boolean(String(sectorName || "").trim());
+  const safeTotal = Math.max(0, Math.trunc(Number(totalHexes) || 0));
+  const safeSystems = Math.max(0, Math.trunc(Number(systemCount) || 0));
+  const safePresenceOnly = Math.max(0, Math.trunc(Number(presenceOnlyCount) || 0));
+  const safeTyped = Math.max(0, Math.trunc(Number(typedCount) || 0));
+  const mappedAll = safeTotal > 0 && safeSystems >= safeTotal;
+  const hasTypedSystems = safeTyped > 0;
+  const outstandingReviewCount = ["presence", "anomaly", "habitable", "legacy"].reduce(
+    (sum, key) => sum + Math.max(0, Math.trunc(Number(reviewQueueCounts?.[key] || 0))),
+    0,
+  );
+  const reviewComplete = outstandingReviewCount === 0 && safeSystems > 0;
+
+  const items = [
+    {
+      id: "name",
+      label: "Name sector",
+      detail: hasName ? "Sector identity saved" : "Give this survey a memorable name",
+      status: hasName ? "complete" : "todo",
+    },
+    {
+      id: "mapping",
+      label: "Map occupancy",
+      detail: mappedAll
+        ? `${safeSystems.toLocaleString()} / ${safeTotal.toLocaleString()} hexes mapped`
+        : `${safeSystems.toLocaleString()} / ${safeTotal.toLocaleString()} hexes mapped`,
+      status: mappedAll ? "complete" : safeSystems > 0 ? "active" : "todo",
+    },
+    {
+      id: "systems",
+      label: "Promote stellar systems",
+      detail:
+        safePresenceOnly > 0
+          ? `${safePresenceOnly.toLocaleString()} presence-only hexes still need system generation`
+          : hasTypedSystems
+            ? `${safeTyped.toLocaleString()} typed systems ready for review`
+            : "Generate full systems for detected hexes",
+      status: safePresenceOnly > 0 ? "active" : hasTypedSystems ? "complete" : "todo",
+    },
+    {
+      id: "review",
+      label: "Review queue",
+      detail:
+        outstandingReviewCount > 0
+          ? `${outstandingReviewCount.toLocaleString()} follow-up targets remain in the queue`
+          : safeSystems > 0
+            ? "Queue cleared for this viewport"
+            : "Queue unlocks after mapping begins",
+      status: reviewComplete ? "complete" : outstandingReviewCount > 0 ? "active" : "todo",
+    },
+    {
+      id: "stellar",
+      label: "Open stellar survey",
+      detail: hasTypedSystems
+        ? "Typed systems can now be opened in Stellar Survey"
+        : "Select a typed system to continue downstream",
+      status: hasTypedSystems ? "complete" : "todo",
+    },
+  ];
+
+  const completeCount = items.filter((item) => item.status === "complete").length;
+  const nextAction =
+    outstandingReviewCount > 0
+      ? `${outstandingReviewCount.toLocaleString()} follow-up targets remain in the queue.`
+      : safePresenceOnly > 0
+        ? `${safePresenceOnly.toLocaleString()} presence-only hexes still need systems.`
+        : !mappedAll && safeTotal > 0
+          ? `Map ${Math.max(0, safeTotal - safeSystems).toLocaleString()} more hexes to finish the viewport.`
+          : hasTypedSystems
+            ? "Ready to continue into Stellar Survey."
+            : "Start by generating occupancy for this viewport.";
+
+  return {
+    items,
+    completeCount,
+    totalCount: items.length,
+    nextAction,
   };
 }
 
@@ -177,4 +321,78 @@ export function buildSectorSurveyHexTitle(hex = {}) {
   }
 
   return parts.filter(Boolean).join(" - ");
+}
+
+export function buildSectorSurveyHexAriaLabel(hex = {}, { isSelected = false, isFilteredOut = false } = {}) {
+  const coord = String(hex?.coord || "").trim() || "unknown";
+  const badge = describeSectorSurveyHexBadge(hex);
+  const parts = [`Hex ${coord}`];
+
+  if (isSelected) {
+    parts.push("selected");
+  }
+  if (isFilteredOut) {
+    parts.push("dimmed by the active filter");
+  }
+
+  if (!hex?.hasSystem) {
+    parts.push("empty");
+  } else if (hex?.presenceOnly) {
+    parts.push("stellar presence detected");
+  } else {
+    parts.push(`surveyed system ${String(hex?.starType || "unknown type").trim()}`);
+  }
+
+  if (badge?.label) {
+    parts.push(`anomaly ${badge.label}`);
+  }
+  if (hex?.secondaryStars?.length) {
+    parts.push(`companions ${hex.secondaryStars.join(", ")}`);
+  }
+  if (hex?.mainworldName) {
+    parts.push(`mainworld ${String(hex.mainworldName).trim()}`);
+  }
+
+  return `${parts.filter(Boolean).join(", ")}.`;
+}
+
+export function buildSectorSurveyAccessibilityStatus({
+  currentViewMode = "sector",
+  sectorName = "",
+  selectedHex = null,
+  surveyProgress = {},
+  activeReviewQueueLabel = "Review",
+  activeReviewQueueCount = 0,
+  nextAction = "",
+  generationStatusMessage = "",
+} = {}) {
+  const viewLabel = String(currentViewMode || "").trim() === "subsector" ? "Subsector survey" : "Sector survey";
+  const normalizedName = String(sectorName || "").trim();
+  const completedPercent = Math.max(0, Number(surveyProgress?.completedPercent ?? 0));
+  const typedCount = Math.max(0, Math.trunc(Number(surveyProgress?.typedCount ?? 0)));
+  const presenceOnlyCount = Math.max(0, Math.trunc(Number(surveyProgress?.presenceOnlyCount ?? 0)));
+  const queueCount = Math.max(0, Math.trunc(Number(activeReviewQueueCount || 0)));
+  const parts = [normalizedName ? `${viewLabel} ${normalizedName}.` : `${viewLabel}.`, `${completedPercent}% mapped.`];
+
+  if (selectedHex?.coord) {
+    parts.push(buildSectorSurveyHexAriaLabel(selectedHex, { isSelected: true }));
+  }
+  if (typedCount || presenceOnlyCount) {
+    parts.push(
+      `${typedCount.toLocaleString()} typed systems and ${presenceOnlyCount.toLocaleString()} presence-only hexes in view.`,
+    );
+  }
+  if (queueCount > 0) {
+    parts.push(
+      `${String(activeReviewQueueLabel || "Review").trim() || "Review"} queue has ${queueCount.toLocaleString()} target${queueCount === 1 ? "" : "s"}.`,
+    );
+  }
+  if (nextAction) {
+    parts.push(`Next action: ${String(nextAction).trim()}`);
+  }
+  if (generationStatusMessage) {
+    parts.push(String(generationStatusMessage).trim());
+  }
+
+  return parts.filter(Boolean).join(" ");
 }

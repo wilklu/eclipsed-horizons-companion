@@ -136,6 +136,14 @@
         >
           Known Only
         </button>
+        <button
+          class="tb-toggle"
+          :class="{ active: layerPlanningWindow }"
+          @click="layerPlanningWindow = !layerPlanningWindow"
+          title="Show planning window overlay and capacity"
+        >
+          Planning
+        </button>
         <button class="tb-toggle tb-toggle--utility" @click="resetAtlasLayers" title="Restore Atlas layer defaults">
           Reset
         </button>
@@ -283,6 +291,15 @@
               :height="SECTOR_PX_H - 1"
               class="known-space-overlay"
               :class="{ 'known-space-overlay--frontier': tile.isKnownSpaceFrontier }"
+            />
+            <rect
+              v-if="planningWindowVisible && tile.isInPlanningWindow"
+              :x="tile.wx"
+              :y="tile.wy"
+              :width="SECTOR_PX_W - 1"
+              :height="SECTOR_PX_H - 1"
+              class="planning-window-overlay"
+              :class="{ 'planning-window-overlay--surveyed': tile.isGeneratedSector }"
             />
             <rect
               v-if="showPoliticalHeat && politicalHeatForSector(tile.sectorId)"
@@ -1212,6 +1229,24 @@
           Presence-safe
         </span>
       </div>
+      <div class="status-planning-window" v-if="planningRegionInfo && planningWindowCenter">
+        <span class="status-planning-window__label">
+          Planning [{{ planningWindowCenter.x }},{{ planningWindowCenter.y }}]
+        </span>
+        <span class="status-planning-window__stats">
+          {{ planningRegionInfo.surveyedInWindow.toLocaleString() }} /
+          {{ planningRegionInfo.totalCapacity.toLocaleString() }}
+          surveyed
+        </span>
+        <span class="status-planning-window__stats">{{ planningRegionInfo.remaining.toLocaleString() }} open</span>
+        <span class="status-planning-window__stats">{{ planningRegionInfo.percentUtilization }}%</span>
+        <span class="status-planning-window__meter" aria-hidden="true">
+          <span
+            class="status-planning-window__meter-fill"
+            :style="{ width: `${planningRegionInfo.percentUtilization}%` }"
+          ></span>
+        </span>
+      </div>
       <div class="status-layer-controls" v-if="currentLod === 'hex' || currentLod === 'detail'">
         <button class="status-toggle-chip" :class="{ active: layerRoutes }" @click="layerRoutes = !layerRoutes">
           Routes
@@ -1264,6 +1299,7 @@ import { SUBSECTOR_LETTERS, getSubsectorLetterForHex } from "../../utils/subsect
 import * as toastService from "../../utils/toast.js";
 import {
   toSectorCoordKey,
+  fromSectorCoordKey,
   calculateSpaceTier,
   resolveGenerationModeForSpaceTier,
   buildSurveyedCoordKeySet,
@@ -1272,6 +1308,7 @@ import {
   countSpaceTiers,
   calculatePlanningRegionCapacity,
 } from "../../utils/spaceClassification.js";
+import { resolveTradeRouteLegendKey, resolveTradeRouteSpaceTier } from "../../utils/tradeRoutePolicy.js";
 
 const router = useRouter();
 const galaxyStore = useGalaxyStore();
@@ -1325,6 +1362,7 @@ const POLITICAL_HEAT_LEGEND = Object.freeze([
 ]);
 const ROUTE_VISUAL_LEGEND = Object.freeze([
   { id: "major", label: "Major", sampleClass: "route-legend-sample--major" },
+  { id: "frontier", label: "Frontier", sampleClass: "route-legend-sample--frontier" },
   { id: "pressure", label: "Pressure", sampleClass: "route-legend-sample--pressure" },
   { id: "hazard", label: "Hazard", sampleClass: "route-legend-sample--hazard" },
   { id: "standard", label: "Standard", sampleClass: "route-legend-sample--standard" },
@@ -1459,6 +1497,7 @@ const layerAnomalies = ref(Boolean(preferencesStore.atlasLayerAnomalies));
 const layerBadges = ref(Boolean(preferencesStore.atlasLayerBadges));
 const layerPolity = ref(Boolean(preferencesStore.atlasLayerPolity));
 const layerKnownSpace = ref(true);
+const layerPlanningWindow = ref(true);
 const activeKnownSpaceOnly = ref(false);
 const activePoliticalHeatFilter = ref(null);
 const activeRouteFilter = ref(null);
@@ -2014,13 +2053,6 @@ const continuousHexSectorTiles = computed(() => {
   return tiles;
 });
 
-function toSectorCoordKey(x, y) {
-  const sx = Number(x);
-  const sy = Number(y);
-  if (!Number.isFinite(sx) || !Number.isFinite(sy)) return "";
-  return `${Math.trunc(sx)}:${Math.trunc(sy)}`;
-}
-
 function isAtlasGeneratedSectorRecord(sector) {
   const metadata = sector?.metadata && typeof sector.metadata === "object" ? sector.metadata : {};
   const typedHexCount =
@@ -2051,13 +2083,79 @@ const spaceTierCounts = computed(() => {
   return countSpaceTiers(surveyedCoordKeySet.value);
 });
 
+const PLANNING_WINDOW_RADIUS = 5;
+
+const planningWindowCenter = computed(() => {
+  const inspectorX = Number(inspectorSector.value?.coordinates?.x);
+  const inspectorY = Number(inspectorSector.value?.coordinates?.y);
+  if (Number.isFinite(inspectorX) && Number.isFinite(inspectorY)) {
+    return { x: Math.trunc(inspectorX), y: Math.trunc(inspectorY) };
+  }
+
+  const currentSectorId = String(sectorStore.currentSectorId || "").trim();
+  if (currentSectorId) {
+    const currentSector = sectors.value.find((entry) => String(entry?.sectorId) === currentSectorId);
+    const sx = Number(currentSector?.coordinates?.x);
+    const sy = Number(currentSector?.coordinates?.y);
+    if (Number.isFinite(sx) && Number.isFinite(sy)) {
+      return { x: Math.trunc(sx), y: Math.trunc(sy) };
+    }
+  }
+
+  return { x: 0, y: 0 };
+});
+
+const planningWindowVisible = computed(() => layerPlanningWindow.value && sectorTilesEnabled.value);
+
+const planningWindowBounds = computed(() => {
+  const center = planningWindowCenter.value;
+  if (!center) return null;
+
+  return {
+    xMin: center.x - PLANNING_WINDOW_RADIUS,
+    xMax: center.x + PLANNING_WINDOW_RADIUS,
+    yMin: center.y - PLANNING_WINDOW_RADIUS,
+    yMax: center.y + PLANNING_WINDOW_RADIUS,
+  };
+});
+
+function isInPlanningWindowByCoord(sx, sy) {
+  if (!Number.isFinite(sx) || !Number.isFinite(sy)) return false;
+  const bounds = planningWindowBounds.value;
+  if (!bounds) return false;
+  return sx >= bounds.xMin && sx <= bounds.xMax && sy >= bounds.yMin && sy <= bounds.yMax;
+}
+
 const planningRegionInfo = computed(() => {
-  // TODO: When planning window is implemented, derive center from current sector
-  return calculatePlanningRegionCapacity({
-    centerX: 0,
-    centerY: 0,
-    planningRadius: 5, // 11x11 grid = 121 sectors
+  const center = planningWindowCenter.value;
+  if (!center) return null;
+
+  const base = calculatePlanningRegionCapacity({
+    centerX: center.x,
+    centerY: center.y,
+    planningRadius: PLANNING_WINDOW_RADIUS,
   });
+
+  let surveyedInWindow = 0;
+  for (const coordKey of surveyedCoordKeySet.value) {
+    const parsed = fromSectorCoordKey(coordKey);
+    if (!parsed) continue;
+    const [sx, sy] = parsed;
+    if (isInPlanningWindowByCoord(sx, sy)) {
+      surveyedInWindow += 1;
+    }
+  }
+
+  const totalCapacity = Number(base.totalCapacity || 0);
+  const remaining = Math.max(0, totalCapacity - surveyedInWindow);
+  const percentUtilization = totalCapacity > 0 ? Math.round((surveyedInWindow / totalCapacity) * 100) : 0;
+
+  return {
+    ...base,
+    surveyedInWindow,
+    remaining,
+    percentUtilization,
+  };
 });
 
 const starDataEnabled = computed(() => renderStars.value || hexGridVisible.value || inspectorMode.value === "star");
@@ -2077,11 +2175,13 @@ const visibleSectorTiles = computed(() => {
     const coordKey = toSectorCoordKey(tile?.sx, tile?.sy);
     const isGenerated = generatedSectorCoordKeySet.value.has(coordKey);
     const isKnownSpace = knownSpaceCoordKeySet.value.has(coordKey);
+    const isInPlanningWindow = isInPlanningWindowByCoord(Number(tile?.sx), Number(tile?.sy));
     return {
       ...tile,
       isGeneratedSector: isGenerated,
       isKnownSpace,
       isKnownSpaceFrontier: isKnownSpace && !isGenerated,
+      isInPlanningWindow,
     };
   };
 
@@ -2174,6 +2274,8 @@ function buildStarMarkersForTiles(tiles) {
       galaxyId: tile.sector?.galaxyId,
       sectorId: tile.sectorId,
       sectorName: tile.name,
+      sectorX: Number(tile?.sx),
+      sectorY: Number(tile?.sy),
       coord,
       wx,
       wy,
@@ -2232,6 +2334,8 @@ function buildStarMarkersForTiles(tiles) {
         galaxyId: tile.sector?.galaxyId,
         sectorId: tile.sectorId,
         sectorName: tile.name,
+        sectorX: Number(tile?.sx),
+        sectorY: Number(tile?.sy),
         coord,
         wx,
         wy,
@@ -2273,6 +2377,8 @@ function buildStarMarkersForTiles(tiles) {
         galaxyId: tile.sector?.galaxyId,
         sectorId: tile.sectorId,
         sectorName: tile.name,
+        sectorX: Number(tile?.sx),
+        sectorY: Number(tile?.sy),
         coord,
         wx,
         wy,
@@ -2366,7 +2472,13 @@ function buildTradeRoutesForStars(stars) {
     for (const candidateKey of selectedKeys) {
       const candidate = candidateByKey.get(candidateKey);
       if (!candidate) continue;
-      const routeStyle = deriveRouteStyle(candidate.left, candidate.right);
+
+      const routeTier = resolveTradeRouteSpaceTier(candidate.left, candidate.right, surveyedCoordKeySet.value);
+      if (!routeTier) {
+        continue;
+      }
+
+      const routeStyle = deriveRouteStyle(candidate.left, candidate.right, routeTier);
       const [from, to] = [candidate.left, candidate.right].sort((left, right) => left.coord.localeCompare(right.coord));
       routes.push({
         key: `${sectorId}:${from.coord}-${to.coord}`,
@@ -2376,6 +2488,7 @@ function buildTradeRoutesForStars(stars) {
         y1: from.wy,
         x2: to.wx,
         y2: to.wy,
+        spaceTier: routeTier,
         legendKey: routeStyle.legendKey,
         className: routeStyle.className,
         stroke: routeStyle.stroke,
@@ -2913,7 +3026,7 @@ function buildSectorPoliticalHeat({
   };
 }
 
-function deriveRouteStyle(left, right) {
+function deriveRouteStyle(left, right, routeTier = "surveyed") {
   const highestImportance = Math.max(
     parseImportanceValue(left?.importance) ?? -99,
     parseImportanceValue(right?.importance) ?? -99,
@@ -2921,10 +3034,22 @@ function deriveRouteStyle(left, right) {
   const hazardous = Boolean(travelZoneBadgeText(left) || travelZoneBadgeText(right));
   const pressured =
     hasFactionPressureSummary(left?.factionsProfile) || hasFactionPressureSummary(right?.factionsProfile);
+  const legendKey = resolveTradeRouteLegendKey({ routeTier, hazardous, highestImportance, pressured });
 
-  if (hazardous) {
+  if (legendKey === "frontier") {
     return {
-      legendKey: "hazard",
+      legendKey,
+      className: "trade-route--frontier",
+      stroke: "rgba(144, 228, 190, 0.72)",
+      strokeWidth: 1.25,
+      strokeDasharray: "5 3",
+      opacity: 0.9,
+    };
+  }
+
+  if (legendKey === "hazard") {
+    return {
+      legendKey,
       className: "trade-route--hazard",
       stroke: "rgba(255, 178, 92, 0.62)",
       strokeWidth: 1.5,
@@ -2933,9 +3058,9 @@ function deriveRouteStyle(left, right) {
     };
   }
 
-  if (highestImportance >= 3) {
+  if (legendKey === "major") {
     return {
-      legendKey: "major",
+      legendKey,
       className: "trade-route--major",
       stroke: "rgba(134, 229, 255, 0.82)",
       strokeWidth: 1.7,
@@ -2944,9 +3069,9 @@ function deriveRouteStyle(left, right) {
     };
   }
 
-  if (pressured) {
+  if (legendKey === "pressure") {
     return {
-      legendKey: "pressure",
+      legendKey,
       className: "trade-route--pressure",
       stroke: "rgba(232, 154, 255, 0.7)",
       strokeWidth: 1.2,
@@ -2956,7 +3081,7 @@ function deriveRouteStyle(left, right) {
   }
 
   return {
-    legendKey: "standard",
+    legendKey,
     className: "trade-route--standard",
     stroke: "rgba(120, 220, 255, 0.45)",
     strokeWidth: 1.1,
@@ -3377,6 +3502,7 @@ function resetAtlasLayers() {
   layerBadges.value = Boolean(PREFERENCE_DEFAULTS.atlasLayerBadges);
   layerPolity.value = Boolean(PREFERENCE_DEFAULTS.atlasLayerPolity);
   layerKnownSpace.value = true;
+  layerPlanningWindow.value = true;
   activeKnownSpaceOnly.value = false;
   activePoliticalHeatFilter.value = null;
   activeRouteFilter.value = null;
@@ -5320,6 +5446,17 @@ watch(
   stroke-dasharray: 5 2;
 }
 
+.planning-window-overlay {
+  fill: rgba(236, 193, 88, 0.09);
+  stroke: rgba(239, 209, 123, 0.65);
+  stroke-width: 0.85;
+  pointer-events: none;
+}
+
+.planning-window-overlay--surveyed {
+  fill: rgba(236, 193, 88, 0.14);
+}
+
 .sector-border {
   stroke: rgba(70, 120, 190, 0.55);
   stroke-width: 1;
@@ -5563,6 +5700,10 @@ watch(
 
 .trade-route--pressure {
   filter: drop-shadow(0 0 4px rgba(232, 154, 255, 0.24));
+}
+
+.trade-route--frontier {
+  filter: drop-shadow(0 0 4px rgba(144, 228, 190, 0.24));
 }
 
 .trade-route--hazard {
@@ -6231,6 +6372,11 @@ watch(
   border-top-color: rgba(134, 229, 255, 0.92);
 }
 
+.route-legend-sample--frontier {
+  border-top-color: rgba(144, 228, 190, 0.86);
+  border-top-style: dashed;
+}
+
 .route-legend-sample--pressure {
   border-top-color: rgba(232, 154, 255, 0.82);
   border-top-style: dashed;
@@ -6319,6 +6465,38 @@ watch(
 
 .status-policy-chip--void {
   border-color: rgba(180, 120, 200, 0.6);
+}
+
+.status-planning-window {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: #d0c29a;
+  font-size: 0.64rem;
+}
+
+.status-planning-window__label {
+  color: #f1dea1;
+  font-weight: 700;
+}
+
+.status-planning-window__stats {
+  color: #cdbf96;
+}
+
+.status-planning-window__meter {
+  display: inline-flex;
+  width: 68px;
+  height: 7px;
+  border-radius: 999px;
+  background: rgba(78, 63, 29, 0.72);
+  border: 1px solid rgba(194, 163, 90, 0.38);
+  overflow: hidden;
+}
+
+.status-planning-window__meter-fill {
+  height: 100%;
+  background: linear-gradient(90deg, rgba(233, 185, 74, 0.92) 0%, rgba(245, 222, 158, 0.96) 100%);
 }
 
 .tier-badge {

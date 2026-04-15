@@ -162,6 +162,115 @@ export function buildSectorSurveyReturnRoute({
   };
 }
 
+const WORKSPACE_GRID_MODES = new Set(["fit", "comfortable", "large"]);
+const WORKSPACE_FILTER_MODES = new Set([
+  "all",
+  "surveyed",
+  "presence",
+  "anomaly",
+  "oba",
+  "fgk",
+  "m",
+  "legacy",
+  "empty",
+]);
+const WORKSPACE_REVIEW_QUEUES = new Set(["presence", "anomaly", "habitable", "legacy"]);
+
+function normalizeWorkspaceMode(value = "", allowed = new Set(), fallback = "") {
+  const normalized = String(value || "").trim();
+  return allowed.has(normalized) ? normalized : fallback;
+}
+
+function normalizeWorkspaceSubsector(value = "", fallback = "A") {
+  const normalized = String(value || fallback || "A")
+    .trim()
+    .charAt(0)
+    .toUpperCase();
+
+  if (/^[A-P]$/.test(normalized)) {
+    return normalized;
+  }
+
+  return (
+    String(fallback || "A")
+      .trim()
+      .charAt(0)
+      .toUpperCase() || "A"
+  );
+}
+
+function normalizeWorkspaceHex(coord = "") {
+  const normalized = String(coord || "").trim();
+  return /^\d{4}$/.test(normalized) ? normalized : "";
+}
+
+export function buildSectorSurveyWorkspaceState({
+  galaxyId = null,
+  selectedSectorId = "",
+  scope = "sector",
+  selectedSubsector = "A",
+  gridSizeMode = "fit",
+  sectorSurveyFilterMode = "all",
+  activeReviewQueue = "presence",
+  selectedHex = "",
+} = {}) {
+  const normalizedScope = String(scope || "").trim() === "subsector" ? "subsector" : "sector";
+  const normalizedSectorId = String(selectedSectorId || "").trim();
+
+  return {
+    galaxyId: String(galaxyId || "").trim() || null,
+    selectedSectorId: normalizedSectorId || "",
+    scope: normalizedScope,
+    selectedSubsector: normalizeWorkspaceSubsector(selectedSubsector),
+    gridSizeMode: normalizeWorkspaceMode(gridSizeMode, WORKSPACE_GRID_MODES, "fit"),
+    sectorSurveyFilterMode: normalizeWorkspaceMode(sectorSurveyFilterMode, WORKSPACE_FILTER_MODES, "all"),
+    activeReviewQueue: normalizeWorkspaceMode(activeReviewQueue, WORKSPACE_REVIEW_QUEUES, "presence"),
+    selectedHex: normalizeWorkspaceHex(selectedHex),
+  };
+}
+
+export function resolveSectorSurveyWorkspaceState({
+  persistedState = null,
+  sectorOptions = [],
+  availableHexes = [],
+  defaultScope = "sector",
+  defaultSubsector = "A",
+} = {}) {
+  const normalizedState = buildSectorSurveyWorkspaceState(persistedState ?? {});
+  const normalizedScope =
+    String(persistedState?.scope || "").trim() === "subsector"
+      ? "subsector"
+      : String(defaultScope || "").trim() === "subsector"
+        ? "subsector"
+        : "sector";
+  const normalizedSubsector = normalizeWorkspaceSubsector(persistedState?.selectedSubsector, defaultSubsector);
+  const availableSectorIds = new Set(
+    (Array.isArray(sectorOptions) ? sectorOptions : [])
+      .map((entry) => String(entry?.sectorId || "").trim())
+      .filter(Boolean),
+  );
+  const availableCoords = new Set(
+    (Array.isArray(availableHexes) ? availableHexes : [])
+      .map((entry) => normalizeWorkspaceHex(typeof entry === "string" ? entry : entry?.coord))
+      .filter(Boolean),
+  );
+  const selectedSectorId =
+    availableSectorIds.size > 0 && !availableSectorIds.has(normalizedState.selectedSectorId)
+      ? ""
+      : normalizedState.selectedSectorId;
+  const selectedHex =
+    availableCoords.size > 0 && !availableCoords.has(normalizedState.selectedHex) ? "" : normalizedState.selectedHex;
+
+  return {
+    ...normalizedState,
+    selectedSectorId,
+    scope: normalizedScope,
+    selectedSubsector: normalizedSubsector,
+    selectedHex,
+    coordJumpInput: selectedHex,
+  };
+}
+
 export function buildSectorSurveyCreatePayload({
   galaxyId = "",
   requestedGrid = null,
