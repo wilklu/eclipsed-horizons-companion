@@ -3194,6 +3194,33 @@ const travelZoneHexes = computed(() => {
     .filter(Boolean);
 });
 
+function parseAtlasHexCoord(value) {
+  const coord = String(value || "").trim();
+  if (!/^\d{4}$/.test(coord)) return null;
+
+  const hcol = Number.parseInt(coord.slice(0, 2), 10);
+  const hrow = Number.parseInt(coord.slice(2, 4), 10);
+  if (!Number.isFinite(hcol) || !Number.isFinite(hrow)) return null;
+
+  return { coord, hcol, hrow };
+}
+
+function resolveSectorAnomalyAnchor(tile, token = "") {
+  const metadata = tile?.sector?.metadata ?? {};
+  const explicit = parseAtlasHexCoord(metadata.centralAnomalyHex || metadata.centralAnomaly?.coord || "");
+  if (explicit) return explicit;
+
+  for (const [coord, info] of Object.entries(metadata.hexStarTypes ?? {})) {
+    const entryToken = normalizeAnomalyToken(info?.anomalyType || info?.starType || "");
+    if (!entryToken) continue;
+    if (token && entryToken !== token) continue;
+    const parsed = parseAtlasHexCoord(coord);
+    if (parsed) return parsed;
+  }
+
+  return null;
+}
+
 const anomalyRegionOverlays = computed(() => {
   if (!showAnomalyOverlays.value) return [];
 
@@ -3204,12 +3231,19 @@ const anomalyRegionOverlays = computed(() => {
     const centralToken = normalizeAnomalyToken(tile.sector?.metadata?.centralAnomalyType || "");
     if (centralToken) {
       const key = `sector:${tile.sectorId}:${centralToken}`;
+      const anchor = resolveSectorAnomalyAnchor(tile, centralToken);
+      const center = anchor
+        ? hexWorldCenter(tile.sx, tile.sy, anchor.hcol, anchor.hrow)
+        : { wx: tile.wx + SECTOR_PX_W / 2, wy: tile.wy + SECTOR_PX_H / 2 };
       seen.add(key);
+      if (anchor) {
+        seen.add(`hex:${tile.sectorId}:${anchor.coord}:${centralToken}`);
+      }
       overlays.push(
         buildAnomalyOverlay({
           key,
-          cx: tile.wx + SECTOR_PX_W / 2,
-          cy: tile.wy + SECTOR_PX_H / 2,
+          cx: center.wx,
+          cy: center.wy,
           token: centralToken,
           scale: 1.45,
           scope: "sector",

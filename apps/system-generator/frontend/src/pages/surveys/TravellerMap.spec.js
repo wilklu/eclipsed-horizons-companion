@@ -35,6 +35,7 @@ function createAnomalySector() {
       occupiedHexes: ["1619", "1720"],
       hexPresenceGenerated: true,
       centralAnomalyType: "Black Hole",
+      centralAnomalyHex: "1619",
       hexStarTypes: {
         1619: {
           starType: "Black Hole",
@@ -187,6 +188,29 @@ describe("TravellerMap anomaly display", () => {
     expect(blueStar).toBeTruthy();
     expect(blueStar.starType).toBe("B2V");
     expect(blueStar.color).toBe("#aabfff");
+  });
+
+  it("anchors the anomaly overlay to the anomaly hex when metadata provides it", async () => {
+    const wrapper = mount(TravellerMap, {
+      global: {
+        stubs: {
+          LoadingSpinner: { template: "<div data-test='loading-spinner' />" },
+        },
+      },
+    });
+
+    await flushPromises();
+    await flushPromises();
+
+    const markers = wrapper.vm.$.setupState.loadedRouteStarMarkers;
+    const overlays = wrapper.vm.$.setupState.anomalyRegionOverlays;
+    const anomalyStar = markers.find((entry) => entry.coord === "1619");
+    const sectorOverlay = overlays.find((entry) => entry.key === "sector:gal-1:0,0:BH");
+
+    expect(anomalyStar).toBeTruthy();
+    expect(sectorOverlay).toBeTruthy();
+    expect(sectorOverlay.cx).toBeCloseTo(anomalyStar.wx, 5);
+    expect(sectorOverlay.cy).toBeCloseTo(anomalyStar.wy, 5);
   });
 
   it("applies dedicated planning bias on top of the atlas grid bias", async () => {
