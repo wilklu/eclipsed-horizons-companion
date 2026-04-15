@@ -3195,30 +3195,136 @@ const travelZoneHexes = computed(() => {
 });
 
 function parseAtlasHexCoord(value) {
+  if (value && typeof value === "object") {
+    if ("coord" in value) {
+      return parseAtlasHexCoord(value.coord);
+    }
+    if ("hex" in value) {
+      return parseAtlasHexCoord(value.hex);
+    }
+
+    const hcol = Number(value.hcol ?? value.col ?? value.x ?? NaN);
+    const hrow = Number(value.hrow ?? value.row ?? value.y ?? NaN);
+    if (Number.isFinite(hcol) && Number.isFinite(hrow)) {
+      const normalizedCol = Math.trunc(hcol);
+      const normalizedRow = Math.trunc(hrow);
+      if (normalizedCol >= 1 && normalizedCol <= 32 && normalizedRow >= 1 && normalizedRow <= 40) {
+        return {
+          coord: `${String(normalizedCol).padStart(2, "0")}${String(normalizedRow).padStart(2, "0")}`,
+          hcol: normalizedCol,
+          hrow: normalizedRow,
+        };
+      }
+    }
+
+    return null;
+  }
+
   const coord = String(value || "").trim();
-  if (!/^\d{4}$/.test(coord)) return null;
+  if (!coord) return null;
 
-  const hcol = Number.parseInt(coord.slice(0, 2), 10);
-  const hrow = Number.parseInt(coord.slice(2, 4), 10);
-  if (!Number.isFinite(hcol) || !Number.isFinite(hrow)) return null;
+  const groupedMatch = coord.match(/(\d{1,2})\D+(\d{1,2})/);
+  const compact = groupedMatch
+    ? `${groupedMatch[1].padStart(2, "0")}${groupedMatch[2].padStart(2, "0")}`
+    : coord.replace(/\D/g, "");
+  if (!/^\d{4}$/.test(compact)) return null;
 
-  return { coord, hcol, hrow };
+  const hcol = Number.parseInt(compact.slice(0, 2), 10);
+  const hrow = Number.parseInt(compact.slice(2, 4), 10);
+  if (!Number.isFinite(hcol) || !Number.isFinite(hrow) || hcol < 1 || hcol > 32 || hrow < 1 || hrow > 40) {
+    return null;
+  }
+
+  return { coord: compact, hcol, hrow };
 }
 
 function resolveSectorAnomalyAnchor(tile, token = "") {
   const metadata = tile?.sector?.metadata ?? {};
-  const explicit = parseAtlasHexCoord(metadata.centralAnomalyHex || metadata.centralAnomaly?.coord || "");
-  if (explicit) return explicit;
+  const hexStarTypes = metadata.hexStarTypes ?? {};
+  const explicitCandidates = [
+    metadata.centralAnomalyHex,
+    metadata.centralAnomaly?.coord,
+    metadata.centralAnomaly?.hex,
+    metadata.centralAnomaly?.hexCoordinates,
+  ]
+    .map((entry) => parseAtlasHexCoord(entry))
+    .filter(Boolean);
 
-  for (const [coord, info] of Object.entries(metadata.hexStarTypes ?? {})) {
+  for (const explicit of explicitCandidates) {
+    const entryInfo = hexStarTypes?.[explicit.coord];
+    const entryToken = normalizeAnomalyToken(entryInfo?.anomalyType || entryInfo?.starType || "");
+    if (!entryInfo || !token || !entryToken || entryToken === token) {
+      return explicit;
+    }
+  }
+
+  const candidates = [];
+  for (const [coord, info] of Object.entries(hexStarTypes)) {
     const entryToken = normalizeAnomalyToken(info?.anomalyType || info?.starType || "");
     if (!entryToken) continue;
     if (token && entryToken !== token) continue;
     const parsed = parseAtlasHexCoord(coord);
-    if (parsed) return parsed;
+    if (parsed) {
+      candidates.push(parsed);
+    }
   }
 
-  return null;
+  if (!candidates.length) {
+    return explicitCandidates[0] ?? null;
+  }
+
+  const sectorCenterCol = 16.5;
+  const sectorCenterRow = 20.5;
+  candidates.sort((left, right) => {
+    const leftDistance = Math.abs(left.hcol - sectorCenterCol) + Math.abs(left.hrow - sectorCenterRow);
+    const rightDistance = Math.abs(right.hcol - sectorCenterCol) + Math.abs(right.hrow - sectorCenterRow);
+    if (leftDistance !== rightDistance) {
+      return leftDistance - rightDistance;
+    }
+    if (left.hrow !== right.hrow) {
+      return left.hrow - right.hrow;
+    }
+    return left.hcol - right.hcol;
+  });
+
+  return candidates[0];
+}
+
+function resolveSectorAnomalyMarkerAnchor(tile, token = "") {
+  const anchor = resolveSectorAnomalyAnchor(tile, token);
+  const sectorMarkers = loadedRouteStarMarkers.value.filter((marker) => {
+    if (marker?.sectorId !== tile?.sectorId) {
+      return false;
+    }
+    const markerToken = normalizeAnomalyToken(marker?.anomalyType || marker?.starType || marker?.anomalyToken || "");
+    return Boolean(markerToken) && (!token || markerToken === token);
+  });
+
+  if (!sectorMarkers.length) {
+    return null;
+  }
+
+  if (anchor) {
+    const anchoredMarker = sectorMarkers.find((marker) => String(marker?.coord || "") === anchor.coord);
+    if (anchoredMarker) {
+      return anchoredMarker;
+    }
+  }
+
+  const targetCol = anchor?.hcol ?? 16.5;
+  const targetRow = anchor?.hrow ?? 20.5;
+  return [...sectorMarkers].sort((left, right) => {
+    const leftDistance =
+      Math.abs(Number(left?.coord?.slice(0, 2) || 0) - targetCol) +
+      Math.abs(Number(left?.coord?.slice(2, 4) || 0) - targetRow);
+    const rightDistance =
+      Math.abs(Number(right?.coord?.slice(0, 2) || 0) - targetCol) +
+      Math.abs(Number(right?.coord?.slice(2, 4) || 0) - targetRow);
+    if (leftDistance !== rightDistance) {
+      return leftDistance - rightDistance;
+    }
+    return String(left?.coord || "").localeCompare(String(right?.coord || ""));
+  })[0];
 }
 
 const anomalyRegionOverlays = computed(() => {
@@ -3228,15 +3334,28 @@ const anomalyRegionOverlays = computed(() => {
   const seen = new Set();
 
   for (const tile of visibleSectorTiles.value) {
-    const centralToken = normalizeAnomalyToken(tile.sector?.metadata?.centralAnomalyType || "");
+    const inferredCentralMarker = resolveSectorAnomalyMarkerAnchor(tile);
+    const centralToken =
+      normalizeAnomalyToken(tile.sector?.metadata?.centralAnomalyType || "") ||
+      normalizeAnomalyToken(
+        inferredCentralMarker?.anomalyType ||
+          inferredCentralMarker?.starType ||
+          inferredCentralMarker?.anomalyToken ||
+          "",
+      );
     if (centralToken) {
       const key = `sector:${tile.sectorId}:${centralToken}`;
       const anchor = resolveSectorAnomalyAnchor(tile, centralToken);
-      const center = anchor
-        ? hexWorldCenter(tile.sx, tile.sy, anchor.hcol, anchor.hrow)
-        : { wx: tile.wx + SECTOR_PX_W / 2, wy: tile.wy + SECTOR_PX_H / 2 };
+      const anchorMarker = resolveSectorAnomalyMarkerAnchor(tile, centralToken);
+      const center = anchorMarker
+        ? { wx: anchorMarker.wx, wy: anchorMarker.wy }
+        : anchor
+          ? hexWorldCenter(tile.sx, tile.sy, anchor.hcol, anchor.hrow)
+          : { wx: tile.wx + SECTOR_PX_W / 2, wy: tile.wy + SECTOR_PX_H / 2 };
       seen.add(key);
-      if (anchor) {
+      if (anchorMarker?.coord) {
+        seen.add(`hex:${tile.sectorId}:${anchorMarker.coord}:${centralToken}`);
+      } else if (anchor) {
         seen.add(`hex:${tile.sectorId}:${anchor.coord}:${centralToken}`);
       }
       overlays.push(

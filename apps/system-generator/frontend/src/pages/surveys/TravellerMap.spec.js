@@ -3,6 +3,8 @@
 import { reactive } from "vue";
 import { flushPromises, mount } from "@vue/test-utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import * as sectorApi from "../../api/sectorApi.js";
+import * as sectorLayoutGenerator from "../../utils/sectorLayoutGenerator.js";
 
 const hoisted = vi.hoisted(() => ({
   routerPush: vi.fn(),
@@ -21,8 +23,8 @@ const hoisted = vi.hoisted(() => ({
   },
 }));
 
-function createAnomalySector() {
-  return {
+function createAnomalySector(overrides = {}) {
+  const baseSector = {
     sectorId: "gal-1:0,0",
     galaxyId: "gal-1",
     densityClass: 3,
@@ -49,6 +51,19 @@ function createAnomalySector() {
           secondaryStars: [],
           generatedStars: [{ designation: "B2V", spectralClass: "B2V" }],
         },
+      },
+    },
+  };
+
+  return {
+    ...baseSector,
+    ...overrides,
+    metadata: {
+      ...baseSector.metadata,
+      ...(overrides.metadata || {}),
+      hexStarTypes: {
+        ...baseSector.metadata.hexStarTypes,
+        ...(overrides.metadata?.hexStarTypes || {}),
       },
     },
   };
@@ -159,8 +174,13 @@ describe("TravellerMap anomaly display", () => {
     preferencesStoreState.atlasGridBiasY = 0;
     preferencesStoreState.atlasPlanningBiasX = 0;
     preferencesStoreState.atlasPlanningBiasY = 0;
-    sectorStoreState.sectors = [createAnomalySector()];
+    const baseSector = createAnomalySector();
+    sectorStoreState.sectors = [baseSector];
     systemStoreState.systems = [];
+    sectorApi.getSectors.mockResolvedValue([baseSector]);
+    sectorApi.getSectorsWindow.mockResolvedValue([baseSector]);
+    sectorApi.getSector.mockResolvedValue(baseSector);
+    sectorLayoutGenerator.generateGalaxySectorLayoutWindow.mockReturnValue([baseSector]);
     localStorage.clear();
   });
 
@@ -211,6 +231,54 @@ describe("TravellerMap anomaly display", () => {
     expect(sectorOverlay).toBeTruthy();
     expect(sectorOverlay.cx).toBeCloseTo(anomalyStar.wx, 5);
     expect(sectorOverlay.cy).toBeCloseTo(anomalyStar.wy, 5);
+  });
+
+  it("anchors the anomaly overlay when the stored anomaly hex uses structured coordinates", async () => {
+    const structuredSector = createAnomalySector({
+      metadata: {
+        centralAnomalyHex: { x: 16, y: 20 },
+        hexStarTypes: {
+          1521: {
+            starType: "Black Hole",
+            starClass: "anomaly-core",
+            anomalyType: "Black Hole",
+            generatedStars: [{ designation: "BH", spectralClass: "Black Hole" }],
+          },
+          1620: {
+            starType: "Black Hole",
+            starClass: "anomaly-core",
+            anomalyType: "Black Hole",
+            generatedStars: [{ designation: "BH", spectralClass: "Black Hole" }],
+          },
+        },
+      },
+    });
+    sectorStoreState.sectors = [structuredSector];
+    sectorApi.getSectors.mockResolvedValue([structuredSector]);
+    sectorApi.getSectorsWindow.mockResolvedValue([structuredSector]);
+    sectorApi.getSector.mockResolvedValue(structuredSector);
+    sectorLayoutGenerator.generateGalaxySectorLayoutWindow.mockReturnValue([structuredSector]);
+
+    const wrapper = mount(TravellerMap, {
+      global: {
+        stubs: {
+          LoadingSpinner: { template: "<div data-test='loading-spinner' />" },
+        },
+      },
+    });
+
+    await flushPromises();
+    await flushPromises();
+
+    const markers = wrapper.vm.$.setupState.loadedRouteStarMarkers;
+    const overlays = wrapper.vm.$.setupState.anomalyRegionOverlays;
+    const centralAnomalyStar = markers.find((entry) => entry.coord === "1620");
+    const sectorOverlay = overlays.find((entry) => entry.key === "sector:gal-1:0,0:BH");
+
+    expect(centralAnomalyStar).toBeTruthy();
+    expect(sectorOverlay).toBeTruthy();
+    expect(sectorOverlay.cx).toBeCloseTo(centralAnomalyStar.wx, 5);
+    expect(sectorOverlay.cy).toBeCloseTo(centralAnomalyStar.wy, 5);
   });
 
   it("applies dedicated planning bias on top of the atlas grid bias", async () => {
