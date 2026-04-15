@@ -426,6 +426,28 @@
               </div>
             </div>
           </section>
+
+          <section class="detail-section detail-section--strip generation-realism-panel">
+            <h3>🎚️ Occupancy Realism</h3>
+            <label class="generation-realism-label" for="galaxy-realism-slider">
+              <span>Galaxy Standard</span>
+              <strong>{{ galaxyOccupancyRealismPercent }}%</strong>
+            </label>
+            <input
+              id="galaxy-realism-slider"
+              v-model.number="galaxyOccupancyRealism"
+              data-test="galaxy-realism-slider"
+              class="generation-realism-slider"
+              type="range"
+              min="0"
+              max="2"
+              step="0.05"
+              :disabled="isGeneratingSectors || isGeneratingFullGalaxy"
+            />
+            <div class="generation-realism-help">
+              {{ galaxyOccupancyRealismHelp }} Applies to all rings and guided runs for this galaxy.
+            </div>
+          </section>
         </div>
 
         <!-- Galaxy Map Preview -->
@@ -913,26 +935,6 @@
           >
             {{ isDeletingGalaxy ? "Deleting…" : "🗑️ Delete Galaxy" }}
           </button>
-        </div>
-        <div class="generation-realism-panel">
-          <label class="generation-realism-label" for="galaxy-realism-slider">
-            <span>Occupancy Realism</span>
-            <strong>{{ galaxyOccupancyRealismPercent }}%</strong>
-          </label>
-          <input
-            id="galaxy-realism-slider"
-            v-model.number="galaxyOccupancyRealism"
-            data-test="galaxy-realism-slider"
-            class="generation-realism-slider"
-            type="range"
-            min="0"
-            max="2"
-            step="0.05"
-            :disabled="isGeneratingSectors || isGeneratingFullGalaxy"
-          />
-          <div class="generation-realism-help">
-            {{ galaxyOccupancyRealismHelp }} Applies to all rings and guided runs for this galaxy.
-          </div>
         </div>
         <div v-if="generationProgress.active" class="generation-progress">
           <div class="generation-progress-header">
