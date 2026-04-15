@@ -169,7 +169,32 @@ describe("worldProfileGenerator", () => {
     expect(gasGiant?.nativeSophontLife).toBe(false);
     expect(gasGiant?.populationCode).toBe(0);
     expect(gasGiant?.starport).toBe("X");
+    expect(gasGiant?.uwp ?? "").toBe("");
     expect(moon?.nativeSophontLife).toBe(true);
+  });
+
+  it("prevents planetoid belts from carrying native sophont life", () => {
+    const worlds = applySystemWorldSocialProfiles([
+      {
+        name: "Shale Ring",
+        type: "Planetoid Belt",
+        size: 6,
+        atmosphereCode: 6,
+        hydrographics: 2,
+        avgTempC: 12,
+        orbitNumber: 3.2,
+        hzco: 3.1,
+        nativeSophontLife: true,
+        nativeLifeform: "2201",
+      },
+    ]);
+
+    const belt = worlds.find((world) => world.name === "Shale Ring");
+
+    expect(belt?.nativeSophontLife).toBe(false);
+    expect(belt?.populationCode).toBe(0);
+    expect(belt?.starport).toBe("X");
+    expect(belt?.uwp ?? "").toBe("");
   });
 
   it("allows significant moons to become the system mainworld", () => {

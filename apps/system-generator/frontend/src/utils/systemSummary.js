@@ -137,6 +137,71 @@ function countGasGiantsFromBodies(bodies) {
   return matches > 0 ? matches : null;
 }
 
+function isGasGiantLifeCandidate(record = {}) {
+  const type = String(record?.type ?? record?.worldType ?? "")
+    .trim()
+    .toLowerCase();
+  return !Boolean(record?.isMoon) && (type === "gas giant" || (type.includes("gas giant") && !type.includes("moon")));
+}
+
+function isPlanetoidBeltLifeCandidate(record = {}) {
+  const type = String(record?.type ?? record?.worldType ?? "")
+    .trim()
+    .toLowerCase();
+  return !Boolean(record?.isMoon) && (type === "planetoid belt" || type === "asteroid belt" || type.includes("belt"));
+}
+
+function isUwpRestrictedWorld(record = {}) {
+  return isGasGiantLifeCandidate(record) || isPlanetoidBeltLifeCandidate(record);
+}
+
+function hasNativeLifeIndicator(record = {}) {
+  if (
+    !record ||
+    typeof record !== "object" ||
+    isGasGiantLifeCandidate(record) ||
+    isPlanetoidBeltLifeCandidate(record)
+  ) {
+    return false;
+  }
+
+  if (record.nativeSophontLife === true) {
+    return true;
+  }
+  if (record.nativeSophontLife === false) {
+    return false;
+  }
+
+  const nativeLifeform = firstNonEmptyString(record.nativeLifeform, record.nativeLife, record.lifeform)
+    .trim()
+    .toUpperCase();
+  return Boolean(nativeLifeform) && !["0000", "NONE", "ABSENT", "N/A", "NULL", "UNINHABITED"].includes(nativeLifeform);
+}
+
+function extractNativeLifeSummary(system = {}, mainworld = null) {
+  const candidates = [
+    mainworld,
+    ...(Array.isArray(system?.planets) ? system.planets : []),
+    ...(Array.isArray(system?.worlds) ? system.worlds : []),
+  ].filter((entry) => entry && typeof entry === "object");
+  const nativeLifeWorlds = candidates.filter((entry) => hasNativeLifeIndicator(entry));
+
+  if (nativeLifeWorlds.length > 0) {
+    return {
+      nativeSophontLife: true,
+      nativeLifeform: firstNonEmptyString(nativeLifeWorlds[0]?.nativeLifeform, nativeLifeWorlds[0]?.nativeLife),
+      nativeLifeWorldCount: nativeLifeWorlds.length,
+    };
+  }
+
+  const explicitSystemLife = system?.nativeSophontLife === true;
+  return {
+    nativeSophontLife: explicitSystemLife,
+    nativeLifeform: explicitSystemLife ? firstNonEmptyString(system?.nativeLifeform, system?.nativeLife) : "",
+    nativeLifeWorldCount: explicitSystemLife ? 1 : 0,
+  };
+}
+
 function summarizeSecondaryWorldProfiles(...sources) {
   for (const source of sources) {
     const text = String(source ?? "").trim();
@@ -186,7 +251,13 @@ export function summarizeSystemRecord(system) {
     metadata?.mainworld ??
     worlds.find((world) => firstNonEmptyString(world?.uwp, world?.starport, world?.name));
 
-  const uwp = firstNonEmptyString(system?.mainworldUwp, profiles?.mainworldUwp, mainworld?.uwp, mainworld?.sah_uwp);
+  const mainworldTypeRecord = {
+    ...mainworld,
+    type: firstNonEmptyString(mainworld?.type, system?.mainworldType),
+  };
+  const uwp = isUwpRestrictedWorld(mainworldTypeRecord)
+    ? ""
+    : firstNonEmptyString(system?.mainworldUwp, profiles?.mainworldUwp, mainworld?.uwp, mainworld?.sah_uwp);
   const starportCode = extractStarportCode(
     system?.starport,
     profiles?.starport,
@@ -374,10 +445,18 @@ export function buildSystemSummaryLabel({ system = null, fallbackHex = "Unknown 
 
 export function buildSystemHexSummary(system = {}) {
   const mainworld = system?.mainworld && typeof system.mainworld === "object" ? system.mainworld : null;
+  const nativeLifeSummary = extractNativeLifeSummary(system, mainworld);
+
+  const mainworldTypeRecord = {
+    ...mainworld,
+    type: firstNonEmptyString(mainworld?.type, system?.mainworldType),
+  };
 
   return {
     mainworldName: firstNonEmptyHexSummary(system?.mainworldName, mainworld?.name),
-    mainworldUwp: firstNonEmptyHexSummary(system?.mainworldUwp, mainworld?.uwp),
+    mainworldUwp: isUwpRestrictedWorld(mainworldTypeRecord)
+      ? ""
+      : firstNonEmptyHexSummary(system?.mainworldUwp, mainworld?.uwp),
     habitability: firstNonEmptyHexSummary(
       system?.habitability,
       system?.metadata?.habitability,
@@ -423,5 +502,8 @@ export function buildSystemHexSummary(system = {}) {
       system?.metadata?.secondaryProfiles,
     ),
     factionsProfile: firstNonEmptyHexSummary(system?.factionsProfile?.summary, mainworld?.factionsProfile?.summary),
+    nativeSophontLife: nativeLifeSummary.nativeSophontLife,
+    nativeLifeform: nativeLifeSummary.nativeLifeform,
+    nativeLifeWorldCount: nativeLifeSummary.nativeLifeWorldCount,
   };
 }

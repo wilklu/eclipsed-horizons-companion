@@ -77,6 +77,34 @@ describe("systemSummary", () => {
     expect(summary.factionsProfile).toBe("Three active factions");
   });
 
+  it("ignores native sophont life and UWP on planetoid belts in hex summaries", () => {
+    const summary = buildSystemHexSummary({
+      mainworld: {
+        name: "Shale Ring",
+        type: "Planetoid Belt",
+        size: 6,
+        uwp: "X662000-0",
+        nativeSophontLife: true,
+        nativeLifeform: "2201",
+      },
+      mainworldUwp: "X662000-0",
+      planets: [
+        {
+          name: "Shale Ring",
+          type: "Planetoid Belt",
+          size: 6,
+          uwp: "X662000-0",
+          nativeSophontLife: true,
+          nativeLifeform: "2201",
+        },
+      ],
+    });
+
+    expect(summary.mainworldUwp).toBe("");
+    expect(summary.nativeSophontLife).toBe(false);
+    expect(summary.nativeLifeWorldCount).toBe(0);
+  });
+
   it("builds shared system summary labels from saved-system summaries and route fallbacks", () => {
     expect(
       buildSystemSummaryLabel({

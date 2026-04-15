@@ -429,7 +429,7 @@ function buildWorldRemarks(world = {}, overlay = {}) {
   if (overlay?.habitability === "Excellent") remarks.push("Prime Candidate");
   if (overlay?.habitability === "Hostile") remarks.push("Hostile Environment");
   if (overlay?.resourceRating === "Abundant") remarks.push("Resource Rich");
-  if (!isGasGiantWorld(world) && world?.nativeSophontLife) remarks.push("Native Life");
+  if (!isNativeLifeRestrictedWorld(world) && world?.nativeSophontLife) remarks.push("Native Life");
   if (overlay?.isMainworld) remarks.push("Mainworld");
   if (overlay?.populationConcentration?.eligible) {
     remarks.push(`PCR ${overlay.populationConcentration.rating} ${overlay.populationConcentration.label}`);
@@ -480,10 +480,22 @@ function isGasGiantWorld(world = {}) {
   return !Boolean(world?.isMoon) && (type === "gas giant" || (type.includes("gas giant") && !type.includes("moon")));
 }
 
+function isPlanetoidBeltWorld(world = {}) {
+  const type = String(world?.type || world?.worldType || "")
+    .trim()
+    .toLowerCase();
+
+  return !Boolean(world?.isMoon) && (type === "planetoid belt" || type === "asteroid belt" || type.includes("belt"));
+}
+
+function isNativeLifeRestrictedWorld(world = {}) {
+  return isGasGiantWorld(world) || isPlanetoidBeltWorld(world);
+}
+
 function normalizeNativeSophontWorldState(world = {}) {
   const normalizedWorld = world && typeof world === "object" ? { ...world } : {};
 
-  if (isGasGiantWorld(normalizedWorld)) {
+  if (isNativeLifeRestrictedWorld(normalizedWorld)) {
     normalizedWorld.nativeSophontLife = false;
     normalizedWorld.nativeLifeform = "0000";
     return normalizedWorld;
@@ -552,6 +564,10 @@ function computePopulationValue(populationCode) {
 }
 
 function buildWorldUwpFromOverlay(world = {}, overlay = {}) {
+  if (isNativeLifeRestrictedWorld(world)) {
+    return "";
+  }
+
   return `${overlay.starport}${toHex(Number(world?.size ?? 0))}${toHex(Number(world?.atmosphereCode ?? 0))}${toHex(Number(world?.hydrographics ?? 0))}${toHex(overlay.populationCode)}${toHex(overlay.governmentCode)}${toHex(overlay.lawLevel)}-${toHex(overlay.techLevel)}`;
 }
 

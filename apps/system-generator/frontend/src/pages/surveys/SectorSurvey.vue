@@ -1929,6 +1929,12 @@ const reviewQueueOptions = computed(() => [
     emptyLabel: "No high-habitability candidates found",
   },
   {
+    id: "nativeLife",
+    label: "Native Life",
+    count: reviewQueueCounts.value.nativeLife,
+    emptyLabel: "No native-life worlds found in the current viewport",
+  },
+  {
     id: "legacy",
     label: "Legacy",
     count: reviewQueueCounts.value.legacy,
@@ -1947,7 +1953,9 @@ watch(
       return;
     }
 
-    const fallback = ["presence", "anomaly", "habitable", "legacy"].find((entry) => (counts?.[entry] || 0) > 0);
+    const fallback = ["presence", "anomaly", "habitable", "nativeLife", "legacy"].find(
+      (entry) => (counts?.[entry] || 0) > 0,
+    );
     activeReviewQueue.value = fallback || "presence";
   },
   { immediate: true },
@@ -2012,7 +2020,9 @@ function hasNativeLifeInSurveyRecord(record) {
     .toLowerCase();
   const isGasGiant =
     !Boolean(record?.isMoon) && (type === "gas giant" || (type.includes("gas giant") && !type.includes("moon")));
-  if (isGasGiant) {
+  const isPlanetoidBelt =
+    !Boolean(record?.isMoon) && (type === "planetoid belt" || type === "asteroid belt" || type.includes("belt"));
+  if (isGasGiant || isPlanetoidBelt) {
     return false;
   }
 

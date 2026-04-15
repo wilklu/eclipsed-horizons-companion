@@ -85,11 +85,11 @@ describe("sectorSurveyInteractions", () => {
         systemCount: 3,
         presenceOnlyCount: 1,
         typedCount: 2,
-        reviewQueueCounts: { presence: 1, anomaly: 1, habitable: 0, legacy: 0 },
+        reviewQueueCounts: { presence: 1, anomaly: 1, habitable: 0, nativeLife: 1, legacy: 0 },
       }),
     ).toMatchObject({
       completeCount: 2,
-      nextAction: "2 follow-up targets remain in the queue.",
+      nextAction: "3 follow-up targets remain in the queue.",
       items: [
         { id: "name", status: "complete" },
         { id: "mapping", status: "active" },
@@ -156,21 +156,33 @@ describe("sectorSurveyInteractions", () => {
     ).toContain("Subsector survey Aquila Verge. 75% mapped.");
   });
 
-  it("builds guided review buckets for presence, anomaly, habitable, and legacy follow-up", () => {
+  it("builds guided review buckets for presence, anomaly, habitable, native-life, and legacy follow-up", () => {
     const hexes = [
       { coord: "0101", hasSystem: true, presenceOnly: true },
       { coord: "0102", hasSystem: true, starType: "K2V", anomalyType: "Nebula" },
       { coord: "0103", hasSystem: true, starType: "G2V", habitability: "8 / Good" },
       { coord: "0104", hasSystem: true, starType: "F7V", legacyReconstructed: true },
-      { coord: "0105", hasSystem: false },
+      { coord: "0105", hasSystem: true, starType: "M1V", nativeSophontLife: true, nativeLifeform: "2201" },
+      { coord: "0106", hasSystem: false },
     ];
 
     expect(buildSectorSurveyReviewQueue(hexes)).toEqual({
       presence: 1,
       anomaly: 1,
       habitable: 1,
+      nativeLife: 1,
       legacy: 1,
     });
+  });
+
+  it("ignores stale native-life strings without real world evidence", () => {
+    const hexes = [
+      { coord: "0101", hasSystem: true, starType: "M1V", nativeSophontLife: true, nativeLifeWorldCount: 1 },
+      { coord: "0102", hasSystem: true, starType: "K2V", nativeLifeform: "2201", nativeLifeWorldCount: 0 },
+      { coord: "0103", hasSystem: true, starType: "F7V", nativeSophontLife: false, nativeLifeform: "2201" },
+    ];
+
+    expect(buildSectorSurveyReviewQueue(hexes)).toMatchObject({ nativeLife: 1 });
   });
 
   it("cycles to the next queued review target with wraparound", () => {
@@ -179,11 +191,13 @@ describe("sectorSurveyInteractions", () => {
       { coord: "0102", hasSystem: true, starType: "K2V", anomalyType: "Nebula" },
       { coord: "0103", hasSystem: true, starType: "G2V", habitability: "8 / Good" },
       { coord: "0104", hasSystem: true, starType: "F7V", legacyReconstructed: true },
+      { coord: "0105", hasSystem: true, starType: "M1V", nativeSophontLife: true, nativeLifeform: "2201" },
     ];
 
     expect(findNextSectorSurveyReviewCoord(hexes, "presence", "0104")).toBe("0101");
     expect(findNextSectorSurveyReviewCoord(hexes, "anomaly", "0101")).toBe("0102");
     expect(findNextSectorSurveyReviewCoord(hexes, "habitable", "0101")).toBe("0103");
+    expect(findNextSectorSurveyReviewCoord(hexes, "native-life", "0101")).toBe("0105");
     expect(findNextSectorSurveyReviewCoord(hexes, "legacy", "0101")).toBe("0104");
   });
 });

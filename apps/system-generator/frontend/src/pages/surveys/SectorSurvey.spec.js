@@ -302,6 +302,15 @@ describe("SectorSurvey page regressions", () => {
   });
 
   it("renders checklist and advances the guided review queue from the page controls", async () => {
+    systemStoreState.systems = [
+      {
+        systemId: "sector-a:0101",
+        hexCoordinates: { x: 1, y: 1 },
+        planets: [{ name: "A", nativeSophontLife: true, nativeLifeform: "2201", type: "Terrestrial Planet" }],
+      },
+    ];
+    systemStoreState.loadSystems.mockImplementation(async () => systemStoreState.systems);
+
     const wrapper = mountSectorSurvey({ galaxyId: "gal-1", viewMode: "sector" });
     await flushPromises();
     await flushPromises();
@@ -310,12 +319,18 @@ describe("SectorSurvey page regressions", () => {
     expect(wrapper.text()).toContain("Guided Review Queue");
 
     const presenceButton = wrapper.findAll(".review-queue-btn").find((entry) => entry.text().includes("Needs Systems"));
+    const nativeLifeButton = wrapper.findAll(".review-queue-btn").find((entry) => entry.text().includes("Native Life"));
 
     expect(presenceButton).toBeTruthy();
+    expect(nativeLifeButton).toBeTruthy();
+
     await presenceButton.trigger("click");
     await flushPromises();
-
     expect(wrapper.vm.$.setupState.selectedHex).toBe("0103");
+
+    await nativeLifeButton.trigger("click");
+    await flushPromises();
+    expect(wrapper.vm.$.setupState.selectedHex).toBe("0101");
     expect(toastInfo).toHaveBeenCalled();
   });
 
@@ -367,6 +382,39 @@ describe("SectorSurvey page regressions", () => {
 
     expect(wrapper.vm.$.setupState.subsectorNativeLifeformCount).toBe(2);
     expect(wrapper.text()).toContain("Native Lifeforms");
+  });
+
+  it("keeps the Native Life review queue from counting stale system summaries", async () => {
+    systemStoreState.systems = [
+      {
+        systemId: "sector-a:0101",
+        hexCoordinates: { x: 1, y: 1 },
+        nativeLifeform: "2201",
+        planets: [{ name: "Verdant", nativeSophontLife: true, nativeLifeform: "2201", type: "Terrestrial Planet" }],
+      },
+      {
+        systemId: "sector-a:0102",
+        hexCoordinates: { x: 1, y: 2 },
+        nativeLifeform: "2201",
+        planets: [{ name: "Barren", nativeSophontLife: false, nativeLifeform: "2201", type: "Terrestrial Planet" }],
+      },
+      {
+        systemId: "sector-a:0103",
+        hexCoordinates: { x: 1, y: 3 },
+        nativeLifeform: "2201",
+        planets: [],
+      },
+    ];
+    systemStoreState.loadSystems.mockImplementation(async () => systemStoreState.systems);
+
+    const wrapper = mountSectorSurvey({ galaxyId: "gal-1", viewMode: "sector" });
+    await flushPromises();
+    await flushPromises();
+
+    expect(wrapper.vm.$.setupState.reviewQueueCounts.nativeLife).toBe(1);
+    const nativeLifeButton = wrapper.findAll(".review-queue-btn").find((entry) => entry.text().includes("Native Life"));
+    expect(nativeLifeButton).toBeTruthy();
+    expect(nativeLifeButton.text()).toContain("1");
   });
 
   it("keeps the execute label aligned with the selected survey option even in void-tier space", async () => {

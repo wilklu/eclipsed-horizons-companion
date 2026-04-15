@@ -109,11 +109,32 @@ export function summarizeSectorSurveyFilters(hexes = []) {
   );
 }
 
+function hasNativeLifeReviewMatch(hex = {}) {
+  if (!hex?.hasSystem || hex?.presenceOnly) {
+    return false;
+  }
+
+  if (hex?.nativeSophontLife === true || hex?.mainworldNativeSophontLife === true) {
+    return true;
+  }
+  if (hex?.nativeSophontLife === false || hex?.mainworldNativeSophontLife === false) {
+    return false;
+  }
+
+  const worldCount = Number(hex?.nativeLifeWorldCount ?? hex?.nativeLifeformCount ?? hex?.nativeLifeCount ?? NaN);
+  if (Number.isFinite(worldCount)) {
+    return worldCount > 0;
+  }
+
+  return false;
+}
+
 export function resolveSectorSurveyReviewMatch(hex, reviewMode = "presence") {
   const mode =
     String(reviewMode || "presence")
       .trim()
-      .toLowerCase() || "presence";
+      .toLowerCase()
+      .replace(/[^a-z]/g, "") || "presence";
   const hasSystem = Boolean(hex?.hasSystem);
   const presenceOnly = Boolean(hex?.presenceOnly);
   const anomaly = Boolean(String(hex?.anomalyType || "").trim());
@@ -135,6 +156,8 @@ export function resolveSectorSurveyReviewMatch(hex, reviewMode = "presence") {
       return anomaly;
     case "habitable":
       return habitable;
+    case "nativelife":
+      return hasNativeLifeReviewMatch(hex);
     case "legacy":
       return legacy;
     case "presence":
@@ -145,7 +168,7 @@ export function resolveSectorSurveyReviewMatch(hex, reviewMode = "presence") {
 
 export function buildSectorSurveyReviewQueue(hexes = []) {
   const items = Array.isArray(hexes) ? hexes : [];
-  const modes = ["presence", "anomaly", "habitable", "legacy"];
+  const modes = ["presence", "anomaly", "habitable", "nativeLife", "legacy"];
   return Object.fromEntries(
     modes.map((mode) => [mode, items.filter((hex) => resolveSectorSurveyReviewMatch(hex, mode)).length]),
   );
@@ -200,7 +223,7 @@ export function buildSectorSurveyChecklist({
   const safeTyped = Math.max(0, Math.trunc(Number(typedCount) || 0));
   const mappedAll = safeTotal > 0 && safeSystems >= safeTotal;
   const hasTypedSystems = safeTyped > 0;
-  const outstandingReviewCount = ["presence", "anomaly", "habitable", "legacy"].reduce(
+  const outstandingReviewCount = ["presence", "anomaly", "habitable", "nativeLife", "legacy"].reduce(
     (sum, key) => sum + Math.max(0, Math.trunc(Number(reviewQueueCounts?.[key] || 0))),
     0,
   );

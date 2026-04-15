@@ -1210,6 +1210,21 @@ function isGasGiantNativeLifeCandidate({ type = "", isMoon = false } = {}) {
   );
 }
 
+function isPlanetoidBeltNativeLifeCandidate({ type = "", isMoon = false } = {}) {
+  const normalizedType = String(type || "")
+    .trim()
+    .toLowerCase();
+
+  return (
+    !Boolean(isMoon) &&
+    (normalizedType === "planetoid belt" || normalizedType === "asteroid belt" || normalizedType.includes("belt"))
+  );
+}
+
+function isRestrictedNativeLifeCandidate({ type = "", isMoon = false } = {}) {
+  return isGasGiantNativeLifeCandidate({ type, isMoon }) || isPlanetoidBeltNativeLifeCandidate({ type, isMoon });
+}
+
 function isNativeSophontHabitableZoneCandidate({ orbitNumber = null, hzco = null, zone = "" } = {}) {
   const zoneToken = String(zone || "")
     .trim()
@@ -1245,7 +1260,7 @@ export function rollNativeSophontLife({
   zone = "",
   rollDie = createRandomRoller(),
 }) {
-  if (size <= 0 || isGasGiantNativeLifeCandidate({ type, isMoon })) return false;
+  if (size <= 0 || isRestrictedNativeLifeCandidate({ type, isMoon })) return false;
 
   const habitableZoneCandidate = isNativeSophontHabitableZoneCandidate({ orbitNumber, hzco, zone });
   if (habitableZoneCandidate === false) return false;
@@ -1284,7 +1299,7 @@ export function determineNativeSophontLife({
   zone = "",
   rollDie = createRandomRoller(),
 } = {}) {
-  if (size <= 0 || isGasGiantNativeLifeCandidate({ type, isMoon })) return false;
+  if (size <= 0 || isRestrictedNativeLifeCandidate({ type, isMoon })) return false;
 
   const habitableZoneCandidate = isNativeSophontHabitableZoneCandidate({ orbitNumber, hzco, zone });
   if (habitableZoneCandidate === false) return false;
@@ -1310,7 +1325,7 @@ export function determineNativeSophontLife({
 export function buildNativeLifeProfile(world = {}) {
   if (
     !world?.nativeSophontLife ||
-    isGasGiantNativeLifeCandidate({ type: world?.type || world?.worldType, isMoon: world?.isMoon })
+    isRestrictedNativeLifeCandidate({ type: world?.type || world?.worldType, isMoon: world?.isMoon })
   ) {
     return "0000";
   }
@@ -1860,7 +1875,7 @@ export function buildWbhEnvironmentalProfile(params = {}) {
         atmosphereCode,
         rollTotal: params.magnetosphereRoll ?? rollDice(rollDie, 2, 6),
       }),
-    nativeSophontLife: isGasGiantNativeLifeCandidate({ type: params.type, isMoon: params.isMoon })
+    nativeSophontLife: isRestrictedNativeLifeCandidate({ type: params.type, isMoon: params.isMoon })
       ? false
       : (params.nativeSophontLife ??
         determineNativeSophontLife({

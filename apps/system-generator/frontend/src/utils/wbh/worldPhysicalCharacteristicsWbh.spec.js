@@ -225,6 +225,21 @@ describe("worldPhysicalCharacteristicsWbh", () => {
     ).toBe(true);
   });
 
+  it("prevents planetoid belts from rolling native sophont life", () => {
+    expect(
+      determineNativeSophontLife({
+        size: 6,
+        atmosphereCode: 6,
+        hydrographics: 7,
+        avgTempC: 20,
+        type: "Planetoid Belt",
+        orbitNumber: 3.2,
+        hzco: 3.1,
+        rollDie: createSequenceRoller([6, 6]),
+      }),
+    ).toBe(false);
+  });
+
   it("applies WBH atmosphere rules for small-world vacuum, pressure, and zone temperature", () => {
     expect(determineAtmosphereCode({ sizeCode: "1", rollTotal: 12 })).toBe(0);
     expect(getWbhAtmosphereDescription(13)).toBe("Very Dense");

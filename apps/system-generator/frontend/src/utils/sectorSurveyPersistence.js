@@ -174,7 +174,7 @@ const WORKSPACE_FILTER_MODES = new Set([
   "legacy",
   "empty",
 ]);
-const WORKSPACE_REVIEW_QUEUES = new Set(["presence", "anomaly", "habitable", "legacy"]);
+const WORKSPACE_REVIEW_QUEUES = new Set(["presence", "anomaly", "habitable", "nativeLife", "legacy"]);
 
 function normalizeWorkspaceMode(value = "", allowed = new Set(), fallback = "") {
   const normalized = String(value || "").trim();
