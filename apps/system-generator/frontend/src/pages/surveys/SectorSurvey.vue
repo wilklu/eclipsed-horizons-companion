@@ -2005,6 +2005,22 @@ const subsectorSurveyPercentLabel = computed(() => {
 
   return `${Math.round((highestCompletedCount / totalHexes) * 100)}%`;
 });
+
+function hasNativeLifeInSurveyRecord(record) {
+  if (record?.nativeSophontLife === true) {
+    return true;
+  }
+
+  const nativeLifeform = String(record?.nativeLifeform ?? "")
+    .trim()
+    .toUpperCase();
+  if (!nativeLifeform) {
+    return false;
+  }
+
+  return !["0000", "NONE", "ABSENT", "N/A", "NULL", "UNINHABITED"].includes(nativeLifeform);
+}
+
 const subsectorNativeLifeformCount = computed(() => {
   const visibleSystemCoords = new Set(
     (Array.isArray(displayedSector.value?.hexes) ? displayedSector.value.hexes : [])
@@ -2031,16 +2047,11 @@ const subsectorNativeLifeformCount = computed(() => {
         ? system.metadata.systemRecord.planets
         : [];
 
-    return (
-      count +
-      planets.filter((planet) => {
-        if (planet?.nativeSophontLife) {
-          return true;
-        }
-        const nativeLifeform = String(planet?.nativeLifeform || system?.nativeLifeform || "").trim();
-        return Boolean(nativeLifeform);
-      }).length
-    );
+    if (planets.length) {
+      return count + planets.filter((planet) => hasNativeLifeInSurveyRecord(planet)).length;
+    }
+
+    return count + (hasNativeLifeInSurveyRecord(system) ? 1 : 0);
   }, 0);
 });
 

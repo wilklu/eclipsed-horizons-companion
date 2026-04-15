@@ -332,6 +332,43 @@ describe("SectorSurvey page regressions", () => {
     expect(wrapper.findAll(".subsector-grid--sidebar .subsector-btn").length).toBeGreaterThan(0);
   });
 
+  it("counts only planets with actual native life in the subsector stats", async () => {
+    routeState.query = { sectorId: "sector-a", viewScope: "subsector", subsector: "A", from: "atlas" };
+    const subsectorSystems = [
+      {
+        systemId: "sector-a:0101",
+        hexCoordinates: { x: 1, y: 1 },
+        nativeLifeform: "2201",
+        planets: [
+          { name: "A", nativeSophontLife: true, nativeLifeform: "2201" },
+          { name: "B", nativeSophontLife: false, nativeLifeform: "0000" },
+          { name: "C" },
+        ],
+      },
+      {
+        systemId: "sector-a:0102",
+        hexCoordinates: { x: 1, y: 2 },
+        nativeLifeform: "0000",
+        planets: [
+          { name: "D", nativeSophontLife: true, nativeLifeform: "1101" },
+          { name: "E", nativeSophontLife: false, nativeLifeform: "0000" },
+        ],
+      },
+    ];
+    systemStoreState.systems = subsectorSystems;
+    systemStoreState.loadSystems.mockImplementation(async () => {
+      systemStoreState.systems = subsectorSystems;
+      return subsectorSystems;
+    });
+
+    const wrapper = mountSectorSurvey({ galaxyId: "gal-1", viewMode: "subsector" });
+    await flushPromises();
+    await flushPromises();
+
+    expect(wrapper.vm.$.setupState.subsectorNativeLifeformCount).toBe(2);
+    expect(wrapper.text()).toContain("Native Lifeforms");
+  });
+
   it("keeps the execute label aligned with the selected survey option even in void-tier space", async () => {
     sectorStoreState.sectors = [
       {
