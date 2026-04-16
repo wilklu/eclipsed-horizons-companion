@@ -144,6 +144,8 @@
                   <th>Composition</th>
                   <th>Orbit (AU)</th>
                   <th>Zone</th>
+                  <th>Native Lifeforms</th>
+                  <th>Native Sophonts</th>
                 </tr>
               </thead>
               <tbody>
@@ -172,6 +174,21 @@
                   <td>{{ planet.orbitAU }}</td>
                   <td>
                     <span class="zone-badge" :class="planet.zone">{{ planet.zone }}</span>
+                  </td>
+                  <td>
+                    <div class="catalog-status-cell">
+                      <span class="catalog-status" :class="resolveCatalogNativeLifeStatusClass(planet)">
+                        {{ resolveCatalogNativeLifeLabel(planet) }}
+                      </span>
+                      <span v-if="hasCatalogNativeLifeProfile(planet.nativeLifeform)" class="catalog-status-meta">
+                        {{ normalizeCatalogNativeLifeProfile(planet.nativeLifeform) }}
+                      </span>
+                    </div>
+                  </td>
+                  <td>
+                    <span class="catalog-status" :class="resolveCatalogSophontStatusClass(planet)">
+                      {{ resolveCatalogNativeSophontLabel(planet) }}
+                    </span>
                   </td>
                 </tr>
               </tbody>
@@ -742,6 +759,76 @@ function describePlanetType(planet) {
   }
 
   return String(planet.type || "Unknown");
+}
+
+function normalizeCatalogNativeLifeProfile(profile) {
+  return String(profile || "")
+    .trim()
+    .replace(/\s+/g, "")
+    .toUpperCase();
+}
+
+function hasCatalogNativeLifeProfile(profile) {
+  const normalizedProfile = normalizeCatalogNativeLifeProfile(profile);
+  return (
+    Boolean(normalizedProfile) && !["0000", "NONE", "ABSENT", "N/A", "NULL", "UNINHABITED"].includes(normalizedProfile)
+  );
+}
+
+function decodeCatalogExtendedHexDigit(value) {
+  const normalized = String(value || "0")
+    .trim()
+    .charAt(0)
+    .toUpperCase();
+  if (!normalized) {
+    return 0;
+  }
+  return Number.parseInt(normalized, 16) || 0;
+}
+
+function resolveCatalogNativeLifeLabel(planet) {
+  return hasCatalogNativeLifeProfile(planet?.nativeLifeform) || planet?.nativeSophontLife === true
+    ? "Present"
+    : "Absent";
+}
+
+function resolveCatalogNativeLifeStatusClass(planet) {
+  return resolveCatalogNativeLifeLabel(planet) === "Present" ? "catalog-status--present" : "catalog-status--absent";
+}
+
+function resolveCatalogNativeSophontLabel(planet = {}) {
+  const normalizedStatus = String(planet?.nativeSophontStatus || "")
+    .trim()
+    .toLowerCase();
+
+  if (["exist", "exists", "extant", "present", "current"].includes(normalizedStatus)) {
+    return "Exist";
+  }
+  if (["extinct", "former"].includes(normalizedStatus)) {
+    return "Extinct";
+  }
+  if (normalizedStatus === "absent") {
+    return "Absent";
+  }
+  if (planet?.nativeSophontLife === true) {
+    return "Exist";
+  }
+
+  const biocomplexity = decodeCatalogExtendedHexDigit(
+    normalizeCatalogNativeLifeProfile(planet?.nativeLifeform).charAt(1),
+  );
+  return biocomplexity >= 9 ? "Extinct" : "Absent";
+}
+
+function resolveCatalogSophontStatusClass(planet) {
+  const status = resolveCatalogNativeSophontLabel(planet);
+  if (status === "Exist") {
+    return "catalog-status--present";
+  }
+  if (status === "Extinct") {
+    return "catalog-status--historic";
+  }
+  return "catalog-status--absent";
 }
 
 function summarizeSelectedWorld(planet) {
@@ -1316,6 +1403,44 @@ onMounted(async () => {
 .catalog-chip--moon {
   background: rgba(34, 95, 143, 0.14);
   color: #215c86;
+}
+
+.catalog-status-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.catalog-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  padding: 0.18rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.catalog-status--present {
+  background: rgba(107, 207, 127, 0.16);
+  color: #7de091;
+}
+
+.catalog-status--absent {
+  background: rgba(255, 255, 255, 0.08);
+  color: #b8c0cc;
+}
+
+.catalog-status--historic {
+  background: rgba(255, 217, 61, 0.14);
+  color: #ffd93d;
+}
+
+.catalog-status-meta {
+  color: #7f93a5;
+  font-size: 0.72rem;
 }
 
 .planet-table tr.habitable td {

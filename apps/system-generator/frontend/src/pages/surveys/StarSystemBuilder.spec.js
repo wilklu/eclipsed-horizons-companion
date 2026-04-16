@@ -150,6 +150,62 @@ describe("StarSystemBuilder page", () => {
     expect(wrapper.text()).toContain("Outer System");
   });
 
+  it("shows Native Lifeforms and Native Sophonts in the Planetary Catalog", async () => {
+    const lifeBearingSystem = {
+      systemId: "gal-1:1,2:0101",
+      sectorId: "gal-1:1,2",
+      galaxyId: "gal-1",
+      stars: [
+        {
+          designation: "G2V",
+          spectralClass: "G2V",
+          massInSolarMasses: 1,
+          luminosity: 1,
+          temperatureK: 5800,
+          orbitType: null,
+        },
+      ],
+      habitableZone: { innerAU: 0.9, outerAU: 1.6, frostLineAU: 4.8, hasRadiantHabitableZone: true },
+      planets: [
+        {
+          name: "Verdant",
+          type: "Terrestrial Planet",
+          orbitAU: 1.1,
+          zone: "habitable",
+          composition: "Rocky",
+          uwp: "B766655-8",
+          nativeLifeform: "2201",
+          nativeSophontLife: true,
+        },
+      ],
+      metadata: {},
+    };
+
+    systemStoreState.systems = [lifeBearingSystem];
+    systemStoreState.loadSystems = vi.fn(async () => systemStoreState.systems);
+    systemStoreState.findSystemByHex = vi.fn(() => lifeBearingSystem);
+
+    const wrapper = mount(StarSystemBuilder, {
+      props: {
+        galaxyId: "gal-1",
+        sectorId: "grid:1:2",
+      },
+      global: {
+        stubs: {
+          LoadingSpinner: true,
+          SurveyNavigation: true,
+        },
+      },
+    });
+
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("Native Lifeforms");
+    expect(wrapper.text()).toContain("Native Sophonts");
+    expect(wrapper.text()).toContain("Present");
+    expect(wrapper.text()).toContain("Exist");
+  });
+
   it("rebuilds a persisted system even when reused star records have no positive mass", async () => {
     const masslessSystem = {
       systemId: "gal-1:1,2:0101",
