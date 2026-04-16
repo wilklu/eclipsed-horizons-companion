@@ -384,6 +384,28 @@ describe("SectorSurvey page regressions", () => {
     expect(wrapper.text()).toContain("Native Lifeforms");
   });
 
+  it("shows a Native Life filter chip in the sector toolbar", async () => {
+    systemStoreState.systems = [
+      {
+        systemId: "sector-a:0101",
+        hexCoordinates: { x: 1, y: 1 },
+        nativeLifeform: "2201",
+        planets: [{ name: "Verdant", nativeSophontLife: true, nativeLifeform: "2201", type: "Terrestrial Planet" }],
+      },
+    ];
+    systemStoreState.loadSystems.mockImplementation(async () => systemStoreState.systems);
+
+    const wrapper = mountSectorSurvey({ galaxyId: "gal-1", viewMode: "sector" });
+    await flushPromises();
+    await flushPromises();
+
+    const nativeLifeFilter = wrapper
+      .findAll(".sector-filter-chip")
+      .find((entry) => entry.text().includes("Native Life"));
+    expect(nativeLifeFilter).toBeTruthy();
+    expect(nativeLifeFilter.text()).toContain("1");
+  });
+
   it("keeps the Native Life review queue from counting stale system summaries", async () => {
     systemStoreState.systems = [
       {

@@ -1966,6 +1966,7 @@ const surveyFilterOptions = computed(() => [
   { id: "surveyed", label: "Surveyed", count: surveyFilterCounts.value.surveyed },
   { id: "presence", label: "Presence", count: surveyFilterCounts.value.presence },
   { id: "anomaly", label: "Anomaly", count: surveyFilterCounts.value.anomaly },
+  { id: "nativeLife", label: "Native Life", count: surveyFilterCounts.value.nativeLife },
   { id: "oba", label: "O/B/A", count: surveyFilterCounts.value.oba },
   { id: "fgk", label: "F/G/K", count: surveyFilterCounts.value.fgk },
   { id: "m", label: "M", count: surveyFilterCounts.value.m },

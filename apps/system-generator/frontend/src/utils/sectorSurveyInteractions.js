@@ -86,6 +86,8 @@ export function resolveSectorSurveyFilterMatch(hex, filterMode = "all") {
       return presenceOnly;
     case "anomaly":
       return Boolean(anomaly);
+    case "nativelife":
+      return hasNativeLifeReviewMatch(hex);
     case "oba":
       return ["O", "B", "A"].includes(spectral);
     case "fgk":
@@ -103,7 +105,7 @@ export function resolveSectorSurveyFilterMatch(hex, filterMode = "all") {
 
 export function summarizeSectorSurveyFilters(hexes = []) {
   const items = Array.isArray(hexes) ? hexes : [];
-  const modes = ["surveyed", "presence", "anomaly", "oba", "fgk", "m", "legacy", "empty"];
+  const modes = ["surveyed", "presence", "anomaly", "nativeLife", "oba", "fgk", "m", "legacy", "empty"];
   return Object.fromEntries(
     modes.map((mode) => [mode, items.filter((hex) => resolveSectorSurveyFilterMatch(hex, mode)).length]),
   );

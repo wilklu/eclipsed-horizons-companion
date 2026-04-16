@@ -39,11 +39,13 @@ describe("sectorSurveyInteractions", () => {
     const anomalyHex = { hasSystem: true, starType: "B2V", anomalyType: "Black Hole" };
     const presenceHex = { hasSystem: true, presenceOnly: true };
     const legacyHex = { hasSystem: true, starType: "G2V", legacyReconstructed: true };
+    const nativeLifeHex = { hasSystem: true, starType: "M1V", nativeSophontLife: true, nativeLifeWorldCount: 1 };
 
     expect(resolveSectorSurveyFilterMatch(anomalyHex, "anomaly")).toBe(true);
     expect(resolveSectorSurveyFilterMatch(anomalyHex, "oba")).toBe(true);
     expect(resolveSectorSurveyFilterMatch(presenceHex, "presence")).toBe(true);
     expect(resolveSectorSurveyFilterMatch(legacyHex, "legacy")).toBe(true);
+    expect(resolveSectorSurveyFilterMatch(nativeLifeHex, "nativeLife")).toBe(true);
     expect(resolveSectorSurveyFilterMatch({ hasSystem: false }, "empty")).toBe(true);
   });
 
@@ -52,16 +54,18 @@ describe("sectorSurveyInteractions", () => {
       { coord: "0101", hasSystem: true, starType: "G2V" },
       { coord: "0102", hasSystem: true, presenceOnly: true },
       { coord: "0103", hasSystem: true, starType: "B0V", anomalyType: "Pulsar" },
-      { coord: "0104", hasSystem: false },
+      { coord: "0104", hasSystem: true, starType: "M1V", nativeSophontLife: true, nativeLifeWorldCount: 1 },
+      { coord: "0105", hasSystem: false },
     ];
 
     expect(summarizeSectorSurveyFilters(hexes)).toEqual({
-      surveyed: 2,
+      surveyed: 3,
       presence: 1,
       anomaly: 1,
+      nativeLife: 1,
       oba: 1,
       fgk: 1,
-      m: 0,
+      m: 1,
       legacy: 0,
       empty: 1,
     });
