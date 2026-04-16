@@ -1248,6 +1248,84 @@ function isNativeSophontHabitableZoneCandidate({ orbitNumber = null, hzco = null
   return numericOrbit >= lowerBound && numericOrbit <= upperBound;
 }
 
+function toExtendedHex(value) {
+  const numeric = clamp(Math.trunc(Number(value) || 0), 0, 15);
+  return numeric.toString(16).toUpperCase();
+}
+
+function buildNativeLifeRatings({
+  size,
+  atmosphereCode,
+  hydrographics,
+  avgTempC,
+  type,
+  isMoon = false,
+  systemAgeGyr = 5,
+} = {}) {
+  if (Number(size) <= 0 || isRestrictedNativeLifeCandidate({ type, isMoon })) {
+    return { biomass: 0, biocomplexity: 0, biodiversity: 0, compatibility: 0 };
+  }
+
+  const numericAtmosphere = Number(atmosphereCode ?? 0);
+  const numericHydrographics = Number(hydrographics ?? 0);
+  const numericTemp = Number(avgTempC ?? 0);
+  const numericAge = Number.isFinite(Number(systemAgeGyr)) ? Number(systemAgeGyr) : 5;
+
+  let biomassDm = 0;
+  if (numericAtmosphere === 0) biomassDm -= 6;
+  else if (numericAtmosphere === 1) biomassDm -= 4;
+  else if ([2, 3, 14].includes(numericAtmosphere)) biomassDm -= 3;
+  else if ([4, 5].includes(numericAtmosphere)) biomassDm -= 2;
+  else if ([8, 9, 13].includes(numericAtmosphere)) biomassDm += 2;
+  else if (numericAtmosphere === 10) biomassDm -= 3;
+  else if (numericAtmosphere === 11) biomassDm -= 5;
+  else if (numericAtmosphere === 12) biomassDm -= 8;
+
+  if (numericHydrographics >= 1 && numericHydrographics <= 3) biomassDm += 1;
+  else if (numericHydrographics >= 4 && numericHydrographics <= 8) biomassDm += 2;
+  else if (numericHydrographics >= 9) biomassDm += 1;
+  else biomassDm -= 2;
+
+  if (numericTemp >= 6 && numericTemp <= 30) biomassDm += 2;
+  else if (numericTemp >= -10 && numericTemp <= 38) biomassDm += 1;
+  else if (numericTemp < -20 || numericTemp > 60) biomassDm -= 4;
+  else biomassDm -= 2;
+
+  if (numericAge < 1) biomassDm -= 6;
+  else if (numericAge < 2) biomassDm -= 4;
+  else if (numericAge < 3) biomassDm -= 2;
+  else if (numericAge >= 5 && numericAge <= 10) biomassDm += 1;
+  else if (numericAge > 10) biomassDm += 2;
+
+  const biomass = clamp(7 + biomassDm, 0, 15);
+  if (biomass <= 0) {
+    return { biomass: 0, biocomplexity: 0, biodiversity: 0, compatibility: 0 };
+  }
+
+  let biocomplexityDm = 0;
+  if (numericAtmosphere < 4 || numericAtmosphere > 9) biocomplexityDm -= 2;
+  if (numericAge < 1) biocomplexityDm -= 10;
+  else if (numericAge < 2) biocomplexityDm -= 8;
+  else if (numericAge < 3) biocomplexityDm -= 4;
+  else if (numericAge < 4) biocomplexityDm -= 2;
+
+  const biocomplexity = clamp(Math.max(1, Math.min(biomass, 9) + biocomplexityDm), 0, 15);
+  const biodiversity = clamp(Math.ceil((biomass + biocomplexity) / 2), biomass > 0 ? 1 : 0, 15);
+
+  let compatibilityDm = 0;
+  if ([3, 5, 8].includes(numericAtmosphere)) compatibilityDm += 1;
+  else if (numericAtmosphere === 6) compatibilityDm += 2;
+  else if ([2, 4, 7, 9].includes(numericAtmosphere)) compatibilityDm -= 2;
+  else if ([0, 1, 11].includes(numericAtmosphere)) compatibilityDm -= 8;
+  else if (numericAtmosphere === 10 || numericAtmosphere === 15) compatibilityDm -= 6;
+  else if (numericAtmosphere === 12) compatibilityDm -= 10;
+  else if ([13, 14].includes(numericAtmosphere)) compatibilityDm -= 1;
+  if (numericAge > 8) compatibilityDm -= 2;
+
+  const compatibility = clamp(Math.floor(7 - biocomplexity / 2 + compatibilityDm), 0, 15);
+  return { biomass, biocomplexity, biodiversity, compatibility };
+}
+
 export function rollNativeSophontLife({
   size,
   atmosphereCode,
@@ -1258,6 +1336,7 @@ export function rollNativeSophontLife({
   orbitNumber = null,
   hzco = null,
   zone = "",
+  systemAgeGyr = 5,
   rollDie = createRandomRoller(),
 }) {
   if (size <= 0 || isRestrictedNativeLifeCandidate({ type, isMoon })) return false;
@@ -1265,22 +1344,18 @@ export function rollNativeSophontLife({
   const habitableZoneCandidate = isNativeSophontHabitableZoneCandidate({ orbitNumber, hzco, zone });
   if (habitableZoneCandidate === false) return false;
 
-  let habitabilityScore = 0;
-  if (atmosphereCode >= 4 && atmosphereCode <= 9) habitabilityScore += 2;
-  else if (atmosphereCode >= 2 && atmosphereCode <= 3) habitabilityScore += 1;
+  const { biomass, biocomplexity } = buildNativeLifeRatings({
+    size,
+    atmosphereCode,
+    hydrographics,
+    avgTempC,
+    type,
+    isMoon,
+    systemAgeGyr,
+  });
 
-  if (hydrographics >= 1 && hydrographics <= 9) habitabilityScore += 2;
-  else if (hydrographics === 10) habitabilityScore += 1;
-
-  if (avgTempC >= -10 && avgTempC <= 38) habitabilityScore += 2;
-  else if (avgTempC >= -30 && avgTempC <= 60) habitabilityScore += 1;
-
-  if (size >= 4) habitabilityScore += 1;
-  if (habitableZoneCandidate === true) habitabilityScore += 1;
-  if (habitabilityScore < 4) return false;
-
-  const threshold = habitabilityScore >= 7 ? 8 : habitabilityScore >= 5 ? 10 : 12;
-  return rollTotalOrDice(2, 6, rollDie) >= threshold;
+  if (biomass <= 0 || biocomplexity < 8) return false;
+  return rollTotalOrDice(2, 6, rollDie) + Math.min(biocomplexity, 9) - 7 >= 13;
 }
 
 function rollTotalOrDice(count, sides, rollDie = createRandomRoller()) {
@@ -1297,60 +1372,36 @@ export function determineNativeSophontLife({
   orbitNumber = null,
   hzco = null,
   zone = "",
+  systemAgeGyr = 5,
   rollDie = createRandomRoller(),
 } = {}) {
-  if (size <= 0 || isRestrictedNativeLifeCandidate({ type, isMoon })) return false;
-
-  const habitableZoneCandidate = isNativeSophontHabitableZoneCandidate({ orbitNumber, hzco, zone });
-  if (habitableZoneCandidate === false) return false;
-
-  let habitabilityScore = 0;
-  if (atmosphereCode >= 4 && atmosphereCode <= 9) habitabilityScore += 2;
-  else if (atmosphereCode >= 2 && atmosphereCode <= 3) habitabilityScore += 1;
-
-  if (hydrographics >= 1 && hydrographics <= 9) habitabilityScore += 2;
-  else if (hydrographics === 10) habitabilityScore += 1;
-
-  if (avgTempC >= -10 && avgTempC <= 38) habitabilityScore += 2;
-  else if (avgTempC >= -30 && avgTempC <= 60) habitabilityScore += 1;
-
-  if (size >= 4) habitabilityScore += 1;
-  if (habitableZoneCandidate === true) habitabilityScore += 1;
-  if (habitabilityScore < 4) return false;
-
-  const threshold = habitabilityScore >= 7 ? 8 : habitabilityScore >= 5 ? 10 : 12;
-  return rollDice(rollDie, 2, 6) >= threshold;
+  return rollNativeSophontLife({
+    size,
+    atmosphereCode,
+    hydrographics,
+    avgTempC,
+    type,
+    isMoon,
+    orbitNumber,
+    hzco,
+    zone,
+    systemAgeGyr,
+    rollDie,
+  });
 }
 
 export function buildNativeLifeProfile(world = {}) {
-  if (
-    !world?.nativeSophontLife ||
-    isRestrictedNativeLifeCandidate({ type: world?.type || world?.worldType, isMoon: world?.isMoon })
-  ) {
-    return "0000";
-  }
+  const ratings = buildNativeLifeRatings({
+    size: world?.size,
+    atmosphereCode: world?.atmosphereCode,
+    hydrographics: world?.hydrographics,
+    avgTempC: world?.avgTempC,
+    type: world?.type || world?.worldType,
+    isMoon: world?.isMoon,
+    systemAgeGyr: world?.systemAgeGyr ?? world?.systemAge,
+  });
 
-  const atmosphereCode = Number(world?.atmosphereCode ?? 0);
-  const hydrographics = Number(world?.hydrographics ?? 0);
-  const avgTempC = Number(world?.avgTempC ?? 0);
-  const biomass = clamp((hydrographics > 0 ? 1 : 0) + (atmosphereCode >= 4 && atmosphereCode <= 9 ? 1 : 0), 0, 3);
-  const biocomplexity = clamp(
-    (atmosphereCode >= 5 && atmosphereCode <= 8 ? 2 : 0) + (avgTempC >= -10 && avgTempC <= 35 ? 1 : 0),
-    0,
-    3,
-  );
-  const biodiversity = clamp(
-    (hydrographics >= 4 ? 2 : hydrographics > 0 ? 1 : 0) + (avgTempC >= -5 && avgTempC <= 30 ? 1 : 0),
-    0,
-    3,
-  );
-  const compatibility = clamp(
-    (atmosphereCode >= 4 && atmosphereCode <= 9 ? 2 : 0) + (avgTempC >= -20 && avgTempC <= 40 ? 1 : 0),
-    0,
-    3,
-  );
-
-  return `${biomass}${biocomplexity}${biodiversity}${compatibility}`;
+  return `${toExtendedHex(ratings.biomass)}${toExtendedHex(ratings.biocomplexity)}${toExtendedHex(ratings.biodiversity)}${toExtendedHex(ratings.compatibility)}`;
 }
 
 export function determineHabitabilityRating({ candidateScore, size, atmosphereCode, hydrographics, avgTempC } = {}) {
@@ -1888,6 +1939,7 @@ export function buildWbhEnvironmentalProfile(params = {}) {
           orbitNumber: params.orbitNumber,
           hzco: params.hzco,
           zone: params.zone,
+          systemAgeGyr: params.systemAgeGyr,
           rollDie,
         })),
   };

@@ -93,18 +93,36 @@
       <div v-if="world" class="world-display">
         <div class="world-header">
           <div class="world-icon">🌍</div>
-          <div>
+          <div class="world-header-content">
             <h2>{{ world.name }}</h2>
-            <div class="uwp-display">
+            <div class="uwp-display uwp-display--with-meta">
               <span class="uwp-label">Universal World Profile:</span>
               <span class="uwp-code">{{ world.uwp }}</span>
+              <span class="uwp-label">Trade Codes:</span>
+              <div
+                v-if="Array.isArray(world.tradeCodes) && world.tradeCodes.length"
+                class="trade-codes trade-codes--header"
+              >
+                <span v-for="code in world.tradeCodes" :key="code" class="trade-badge">{{ code }}</span>
+              </div>
+              <span v-else class="empty-state empty-state--inline">No trade codes applicable.</span>
             </div>
           </div>
         </div>
 
         <div class="world-grid">
           <section class="world-section">
-            <h3>🔬 Physical Survey</h3>
+            <div class="section-header">
+              <h3>🔬 Physical Survey</h3>
+              <button
+                class="btn btn-secondary section-reroll"
+                type="button"
+                data-test="reroll-physical"
+                @click="rerollWorldSection('physical')"
+              >
+                🎲 Reroll
+              </button>
+            </div>
             <div class="prop-list">
               <div class="prop-row">
                 <span class="prop-label">Size:</span>
@@ -148,20 +166,22 @@
               </div>
             </div>
             <div class="section-actions">
-              <button
-                class="btn btn-secondary"
-                type="button"
-                data-test="reroll-physical"
-                @click="rerollWorldSection('physical')"
-              >
-                🎲 Reroll Physical
-              </button>
               <button class="btn btn-secondary" @click="openWorldPhysicalSurvey">🔬 Open Physical Survey</button>
             </div>
           </section>
 
-          <section class="world-section">
-            <h3>📡 System Survey</h3>
+          <section class="world-section world-section--compact">
+            <div class="section-header">
+              <h3>📡 System Survey</h3>
+              <button
+                class="btn btn-secondary section-reroll"
+                type="button"
+                data-test="reroll-system"
+                @click="rerollWorldSection('system')"
+              >
+                🎲 Reroll
+              </button>
+            </div>
             <div class="prop-list">
               <div class="prop-row">
                 <span class="prop-label">Orbital Period:</span>
@@ -185,25 +205,85 @@
               </div>
             </div>
             <div class="section-actions">
-              <button
-                class="btn btn-secondary"
-                type="button"
-                data-test="reroll-system"
-                @click="rerollWorldSection('system')"
-              >
-                🎲 Reroll System
-              </button>
               <button class="btn btn-secondary" @click="openSystemSurvey">📡 Open System Survey</button>
             </div>
           </section>
 
           <section class="world-section">
-            <h3>👥 Census Survey</h3>
+            <div class="section-header">
+              <h3>🧬 Life Survey</h3>
+              <button
+                class="btn btn-secondary section-reroll"
+                type="button"
+                data-test="reroll-life"
+                @click="rerollWorldSection('life')"
+              >
+                🎲 Reroll
+              </button>
+            </div>
             <div class="prop-list">
               <div class="prop-row">
-                <span class="prop-label">Native Sophont Life:</span>
-                <span class="prop-value">{{ world.nativeSophontLife ? "Present" : "Absent" }}</span>
+                <span class="prop-label">Native Lifeforms:</span>
+                <span class="prop-value">{{ hasNativeLifeProfile(world.nativeLifeform) ? "Present" : "Absent" }}</span>
               </div>
+              <div class="prop-row">
+                <span class="prop-label">Native Lifeform Profile:</span>
+                <span class="prop-value">{{
+                  formatNativeLifeProfile(world.nativeLifeform, world.nativeSophontLife)
+                }}</span>
+              </div>
+              <div class="prop-row">
+                <span class="prop-label">Biomass Rating:</span>
+                <span class="prop-value">{{ formatNativeLifeRating(world.nativeLifeform, 0, "biomass") }}</span>
+              </div>
+              <div class="prop-row">
+                <span class="prop-label">Biocomplexity Rating:</span>
+                <span class="prop-value">{{ formatNativeLifeRating(world.nativeLifeform, 1, "biocomplexity") }}</span>
+              </div>
+              <div class="prop-row">
+                <span class="prop-label">Native Sophonts:</span>
+                <span class="prop-value">{{ resolveNativeSophontState(world) }}</span>
+              </div>
+              <div class="prop-row">
+                <span class="prop-label">Biodiversity Rating:</span>
+                <span class="prop-value">{{ formatNativeLifeRating(world.nativeLifeform, 2, "biodiversity") }}</span>
+              </div>
+              <div class="prop-row">
+                <span class="prop-label">Compatibility Rating:</span>
+                <span class="prop-value">{{ formatNativeLifeRating(world.nativeLifeform, 3, "compatibility") }}</span>
+              </div>
+            </div>
+            <div v-if="resolveNativeSophontState(world) === 'Exist'" class="world-note">
+              Native sophont life is present. Census and civilization values are provisional WBH-style survey results
+              and can be refined further in the Sophont Generator.
+            </div>
+            <div v-else-if="resolveNativeSophontState(world) === 'Extinct'" class="world-note">
+              This world shows evidence of a prior native sophont species, but no extant sophont population is currently
+              confirmed.
+            </div>
+            <div v-else-if="hasNativeLifeProfile(world.nativeLifeform)" class="world-note">
+              Native life is present, but no native sophont species has been confirmed. Census values remain at the
+              uninhabited baseline until sophonts are detected.
+            </div>
+            <div v-else class="world-note">
+              No native life developed on this world. World Survey keeps population, government, law, tech, and starport
+              at the uninhabited baseline.
+            </div>
+          </section>
+
+          <section class="world-section">
+            <div class="section-header">
+              <h3>👥 Census Survey</h3>
+              <button
+                class="btn btn-secondary section-reroll"
+                type="button"
+                data-test="reroll-census"
+                @click="rerollWorldSection('census')"
+              >
+                🎲 Reroll
+              </button>
+            </div>
+            <div class="prop-list">
               <div class="prop-row">
                 <span class="prop-label">Population:</span>
                 <span class="prop-value">{{ world.populationCode }} — {{ formatPop(world.population) }}</span>
@@ -225,33 +305,6 @@
                 <span class="prop-value">{{ world.starport }} — {{ world.starportDesc }}</span>
               </div>
             </div>
-            <div class="section-actions">
-              <button
-                class="btn btn-secondary"
-                type="button"
-                data-test="reroll-census"
-                @click="rerollWorldSection('census')"
-              >
-                🎲 Reroll Census
-              </button>
-            </div>
-            <div v-if="world.nativeSophontLife" class="world-note">
-              Native sophont life is present. Census and civilization values are provisional WBH-style survey results
-              and can be refined further in the Sophont Generator.
-            </div>
-            <div v-else class="world-note">
-              No native sophont life developed on this world. World Survey keeps population, government, law, tech, and
-              starport at the uninhabited baseline.
-            </div>
-          </section>
-
-          <!-- Trade Codes -->
-          <section class="world-section">
-            <h3>🏷️ Trade Codes</h3>
-            <div v-if="Array.isArray(world.tradeCodes) && world.tradeCodes.length" class="trade-codes">
-              <span v-for="code in world.tradeCodes" :key="code" class="trade-badge">{{ code }}</span>
-            </div>
-            <div v-else class="empty-state">No trade codes applicable.</div>
           </section>
         </div>
 
@@ -457,9 +510,8 @@ const SYSTEM_WORLD_FIELDS = [
   "moonsData",
   "magnetosphere",
 ];
+const LIFE_WORLD_FIELDS = ["nativeSophontLife", "nativeLifeform"];
 const CENSUS_WORLD_FIELDS = [
-  "nativeSophontLife",
-  "nativeLifeform",
   "populationCode",
   "population",
   "governmentCode",
@@ -630,6 +682,120 @@ function formatPop(pop) {
   return numeric.toLocaleString();
 }
 
+function normalizeNativeLifeProfile(profile) {
+  return String(profile || "")
+    .trim()
+    .replace(/\s+/g, "")
+    .toUpperCase();
+}
+
+function decodeExtendedHexDigit(value) {
+  const normalized = String(value || "0")
+    .trim()
+    .charAt(0)
+    .toUpperCase();
+  if (!normalized) return 0;
+  return Number.parseInt(normalized, 16) || 0;
+}
+
+function hasNativeLifeProfile(profile) {
+  const normalizedProfile = normalizeNativeLifeProfile(profile);
+  return Boolean(normalizedProfile) && normalizedProfile !== "0000";
+}
+
+function formatNativeLifeProfile(profile, hasNativeSophontLife) {
+  const normalizedProfile = normalizeNativeLifeProfile(profile);
+
+  if (!hasNativeLifeProfile(normalizedProfile)) {
+    return hasNativeSophontLife ? "Profile pending" : "0000 — No native biosphere detected";
+  }
+
+  return `${normalizedProfile} — ${hasNativeSophontLife ? "Native sophonts present" : "Native biosphere present"}`;
+}
+
+function describeNativeLifeProfile(profile) {
+  const digits = normalizeNativeLifeProfile(profile).padEnd(4, "0").slice(0, 4).split("");
+  const [biomass, biocomplexity, biodiversity, compatibility] = digits.map((digit) => decodeExtendedHexDigit(digit));
+  return `Biomass ${biomass} · Biocomplexity ${biocomplexity} · Biodiversity ${biodiversity} · Compatibility ${compatibility}`;
+}
+
+function describeNativeLifeRating(kind, value) {
+  const numeric = decodeExtendedHexDigit(value);
+  const catalogs = {
+    biomass: {
+      0: "No native life",
+      1: "Trace native life",
+      4: "Established native biosphere",
+      8: "Robust biosphere",
+      10: "Thriving garden biosphere",
+    },
+    biocomplexity: {
+      0: "No complex life",
+      1: "Simple organisms",
+      4: "Complex multicellular life",
+      8: "Mentally advanced organisms",
+      9: "Extant or extinct sophonts",
+      10: "Ecosystem-wide superorganisms",
+    },
+    biodiversity: {
+      0: "No biosphere diversity",
+      1: "Narrow ecosystem",
+      4: "Layered ecosystem",
+      8: "Broad, resilient ecosystem",
+      10: "Pre-human Terra-like diversity",
+    },
+    compatibility: {
+      0: "Incompatible with Terran life",
+      1: "Marginal Terran compatibility",
+      4: "Partial Terran compatibility",
+      8: "Broad nutritional compatibility",
+      10: "Fully Terran-compatible biosphere",
+    },
+  };
+
+  const catalog = catalogs[kind] || {};
+  const thresholds = Object.keys(catalog)
+    .map((entry) => Number(entry))
+    .filter((entry) => Number.isFinite(entry))
+    .sort((left, right) => left - right);
+  let description = catalog[0] || "Recorded";
+  thresholds.forEach((threshold) => {
+    if (numeric >= threshold) {
+      description = catalog[threshold];
+    }
+  });
+
+  const displayValue = numeric >= 10 ? numeric.toString(16).toUpperCase() : String(numeric);
+  return `${displayValue} — ${description}`;
+}
+
+function formatNativeLifeRating(profile, index, kind) {
+  const digits = normalizeNativeLifeProfile(profile).padEnd(4, "0").slice(0, 4);
+  return describeNativeLifeRating(kind, digits.charAt(index));
+}
+
+function resolveNativeSophontState(worldRecord = {}) {
+  const normalizedStatus = String(worldRecord?.nativeSophontStatus || "")
+    .trim()
+    .toLowerCase();
+
+  if (["exist", "exists", "extant", "present", "current"].includes(normalizedStatus)) {
+    return "Exist";
+  }
+  if (["extinct", "former"].includes(normalizedStatus)) {
+    return "Extinct";
+  }
+  if (normalizedStatus === "absent") {
+    return "Absent";
+  }
+  if (worldRecord?.nativeSophontLife) {
+    return "Exist";
+  }
+
+  const biocomplexity = decodeExtendedHexDigit(normalizeNativeLifeProfile(worldRecord?.nativeLifeform).charAt(1));
+  return biocomplexity >= 9 ? "Extinct" : "Absent";
+}
+
 function cloneWorldFieldValue(value) {
   if (Array.isArray(value)) {
     return value.map((entry) => cloneWorldFieldValue(entry));
@@ -664,6 +830,7 @@ function mergeWorldSection(currentWorld, rerolledWorld, section) {
   const fieldGroups = {
     physical: PHYSICAL_WORLD_FIELDS,
     system: SYSTEM_WORLD_FIELDS,
+    life: LIFE_WORLD_FIELDS,
     census: CENSUS_WORLD_FIELDS,
   };
   const merged = {
@@ -1054,6 +1221,7 @@ async function rerollWorldSection(section) {
   const sectionLabelMap = {
     physical: "Physical Survey",
     system: "System Survey",
+    life: "Life Survey",
     census: "Census Survey",
   };
   const sectionLabel = sectionLabelMap[section] || "World Survey";
@@ -1394,6 +1562,26 @@ onBeforeUnmount(() => {
   border-radius: 0.25rem;
 }
 
+.world-header-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.uwp-display--with-meta {
+  flex-wrap: wrap;
+  row-gap: 0.5rem;
+}
+
+.trade-codes--header {
+  display: inline-flex;
+  align-items: center;
+}
+
+.empty-state--inline {
+  padding: 0;
+}
+
 .world-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
@@ -1409,7 +1597,24 @@ onBeforeUnmount(() => {
 
 .world-section h3 {
   color: #00ffff;
+  margin: 0;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
   margin-bottom: 1rem;
+}
+
+.section-reroll {
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.world-section--compact .prop-label {
+  min-width: 130px;
 }
 
 .prop-list {

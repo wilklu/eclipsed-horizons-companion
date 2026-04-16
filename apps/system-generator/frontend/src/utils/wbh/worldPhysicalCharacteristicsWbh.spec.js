@@ -174,14 +174,16 @@ describe("worldPhysicalCharacteristicsWbh", () => {
   });
 
   it("derives Chapter 5 life, habitability, and resource summary helpers", () => {
-    expect(
-      buildNativeLifeProfile({
-        nativeSophontLife: true,
-        atmosphereCode: 6,
-        hydrographics: 7,
-        avgTempC: 20,
-      }),
-    ).toBe("2333");
+    const lifeProfile = buildNativeLifeProfile({
+      nativeSophontLife: false,
+      atmosphereCode: 6,
+      hydrographics: 7,
+      avgTempC: 20,
+      systemAgeGyr: 5,
+    });
+
+    expect(lifeProfile).not.toBe("0000");
+    expect(Number.parseInt(lifeProfile.charAt(1), 16)).toBeGreaterThanOrEqual(8);
 
     expect(determineHabitabilityRating({ candidateScore: 12 })).toBe("Excellent");
     expect(determineHabitabilityRating({ candidateScore: 8 })).toBe("Good");
@@ -223,6 +225,21 @@ describe("worldPhysicalCharacteristicsWbh", () => {
         rollDie: createSequenceRoller([6, 6]),
       }),
     ).toBe(true);
+  });
+
+  it("requires biocomplexity 8 or higher before native sophonts can emerge", () => {
+    expect(
+      determineNativeSophontLife({
+        size: 6,
+        atmosphereCode: 6,
+        hydrographics: 7,
+        avgTempC: 20,
+        orbitNumber: 3.2,
+        hzco: 3.1,
+        systemAgeGyr: 0.5,
+        rollDie: createSequenceRoller([6, 6]),
+      }),
+    ).toBe(false);
   });
 
   it("prevents planetoid belts from rolling native sophont life", () => {

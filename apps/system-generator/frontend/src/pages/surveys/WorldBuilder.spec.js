@@ -171,7 +171,7 @@ describe("WorldBuilder", () => {
     await flushPromises();
     await flushPromises();
 
-    expect(wrapper.text()).toContain("Native Sophont Life:");
+    expect(wrapper.text()).toContain("Native Lifeforms:");
     expect(wrapper.text()).toContain("Absent");
     expect(wrapper.text()).toContain("0 — Uninhabited");
     expect(wrapper.text()).toContain("0 — No Government");
@@ -180,7 +180,105 @@ describe("WorldBuilder", () => {
     expect(wrapper.text()).toContain("X — No starport");
   });
 
-  it("rerolls physical, system, and census sections independently", async () => {
+  it("shows a dedicated Life Survey section and places Trade Codes in the world header", async () => {
+    const profiledSystem = createSystemRecord();
+    profiledSystem.planets = [
+      {
+        ...profiledSystem.planets[0],
+        nativeSophontLife: false,
+        nativeLifeform: "2997",
+        populationCode: 0,
+        population: 0,
+        governmentCode: 0,
+        governmentDesc: "No Government",
+        lawLevel: 0,
+        lawDesc: "No Law",
+        techLevel: 0,
+        techDesc: "Primitive",
+        starport: "X",
+        starportDesc: "No starport",
+        tradeCodes: ["Ag", "Ri"],
+      },
+    ];
+    systemStoreState.systems = [profiledSystem];
+    systemStoreState.getCurrentSystem = profiledSystem;
+
+    const wrapper = mount(WorldBuilder, {
+      global: {
+        stubs: {
+          LoadingSpinner: { template: "<div data-test='loading-spinner' />" },
+          SurveyNavigation: { template: "<div data-test='survey-navigation' />" },
+        },
+      },
+    });
+
+    await flushPromises();
+    await flushPromises();
+
+    const sections = wrapper.findAll(".world-section");
+    const systemSection = sections.find((section) => section.text().includes("📡 System Survey"));
+    const lifeSection = sections.find((section) => section.text().includes("🧬 Life Survey"));
+    const censusSection = sections.find((section) => section.text().includes("👥 Census Survey"));
+    const worldHeader = wrapper.find(".world-header");
+
+    expect(systemSection).toBeTruthy();
+    expect(systemSection.text()).not.toContain("Trade Codes");
+    expect(worldHeader.text()).toContain("Trade Codes");
+    expect(worldHeader.text()).not.toContain("No trade codes applicable.");
+    expect(lifeSection).toBeTruthy();
+    expect(lifeSection.text()).toContain("Biomass Rating:");
+    expect(lifeSection.text()).not.toContain("Biomass Rating:0 — No native life");
+    expect(lifeSection.text()).toContain("Biocomplexity Rating:");
+    expect(lifeSection.text()).toContain("Native Sophonts:");
+    expect(lifeSection.text()).toMatch(/Native Sophonts:(Exist|Absent|Extinct)/);
+    expect(censusSection).toBeTruthy();
+    expect(censusSection.text()).not.toContain("Biomass Rating:");
+  });
+
+  it("shows the WBH native lifeform profile in World Survey when native sophont life is present", async () => {
+    const profiledSystem = createSystemRecord();
+    profiledSystem.planets = [
+      {
+        ...profiledSystem.planets[0],
+        nativeSophontLife: true,
+        nativeLifeform: "2201",
+        populationCode: 6,
+        population: 1000000,
+        governmentCode: 4,
+        governmentDesc: "Representative Democracy",
+        lawLevel: 5,
+        lawDesc: "Personal concealable weapons prohibited",
+        techLevel: 9,
+        techDesc: "Stellar",
+        starport: "C",
+        starportDesc: "Routine — Unrefined fuel, no shipyard",
+      },
+    ];
+    systemStoreState.systems = [profiledSystem];
+    systemStoreState.getCurrentSystem = profiledSystem;
+
+    const wrapper = mount(WorldBuilder, {
+      global: {
+        stubs: {
+          LoadingSpinner: { template: "<div data-test='loading-spinner' />" },
+          SurveyNavigation: { template: "<div data-test='survey-navigation' />" },
+        },
+      },
+    });
+
+    await flushPromises();
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("Native Lifeform Profile:");
+    expect(wrapper.text()).toContain("2201");
+    expect(wrapper.text()).toContain("Biocomplexity Rating:");
+
+    const setupState = wrapper.vm.$.setupState;
+    expect(setupState.formatNativeLifeRating("4000", 0, "biomass")).toBe("4 — Established native biosphere");
+    expect(setupState.formatNativeLifeRating("0000", 0, "biomass")).toBe("0 — No native life");
+  });
+
+  it("rerolls physical, system, life, and census sections independently", async () => {
     const profiledSystem = createSystemRecord();
     profiledSystem.planets = [
       {
@@ -280,6 +378,22 @@ describe("WorldBuilder", () => {
     expect(systemReroll.size).toBe(5);
     expect(systemReroll.populationCode).toBe(6);
 
+    const lifeReroll = setupState.mergeWorldSection(
+      currentWorld,
+      {
+        nativeSophontLife: false,
+        nativeLifeform: "2997",
+        populationCode: 8,
+        size: 1,
+      },
+      "life",
+    );
+    expect(lifeReroll.nativeSophontLife).toBe(false);
+    expect(lifeReroll.nativeLifeform).toBe("2997");
+    expect(lifeReroll.populationCode).toBe(0);
+    expect(lifeReroll.size).toBe(5);
+    expect(lifeReroll.orbitalPeriodDays).toBe(240);
+
     const censusReroll = setupState.mergeWorldSection(
       currentWorld,
       {
@@ -293,10 +407,10 @@ describe("WorldBuilder", () => {
       },
       "census",
     );
-    expect(censusReroll.nativeSophontLife).toBe(false);
-    expect(censusReroll.populationCode).toBe(0);
-    expect(censusReroll.governmentCode).toBe(0);
-    expect(censusReroll.starport).toBe("X");
+    expect(censusReroll.nativeSophontLife).toBe(true);
+    expect(censusReroll.populationCode).toBe(8);
+    expect(censusReroll.governmentCode).toBe(9);
+    expect(censusReroll.starport).toBe("B");
     expect(censusReroll.orbitalPeriodDays).toBe(240);
     expect(censusReroll.size).toBe(5);
 
@@ -306,10 +420,13 @@ describe("WorldBuilder", () => {
     await wrapper.get('[data-test="reroll-system"]').trigger("click");
     await flushPromises();
     await flushPromises();
+    await wrapper.get('[data-test="reroll-life"]').trigger("click");
+    await flushPromises();
+    await flushPromises();
     await wrapper.get('[data-test="reroll-census"]').trigger("click");
     await flushPromises();
     await flushPromises();
 
-    expect(systemStoreState.updateSystem).toHaveBeenCalledTimes(3);
+    expect(systemStoreState.updateSystem).toHaveBeenCalledTimes(4);
   });
 });
