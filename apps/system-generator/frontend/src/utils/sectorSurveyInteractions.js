@@ -88,6 +88,8 @@ export function resolveSectorSurveyFilterMatch(hex, filterMode = "all") {
       return Boolean(anomaly);
     case "nativelife":
       return hasNativeLifeReviewMatch(hex);
+    case "sophontlife":
+      return hasNativeSophontReviewMatch(hex);
     case "oba":
       return ["O", "B", "A"].includes(spectral);
     case "fgk":
@@ -105,10 +107,37 @@ export function resolveSectorSurveyFilterMatch(hex, filterMode = "all") {
 
 export function summarizeSectorSurveyFilters(hexes = []) {
   const items = Array.isArray(hexes) ? hexes : [];
-  const modes = ["surveyed", "presence", "anomaly", "nativeLife", "oba", "fgk", "m", "legacy", "empty"];
+  const modes = ["surveyed", "presence", "anomaly", "nativeLife", "sophontLife", "oba", "fgk", "m", "legacy", "empty"];
   return Object.fromEntries(
     modes.map((mode) => [mode, items.filter((hex) => resolveSectorSurveyFilterMatch(hex, mode)).length]),
   );
+}
+
+function hasNativeSophontReviewMatch(hex = {}) {
+  if (!hex?.hasSystem || hex?.presenceOnly) {
+    return false;
+  }
+
+  if (hex?.nativeSophontLife === true || hex?.mainworldNativeSophontLife === true) {
+    return true;
+  }
+  if (hex?.nativeSophontLife === false || hex?.mainworldNativeSophontLife === false) {
+    return false;
+  }
+
+  const nativeSophontStatus = String(hex?.nativeSophontStatus ?? hex?.mainworldNativeSophontStatus ?? "")
+    .trim()
+    .toLowerCase();
+  if (["exist", "exists", "extant", "present", "current"].includes(nativeSophontStatus)) {
+    return true;
+  }
+
+  const sophontWorldCount = Number(hex?.nativeSophontWorldCount ?? hex?.sophontLifeWorldCount ?? NaN);
+  if (Number.isFinite(sophontWorldCount)) {
+    return sophontWorldCount > 0;
+  }
+
+  return false;
 }
 
 function hasNativeLifeReviewMatch(hex = {}) {
@@ -116,7 +145,7 @@ function hasNativeLifeReviewMatch(hex = {}) {
     return false;
   }
 
-  if (hex?.nativeSophontLife === true || hex?.mainworldNativeSophontLife === true) {
+  if (hasNativeSophontReviewMatch(hex)) {
     return true;
   }
   if (hex?.nativeSophontLife === false || hex?.mainworldNativeSophontLife === false) {

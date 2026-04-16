@@ -347,7 +347,7 @@ describe("SectorSurvey page regressions", () => {
     expect(wrapper.findAll(".subsector-grid--sidebar .subsector-btn").length).toBeGreaterThan(0);
   });
 
-  it("shows the Native Life filter chip in subsector view", async () => {
+  it("shows the Native Life and Sophont Life filter chips in subsector view", async () => {
     routeState.query = { sectorId: "sector-a", viewScope: "subsector", subsector: "A", from: "atlas" };
     systemStoreState.systems = [
       {
@@ -366,16 +366,20 @@ describe("SectorSurvey page regressions", () => {
     const nativeLifeFilter = wrapper
       .findAll(".sector-filter-chip")
       .find((entry) => entry.text().includes("Native Life"));
+    const sophontLifeFilter = wrapper
+      .findAll(".sector-filter-chip")
+      .find((entry) => entry.text().includes("Sophont Life"));
     expect(nativeLifeFilter).toBeTruthy();
+    expect(sophontLifeFilter).toBeTruthy();
     expect(wrapper.find(".sector-filter-chips").attributes("aria-label")).toBe("Subsector survey filter");
 
-    await nativeLifeFilter.trigger("click");
+    await sophontLifeFilter.trigger("click");
     await flushPromises();
 
-    expect(wrapper.vm.$.setupState.sectorSurveyFilterMode).toBe("nativeLife");
+    expect(wrapper.vm.$.setupState.sectorSurveyFilterMode).toBe("sophontLife");
   });
 
-  it("counts only planets with actual native life in the subsector stats", async () => {
+  it("relies on the subsector filter chips instead of the old stats card", async () => {
     routeState.query = { sectorId: "sector-a", viewScope: "subsector", subsector: "A", from: "atlas" };
     const subsectorSystems = [
       {
@@ -408,11 +412,20 @@ describe("SectorSurvey page regressions", () => {
     await flushPromises();
     await flushPromises();
 
-    expect(wrapper.vm.$.setupState.subsectorNativeLifeformCount).toBe(2);
-    expect(wrapper.text()).toContain("Native Lifeforms");
+    const sophontLifeFilter = wrapper
+      .findAll(".sector-filter-chip")
+      .find((entry) => entry.text().includes("Sophont Life"));
+
+    const nativeLifeFilter = wrapper
+      .findAll(".sector-filter-chip")
+      .find((entry) => entry.text().includes("Native Life"));
+
+    expect(wrapper.find(".subsector-stats-card").exists()).toBe(false);
+    expect(nativeLifeFilter).toBeTruthy();
+    expect(sophontLifeFilter).toBeTruthy();
   });
 
-  it("shows a Native Life filter chip in the sector toolbar", async () => {
+  it("shows Native Life and Sophont Life filter chips in the sector toolbar", async () => {
     systemStoreState.systems = [
       {
         systemId: "sector-a:0101",
@@ -430,8 +443,14 @@ describe("SectorSurvey page regressions", () => {
     const nativeLifeFilter = wrapper
       .findAll(".sector-filter-chip")
       .find((entry) => entry.text().includes("Native Life"));
+    const sophontLifeFilter = wrapper
+      .findAll(".sector-filter-chip")
+      .find((entry) => entry.text().includes("Sophont Life"));
+    expect(wrapper.find(".sector-summary-card").exists()).toBe(false);
     expect(nativeLifeFilter).toBeTruthy();
+    expect(sophontLifeFilter).toBeTruthy();
     expect(nativeLifeFilter.text()).toContain("1");
+    expect(sophontLifeFilter.text()).toContain("1");
   });
 
   it("keeps the Native Life review queue from counting stale system summaries", async () => {

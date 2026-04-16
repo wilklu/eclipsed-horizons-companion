@@ -33,84 +33,6 @@
             </div>
           </section>
 
-          <section v-if="generatedSector && currentViewMode === 'subsector'" class="control-card subsector-stats-card">
-            <div class="subsector-stats-grid">
-              <div class="subsector-stat-item">
-                <span class="subsector-stat-label">Systems</span>
-                <span class="subsector-stat-value">{{ displayedSector?.systemCount?.toLocaleString() || "0" }}</span>
-              </div>
-              <div class="subsector-stat-item">
-                <span class="subsector-stat-label">Empty</span>
-                <span class="subsector-stat-value">{{ displayedSector?.emptyCount?.toLocaleString() || "0" }}</span>
-              </div>
-              <div class="subsector-stat-item">
-                <span class="subsector-stat-label">Percent Surveyed</span>
-                <span class="subsector-stat-value">{{ subsectorSurveyPercentLabel }}</span>
-              </div>
-              <div class="subsector-stat-item">
-                <span class="subsector-stat-label">Native Lifeforms</span>
-                <span class="subsector-stat-value">{{ subsectorNativeLifeformCount.toLocaleString() }}</span>
-              </div>
-            </div>
-          </section>
-
-          <section
-            v-if="generatedSector && currentViewMode !== 'subsector'"
-            class="control-group control-card sector-summary-card"
-          >
-            <label>{{ currentViewMode === "subsector" ? "Current Subsector" : "Current Sector" }}</label>
-            <div class="sector-summary sector-summary--panel">
-              <div class="sector-summary-row">
-                <span class="summary-pill summary-pill--title">
-                  <span class="summary-pill-label">Sector Name</span>
-                  <span class="summary-pill-value summary-pill-value--title">{{ generatedSector.name }}</span>
-                </span>
-                <span v-if="currentSubsectorSummary" class="summary-pill">
-                  <span class="summary-pill-label">Subsector</span>
-                  <span class="summary-pill-value">{{ currentSubsectorSummary }}</span>
-                </span>
-              </div>
-              <div class="sector-summary-row sector-summary-row--secondary">
-                <div class="sector-summary-group sector-summary-group--left">
-                  <span class="summary-pill">
-                    <span class="summary-pill-label">Systems</span>
-                    <span class="summary-pill-value">{{ displayedSector.systemCount.toLocaleString() }}</span>
-                  </span>
-                  <span class="summary-pill">
-                    <span class="summary-pill-label">Empty Hexes</span>
-                    <span class="summary-pill-value">{{ displayedSector.emptyCount.toLocaleString() }}</span>
-                  </span>
-                  <span v-if="displayedSector.legacyReconstructedCount" class="summary-pill">
-                    <span class="summary-pill-label">Legacy Star Trees</span>
-                    <span class="summary-pill-value">{{
-                      displayedSector.legacyReconstructedCount.toLocaleString()
-                    }}</span>
-                  </span>
-                  <span v-if="displayedSector.legacyHierarchyUnknownCount" class="summary-pill">
-                    <span class="summary-pill-label">Inferred Hierarchies</span>
-                    <span class="summary-pill-value">{{
-                      displayedSector.legacyHierarchyUnknownCount.toLocaleString()
-                    }}</span>
-                  </span>
-                </div>
-                <div class="sector-summary-group sector-summary-group--right">
-                  <span v-if="displayedSector.viewportLabel" class="summary-pill">
-                    <span class="summary-pill-label">View</span>
-                    <span class="summary-pill-value">{{ displayedSector.viewportLabel }}</span>
-                  </span>
-                  <span class="summary-pill">
-                    <span class="summary-pill-label">Star Density</span>
-                    <span class="summary-pill-value">{{ densityLabel }}</span>
-                  </span>
-                  <span class="summary-pill">
-                    <span class="summary-pill-label">Realism</span>
-                    <span class="summary-pill-value">{{ occupancyRealismLabel }}</span>
-                  </span>
-                </div>
-              </div>
-            </div>
-          </section>
-
           <section class="control-card control-card--survey">
             <div class="control-group">
               <div class="view-toggle" role="tablist" aria-label="Survey view toggle">
@@ -1971,6 +1893,7 @@ const surveyFilterOptions = computed(() => [
   { id: "presence", label: "Presence", count: surveyFilterCounts.value.presence },
   { id: "anomaly", label: "Anomaly", count: surveyFilterCounts.value.anomaly },
   { id: "nativeLife", label: "Native Life", count: surveyFilterCounts.value.nativeLife },
+  { id: "sophontLife", label: "Sophont Life", count: surveyFilterCounts.value.sophontLife },
   { id: "oba", label: "O/B/A", count: surveyFilterCounts.value.oba },
   { id: "fgk", label: "F/G/K", count: surveyFilterCounts.value.fgk },
   { id: "m", label: "M", count: surveyFilterCounts.value.m },
@@ -2005,99 +1928,6 @@ const sectorGridAccessibilityStatus = computed(() =>
     generationStatusMessage: generationStatusMessage.value,
   }),
 );
-const subsectorSurveyPercentLabel = computed(() => {
-  const totalHexes = displayedTotalHexCount.value;
-  if (!totalHexes) {
-    return "0%";
-  }
-
-  const highestCompletedCount =
-    displayedOccupiedHexCount.value > 0 && displayedTypedHexCount.value === displayedOccupiedHexCount.value
-      ? displayedTypedHexCount.value
-      : displayedOccupiedHexCount.value;
-
-  return `${Math.round((highestCompletedCount / totalHexes) * 100)}%`;
-});
-
-function hasNativeLifeInSurveyRecord(record) {
-  const type = String(record?.type || record?.worldType || "")
-    .trim()
-    .toLowerCase();
-  const isGasGiant =
-    !Boolean(record?.isMoon) && (type === "gas giant" || (type.includes("gas giant") && !type.includes("moon")));
-  const isPlanetoidBelt =
-    !Boolean(record?.isMoon) && (type === "planetoid belt" || type === "asteroid belt" || type.includes("belt"));
-  if (isGasGiant || isPlanetoidBelt) {
-    return false;
-  }
-
-  const zone = String(record?.zone || "")
-    .trim()
-    .toLowerCase();
-  if (zone.includes("inner") || zone.includes("outer")) {
-    return false;
-  }
-
-  const orbitAU = Number(record?.orbitAU ?? record?.orbitAu ?? NaN);
-  const hzco = Number(record?.hzco ?? NaN);
-  if (Number.isFinite(orbitAU) && Number.isFinite(hzco) && hzco > 0) {
-    if (orbitAU < hzco * 0.75 || orbitAU > hzco * 1.5) {
-      return false;
-    }
-  }
-
-  if (record?.nativeSophontLife === true) {
-    return true;
-  }
-
-  if (record?.nativeSophontLife === false) {
-    return false;
-  }
-
-  const nativeLifeform = String(record?.nativeLifeform ?? "")
-    .trim()
-    .toUpperCase();
-  if (!nativeLifeform) {
-    return false;
-  }
-
-  return !["0000", "NONE", "ABSENT", "N/A", "NULL", "UNINHABITED"].includes(nativeLifeform);
-}
-
-const subsectorNativeLifeformCount = computed(() => {
-  const visibleSystemCoords = new Set(
-    (Array.isArray(displayedSector.value?.hexes) ? displayedSector.value.hexes : [])
-      .filter((hex) => hex?.hasSystem && typeof hex?.coord === "string")
-      .map((hex) => String(hex.coord).trim())
-      .filter(Boolean),
-  );
-
-  if (!visibleSystemCoords.size) {
-    return 0;
-  }
-
-  return systemStore.systems.reduce((count, system) => {
-    const x = Number(system?.hexCoordinates?.x ?? 0);
-    const y = Number(system?.hexCoordinates?.y ?? 0);
-    const coord = `${String(x).padStart(2, "0")}${String(y).padStart(2, "0")}`;
-    if (!visibleSystemCoords.has(coord)) {
-      return count;
-    }
-
-    const planets = Array.isArray(system?.planets)
-      ? system.planets
-      : Array.isArray(system?.metadata?.systemRecord?.planets)
-        ? system.metadata.systemRecord.planets
-        : [];
-
-    if (planets.length) {
-      return count + planets.filter((planet) => hasNativeLifeInSurveyRecord(planet)).length;
-    }
-
-    return count + (hasNativeLifeInSurveyRecord(system) ? 1 : 0);
-  }, 0);
-});
-
 const sectorOptions = computed(() =>
   sectorStore.sectors.map((sector) => ({
     sectorId: sector.sectorId,
@@ -4898,10 +4728,6 @@ async function generateSystemForSelectedHex({ openAfter = false } = {}) {
   min-width: 0;
 }
 
-.sector-summary-card {
-  background: #1a1a2e;
-}
-
 .control-inline-row {
   display: grid;
   align-items: center;
@@ -5621,76 +5447,6 @@ async function generateSystemForSelectedHex({ openAfter = false } = {}) {
   line-height: 1;
 }
 
-.sector-summary {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-top: 0.75rem;
-}
-
-.sector-summary--panel {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  margin-top: 0;
-}
-
-.sector-summary-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.sector-summary-row--secondary {
-  justify-content: space-between;
-  align-items: flex-start;
-}
-
-.sector-summary-group {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.sector-summary-group--left {
-  justify-content: flex-start;
-}
-
-.sector-summary-group--right {
-  justify-content: flex-end;
-  margin-left: auto;
-}
-
-.summary-pill {
-  display: inline-flex;
-  align-items: flex-start;
-  gap: 0.45rem;
-  padding: 0.35rem 0.65rem;
-  border: 1px solid rgba(0 217 255 / 0.24);
-  border-radius: 999px;
-  background: rgba(0 217 255 / 0.08);
-  color: #b7f7ff;
-  font-size: 0.8rem;
-  font-family: "Circular Std", Circular, "Lineto Circular", "Segoe UI", sans-serif;
-}
-
-.summary-pill--title {
-  min-width: 0;
-  width: 100%;
-  flex: 1 1 100%;
-}
-
-.summary-pill-label {
-  color: rgba(183, 247, 255, 0.7);
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.summary-pill-value {
-  color: #e7fbff;
-  font-weight: 700;
-}
-
 .stellar-inline-card {
   display: flex;
   align-items: center;
@@ -5912,42 +5668,7 @@ async function generateSystemForSelectedHex({ openAfter = false } = {}) {
   line-height: 1.35;
 }
 
-.subsector-stats-card {
-  gap: 0.8rem;
-}
-
-.subsector-stats-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.6rem;
-}
-
-.subsector-stat-item {
-  display: flex;
-  flex-direction: column;
-  gap: 0.22rem;
-  padding: 0.68rem 0.75rem;
-  border: 1px solid rgba(0, 217, 255, 0.14);
-  border-radius: 0.55rem;
-  background: rgba(0, 217, 255, 0.05);
-}
-
-.subsector-stat-label {
-  color: rgba(183, 247, 255, 0.66);
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.subsector-stat-value {
-  color: #ecfcff;
-  font-size: 0.94rem;
-  font-weight: 700;
-  line-height: 1.3;
-}
-
-.select-input,
+select-input,
 .text-input {
   padding: 0.6rem 0.75rem;
   background: #2a2a3e;
@@ -6385,17 +6106,6 @@ async function generateSystemForSelectedHex({ openAfter = false } = {}) {
   .stellar-inline-card {
     flex-direction: column;
     align-items: flex-start;
-  }
-
-  .sector-summary-row {
-    flex-direction: column;
-  }
-
-  .sector-summary-group,
-  .sector-summary-group--right {
-    width: 100%;
-    margin-left: 0;
-    justify-content: flex-start;
   }
 
   .detail-actions {

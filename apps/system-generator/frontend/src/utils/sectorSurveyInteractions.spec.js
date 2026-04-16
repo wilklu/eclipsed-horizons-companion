@@ -40,12 +40,15 @@ describe("sectorSurveyInteractions", () => {
     const presenceHex = { hasSystem: true, presenceOnly: true };
     const legacyHex = { hasSystem: true, starType: "G2V", legacyReconstructed: true };
     const nativeLifeHex = { hasSystem: true, starType: "M1V", nativeSophontLife: true, nativeLifeWorldCount: 1 };
+    const biosphereOnlyHex = { hasSystem: true, starType: "K2V", nativeSophontLife: false, nativeLifeWorldCount: 1 };
 
     expect(resolveSectorSurveyFilterMatch(anomalyHex, "anomaly")).toBe(true);
     expect(resolveSectorSurveyFilterMatch(anomalyHex, "oba")).toBe(true);
     expect(resolveSectorSurveyFilterMatch(presenceHex, "presence")).toBe(true);
     expect(resolveSectorSurveyFilterMatch(legacyHex, "legacy")).toBe(true);
     expect(resolveSectorSurveyFilterMatch(nativeLifeHex, "nativeLife")).toBe(true);
+    expect(resolveSectorSurveyFilterMatch(nativeLifeHex, "sophontLife")).toBe(true);
+    expect(resolveSectorSurveyFilterMatch(biosphereOnlyHex, "sophontLife")).toBe(false);
     expect(resolveSectorSurveyFilterMatch({ hasSystem: false }, "empty")).toBe(true);
   });
 
@@ -63,6 +66,7 @@ describe("sectorSurveyInteractions", () => {
       presence: 1,
       anomaly: 1,
       nativeLife: 1,
+      sophontLife: 1,
       oba: 1,
       fgk: 1,
       m: 1,
