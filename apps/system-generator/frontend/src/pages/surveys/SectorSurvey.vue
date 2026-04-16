@@ -606,7 +606,11 @@
 
               <div class="sector-grid-toolbar-group sector-grid-toolbar-group--full">
                 <span class="sector-grid-toolbar-label">Filter</span>
-                <div class="sector-filter-chips" role="group" aria-label="Sector survey filter">
+                <div
+                  class="sector-filter-chips"
+                  role="group"
+                  :aria-label="currentViewMode === 'subsector' ? 'Subsector survey filter' : 'Sector survey filter'"
+                >
                   <button
                     v-for="option in surveyFilterOptions"
                     :key="option.id"

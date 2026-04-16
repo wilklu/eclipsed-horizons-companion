@@ -100,6 +100,57 @@ describe("worldPhysicalSurveyFormModel", () => {
     expect(survey.hydrographics.distribution).toBe("Mixed");
   });
 
+  it("clears census values when the survey marks native sophont life absent", () => {
+    const payload = {
+      ...createEmptySurveyData(),
+      life: {
+        biomass: "2",
+        biocomplexity: "2",
+        biodiversity: "0",
+        compatibility: "1",
+        sophonts: "none",
+        notes: "",
+      },
+    };
+
+    const updatedPlanet = buildUpdatedPlanetFromSurvey(
+      {
+        name: "Surveyed World",
+        uwp: "B567798-A",
+        size: 5,
+        atmosphereCode: 6,
+        hydrographics: 7,
+        nativeSophontLife: true,
+        nativeLifeform: "2201",
+        populationCode: 7,
+        population: 10000000,
+        governmentCode: 9,
+        governmentDesc: "Impersonal Bureaucracy",
+        lawLevel: 8,
+        lawDesc: "Long bladed weapons controlled",
+        techLevel: 10,
+        techDesc: "High Stellar",
+        starport: "B",
+        starportDesc: "Good",
+      },
+      payload,
+    );
+
+    expect(updatedPlanet.nativeSophontLife).toBe(false);
+    expect(updatedPlanet.nativeLifeform).toBe("2201");
+    expect(updatedPlanet.populationCode).toBe(0);
+    expect(updatedPlanet.population).toBe(0);
+    expect(updatedPlanet.governmentCode).toBe(0);
+    expect(updatedPlanet.governmentDesc).toBe("No Government");
+    expect(updatedPlanet.lawLevel).toBe(0);
+    expect(updatedPlanet.lawDesc).toBe("No Law");
+    expect(updatedPlanet.techLevel).toBe(0);
+    expect(updatedPlanet.techDesc).toBe("Primitive");
+    expect(updatedPlanet.starport).toBe("X");
+    expect(updatedPlanet.starportDesc).toBe("No starport");
+    expect(updatedPlanet.uwp).toBe("X567000-0");
+  });
+
   it("roundtrips edited WBH survey values back onto the world record", () => {
     const payload = {
       ...createEmptySurveyData(),

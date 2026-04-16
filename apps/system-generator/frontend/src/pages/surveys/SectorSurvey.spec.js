@@ -347,6 +347,34 @@ describe("SectorSurvey page regressions", () => {
     expect(wrapper.findAll(".subsector-grid--sidebar .subsector-btn").length).toBeGreaterThan(0);
   });
 
+  it("shows the Native Life filter chip in subsector view", async () => {
+    routeState.query = { sectorId: "sector-a", viewScope: "subsector", subsector: "A", from: "atlas" };
+    systemStoreState.systems = [
+      {
+        systemId: "sector-a:0101",
+        hexCoordinates: { x: 1, y: 1 },
+        nativeLifeform: "2201",
+        planets: [{ name: "Verdant", nativeSophontLife: true, nativeLifeform: "2201", type: "Terrestrial Planet" }],
+      },
+    ];
+    systemStoreState.loadSystems.mockImplementation(async () => systemStoreState.systems);
+
+    const wrapper = mountSectorSurvey({ galaxyId: "gal-1", viewMode: "subsector" });
+    await flushPromises();
+    await flushPromises();
+
+    const nativeLifeFilter = wrapper
+      .findAll(".sector-filter-chip")
+      .find((entry) => entry.text().includes("Native Life"));
+    expect(nativeLifeFilter).toBeTruthy();
+    expect(wrapper.find(".sector-filter-chips").attributes("aria-label")).toBe("Subsector survey filter");
+
+    await nativeLifeFilter.trigger("click");
+    await flushPromises();
+
+    expect(wrapper.vm.$.setupState.sectorSurveyFilterMode).toBe("nativeLife");
+  });
+
   it("counts only planets with actual native life in the subsector stats", async () => {
     routeState.query = { sectorId: "sector-a", viewScope: "subsector", subsector: "A", from: "atlas" };
     const subsectorSystems = [

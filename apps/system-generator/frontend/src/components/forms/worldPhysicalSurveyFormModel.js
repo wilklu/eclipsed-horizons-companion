@@ -220,6 +220,33 @@ function parseGreenhouseAtmosphereCode(value, fallback = null) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function toUwpHex(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) return "0";
+  return Math.max(0, Math.trunc(numeric)).toString(36).toUpperCase();
+}
+
+function buildUninhabitedBaselineUwp(planet = {}) {
+  return `X${toUwpHex(planet?.size)}${toUwpHex(planet?.atmosphereCode)}${toUwpHex(planet?.hydrographics)}000-0`;
+}
+
+function applyUninhabitedCensusBaseline(planet = {}) {
+  return {
+    ...planet,
+    populationCode: 0,
+    population: 0,
+    governmentCode: 0,
+    governmentDesc: "No Government",
+    lawLevel: 0,
+    lawDesc: "No Law",
+    techLevel: 0,
+    techDesc: "Primitive",
+    starport: "X",
+    starportDesc: "No starport",
+    uwp: buildUninhabitedBaselineUwp(planet),
+  };
+}
+
 function updateMoonData(existingMoons = [], subordinates = []) {
   let subordinateIndex = 0;
   return (Array.isArray(existingMoons) ? existingMoons : []).map((moon) => {
@@ -393,8 +420,17 @@ export function buildUpdatedPlanetFromSurvey(currentPlanet, surveyPayload) {
   const planet = currentPlanet && typeof currentPlanet === "object" ? currentPlanet : {};
   const parsedSurfaceTides = parseNumericString(String(payload?.rotation?.tides || "").replace(/[^0-9.+-]/g, ""));
   const dominantSurface = extractDominantSurface(payload?.hydrographics?.other || planet?.dominantSurface);
+  const sophontAssessment = String(payload?.life?.sophonts || "")
+    .trim()
+    .toLowerCase();
+  const resolvedNativeSophontLife =
+    sophontAssessment === "native" || sophontAssessment === "mixed"
+      ? true
+      : sophontAssessment === "none"
+        ? false
+        : planet.nativeSophontLife;
 
-  return {
+  const updatedPlanet = {
     ...planet,
     name: String(payload.worldName || planet.name || "").trim() || planet.name,
     uwp: String(payload.sah_uwp || planet.uwp || "").trim() || planet.uwp,
@@ -429,8 +465,7 @@ export function buildUpdatedPlanetFromSurvey(currentPlanet, surveyPayload) {
     majorTectonicPlates: payload?.temperature?.majorTectonicPlates ?? planet.majorTectonicPlates,
     resourceRating: titleCase(payload?.resources?.rating) || planet.resourceRating,
     habitability: titleCase(payload?.habitability?.rating) || planet.habitability,
-    nativeSophontLife:
-      payload?.life?.sophonts === "native" || payload?.life?.sophonts === "mixed" ? true : planet.nativeSophontLife,
+    nativeSophontLife: resolvedNativeSophontLife,
     nativeLifeform:
       `${payload?.life?.biomass || ""}${payload?.life?.biocomplexity || ""}${payload?.life?.biodiversity || ""}${payload?.life?.compatibility || ""}`.replace(
         /\s+/g,
@@ -450,4 +485,6 @@ export function buildUpdatedPlanetFromSurvey(currentPlanet, surveyPayload) {
     moonsData: updateMoonData(planet?.moonsData, payload?.subordinates),
     physicalSurvey: payload,
   };
+
+  return resolvedNativeSophontLife === false ? applyUninhabitedCensusBaseline(updatedPlanet) : updatedPlanet;
 }
