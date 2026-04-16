@@ -40,6 +40,7 @@ const hoisted = vi.hoisted(() => ({
     systems: [],
     currentSystemId: null,
     loadSystems: vi.fn(),
+    createSystem: vi.fn(async (payload) => payload),
     setCurrentSystem: vi.fn(),
     findSystemByHex: vi.fn(),
   },
@@ -121,6 +122,7 @@ describe("StarSystemBuilder page", () => {
 
     hoisted.systemStoreState.systems = [nullHabitableZoneSystem];
     hoisted.systemStoreState.loadSystems = vi.fn(async () => hoisted.systemStoreState.systems);
+    hoisted.systemStoreState.createSystem = vi.fn(async (payload) => payload);
     hoisted.systemStoreState.findSystemByHex = vi.fn(() => nullHabitableZoneSystem);
     hoisted.systemStoreState.setCurrentSystem = vi.fn((systemId) => {
       hoisted.systemStoreState.currentSystemId = systemId;
