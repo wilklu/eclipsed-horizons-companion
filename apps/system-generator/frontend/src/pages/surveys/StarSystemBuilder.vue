@@ -102,14 +102,14 @@
 
         <!-- Habitable Zone -->
         <div class="hz-section">
-          <h3>🌍 {{ system.habitableZone.hasRadiantHabitableZone ? "Habitable Zone" : "System Layout Anchor" }}</h3>
+          <h3>🌍 {{ resolvedHabitableZone.hasRadiantHabitableZone ? "Habitable Zone" : "System Layout Anchor" }}</h3>
           <div class="hz-bar-wrapper">
             <div class="hz-labels">
-              <span>{{ system.habitableZone.hasRadiantHabitableZone ? "Too Hot" : "Inner System" }}</span>
+              <span>{{ resolvedHabitableZone.hasRadiantHabitableZone ? "Too Hot" : "Inner System" }}</span>
               <span class="hz-label">{{
-                system.habitableZone.hasRadiantHabitableZone ? "Habitable Zone" : "Layout Anchor"
+                resolvedHabitableZone.hasRadiantHabitableZone ? "Habitable Zone" : "Layout Anchor"
               }}</span>
-              <span>{{ system.habitableZone.hasRadiantHabitableZone ? "Too Cold" : "Outer System" }}</span>
+              <span>{{ resolvedHabitableZone.hasRadiantHabitableZone ? "Too Cold" : "Outer System" }}</span>
             </div>
             <div class="hz-bar">
               <div class="hz-region hz-hot" :style="{ width: '30%' }"></div>
@@ -118,11 +118,11 @@
             </div>
             <div class="hz-distances">
               <span>0 AU</span>
-              <span>{{ system.habitableZone.innerAU }} AU</span>
-              <span>{{ system.habitableZone.outerAU }} AU</span>
-              <span>{{ system.habitableZone.frostLineAU }} AU</span>
+              <span>{{ resolvedHabitableZone.innerAU }} AU</span>
+              <span>{{ resolvedHabitableZone.outerAU }} AU</span>
+              <span>{{ resolvedHabitableZone.frostLineAU }} AU</span>
             </div>
-            <p v-if="!system.habitableZone.hasRadiantHabitableZone" class="hz-note">
+            <p v-if="!resolvedHabitableZone.hasRadiantHabitableZone" class="hz-note">
               Compact remnants and other non-radiant primaries use a layout anchor for orbit placement instead of a true
               radiative habitable zone.
             </p>
@@ -676,6 +676,10 @@ async function hydrateSystem() {
         system.value = {
           ...existing,
           systemId: normalizeHex(existing.systemId || hexCoord.value),
+          habitableZone:
+            existing?.habitableZone && typeof existing.habitableZone === "object"
+              ? existing.habitableZone
+              : calculateSystemHabitableZone(existing?.stars ?? []),
         };
         selectedWorldIndex.value = resolveSelectedWorldIndex(existing.planets);
         systemStore.setCurrentSystem(existing.systemId);
@@ -786,6 +790,16 @@ const selectedWorldCandidate = computed(() => {
     return null;
   }
   return system.value.planets[index] ?? null;
+});
+
+const resolvedHabitableZone = computed(() => {
+  const persistedZone = system.value?.habitableZone;
+  if (persistedZone && typeof persistedZone === "object") {
+    return persistedZone;
+  }
+
+  const stars = Array.isArray(system.value?.stars) ? system.value.stars : [];
+  return calculateSystemHabitableZone(stars);
 });
 
 // ── Actions ───────────────────────────────────────────────────────────────────

@@ -455,12 +455,13 @@ export function calculateEffectiveHzcoDeviation({ orbitNumber, hzco }) {
 
 export function calculatePlanetaryOrbitalPeriod({ orbitNumber, stellarMasses = [] } = {}) {
   const orbitalDistanceAu = fractionalOrbitToAu(orbitNumber);
-  const totalMass = stellarMasses.reduce((sum, mass) => sum + Number(mass || 0), 0);
-  if (!(totalMass > 0)) {
-    throw new RangeError("At least one positive stellar mass is required");
-  }
+  const numericMasses = (Array.isArray(stellarMasses) ? stellarMasses : [])
+    .map((mass) => Number(mass))
+    .filter((mass) => Number.isFinite(mass));
+  const totalMass = numericMasses.reduce((sum, mass) => sum + (mass > 0 ? mass : 0), 0);
+  const effectiveMass = totalMass > 0 ? totalMass : 1;
 
-  const years = Math.sqrt(orbitalDistanceAu ** 3 / totalMass);
+  const years = Math.sqrt(orbitalDistanceAu ** 3 / effectiveMass);
   return {
     years,
     days: years * 365.25,

@@ -133,7 +133,7 @@ export function cloneGeneratedStarRecord(star, fallbackOrbitType = null) {
       spectralClass,
       spectralType: String(star?.spectralType || star?.typeSubtype || spectralClass || designation).trim(),
       massInSolarMasses:
-        Number.isFinite(massInSolarMasses) && massInSolarMasses >= 0
+        Number.isFinite(massInSolarMasses) && massInSolarMasses > 0
           ? massInSolarMasses
           : fallbackRecord.massInSolarMasses,
       luminosity: Number.isFinite(luminosity) && luminosity >= 0 ? luminosity : fallbackRecord.luminosity,

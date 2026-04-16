@@ -110,6 +110,23 @@ describe("systemGenerationWbh", () => {
     expect(plan.planets.every((planet) => planet.zone === "cold")).toBe(true);
   });
 
+  it("tolerates persisted stars with missing positive mass values", () => {
+    const plan = determineWbhSystemBodyPlan({
+      stars: [
+        {
+          designation: "G2V",
+          spectralClass: "G2V",
+          luminosity: 1,
+          massInSolarMasses: 0,
+        },
+      ],
+      rollDie: (sides) => Math.min(4, Number(sides) || 4),
+    });
+
+    expect(plan.planets.length).toBeGreaterThan(0);
+    expect(plan.planets.every((planet) => Number.isFinite(planet.orbitalPeriodDays))).toBe(true);
+  });
+
   it("propagates companion floors and sibling exclusions into orbit groups", () => {
     const stars = [
       {
