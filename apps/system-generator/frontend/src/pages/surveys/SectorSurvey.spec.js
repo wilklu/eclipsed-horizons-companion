@@ -261,6 +261,35 @@ describe("SectorSurvey page regressions", () => {
     expect(wrapper.get(".hex-grid-wrapper").attributes("aria-describedby")).toContain("sector-grid-keyboard-help");
   });
 
+  it("remembers the active filter when leaving for Stellar Survey", async () => {
+    systemStoreState.systems = [
+      {
+        systemId: "sector-a:0101",
+        hexCoordinates: { x: 1, y: 1 },
+        planets: [{ name: "Verdant", nativeSophontLife: true, nativeLifeform: "2201", type: "Terrestrial Planet" }],
+      },
+    ];
+    systemStoreState.loadSystems.mockImplementation(async () => systemStoreState.systems);
+
+    const wrapper = mountSectorSurvey({ galaxyId: "gal-1", viewMode: "sector" });
+    await flushPromises();
+    await flushPromises();
+
+    wrapper.vm.$.setupState.sectorSurveyFilterMode = "sophontLife";
+    wrapper.vm.$.setupState.selectedHex = "0101";
+    await flushPromises();
+
+    wrapper.vm.$.setupState.proceedToStarSystem();
+
+    const navigationTarget = routerPush.mock.calls.at(-1)?.[0];
+    expect(navigationTarget?.name).toBe("StarSystemBuilder");
+    expect(JSON.parse(String(navigationTarget?.query?.returnTo || "{}"))).toMatchObject({
+      query: { sectorFilter: "sophontLife", viewScope: "sector" },
+    });
+    const persistedWorkspace = JSON.parse(localStorage.getItem("eclipsed-horizons-sector-survey-workspace") || "{}");
+    expect(persistedWorkspace["gal-1"]?.sectorSurveyFilterMode).toBe("sophontLife");
+  });
+
   it("shows the shared Galaxy Survey realism value in the Sector slider", async () => {
     preferencesStoreState.surveyOccupancyRealism = 0.65;
 

@@ -145,9 +145,11 @@ export function buildSectorSurveyReturnRoute({
   scope = "sector",
   selectedSubsector = "",
   subsectorName = "",
+  sectorSurveyFilterMode = "all",
 } = {}) {
   const normalizedScope = scope === "subsector" ? "subsector" : "sector";
   const normalizedSubsectorName = String(subsectorName || "").trim();
+  const normalizedFilterMode = normalizeWorkspaceMode(sectorSurveyFilterMode, WORKSPACE_FILTER_MODES, "all");
 
   return {
     name: String(currentSurveyRouteName || "SectorSurvey"),
@@ -158,6 +160,7 @@ export function buildSectorSurveyReturnRoute({
       viewScope: normalizedScope,
       subsector: normalizedScope === "subsector" ? selectedSubsector || undefined : undefined,
       subsectorName: normalizedScope === "subsector" ? normalizedSubsectorName || undefined : undefined,
+      sectorFilter: normalizedFilterMode !== "all" ? normalizedFilterMode : undefined,
     },
   };
 }
@@ -168,6 +171,8 @@ const WORKSPACE_FILTER_MODES = new Set([
   "surveyed",
   "presence",
   "anomaly",
+  "nativeLife",
+  "sophontLife",
   "oba",
   "fgk",
   "m",
@@ -235,8 +240,10 @@ export function resolveSectorSurveyWorkspaceState({
   availableHexes = [],
   defaultScope = "sector",
   defaultSubsector = "A",
+  requestedFilterMode = "",
 } = {}) {
   const normalizedState = buildSectorSurveyWorkspaceState(persistedState ?? {});
+  const normalizedRequestedFilterMode = normalizeWorkspaceMode(requestedFilterMode, WORKSPACE_FILTER_MODES, "");
   const normalizedScope =
     String(persistedState?.scope || "").trim() === "subsector"
       ? "subsector"
@@ -266,6 +273,7 @@ export function resolveSectorSurveyWorkspaceState({
     selectedSectorId,
     scope: normalizedScope,
     selectedSubsector: normalizedSubsector,
+    sectorSurveyFilterMode: normalizedRequestedFilterMode || normalizedState.sectorSurveyFilterMode,
     selectedHex,
     coordJumpInput: selectedHex,
   };

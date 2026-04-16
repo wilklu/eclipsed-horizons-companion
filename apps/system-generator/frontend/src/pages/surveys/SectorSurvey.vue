@@ -1039,6 +1039,7 @@ function applySectorSurveyWorkspaceState({ restoreSelection = false, availableHe
     availableHexes,
     defaultScope: scope.value,
     defaultSubsector: selectedSubsector.value,
+    requestedFilterMode: route.query.sectorFilter,
   });
   const hasRequestedScope = Boolean(String(route.query.viewScope || "").trim());
   const hasRequestedSubsector = Boolean(String(route.query.subsector || "").trim());
@@ -4493,6 +4494,8 @@ async function exportSector() {
 }
 
 function proceedToStarSystem() {
+  persistSectorSurveyWorkspaceState();
+
   if (!generatedSector.value?.sectorId) {
     toastService.error("Sector has not been saved yet. Please generate sector again.");
     return;
@@ -4526,6 +4529,7 @@ function proceedToStarSystem() {
         scope: scope.value,
         selectedSubsector: selectedSubsector.value,
         subsectorName: subsectorName.value,
+        sectorSurveyFilterMode: sectorSurveyFilterMode.value,
       }),
     ),
   };
