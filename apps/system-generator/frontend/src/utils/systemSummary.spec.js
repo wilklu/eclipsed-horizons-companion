@@ -77,6 +77,28 @@ describe("systemSummary", () => {
     expect(summary.factionsProfile).toBe("Three active factions");
   });
 
+  it("keeps native biospheres separate from native sophonts in hex summaries", () => {
+    const summary = buildSystemHexSummary({
+      mainworld: {
+        name: "Verdant",
+        type: "Terrestrial Planet",
+        nativeSophontLife: false,
+        nativeLifeform: "2100",
+      },
+      planets: [
+        {
+          name: "Verdant",
+          type: "Terrestrial Planet",
+          nativeSophontLife: false,
+          nativeLifeform: "2100",
+        },
+      ],
+    });
+
+    expect(summary.nativeSophontLife).toBe(false);
+    expect(summary.nativeLifeWorldCount).toBe(1);
+  });
+
   it("ignores native sophont life and UWP on planetoid belts in hex summaries", () => {
     const summary = buildSystemHexSummary({
       mainworld: {

@@ -155,7 +155,7 @@ function isUwpRestrictedWorld(record = {}) {
   return isGasGiantLifeCandidate(record) || isPlanetoidBeltLifeCandidate(record);
 }
 
-function hasNativeLifeIndicator(record = {}) {
+function hasNativeSophontIndicator(record = {}) {
   if (
     !record ||
     typeof record !== "object" ||
@@ -168,8 +168,25 @@ function hasNativeLifeIndicator(record = {}) {
   if (record.nativeSophontLife === true) {
     return true;
   }
-  if (record.nativeSophontLife === false) {
+
+  const nativeSophontStatus = firstNonEmptyString(record.nativeSophontStatus, record.sophontStatus)
+    .trim()
+    .toLowerCase();
+  return ["exist", "exists", "extant", "present", "current"].includes(nativeSophontStatus);
+}
+
+function hasNativeLifeIndicator(record = {}) {
+  if (
+    !record ||
+    typeof record !== "object" ||
+    isGasGiantLifeCandidate(record) ||
+    isPlanetoidBeltLifeCandidate(record)
+  ) {
     return false;
+  }
+
+  if (hasNativeSophontIndicator(record)) {
+    return true;
   }
 
   const nativeLifeform = firstNonEmptyString(record.nativeLifeform, record.nativeLife, record.lifeform)
@@ -179,26 +196,51 @@ function hasNativeLifeIndicator(record = {}) {
 }
 
 function extractNativeLifeSummary(system = {}, mainworld = null) {
-  const candidates = [
+  const rawCandidates = [
     mainworld,
     ...(Array.isArray(system?.planets) ? system.planets : []),
     ...(Array.isArray(system?.worlds) ? system.worlds : []),
   ].filter((entry) => entry && typeof entry === "object");
+  const seenCandidates = new Set();
+  const candidates = rawCandidates.filter((entry, index) => {
+    const candidateKey = [
+      firstNonEmptyString(entry?.name, entry?.designation, `candidate-${index}`),
+      firstNonEmptyString(entry?.type, entry?.worldType),
+      firstNonEmptyString(entry?.parentWorldName),
+      String(entry?.orbitAU ?? entry?.orbitAu ?? ""),
+      firstNonEmptyString(entry?.uwp),
+    ]
+      .map((part) =>
+        String(part || "")
+          .trim()
+          .toUpperCase(),
+      )
+      .join("|");
+
+    if (seenCandidates.has(candidateKey)) {
+      return false;
+    }
+    seenCandidates.add(candidateKey);
+    return true;
+  });
   const nativeLifeWorlds = candidates.filter((entry) => hasNativeLifeIndicator(entry));
+  const nativeSophontWorlds = candidates.filter((entry) => hasNativeSophontIndicator(entry));
 
   if (nativeLifeWorlds.length > 0) {
     return {
-      nativeSophontLife: true,
+      nativeSophontLife: nativeSophontWorlds.length > 0,
       nativeLifeform: firstNonEmptyString(nativeLifeWorlds[0]?.nativeLifeform, nativeLifeWorlds[0]?.nativeLife),
       nativeLifeWorldCount: nativeLifeWorlds.length,
+      nativeSophontWorldCount: nativeSophontWorlds.length,
     };
   }
 
-  const explicitSystemLife = system?.nativeSophontLife === true;
+  const explicitSystemSophonts = hasNativeSophontIndicator(system);
   return {
-    nativeSophontLife: explicitSystemLife,
-    nativeLifeform: explicitSystemLife ? firstNonEmptyString(system?.nativeLifeform, system?.nativeLife) : "",
-    nativeLifeWorldCount: explicitSystemLife ? 1 : 0,
+    nativeSophontLife: explicitSystemSophonts,
+    nativeLifeform: explicitSystemSophonts ? firstNonEmptyString(system?.nativeLifeform, system?.nativeLife) : "",
+    nativeLifeWorldCount: explicitSystemSophonts ? 1 : 0,
+    nativeSophontWorldCount: explicitSystemSophonts ? 1 : 0,
   };
 }
 
@@ -505,5 +547,6 @@ export function buildSystemHexSummary(system = {}) {
     nativeSophontLife: nativeLifeSummary.nativeSophontLife,
     nativeLifeform: nativeLifeSummary.nativeLifeform,
     nativeLifeWorldCount: nativeLifeSummary.nativeLifeWorldCount,
+    nativeSophontWorldCount: nativeLifeSummary.nativeSophontWorldCount,
   };
 }

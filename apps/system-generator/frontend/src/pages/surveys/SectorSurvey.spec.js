@@ -425,13 +425,19 @@ describe("SectorSurvey page regressions", () => {
     expect(sophontLifeFilter).toBeTruthy();
   });
 
-  it("shows Native Life and Sophont Life filter chips in the sector toolbar", async () => {
+  it("shows Native Life and Sophont Life filter chips with distinct counts in the sector toolbar", async () => {
     systemStoreState.systems = [
       {
         systemId: "sector-a:0101",
         hexCoordinates: { x: 1, y: 1 },
         nativeLifeform: "2201",
         planets: [{ name: "Verdant", nativeSophontLife: true, nativeLifeform: "2201", type: "Terrestrial Planet" }],
+      },
+      {
+        systemId: "sector-a:0102",
+        hexCoordinates: { x: 1, y: 2 },
+        nativeLifeform: "2100",
+        planets: [{ name: "Bloom", nativeSophontLife: false, nativeLifeform: "2100", type: "Terrestrial Planet" }],
       },
     ];
     systemStoreState.loadSystems.mockImplementation(async () => systemStoreState.systems);
@@ -449,11 +455,11 @@ describe("SectorSurvey page regressions", () => {
     expect(wrapper.find(".sector-summary-card").exists()).toBe(false);
     expect(nativeLifeFilter).toBeTruthy();
     expect(sophontLifeFilter).toBeTruthy();
-    expect(nativeLifeFilter.text()).toContain("1");
+    expect(nativeLifeFilter.text()).toContain("2");
     expect(sophontLifeFilter.text()).toContain("1");
   });
 
-  it("keeps the Native Life review queue from counting stale system summaries", async () => {
+  it("keeps stale system summaries out of the Native Life review queue while preserving biosphere worlds", async () => {
     systemStoreState.systems = [
       {
         systemId: "sector-a:0101",
@@ -480,10 +486,10 @@ describe("SectorSurvey page regressions", () => {
     await flushPromises();
     await flushPromises();
 
-    expect(wrapper.vm.$.setupState.reviewQueueCounts.nativeLife).toBe(1);
+    expect(wrapper.vm.$.setupState.reviewQueueCounts.nativeLife).toBe(2);
     const nativeLifeButton = wrapper.findAll(".review-queue-btn").find((entry) => entry.text().includes("Native Life"));
     expect(nativeLifeButton).toBeTruthy();
-    expect(nativeLifeButton.text()).toContain("1");
+    expect(nativeLifeButton.text()).toContain("2");
   });
 
   it("keeps the execute label aligned with the selected survey option even in void-tier space", async () => {

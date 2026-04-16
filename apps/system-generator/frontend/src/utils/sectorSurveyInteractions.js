@@ -148,9 +148,6 @@ function hasNativeLifeReviewMatch(hex = {}) {
   if (hasNativeSophontReviewMatch(hex)) {
     return true;
   }
-  if (hex?.nativeSophontLife === false || hex?.mainworldNativeSophontLife === false) {
-    return false;
-  }
 
   const worldCount = Number(hex?.nativeLifeWorldCount ?? hex?.nativeLifeformCount ?? hex?.nativeLifeCount ?? NaN);
   if (Number.isFinite(worldCount)) {

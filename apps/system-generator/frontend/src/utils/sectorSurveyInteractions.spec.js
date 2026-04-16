@@ -48,6 +48,7 @@ describe("sectorSurveyInteractions", () => {
     expect(resolveSectorSurveyFilterMatch(legacyHex, "legacy")).toBe(true);
     expect(resolveSectorSurveyFilterMatch(nativeLifeHex, "nativeLife")).toBe(true);
     expect(resolveSectorSurveyFilterMatch(nativeLifeHex, "sophontLife")).toBe(true);
+    expect(resolveSectorSurveyFilterMatch(biosphereOnlyHex, "nativeLife")).toBe(true);
     expect(resolveSectorSurveyFilterMatch(biosphereOnlyHex, "sophontLife")).toBe(false);
     expect(resolveSectorSurveyFilterMatch({ hasSystem: false }, "empty")).toBe(true);
   });
