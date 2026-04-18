@@ -281,6 +281,31 @@ describe("TravellerMap anomaly display", () => {
     expect(sectorOverlay.cy).toBeCloseTo(centralAnomalyStar.wy, 5);
   });
 
+  it("keeps the planning overlay anchored to the current sector before manual bias is applied", async () => {
+    const wrapper = mount(TravellerMap, {
+      global: {
+        stubs: {
+          LoadingSpinner: { template: "<div data-test='loading-spinner' />" },
+        },
+      },
+    });
+
+    await flushPromises();
+    await flushPromises();
+
+    expect(wrapper.vm.$.setupState.planningWindowBounds).toMatchObject({
+      xMin: -5,
+      xMax: 5,
+      yMin: -5,
+      yMax: 5,
+    });
+
+    const planningOverlay = wrapper.find(".planning-window-overlay");
+    expect(planningOverlay.exists()).toBe(true);
+    expect(Number(planningOverlay.attributes("x"))).toBe(0);
+    expect(Number(planningOverlay.attributes("y"))).toBe(0);
+  });
+
   it("applies dedicated planning bias on top of the atlas grid bias", async () => {
     preferencesStoreState.atlasGridBiasX = 18;
     preferencesStoreState.atlasGridBiasY = 12;

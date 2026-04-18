@@ -50,6 +50,17 @@
             <option value="random">🎲 Random</option>
           </select>
         </div>
+        <div class="control-group">
+          <label>System Name:</label>
+          <div class="system-name-row">
+            <input v-model="systemName" placeholder="Optional system name" class="text-input" />
+            <button type="button" class="btn" @click="generateSystemName">🎲</button>
+            <button type="button" class="btn" :disabled="!systemName || !isTtsSupported" @click="toggleSpeakSystemName">
+              <span v-if="isSpeaking">🔈 Stop</span>
+              <span v-else>🔊 Speak</span>
+            </button>
+          </div>
+        </div>
         <div class="control-group control-action">
           <button class="btn btn-primary" @click="buildSystem">⚡ Generate System + Worlds</button>
         </div>
@@ -58,7 +69,7 @@
       <!-- System Display -->
       <div v-if="system" class="system-display">
         <div class="system-header">
-          <h2>System {{ system.systemId }}</h2>
+          <h2>{{ system.name || system.systemId }}</h2>
           <span class="system-type-badge">{{ system.stars.length > 1 ? "Multiple" : "Single" }} Star</span>
         </div>
 
@@ -230,7 +241,12 @@ import { usePreferencesStore } from "../../stores/preferencesStore.js";
 import { useSectorStore } from "../../stores/sectorStore.js";
 import { useSystemStore } from "../../stores/systemStore.js";
 import { useArchiveTransfer } from "../../composables/useArchiveTransfer.js";
-import { generateObjectName } from "../../utils/nameGenerator.js";
+import { generateObjectName, generatePhonotacticName } from "../../utils/nameGenerator.js";
+import {
+  isSpeechSynthesisSupported,
+  speakTextWithPreferences,
+  stopSpeechSynthesis,
+} from "../../utils/speechSynthesis.js";
 import { generatePrimaryStar } from "../../utils/primaryStarGenerator.js";
 import { buildHexStarTypeMetadata, resolveGeneratedStarsFromSystem } from "../../utils/systemStarMetadata.js";
 import { buildProfiledWbhSystemPlanets, calculateSystemHabitableZone } from "../../utils/systemWorldGeneration.js";
@@ -313,6 +329,9 @@ const hexCoord = ref(route.query.hex ?? "0101");
 const primarySpectral = ref(normalizePrimarySelection(route.query.star));
 const multiplicity = ref("random");
 const system = ref(null);
+const systemName = ref("");
+const isTtsSupported = isSpeechSynthesisSupported();
+const isSpeaking = ref(false);
 const selectedWorldIndex = ref(null);
 const stellarLoadingState = ref({
   active: false,
@@ -336,7 +355,7 @@ const { overlayProps: systemExportOverlayProps, exportJson: exportSystemArchive 
   title: "System Export In Progress",
   barLabel: "Packaging stellar archive for transfer",
   statusPrefix: "SYS",
-  targetLabel: () => system.value?.systemId || normalizeHex(hexCoord.value),
+  targetLabel: () => system.value?.name || system.value?.systemId || normalizeHex(hexCoord.value),
 });
 
 function setStellarLoadingState(nextState) {
@@ -602,8 +621,12 @@ function toPersistedSystem(nextSystem) {
   const primary = stars[0] ? { ...stars[0] } : null;
   const companions = stars.slice(1).map((s) => ({ ...s }));
 
+  // Ensure the persisted system name includes a backend-friendly suffix (e.g. "Sol System").
+  const finalName = ensureSystemSuffix(String(nextSystem.name || "").trim());
+
   return {
     ...nextSystem,
+    name: finalName,
     systemId: `${persistedSectorId || "sector"}:${normalizedHex}`,
     galaxyId: props.galaxyId,
     sectorId: persistedSectorId,
@@ -628,9 +651,23 @@ function toPersistedSystem(nextSystem) {
       generatedSurvey: {
         stars,
       },
+      systemRecord: {
+        name: finalName,
+      },
+      displayName: finalName,
       lastModified: new Date().toISOString(),
     },
   };
+}
+
+function ensureSystemSuffix(name) {
+  const trimmed = String(name || "").trim();
+  if (!trimmed) return "";
+  const endsWithSystem = /\bsystem\s*$/i.test(trimmed);
+  const objectNounRegex =
+    /\b(?:belt|cluster|field|reach|expanse|ring|gate|spiral|domain|wastes|wilds|depths|shroud|corridor|band|zone|trail|chain|arc|shelf|spur|tract)\s*$/i;
+  if (endsWithSystem || objectNounRegex.test(trimmed)) return trimmed;
+  return `${trimmed} System`;
 }
 
 async function hydrateSystem() {
@@ -698,6 +735,7 @@ async function hydrateSystem() {
               ? existing.habitableZone
               : calculateSystemHabitableZone(existing?.stars ?? []),
         };
+        systemName.value = String(existing.name || "");
         selectedWorldIndex.value = resolveSelectedWorldIndex(existing.planets);
         systemStore.setCurrentSystem(existing.systemId);
         hexCoord.value = normalizeHex(existing.systemId || hexCoord.value);
@@ -706,6 +744,7 @@ async function hydrateSystem() {
       }
 
       system.value = null;
+      systemName.value = "";
       multiplicity.value = "random";
       selectedWorldIndex.value = null;
       systemStore.setCurrentSystem(null);
@@ -918,6 +957,58 @@ async function buildSystem() {
           maxStars: multiplicity.value === "random" ? 3 : starCountLimit,
         }).slice(0, multiplicity.value === "random" ? 3 : starCountLimit);
 
+  // Assign system-based designations using the system name.
+  // Naming rules: Primary => Primus Major / Primus Minor for companions; Close => Proximus Major/Minor;
+  // Near => Proximum Major/Minor; Far => Procul Major / Procol Minor.
+  (function applySystemStarDesignations() {
+    const rawSystemName = String(systemName.value || system.value?.name || "").trim();
+    const resolvedSystemName = rawSystemName || generateSystemName();
+    const baseName = String(resolvedSystemName)
+      .replace(/\s+System$/i, "")
+      .trim();
+
+    const groups = {};
+    stars.forEach((star, idx) => {
+      let cat =
+        idx === 0
+          ? "primary"
+          : String(star.orbitType || "far")
+              .trim()
+              .toLowerCase();
+      if (cat === "distant") cat = "far";
+      if (!["primary", "close", "near", "far"].includes(cat)) cat = "far";
+      if (!groups[cat]) groups[cat] = [];
+      groups[cat].push({ idx, star });
+    });
+
+    const majorPrefix = { primary: "Primus", close: "Proximus", near: "Proximum", far: "Procul" };
+    const minorPrefix = { primary: "Primus", close: "Proximus", near: "Proximum", far: "Procul" };
+
+    Object.keys(groups).forEach((cat) => {
+      const list = groups[cat];
+
+      // pick the most massive member as Major; for primary prefer index 0
+      let majorEntry = list[0];
+      if (cat === "primary") {
+        majorEntry = list.find((e) => e.idx === 0) || list[0];
+      } else {
+        majorEntry = list.reduce((best, cur) => {
+          const bestMass = Number(best.star?.massInSolarMasses ?? best.star?.mass ?? 0);
+          const curMass = Number(cur.star?.massInSolarMasses ?? cur.star?.mass ?? 0);
+          return curMass > bestMass ? cur : best;
+        }, list[0]);
+      }
+
+      list.forEach((entry) => {
+        const isMajor = entry === majorEntry;
+        const prefix = isMajor ? majorPrefix[cat] : minorPrefix[cat];
+        const suffix = isMajor ? "Major" : "Minor";
+        const designation = `${baseName} ${prefix} ${suffix}`.trim();
+        stars[entry.idx].designation = designation;
+      });
+    });
+  })();
+
   const hz = calculateSystemHabitableZone(stars);
   const planets = buildProfiledWbhSystemPlanets({
     stars,
@@ -944,6 +1035,10 @@ async function buildSystem() {
     stars,
     habitableZone: hz,
     planets,
+    name: (function () {
+      const raw = String(systemName.value || system.value?.name || "").trim();
+      return raw ? ensureSystemSuffix(raw) : "";
+    })(),
   };
 
   multiplicity.value = multiplicityFromStars(stars);
@@ -1052,6 +1147,75 @@ function openSystemSurvey() {
   });
 }
 
+function generateSystemName() {
+  const mode = String(preferencesStore.systemNameMode || preferencesStore.worldNameMode || "normalized")
+    .trim()
+    .toLowerCase();
+
+  let next = "";
+  if (mode === "normalized" || mode === "phonotactic") {
+    next = generatePhonotacticName({ style: mode, syllablesMin: 2, syllablesMax: 4 });
+  } else if (mode === "mythic") {
+    next = generateObjectName({
+      mode: "mythic",
+      objectType: "generic",
+      mythicTheme: String(preferencesStore.galaxyMythicTheme || "all")
+        .trim()
+        .toLowerCase(),
+    });
+  } else {
+    next = generateObjectName({
+      mode: String(mode || "normalized")
+        .trim()
+        .toLowerCase(),
+      objectType: "generic",
+      mythicTheme: String(preferencesStore.galaxyMythicTheme || "all")
+        .trim()
+        .toLowerCase(),
+    });
+  }
+
+  // Optionally append a trailing " System" suffix when the user prefers it,
+  // but avoid adding it if the generated name already ends with a common object noun
+  // (e.g. Belt, Cluster, Reach) or already ends with "System".
+  if (preferencesStore.appendSystemSuffix) {
+    const trimmed = String(next || "").trim();
+    const endsWithSystem = /\bsystem\s*$/i.test(trimmed);
+    const objectNounRegex =
+      /\b(?:belt|cluster|field|reach|expanse|ring|gate|spiral|domain|wastes|wilds|depths|shroud|corridor|band|zone|trail|chain|arc|shelf|spur|tract)\s*$/i;
+    if (trimmed && !endsWithSystem && !objectNounRegex.test(trimmed)) {
+      next = `${trimmed} System`;
+    }
+  }
+
+  systemName.value = next;
+  return next;
+}
+
+function toggleSpeakSystemName() {
+  if (!isTtsSupported || !String(systemName.value || "").trim()) return;
+  if (isSpeaking.value) {
+    stopSpeechSynthesis();
+    isSpeaking.value = false;
+    return;
+  }
+  isSpeaking.value = true;
+  const res = speakTextWithPreferences(String(systemName.value), {
+    rate: Number(preferencesStore.ttsRate) || 1,
+    pitch: Number(preferencesStore.ttsPitch) || 1,
+    voiceURI: String(preferencesStore.ttsVoiceURI || "").trim(),
+    onEnd: () => {
+      isSpeaking.value = false;
+    },
+    onError: () => {
+      isSpeaking.value = false;
+    },
+  });
+  if (!res.ok) {
+    isSpeaking.value = false;
+  }
+}
+
 watch(
   () => route.query.hex,
   async (value) => {
@@ -1139,6 +1303,21 @@ onMounted(async () => {
   color: #e0e0e0;
   border-radius: 0.25rem;
   font-size: 0.9rem;
+}
+
+.system-name-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+.system-name-row .text-input {
+  min-width: 0;
+  flex: 1;
+}
+
+.planet-table-scroll {
+  max-height: 40vh;
+  overflow: auto;
 }
 
 .btn {

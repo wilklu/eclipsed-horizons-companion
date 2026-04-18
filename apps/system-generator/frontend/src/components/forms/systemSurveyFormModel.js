@@ -1,3 +1,10 @@
+import {
+  calculateAverageSurfaceTemperature,
+  calculateSeismicAdjustedTemperatureK,
+  calculateOrbitTemperatureRawRoll,
+  calculateAtmosphereTemperatureDm,
+} from "../../utils/wbh/worldPhysicalCharacteristicsWbh.js";
+
 export function createEmptyStarRow() {
   return {
     designation: "",
@@ -20,6 +27,8 @@ export function createEmptyWorldRow() {
     sah: "",
     diameter: null,
     temperature: null,
+    temperatureLow: null,
+    temperatureHigh: null,
     atmosphere: "",
     hydrosphere: "",
     lifeMxdc: "",
@@ -240,15 +249,124 @@ function isSurveyWorldRow(world) {
   );
 }
 
-function normalizeSurveyWorldRow(world = {}) {
+function deriveTemperatureRange(systemRecord = {}, worldRecord = {}) {
+  let meanC = null;
+  if (Number.isFinite(Number(worldRecord?.avgTempC))) {
+    meanC = Number(worldRecord.avgTempC);
+  } else {
+    try {
+      const rawRoll = Number.isFinite(Number(worldRecord?.temperatureRawRoll))
+        ? Number(worldRecord.temperatureRawRoll)
+        : null;
+      const avgC = calculateAverageSurfaceTemperature({
+        orbitNumber: worldRecord?.orbitNumber,
+        hzco: worldRecord?.hzco ?? null,
+        atmosphereCode: worldRecord?.atmosphereCode ?? null,
+        rawTemperatureRoll: rawRoll,
+      });
+      meanC = Number.isFinite(Number(avgC)) ? Number(avgC) : null;
+    } catch (e) {
+      meanC = null;
+    }
+  }
+
+  const meanK = meanC === null ? null : meanC + 273.15;
+
+  let adjustedRoll = null;
+  if (Number.isFinite(Number(worldRecord?.temperatureAdjustedRoll))) {
+    adjustedRoll = Number(worldRecord.temperatureAdjustedRoll);
+  } else {
+    const raw = Number.isFinite(Number(worldRecord?.temperatureRawRoll))
+      ? Number(worldRecord.temperatureRawRoll)
+      : calculateOrbitTemperatureRawRoll({ orbitNumber: worldRecord?.orbitNumber, hzco: worldRecord?.hzco });
+    const dm = Number.isFinite(Number(worldRecord?.atmosphereCode))
+      ? calculateAtmosphereTemperatureDm(worldRecord.atmosphereCode)
+      : 0;
+    adjustedRoll = Math.max(2, Math.min(12, raw + dm));
+  }
+
+  let lowDelta = 20;
+  let highDelta = 20;
+  if (adjustedRoll <= 4) {
+    lowDelta = 50;
+    highDelta = 10;
+  } else if (adjustedRoll <= 6) {
+    lowDelta = 30;
+    highDelta = 10;
+  } else if (adjustedRoll <= 8) {
+    lowDelta = 20;
+    highDelta = 20;
+  } else if (adjustedRoll <= 10) {
+    lowDelta = 10;
+    highDelta = 30;
+  } else {
+    lowDelta = 5;
+    highDelta = 60;
+  }
+
+  const hydrographicsPercent =
+    worldRecord?.hydrographicsPercent ??
+    (Number.isFinite(Number(worldRecord?.hydrographics)) ? Number(worldRecord.hydrographics) * 10 : null);
+  if (Number.isFinite(Number(hydrographicsPercent))) {
+    const oceanFactor = Math.max(0, Math.min(1, Number(hydrographicsPercent) / 100));
+    const reduction = 0.5 * oceanFactor;
+    lowDelta = Math.round(lowDelta * (1 - reduction));
+    highDelta = Math.round(highDelta * (1 - reduction));
+  }
+
+  const ecc = Number.isFinite(Number(worldRecord?.eccentricity)) ? Number(worldRecord.eccentricity) : 0;
+  if (Number.isFinite(ecc) && ecc > 0.05) {
+    const add = Math.round(ecc * 200);
+    highDelta += add;
+    lowDelta += Math.round(add * 0.5);
+  }
+
+  const totalSeismic =
+    worldRecord?.seismology && Number.isFinite(Number(worldRecord.seismology.totalSeismicStress))
+      ? Number(worldRecord.seismology.totalSeismicStress)
+      : 0;
+  const seismicAdjustedK =
+    meanK !== null
+      ? calculateSeismicAdjustedTemperatureK({ temperatureK: meanK, totalSeismicStress: totalSeismic })
+      : null;
+
+  let highK = meanK !== null ? meanK + highDelta : null;
+  if (seismicAdjustedK !== null && Number.isFinite(seismicAdjustedK) && highK !== null && seismicAdjustedK > highK) {
+    highK = seismicAdjustedK;
+  }
+  const lowK = meanK !== null ? Math.max(0, meanK - lowDelta) : null;
+
+  return { meanK, lowK, highK };
+}
+
+function normalizeSurveyWorldRow(systemRecord = {}, world = {}) {
+  // If the row already looks like an edited survey row, preserve values and fill ranges where missing
   if (isSurveyWorldRow(world)) {
+    const tr = deriveTemperatureRange(systemRecord, world);
     return {
       designation: String(world?.designation || ""),
       type: String(world?.type || ""),
       orbitAu: String(world?.orbitAu || ""),
       sah: String(world?.sah || ""),
       diameter: Number(world?.diameter ?? 0) || null,
-      temperature: Number(world?.temperature ?? 0) || null,
+      temperature:
+        tr.meanK !== null
+          ? Number(tr.meanK.toFixed(1))
+          : Number.isFinite(Number(world?.temperature))
+            ? Number(world.temperature)
+            : null,
+      temperatureLow:
+        tr.lowK !== null
+          ? Number(tr.lowK.toFixed(1))
+          : Number.isFinite(Number(world?.temperatureLow))
+            ? Number(world.temperatureLow)
+            : null,
+      temperatureHigh:
+        tr.highK !== null
+          ? Number(tr.highK.toFixed(1))
+          : Number.isFinite(Number(world?.temperatureHigh))
+            ? Number(world.temperatureHigh)
+            : null,
       atmosphere: world?.atmosphere ?? "",
       hydrosphere: world?.hydrosphere ?? "",
       lifeMxdc: String(world?.lifeMxdc || ""),
@@ -258,13 +376,25 @@ function normalizeSurveyWorldRow(world = {}) {
     };
   }
 
+  const tr = deriveTemperatureRange(systemRecord, world);
+  const meanK = Number.isFinite(Number(tr.meanK)) ? Number(tr.meanK.toFixed(1)) : null;
+
   return {
     designation: String(world?.name || ""),
     type: formatSurveyWorldType(world),
     orbitAu: formatSurveyWorldOrbit(world),
     sah: String(world?.uwp || world?.sah_uwp || ""),
     diameter: Number(world?.diameterKm ?? 0) || null,
-    temperature: Number(world?.avgTempC ?? world?.temperature ?? 0) || null,
+    temperature:
+      meanK !== null
+        ? meanK
+        : Number.isFinite(Number(world?.avgTempC))
+          ? Number(world.avgTempC) + 273.15
+          : Number.isFinite(Number(world?.temperature))
+            ? Number(world.temperature)
+            : null,
+    temperatureLow: tr.lowK !== null ? Number(tr.lowK.toFixed(1)) : null,
+    temperatureHigh: tr.highK !== null ? Number(tr.highK.toFixed(1)) : null,
     atmosphere: world?.atmosphereCode ?? "",
     hydrosphere: world?.hydrographics ?? "",
     lifeMxdc: String(world?.nativeLifeform || ""),
@@ -319,11 +449,11 @@ export function buildSurveyDataFromSystem(systemRecord) {
 
   const worlds =
     Array.isArray(systemRecord?.worlds) && systemRecord.worlds.length
-      ? systemRecord.worlds.map((world) => normalizeSurveyWorldRow(world))
+      ? systemRecord.worlds.map((world) => normalizeSurveyWorldRow(systemRecord, world))
       : Array.isArray(systemRecord?.planets) && systemRecord.planets.length
-        ? systemRecord.planets.map((world) => normalizeSurveyWorldRow(world))
+        ? systemRecord.planets.map((world) => normalizeSurveyWorldRow(systemRecord, world))
         : mainworld
-          ? [normalizeSurveyWorldRow(mainworld)]
+          ? [normalizeSurveyWorldRow(systemRecord, mainworld)]
           : base.worlds;
 
   const profiles = systemRecord?.profiles && typeof systemRecord.profiles === "object" ? systemRecord.profiles : {};

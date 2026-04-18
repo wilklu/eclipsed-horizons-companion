@@ -1,3 +1,11 @@
+import {
+  determineAtmosphericPressureBar,
+  calculateAverageSurfaceTemperature,
+  calculateSeismicAdjustedTemperatureK,
+  calculateOrbitTemperatureRawRoll,
+  calculateAtmosphereTemperatureDm,
+} from "../../utils/wbh/worldPhysicalCharacteristicsWbh.js";
+
 function createEmptySubordinateRow() {
   return {
     name: "",
@@ -78,10 +86,147 @@ export function createEmptySurveyData() {
 
 function formatSectorLocation(systemRecord) {
   if (!systemRecord || typeof systemRecord !== "object") return "";
-  if (String(systemRecord?.sectorHex || "").trim()) return String(systemRecord.sectorHex).trim();
+  // Prefer a human-friendly sector name when available, but include the system hex if present
+  const sectorName = String(systemRecord?.sectorName || systemRecord?.sector?.name || "").trim();
+
+  // Derive a 4-digit hex if available: prefer explicit sectorHex, then hexCoordinates, then try to extract from systemId
+  const explicitHex = String(systemRecord?.sectorHex || "").trim();
+  const coordsX = systemRecord?.hexCoordinates?.x;
+  const coordsY = systemRecord?.hexCoordinates?.y;
+  const hexFromCoords =
+    Number.isFinite(Number(coordsX)) && Number.isFinite(Number(coordsY))
+      ? `${String(coordsX).padStart(2, "0")}${String(coordsY).padStart(2, "0")}`
+      : "";
+  const idMatch = String(systemRecord?.systemId || "").match(/:?(\d{4})$/);
+  const hexFromId = idMatch ? idMatch[1] : "";
+  const hex = explicitHex || hexFromCoords || hexFromId || "";
+
+  if (sectorName) {
+    return hex ? `${sectorName} ${hex}` : sectorName;
+  }
+
+  if (hex) return hex;
+
   const x = String(systemRecord?.hexCoordinates?.x ?? "").padStart(2, "0");
   const y = String(systemRecord?.hexCoordinates?.y ?? "").padStart(2, "0");
   return [String(systemRecord?.sectorId || "").trim(), `${x}${y}`.trim()].filter(Boolean).join(" ");
+}
+
+function deriveEccentricity(systemRecord = {}, worldRecord = {}) {
+  const explicit = worldRecord?.eccentricity;
+  if (explicit !== null && explicit !== undefined && Number.isFinite(Number(explicit))) {
+    return Number(explicit);
+  }
+
+  const seed = `${String(systemRecord?.sectorId || "")}|${String(systemRecord?.systemId || "")}|${String(
+    worldRecord?.name || "",
+  )}|${String(worldRecord?.orbitNumber ?? worldRecord?.orbitAU ?? "")}`;
+  let hash = 0;
+  for (let i = 0; i < seed.length; i += 1) {
+    hash = (hash << 5) - hash + seed.charCodeAt(i);
+    hash |= 0;
+  }
+  const r = Math.abs(hash) / 2147483647;
+  const eccentricity = Math.min(0.95, Math.pow(r, 2) * 0.35);
+  return Number(eccentricity.toFixed(3));
+}
+
+function deriveTemperatureRange(systemRecord = {}, worldRecord = {}) {
+  // Determine mean temperature in Celsius (WBH or explicit)
+  let meanC = null;
+  if (Number.isFinite(Number(worldRecord?.avgTempC))) {
+    meanC = Number(worldRecord.avgTempC);
+  } else {
+    try {
+      const rawRoll = Number.isFinite(Number(worldRecord?.temperatureRawRoll))
+        ? Number(worldRecord.temperatureRawRoll)
+        : null;
+      const avgC = calculateAverageSurfaceTemperature({
+        orbitNumber: worldRecord?.orbitNumber,
+        hzco: worldRecord?.hzco ?? null,
+        atmosphereCode: worldRecord?.atmosphereCode ?? null,
+        rawTemperatureRoll: rawRoll,
+      });
+      meanC = Number.isFinite(Number(avgC)) ? Number(avgC) : null;
+    } catch (e) {
+      meanC = null;
+    }
+  }
+
+  const meanK = meanC === null ? null : meanC + 273.15;
+
+  // Compute adjusted temperature roll (WBH style) if present or derive a reasonable fallback
+  let adjustedRoll = null;
+  if (Number.isFinite(Number(worldRecord?.temperatureAdjustedRoll))) {
+    adjustedRoll = Number(worldRecord.temperatureAdjustedRoll);
+  } else {
+    const raw = Number.isFinite(Number(worldRecord?.temperatureRawRoll))
+      ? Number(worldRecord.temperatureRawRoll)
+      : calculateOrbitTemperatureRawRoll({ orbitNumber: worldRecord?.orbitNumber, hzco: worldRecord?.hzco });
+    const dm = Number.isFinite(Number(worldRecord?.atmosphereCode))
+      ? calculateAtmosphereTemperatureDm(worldRecord.atmosphereCode)
+      : 0;
+    adjustedRoll = Math.max(2, Math.min(12, raw + dm));
+  }
+
+  // Base deltas (Kelvin) by adjusted roll category
+  let lowDelta = 20;
+  let highDelta = 20;
+  if (adjustedRoll <= 4) {
+    lowDelta = 50;
+    highDelta = 10;
+  } else if (adjustedRoll <= 6) {
+    lowDelta = 30;
+    highDelta = 10;
+  } else if (adjustedRoll <= 8) {
+    lowDelta = 20;
+    highDelta = 20;
+  } else if (adjustedRoll <= 10) {
+    lowDelta = 10;
+    highDelta = 30;
+  } else {
+    lowDelta = 5;
+    highDelta = 60;
+  }
+
+  // Hydrographics dampens temperature extremes
+  const hydrographicsPercent =
+    worldRecord?.hydrographicsPercent ??
+    (Number.isFinite(Number(worldRecord?.hydrographics)) ? Number(worldRecord.hydrographics) * 10 : null);
+  if (Number.isFinite(Number(hydrographicsPercent))) {
+    const oceanFactor = Math.max(0, Math.min(1, Number(hydrographicsPercent) / 100));
+    const reduction = 0.5 * oceanFactor; // up to 50% reduction in amplitude
+    lowDelta = Math.round(lowDelta * (1 - reduction));
+    highDelta = Math.round(highDelta * (1 - reduction));
+  }
+
+  // Eccentricity increases extremes modestly
+  const ecc = Number.isFinite(Number(worldRecord?.eccentricity))
+    ? Number(worldRecord.eccentricity)
+    : deriveEccentricity(systemRecord, worldRecord);
+  if (Number.isFinite(ecc) && ecc > 0.05) {
+    const add = Math.round(ecc * 200); // e.g. ecc 0.1 -> ~20K
+    highDelta += add;
+    lowDelta += Math.round(add * 0.5);
+  }
+
+  // Apply seismic heating as a floor for highs when significant
+  const totalSeismic =
+    worldRecord?.seismology && Number.isFinite(Number(worldRecord.seismology.totalSeismicStress))
+      ? Number(worldRecord.seismology.totalSeismicStress)
+      : 0;
+  const seismicAdjustedK =
+    meanK !== null
+      ? calculateSeismicAdjustedTemperatureK({ temperatureK: meanK, totalSeismicStress: totalSeismic })
+      : null;
+
+  let highK = meanK !== null ? meanK + highDelta : null;
+  if (seismicAdjustedK !== null && Number.isFinite(seismicAdjustedK) && highK !== null && seismicAdjustedK > highK) {
+    highK = seismicAdjustedK;
+  }
+  const lowK = meanK !== null ? Math.max(0, meanK - lowDelta) : null;
+
+  return { meanK, lowK, highK };
 }
 
 function normalizeResourceRatingForSurvey(value) {
@@ -306,6 +451,7 @@ export function buildSurveyDataFromWorld(systemRecord, worldRecord) {
   const meanTemperatureK = Number.isFinite(Number(worldRecord?.avgTempC))
     ? Number(worldRecord.avgTempC) + 273.15
     : null;
+  const tempRange = deriveTemperatureRange(systemRecord, worldRecord);
   const orbitalPeriodDays = Number(worldRecord?.orbitalPeriodDays ?? 0) || null;
   const dayLengthHours = Number(worldRecord?.dayLengthHours ?? 0) || null;
   const solarDaysPerYear =
@@ -334,7 +480,7 @@ export function buildSurveyDataFromWorld(systemRecord, worldRecord) {
     orbit: {
       number: worldRecord?.orbitNumber ?? null,
       au: worldRecord?.orbitAU ?? worldRecord?.orbitAu ?? null,
-      eccentricity: worldRecord?.eccentricity ?? null,
+      eccentricity: deriveEccentricity(systemRecord, worldRecord),
       period: orbitalPeriodDays ? `${orbitalPeriodDays} days` : "",
       notes: String(worldRecord?.orbitGroup || worldRecord?.zone || ""),
     },
@@ -348,7 +494,16 @@ export function buildSurveyDataFromWorld(systemRecord, worldRecord) {
       notes: String(worldRecord?.sizeProfile || ""),
     },
     atmosphere: {
-      pressure: worldRecord?.atmospherePressureBar ?? null,
+      pressure:
+        worldRecord?.atmospherePressureBar ??
+        (Number.isFinite(Number(worldRecord?.atmosphereCode))
+          ? determineAtmosphericPressureBar({
+              atmosphereCode: Number(worldRecord.atmosphereCode),
+              pressureRoll: worldRecord?.atmospherePressureRoll ?? null,
+              majorRoll: worldRecord?.atmospherePressureMajorRoll ?? null,
+              minorRoll: worldRecord?.atmospherePressureMinorRoll ?? null,
+            })
+          : null),
       composition: String(worldRecord?.atmosphereComposition || worldRecord?.atmosphereDesc || ""),
       o2Partial: worldRecord?.oxygenPartialPressureBar ?? null,
       taints:
@@ -391,9 +546,9 @@ export function buildSurveyDataFromWorld(systemRecord, worldRecord) {
       notes: tidalLockPressureNote,
     },
     temperature: {
-      high: null,
-      mean: meanTemperatureK ? Number(meanTemperatureK.toFixed(1)) : null,
-      low: null,
+      high: tempRange.highK ? Number(tempRange.highK.toFixed(1)) : null,
+      mean: tempRange.meanK || meanTemperatureK ? Number((tempRange.meanK || meanTemperatureK).toFixed(1)) : null,
+      low: tempRange.lowK ? Number(tempRange.lowK.toFixed(1)) : null,
       luminosity: stars.reduce((sum, star) => sum + Number(star?.luminosity || 0), 0) || null,
       albedo: null,
       greenhouse: formatGreenhouseLabel(worldRecord?.runawayGreenhouse, worldRecord?.greenhouseAtmosphereCode),
