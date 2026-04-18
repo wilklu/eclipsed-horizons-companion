@@ -37,6 +37,10 @@
             </span>
           </div>
         </div>
+        <div class="survey-header-actions">
+          <button class="survey-action-btn" type="button" @click="openCreatureGenerator">🐾 Creature Generator</button>
+          <button class="survey-action-btn" type="button" @click="openSophontGenerator">🧬 Sophont Generator</button>
+        </div>
       </header>
 
       <SystemSurveyForm :system-id="resolvedSystemId" :autofill="true" />
@@ -46,11 +50,11 @@
 
 <script setup>
 import { computed } from "vue";
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import SurveyNavigation from "../../components/common/SurveyNavigation.vue";
 import SystemSurveyForm from "../../components/forms/SystemSurveyForm.vue";
 import { useSystemStore } from "../../stores/systemStore";
-import { deserializeReturnRoute } from "../../utils/returnRoute.js";
+import { deserializeReturnRoute, serializeReturnRoute } from "../../utils/returnRoute.js";
 import { buildSystemSummaryLabel, summarizeSystemRecord } from "../../utils/systemSummary.js";
 
 const props = defineProps({
@@ -69,6 +73,7 @@ const props = defineProps({
 });
 
 const route = useRoute();
+const router = useRouter();
 const systemStore = useSystemStore();
 
 const resolvedSystemId = computed(() =>
@@ -88,6 +93,14 @@ const currentSystem = computed(() => {
 });
 
 const savedSystemSummary = computed(() => summarizeSystemRecord(currentSystem.value));
+const preferredWorld = computed(
+  () => currentSystem.value?.mainworld ?? currentSystem.value?.worlds?.find?.((world) => world),
+);
+const preferredWorldIndex = computed(() => {
+  const worlds = Array.isArray(currentSystem.value?.worlds) ? currentSystem.value.worlds : [];
+  const index = worlds.findIndex((world) => String(world?.name || "") === String(preferredWorld.value?.name || ""));
+  return index >= 0 ? index : 0;
+});
 
 const backRoute = computed(() => {
   const explicitReturnRoute = deserializeReturnRoute(String(route.query.returnTo || ""));
@@ -109,6 +122,31 @@ const systemSummaryLabel = computed(() => {
     starLabel: String(route.query.star || ""),
   });
 });
+
+function buildGeneratorQuery(source = "system-survey") {
+  const returnTo = serializeReturnRoute({
+    name: String(route.name || "SystemSurvey"),
+    params: { ...route.params },
+    query: { ...route.query },
+  });
+
+  return {
+    systemId: resolvedSystemId.value,
+    systemRecordId: resolvedSystemId.value,
+    worldName: String(preferredWorld.value?.name || ""),
+    worldIndex: String(preferredWorldIndex.value),
+    source,
+    ...(returnTo ? { returnTo } : {}),
+  };
+}
+
+function openCreatureGenerator() {
+  router.push({ name: "CreatureGenerator", query: buildGeneratorQuery("system-survey-creature") });
+}
+
+function openSophontGenerator() {
+  router.push({ name: "SophontGenerator", query: buildGeneratorQuery("system-survey-sophont") });
+}
 </script>
 
 <style scoped>
@@ -162,5 +200,21 @@ const systemSummaryLabel = computed(() => {
 
 .survey-summary-pill--wide {
   max-width: min(100%, 42rem);
+}
+
+.survey-header-actions {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.survey-action-btn {
+  border: 1px solid rgba(120, 173, 214, 0.35);
+  border-radius: 999px;
+  background: rgba(15, 30, 54, 0.82);
+  color: #d9edf9;
+  font-weight: 700;
+  padding: 0.55rem 0.85rem;
+  cursor: pointer;
 }
 </style>

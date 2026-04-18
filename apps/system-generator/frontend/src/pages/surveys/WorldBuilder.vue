@@ -309,13 +309,13 @@
         </div>
 
         <div class="action-buttons">
+          <button class="btn btn-primary" @click="goToCreatureGenerator">🐾 Creature Generator →</button>
           <button
             class="btn btn-primary"
-            :disabled="!world.nativeSophontLife"
             :title="
               world.nativeSophontLife
-                ? 'Assign native sophonts to this world'
-                : 'Sophont assignment is only available when native sophont life develops on the world'
+                ? 'Refine native sophonts for this world'
+                : 'Create a transplanted or colonial sophont culture linked to this world'
             "
             @click="goToSophontGenerator"
           >
@@ -1254,14 +1254,34 @@ async function exportWorld() {
   });
 }
 
+function buildGeneratorRouteQuery(source = "world-builder") {
+  const returnTo = serializeReturnRoute({
+    name: String(route.name || "WorldBuilder"),
+    params: { ...route.params },
+    query: { ...route.query },
+  });
+
+  return {
+    systemId: String(route.params.systemId || ""),
+    systemRecordId: String(systemStore.currentSystemId || ""),
+    worldIndex: String(getSelectedWorldIndex() ?? route.query.worldIndex ?? ""),
+    worldName: String(world.value?.name || worldName.value || ""),
+    source,
+    ...(returnTo ? { returnTo } : {}),
+  };
+}
+
+function goToCreatureGenerator() {
+  router.push({
+    name: "CreatureGenerator",
+    query: buildGeneratorRouteQuery("world-builder-creature"),
+  });
+}
+
 function goToSophontGenerator() {
-  if (!world.value?.nativeSophontLife) return;
   router.push({
     name: "SophontGenerator",
-    query: {
-      worldName: world.value?.name || "",
-      source: "world-builder",
-    },
+    query: buildGeneratorRouteQuery("world-builder-sophont"),
   });
 }
 

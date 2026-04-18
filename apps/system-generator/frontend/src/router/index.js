@@ -71,13 +71,13 @@ const routes = [
   {
     path: "/sophont-generator",
     name: "SophontGenerator",
-    component: () => import("../pages/surveys/SurveyUnavailable.vue"),
+    component: () => import("../pages/surveys/SophontGenerator.vue"),
     meta: { title: "Sophont Generator" },
   },
   {
     path: "/creature-generator",
     name: "CreatureGenerator",
-    component: () => import("../pages/surveys/SurveyUnavailable.vue"),
+    component: () => import("../pages/surveys/CreatureGenerator.vue"),
     meta: { title: "Creature Generator" },
   },
   {

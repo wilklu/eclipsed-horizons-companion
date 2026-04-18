@@ -5,7 +5,7 @@
       currentClass="Sophont Generator"
       :show-regenerate="!!sophont"
       :show-export="!!sophont"
-      :back-route="{ name: 'GalaxySurvey' }"
+      :back-route="backRoute"
       @regenerate="generateSophont"
       @export="exportSophont"
     />
@@ -21,6 +21,10 @@
           </div>
         </div>
         <div class="control-group">
+          <label>Seed:</label>
+          <input v-model="seedValue" placeholder="repeatable-seed" class="text-input" />
+        </div>
+        <div class="control-group">
           <label>Body Plan:</label>
           <select v-model="bodyPlan" class="select-input">
             <option value="random">🎲 Random</option>
@@ -34,8 +38,17 @@
             <option v-for="env in HOME_ENVS" :key="env" :value="env">{{ env }}</option>
           </select>
         </div>
+        <div class="control-group">
+          <label>Saved World:</label>
+          <select v-model="selectedWorldKey" class="select-input">
+            <option value="">Manual / Unlinked</option>
+            <option v-for="entry in worldOptions" :key="entry.key" :value="entry.key">{{ entry.label }}</option>
+          </select>
+        </div>
         <div class="control-group control-action">
           <button class="btn btn-primary" @click="generateSophont">⚡ Generate Sophont</button>
+          <button class="btn btn-secondary" :disabled="!sophont" @click="saveSophontRecord">💾 Save</button>
+          <button class="btn btn-secondary" @click="resetForm">Reset</button>
         </div>
       </div>
 
@@ -119,6 +132,14 @@
                 <span class="prop-label">FTL Capability:</span>
                 <span class="prop-value">{{ sophont.ftlCapable ? "Yes" : "No" }}</span>
               </div>
+              <div class="prop-row">
+                <span class="prop-label">Origin:</span>
+                <span class="prop-value">{{ sophont.origin }}</span>
+              </div>
+              <div class="prop-row">
+                <span class="prop-label">World of Origin:</span>
+                <span class="prop-value">{{ sophont.sourceWorld?.name || "Unlinked culture" }}</span>
+              </div>
             </div>
           </section>
 
@@ -134,15 +155,58 @@
           </section>
         </div>
       </div>
+
+      <section v-if="savedSophonts.length" class="sophont-display sophont-archive">
+        <div class="sophont-header">
+          <div class="sophont-icon">📚</div>
+          <div>
+            <h2>Saved Sophonts</h2>
+            <p class="sophont-tagline">Reload or refine persistent species dossiers linked to this world.</p>
+          </div>
+        </div>
+        <div class="saved-record-list">
+          <article v-for="entry in savedSophonts" :key="entry.id" class="saved-record-card">
+            <div class="saved-record-copy">
+              <strong>{{ entry.name }}</strong>
+              <span>{{ entry.worldName || "Unlinked culture" }}</span>
+              <span>{{ entry.origin || entry.tagline }}</span>
+            </div>
+            <div class="saved-record-actions">
+              <button class="btn btn-secondary" @click="loadSavedSophont(entry)">Load</button>
+              <button class="btn btn-secondary" @click="deleteSavedSophont(entry.id)">Delete</button>
+            </div>
+          </article>
+        </div>
+      </section>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref } from "vue";
+import { computed, ref, watch } from "vue";
+import { useRoute } from "vue-router";
 import LoadingSpinner from "../../components/common/LoadingSpinner.vue";
 import SurveyNavigation from "../../components/common/SurveyNavigation.vue";
 import { useArchiveTransfer } from "../../composables/useArchiveTransfer.js";
+import { useSophontStore } from "../../stores/sophontStore.js";
+import { useSystemStore } from "../../stores/systemStore.js";
+import {
+  BODY_PLANS,
+  HOME_ENVS,
+  buildWorldLinkedSophontOptions,
+  generateSophontProfile,
+  randomSophontName,
+} from "../../utils/beasts/sophontGenerator.js";
+import { deserializeReturnRoute } from "../../utils/returnRoute.js";
+import * as toastService from "../../utils/toast.js";
+
+const route = useRoute();
+const sophontStore = useSophontStore();
+const systemStore = useSystemStore();
+
+const backRoute = computed(
+  () => deserializeReturnRoute(String(route.query.returnTo || "")) || { name: "GalaxySurvey" },
+);
 
 const { overlayProps: sophontExportOverlayProps, exportJson: exportSophontArchive } = useArchiveTransfer({
   noun: "Sophont",
@@ -152,177 +216,173 @@ const { overlayProps: sophontExportOverlayProps, exportJson: exportSophontArchiv
   targetLabel: () => sophont.value?.name || "Archive target pending",
 });
 
-// ── Constants ─────────────────────────────────────────────────────────────────
-const BODY_PLANS = [
-  "Bilateral Symmetry",
-  "Radial Symmetry",
-  "Asymmetric",
-  "Segmented",
-  "Aquatic",
-  "Arboreal",
-  "Insectoid",
-  "Avian",
-];
-
-const HOME_ENVS = [
-  "Dense Atmosphere",
-  "Thin Atmosphere",
-  "Aquatic",
-  "Arctic",
-  "Desert",
-  "Forest",
-  "Mountain",
-  "Underground",
-];
-
-const SENSORY_TRAITS_POOL = [
-  { name: "Acute Hearing", dm: 1, description: "+1 DM to Stealth resistance and Recon" },
-  { name: "Ultraviolet Vision", dm: 1, description: "+1 DM to Perception in UV environments" },
-  { name: "Infrared Vision", dm: 1, description: "+1 DM to detection checks in darkness" },
-  { name: "Electroreception", dm: 1, description: "+1 DM to detect hidden electronics" },
-  { name: "Tremorsense", dm: 1, description: "+1 DM to locate moving targets on ground" },
-  { name: "Colour Blind", dm: -1, description: "-1 DM to tasks requiring colour differentiation" },
-  { name: "Poor Night Vision", dm: -1, description: "-1 DM to all actions in low-light conditions" },
-  { name: "Sonar", dm: 1, description: "+1 DM to navigation in fluid environments" },
-  { name: "Olfactory Tracking", dm: 1, description: "+1 DM to Survival and tracking checks" },
-  { name: "Limited Hearing", dm: -1, description: "-1 DM to communication in noisy environments" },
-];
-
-const SPECIAL_ABILITIES_POOL = [
-  "Natural Armour (armour 2)",
-  "Amphibious",
-  "Flight (limited)",
-  "Regeneration (minor wounds)",
-  "Psionic Potential",
-  "Toxin Resistance",
-  "Camouflage (natural)",
-  "Bioluminescence",
-  "Venom (melee attack, 1D damage)",
-  "Exoskeleton (+1 armour)",
-];
-
-const SOCIAL_STRUCTURES = [
-  "Hive Mind (partial)",
-  "Clan-based Tribes",
-  "Matriarchal Hierarchy",
-  "Patriarchal Hierarchy",
-  "Meritocracy",
-  "Theocracy",
-  "Technocracy",
-  "Democratic Collective",
-  "Nomadic Bands",
-];
-
-const GOVERNMENTS = [
-  "None (anarchy)",
-  "Council of Elders",
-  "Corporate Council",
-  "Hereditary Monarchy",
-  "Elected Senate",
-  "Military Junta",
-  "Religious Authority",
-  "AI Governance",
-  "Federation",
-];
-
-const TAGLINES = [
-  "ancient starfarers who chart the deep void",
-  "warriors bound by a code of honour older than their sun",
-  "gentle philosophers who communicate through song",
-  "mercantile traders whose webs span a dozen sectors",
-  "reclusive scholars hoarding the knowledge of dead civilisations",
-  "pack hunters who value loyalty above all",
-  "psychic nomads drifting between stars in living ships",
-  "proud artisans whose technology is indistinguishable from art",
-];
-
-const SPECIES_PREFIXES = ["Vel", "Kra", "Sh'", "Ax", "Mer", "Tor", "Dyn", "Ul", "Ixo", "Var"];
-const SPECIES_SUFFIXES = ["athi", "oni", "ek", "ara", "ites", "oth", "ians", "enni", "azh", "uru"];
-
-const ICONS = ["👽", "🦎", "🐙", "🦑", "🕷️", "🦂", "🐦", "🦈", "🐉", "🦋"];
-
-// ── State ─────────────────────────────────────────────────────────────────────
 const speciesName = ref("");
+const seedValue = ref("sophont-alpha");
 const bodyPlan = ref("random");
 const homeEnvironment = ref("random");
+const selectedWorldKey = ref("");
 const sophont = ref(null);
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-function pick(arr) {
-  return arr[Math.floor(Math.random() * arr.length)];
+const worldOptions = computed(() => {
+  const systems = Array.isArray(systemStore.getAllSystems) ? systemStore.getAllSystems : [];
+  return systems.flatMap((system) => {
+    const worlds = Array.isArray(system?.worlds) ? system.worlds : system?.mainworld ? [system.mainworld] : [];
+    return worlds
+      .filter((world) => world && typeof world === "object")
+      .map((world, index) => ({
+        key: `${system?.systemId || system?.name || "system"}:${world?.name || index}`,
+        label: `${world?.name || `World ${index + 1}`} — ${system?.name || system?.systemName || "Unnamed System"}`,
+        world,
+        systemId: String(system?.systemId || ""),
+        worldIndex: index,
+        worldName: String(world?.name || ""),
+      }));
+  });
+});
+
+const selectedWorldOption = computed(
+  () => worldOptions.value.find((entry) => entry.key === selectedWorldKey.value) || null,
+);
+const selectedWorldRecord = computed(() => selectedWorldOption.value?.world || null);
+const activeWorldCriteria = computed(() => ({
+  worldKey: selectedWorldKey.value,
+  systemId: selectedWorldOption.value?.systemId || String(route.query.systemId || route.query.systemRecordId || ""),
+  worldName: selectedWorldOption.value?.worldName || String(route.query.worldName || ""),
+}));
+const savedSophonts = computed(() => sophontStore.sophontsByWorld(activeWorldCriteria.value));
+
+watch(
+  worldOptions,
+  (options) => {
+    if (!options.length || selectedWorldKey.value) {
+      return;
+    }
+
+    const targetSystemId = String(route.query.systemId || route.query.systemRecordId || "").trim();
+    const targetWorldName = String(route.query.worldName || "")
+      .trim()
+      .toLowerCase();
+    const targetWorldIndex = Number(route.query.worldIndex ?? -1);
+
+    const match =
+      options.find(
+        (entry) =>
+          (!targetSystemId || entry.systemId === targetSystemId) &&
+          ((targetWorldName && entry.worldName.toLowerCase() === targetWorldName) ||
+            (targetWorldIndex >= 0 && entry.worldIndex === targetWorldIndex)),
+      ) || options.find((entry) => targetSystemId && entry.systemId === targetSystemId);
+
+    if (match) {
+      selectedWorldKey.value = match.key;
+    }
+  },
+  { immediate: true },
+);
+
+watch(selectedWorldRecord, (world) => {
+  if (!world) return;
+  const linked = buildWorldLinkedSophontOptions(world);
+  homeEnvironment.value = linked.homeEnvironment;
+  bodyPlan.value = linked.bodyPlan;
+  if (!String(speciesName.value || "").trim()) {
+    speciesName.value = String(world?.name || "").trim();
+  }
+});
+
+function ensureSeed() {
+  if (!String(seedValue.value || "").trim()) {
+    seedValue.value = `sophont-${Date.now()}`;
+  }
+  return String(seedValue.value).trim();
 }
 
-function d6(n = 1) {
-  let t = 0;
-  for (let i = 0; i < n; i++) t += 1 + Math.floor(Math.random() * 6);
-  return t;
-}
-
-// ── Actions ───────────────────────────────────────────────────────────────────
 function randomizeName() {
-  speciesName.value = pick(SPECIES_PREFIXES) + pick(SPECIES_SUFFIXES);
+  speciesName.value = randomSophontName(ensureSeed());
 }
 
 function generateSophont() {
-  const bp = bodyPlan.value === "random" ? pick(BODY_PLANS) : bodyPlan.value;
-  const env = homeEnvironment.value === "random" ? pick(HOME_ENVS) : homeEnvironment.value;
+  const seed = ensureSeed();
+  if (!String(speciesName.value || "").trim()) {
+    randomizeName();
+  }
 
-  // Characteristic modifiers (must sum to ≤ 0 for balance)
-  const rawMods = {
-    Strength: d6(1) - 4,
-    Dexterity: d6(1) - 4,
-    Endurance: d6(1) - 4,
-    Intelligence: d6(1) - 4,
-    Education: d6(1) - 4,
-    "Social Standing": d6(1) - 4,
-  };
-  // Clamp each to [-2, +2]
-  const charModifiers = Object.fromEntries(Object.entries(rawMods).map(([k, v]) => [k, Math.min(2, Math.max(-2, v))]));
+  const linked = selectedWorldRecord.value
+    ? buildWorldLinkedSophontOptions(selectedWorldRecord.value)
+    : {
+        sourceWorld: null,
+        homeEnvironment: homeEnvironment.value,
+        bodyPlan: bodyPlan.value,
+      };
 
-  // Random sensory traits (2–4)
-  const shuffled = [...SENSORY_TRAITS_POOL].sort(() => Math.random() - 0.5);
-  const sensoryTraits = shuffled.slice(0, 2 + Math.floor(Math.random() * 3));
-
-  // Special abilities (0–2)
-  const abilityPool = [...SPECIAL_ABILITIES_POOL].sort(() => Math.random() - 0.5);
-  const specialAbilities = Math.random() < 0.3 ? abilityPool.slice(0, 1 + Math.floor(Math.random() * 2)) : [];
-
-  const techLevel = Math.floor(Math.random() * 16);
+  const next = generateSophontProfile({
+    seed,
+    name: speciesName.value.trim() || "Generated Sophont",
+    bodyPlan: bodyPlan.value === "random" ? linked.bodyPlan || "random" : bodyPlan.value,
+    homeEnvironment: homeEnvironment.value === "random" ? linked.homeEnvironment || "random" : homeEnvironment.value,
+    sourceWorld: linked.sourceWorld,
+  });
 
   sophont.value = {
-    name: speciesName.value || pick(SPECIES_PREFIXES) + pick(SPECIES_SUFFIXES),
-    icon: pick(ICONS),
-    tagline: pick(TAGLINES),
-    biology: {
-      "Body Plan": bp,
-      "Home Environment": env,
-      "Avg Height": `${100 + Math.round(Math.random() * 150)} cm`,
-      "Avg Mass": `${20 + Math.round(Math.random() * 130)} kg`,
-      Lifespan: `${30 + Math.round(Math.random() * 150)} years`,
-      Reproduction: pick(["Sexual, live birth", "Asexual, budding", "Oviparous", "Sporulation"]),
-      Diet: pick(["Omnivore", "Herbivore", "Carnivore", "Filter Feeder", "Chemotroph"]),
-    },
-    charModifiers,
-    sensoryTraits,
-    culture: {
-      Language: pick(["Spoken (sonic)", "Gestural", "Chemical", "Colour-based", "Sonic/Infrasound", "Telepathic"]),
-      Religion: pick(["Animist", "Polytheist", "Monotheist", "Secular", "Ancestor worship", "Philosophic"]),
-      Aesthetics: pick(["Minimalist", "Ornate", "Functional", "Abstract", "Symbolic", "Chaotic"]),
-      "Primary Drive": pick(["Expansion", "Preservation", "Knowledge", "Trade", "Conquest", "Balance", "Isolation"]),
-      Attitude: pick(["Xenophilic", "Xenophobic", "Pragmatic", "Curious", "Aggressive", "Pacifist"]),
-    },
-    techLevel,
-    socialStructure: pick(SOCIAL_STRUCTURES),
-    government: pick(GOVERNMENTS),
-    ftlCapable: techLevel >= 9,
-    specialAbilities,
+    ...next,
+    id: sophont.value?.id || null,
+    savedAt: sophont.value?.savedAt || null,
   };
+}
+
+function saveSophontRecord() {
+  if (!sophont.value) {
+    toastService.error("Generate a sophont before saving it.");
+    return;
+  }
+
+  const persisted = sophontStore.saveSophont({
+    ...sophont.value,
+    seed: seedValue.value,
+    bodyPlanSelection: bodyPlan.value,
+    homeEnvironmentSelection: homeEnvironment.value,
+    systemId: selectedWorldOption.value?.systemId || String(route.query.systemId || route.query.systemRecordId || ""),
+    worldKey: selectedWorldKey.value,
+    worldName: selectedWorldOption.value?.worldName || sophont.value.sourceWorld?.name || "",
+  });
+
+  sophont.value = { ...sophont.value, id: persisted.id, savedAt: persisted.savedAt, updatedAt: persisted.updatedAt };
+  toastService.success(`Saved sophont ${persisted.name}.`);
+}
+
+function loadSavedSophont(record) {
+  if (!record) return;
+  speciesName.value = record.name || "";
+  seedValue.value = record.seed || "sophont-alpha";
+  bodyPlan.value = record.bodyPlanSelection || record.biology?.["Body Plan"] || "random";
+  homeEnvironment.value = record.homeEnvironmentSelection || record.biology?.["Home Environment"] || "random";
+  if (record.worldKey) {
+    selectedWorldKey.value = record.worldKey;
+  }
+  sophont.value = { ...record };
+  toastService.success(`Loaded sophont ${record.name}.`);
+}
+
+function deleteSavedSophont(recordId) {
+  sophontStore.removeSophont(recordId);
+  if (sophont.value?.id === recordId) {
+    sophont.value = null;
+  }
+  toastService.info("Saved sophont deleted.");
+}
+
+function resetForm() {
+  speciesName.value = "";
+  seedValue.value = "sophont-alpha";
+  bodyPlan.value = "random";
+  homeEnvironment.value = "random";
+  selectedWorldKey.value = "";
+  sophont.value = null;
 }
 
 async function exportSophont() {
   if (!sophont.value) return;
   await exportSophontArchive({
-    data: sophont,
+    data: sophont.value,
     filename: (sophontRecord) => `${sophontRecord.name.replace(/\s+/g, "-")}-Sophont.json`,
     serializeMessage: "Serializing sophont dossier...",
     encodeMessage: "Encoding sophont archive for transfer...",
@@ -492,6 +552,33 @@ async function exportSophont() {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 0.75rem;
+}
+
+.saved-record-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.saved-record-card {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 0.85rem;
+  border-radius: 0.45rem;
+  background: #12122e;
+}
+
+.saved-record-copy {
+  display: grid;
+  gap: 0.2rem;
+  color: #d8e7ff;
+}
+
+.saved-record-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
 }
 
 .char-item {
