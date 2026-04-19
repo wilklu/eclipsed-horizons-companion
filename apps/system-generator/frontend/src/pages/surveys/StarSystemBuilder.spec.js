@@ -316,6 +316,59 @@ describe("StarSystemBuilder page", () => {
     expect(wrapper.text()).toContain("Aster Primus Major");
   });
 
+  it("renders clickable planet markers on the habitable-zone bar", async () => {
+    const markerSystem = {
+      systemId: "gal-1:1,2:0101",
+      sectorId: "gal-1:1,2",
+      galaxyId: "gal-1",
+      stars: [
+        {
+          designation: "G2V",
+          spectralClass: "G2V",
+          massInSolarMasses: 1,
+          luminosity: 1,
+          temperatureK: 5800,
+          orbitType: null,
+        },
+      ],
+      habitableZone: { innerAU: 0.9, outerAU: 1.6, frostLineAU: 4.8, hasRadiantHabitableZone: true },
+      planets: [
+        { name: "Inner", type: "Terrestrial Planet", orbitAU: 0.4, zone: "hot", composition: "Rocky" },
+        { name: "Verdant", type: "Terrestrial Planet", orbitAU: 1.2, zone: "habitable", composition: "Rocky" },
+        { name: "Outer", type: "Terrestrial Planet", orbitAU: 3.2, zone: "cold", composition: "Rocky" },
+      ],
+      metadata: {},
+    };
+
+    systemStoreState.systems = [markerSystem];
+    systemStoreState.loadSystems = vi.fn(async () => systemStoreState.systems);
+    systemStoreState.findSystemByHex = vi.fn(() => markerSystem);
+
+    const wrapper = mount(StarSystemBuilder, {
+      props: {
+        galaxyId: "gal-1",
+        sectorId: "grid:1:2",
+      },
+      global: {
+        stubs: {
+          LoadingSpinner: true,
+          SurveyNavigation: true,
+        },
+      },
+    });
+
+    await flushPromises();
+
+    const markers = wrapper.findAll(".hz-planet-marker");
+    expect(markers).toHaveLength(3);
+    expect(wrapper.findAll(".hz-marker-tag").map((node) => node.text())).toEqual(["Inner", "Verdant", "Outer"]);
+
+    await markers[2].trigger("click");
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("Selected world: Outer · Terrestrial Planet · cold");
+  });
+
   it("shows the quick action controls above the Planetary Catalog", async () => {
     const actionableSystem = {
       systemId: "gal-1:1,2:0101",

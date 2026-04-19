@@ -128,11 +128,27 @@
               }}</span>
               <span>{{ resolvedHabitableZone.hasRadiantHabitableZone ? "Too Cold" : "Outer System" }}</span>
             </div>
-            <div class="hz-bar">
+            <div class="hz-bar hz-bar--interactive">
               <div class="hz-region hz-hot" :style="{ width: '30%' }"></div>
               <div class="hz-region hz-zone" :style="{ width: '25%' }"></div>
               <div class="hz-region hz-cold" :style="{ width: '45%' }"></div>
+              <div v-if="hzPlanetMarkers.length" class="hz-marker-layer" aria-label="Planet orbit markers">
+                <button
+                  v-for="marker in hzPlanetMarkers"
+                  :key="marker.key"
+                  type="button"
+                  class="hz-planet-marker"
+                  :class="[marker.zone, { selected: marker.index === selectedWorldIndex }]"
+                  :style="{ left: `${marker.positionPercent}%` }"
+                  :title="marker.label"
+                  :aria-label="marker.label"
+                  @click="selectWorldCandidate(marker.index)"
+                >
+                  <span class="hz-marker-tag">{{ marker.shortLabel }}</span>
+                </button>
+              </div>
             </div>
+            <div v-if="hzPlanetMarkers.length" class="hz-marker-hint">Click a planet marker to select it.</div>
             <div class="hz-distances">
               <span>0 AU</span>
               <span>{{ resolvedHabitableZone.innerAU }} AU</span>
@@ -1027,6 +1043,62 @@ const resolvedHabitableZone = computed(() => {
   return calculateSystemHabitableZone(stars);
 });
 
+function resolveHabitableZoneMarkerPosition(orbitAU, habitableZone, maxOrbitAU) {
+  const orbit = Number(orbitAU);
+  if (!Number.isFinite(orbit) || orbit <= 0) {
+    return 0;
+  }
+
+  const innerAU = Math.max(Number(habitableZone?.innerAU) || 0.1, 0.1);
+  const outerAU = Math.max(Number(habitableZone?.outerAU) || innerAU + 0.1, innerAU + 0.1);
+  const maxAU = Math.max(Number(maxOrbitAU) || 1, outerAU);
+
+  if (orbit <= innerAU) {
+    return Math.min(30, (orbit / innerAU) * 30);
+  }
+
+  if (orbit <= outerAU) {
+    return 30 + ((orbit - innerAU) / Math.max(outerAU - innerAU, 0.1)) * 25;
+  }
+
+  return Math.min(100, 55 + ((Math.min(orbit, maxAU) - outerAU) / Math.max(maxAU - outerAU, 0.1)) * 45);
+}
+
+const hzPlanetMarkers = computed(() => {
+  const planets = Array.isArray(system.value?.planets) ? system.value.planets : [];
+  if (!planets.length) {
+    return [];
+  }
+
+  const orbitValues = planets
+    .map((planet) => Number(planet?.orbitAU))
+    .filter((value) => Number.isFinite(value) && value >= 0);
+  const maxOrbitAU = Math.max(
+    1,
+    ...orbitValues,
+    Number(resolvedHabitableZone.value?.frostLineAU) || 0,
+    Number(resolvedHabitableZone.value?.outerAU) || 0,
+  );
+
+  return planets.map((planet, index) => {
+    const orbit = Number(planet?.orbitAU);
+    const orbitLabel = Number.isFinite(orbit) ? `${orbit} AU` : "Orbit unknown";
+
+    const worldName = String(planet?.name || `World ${index + 1}`).trim() || `World ${index + 1}`;
+
+    return {
+      key: `${worldName}-${index}`,
+      index,
+      zone: String(planet?.zone || "unknown")
+        .trim()
+        .toLowerCase(),
+      positionPercent: resolveHabitableZoneMarkerPosition(orbit, resolvedHabitableZone.value, maxOrbitAU),
+      shortLabel: worldName.length > 10 ? `${worldName.slice(0, 10)}…` : worldName,
+      label: `${summarizeSelectedWorld(planet) || worldName} — ${orbitLabel}`,
+    };
+  });
+});
+
 // ── Actions ───────────────────────────────────────────────────────────────────
 async function buildSystem() {
   const requestedPrimary = normalizePrimarySelection(primarySpectral.value);
@@ -1655,6 +1727,84 @@ onMounted(async () => {
   border-radius: 0.25rem;
   overflow: hidden;
   margin-bottom: 0.4rem;
+}
+
+.hz-bar--interactive {
+  position: relative;
+}
+
+.hz-marker-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.hz-planet-marker {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 0.8rem;
+  height: 0.8rem;
+  border-radius: 999px;
+  border: 2px solid rgba(7, 11, 23, 0.95);
+  background: #d9edf9;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.15);
+  cursor: pointer;
+  pointer-events: auto;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+  overflow: visible;
+}
+
+.hz-marker-tag {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 0.35rem);
+  transform: translateX(-50%);
+  padding: 0.12rem 0.38rem;
+  border-radius: 999px;
+  background: rgba(8, 14, 27, 0.92);
+  color: #d9edf9;
+  font-size: 0.64rem;
+  font-weight: 700;
+  line-height: 1.1;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.hz-planet-marker:hover {
+  transform: translate(-50%, -50%) scale(1.12);
+}
+
+.hz-planet-marker.selected {
+  box-shadow: 0 0 0 2px rgba(255, 215, 0, 0.45);
+}
+
+.hz-planet-marker.hot {
+  background: #ff8d7a;
+}
+
+.hz-planet-marker.warm {
+  background: #ffcf6b;
+}
+
+.hz-planet-marker.habitable {
+  background: #6bcf7f;
+}
+
+.hz-planet-marker.cold {
+  background: #78b8ff;
+}
+
+.hz-planet-marker.frozen {
+  background: #c9ecff;
+}
+
+.hz-marker-hint {
+  margin-bottom: 0.45rem;
+  color: #8fa9bf;
+  font-size: 0.78rem;
 }
 
 .hz-hot {
