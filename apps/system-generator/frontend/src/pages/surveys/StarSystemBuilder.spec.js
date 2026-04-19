@@ -110,6 +110,10 @@ describe("StarSystemBuilder page", () => {
     hoisted.routerPush.mockReset();
     hoisted.routerReplace.mockReset();
     hoisted.systemStoreState.currentSystemId = null;
+    routeState.query = {
+      hex: "0101",
+      systemRecordId: "gal-1:1,2:0101",
+    };
 
     const nullHabitableZoneSystem = {
       systemId: "gal-1:1,2:0101",
@@ -261,6 +265,100 @@ describe("StarSystemBuilder page", () => {
 
     expect(wrapper.text()).toContain("Aster System");
     expect(wrapper.text()).not.toContain("0101\n");
+  });
+
+  it("preserves the routed system name and legacy star designation labels for saved surveys", async () => {
+    routeState.query = {
+      ...routeState.query,
+      systemName: "Aster System",
+    };
+
+    const legacyNamedSystem = {
+      systemId: "gal-1:1,2:0101",
+      sectorId: "gal-1:1,2",
+      galaxyId: "gal-1",
+      stars: [
+        {
+          designation: "",
+          starKey: "Aster Primus Major",
+          typeSubtype: "G2 V",
+          massInSolarMasses: 1,
+          luminosity: 1,
+          temperatureK: 5800,
+          orbitType: null,
+        },
+      ],
+      habitableZone: { innerAU: 0.9, outerAU: 1.6, frostLineAU: 4.8, hasRadiantHabitableZone: true },
+      planets: [],
+      metadata: {},
+    };
+
+    systemStoreState.systems = [legacyNamedSystem];
+    systemStoreState.loadSystems = vi.fn(async () => systemStoreState.systems);
+    systemStoreState.findSystemByHex = vi.fn(() => legacyNamedSystem);
+
+    const wrapper = mount(StarSystemBuilder, {
+      props: {
+        galaxyId: "gal-1",
+        sectorId: "grid:1:2",
+      },
+      global: {
+        stubs: {
+          LoadingSpinner: true,
+          SurveyNavigation: true,
+        },
+      },
+    });
+
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("Aster System");
+    expect(wrapper.text()).toContain("Aster Primus Major");
+  });
+
+  it("shows the quick action controls above the Planetary Catalog", async () => {
+    const actionableSystem = {
+      systemId: "gal-1:1,2:0101",
+      sectorId: "gal-1:1,2",
+      galaxyId: "gal-1",
+      stars: [
+        {
+          designation: "G2V",
+          spectralClass: "G2V",
+          massInSolarMasses: 1,
+          luminosity: 1,
+          temperatureK: 5800,
+          orbitType: null,
+        },
+      ],
+      habitableZone: { innerAU: 0.9, outerAU: 1.6, frostLineAU: 4.8, hasRadiantHabitableZone: true },
+      planets: [{ name: "Verdant", type: "Terrestrial Planet", orbitAU: 1.2, zone: "habitable", composition: "Rocky" }],
+      metadata: {},
+    };
+
+    systemStoreState.systems = [actionableSystem];
+    systemStoreState.loadSystems = vi.fn(async () => systemStoreState.systems);
+    systemStoreState.findSystemByHex = vi.fn(() => actionableSystem);
+
+    const wrapper = mount(StarSystemBuilder, {
+      props: {
+        galaxyId: "gal-1",
+        sectorId: "grid:1:2",
+      },
+      global: {
+        stubs: {
+          LoadingSpinner: true,
+          SurveyNavigation: true,
+        },
+      },
+    });
+
+    await flushPromises();
+
+    const pageHtml = wrapper.html();
+    expect(pageHtml.indexOf("Selected world:")).toBeGreaterThan(-1);
+    expect(pageHtml.indexOf("Open System Survey")).toBeLessThan(pageHtml.indexOf("🪐 Planetary Catalog"));
+    expect(pageHtml.indexOf("Build Selected World")).toBeLessThan(pageHtml.indexOf("🪐 Planetary Catalog"));
   });
 
   it("renders the Planetary Catalog from the closest orbit to the farthest", async () => {

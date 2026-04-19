@@ -90,7 +90,7 @@
               :class="i === 0 ? 'primary' : 'secondary'"
             >
               <div class="star-role">{{ i === 0 ? "Primary" : i === 1 ? "Secondary" : "Tertiary" }}</div>
-              <div class="star-designation">{{ star.designation }}</div>
+              <div class="star-designation">{{ resolveStarDisplayLabel(star) }}</div>
               <div class="star-props">
                 <div class="prop">
                   <span class="prop-label">Spectral Class:</span>
@@ -144,6 +144,17 @@
               radiative habitable zone.
             </p>
           </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="action-buttons action-buttons--midpage">
+          <div v-if="selectedWorldCandidate" class="selected-world-chip">
+            Selected world: {{ summarizeSelectedWorld(selectedWorldCandidate) }}
+          </div>
+          <button v-if="system" class="btn btn-secondary" @click="openSystemSurvey">📡 Open System Survey</button>
+          <button v-if="selectedWorldCandidate" class="btn btn-primary" @click="proceedToWorldBuilder">
+            🌍 Build Selected World →
+          </button>
         </div>
 
         <!-- Planetary Catalog -->
@@ -211,17 +222,6 @@
               </tbody>
             </table>
           </div>
-        </div>
-
-        <!-- Actions -->
-        <div class="action-buttons">
-          <div v-if="selectedWorldCandidate" class="selected-world-chip">
-            Selected world: {{ summarizeSelectedWorld(selectedWorldCandidate) }}
-          </div>
-          <button v-if="system" class="btn btn-secondary" @click="openSystemSurvey">📡 Open System Survey</button>
-          <button v-if="selectedWorldCandidate" class="btn btn-primary" @click="proceedToWorldBuilder">
-            🌍 Build Selected World →
-          </button>
         </div>
       </div>
 
@@ -687,15 +687,41 @@ function ensureSystemSuffix(name) {
   return `${trimmed} System`;
 }
 
+function resolveStarDisplayLabel(star = null) {
+  return (
+    firstNonEmptySystemName(
+      star?.designation,
+      star?.starKey,
+      star?.spectralClass,
+      star?.spectralType,
+      star?.typeSubtype,
+      star?.starType,
+      star?.objectType,
+    ) || "Unknown"
+  );
+}
+
+function buildDisplayReadySystem(systemRecord = null) {
+  const stars = resolveGeneratedStarsFromSystem(systemRecord);
+  if (!stars.length) {
+    return systemRecord;
+  }
+
+  return {
+    ...(systemRecord && typeof systemRecord === "object" ? systemRecord : {}),
+    stars,
+    primaryStar: stars[0],
+    companionStars: stars.slice(1),
+  };
+}
+
 function resolveSystemDisplayName(systemRecord = null) {
-  const metadata = systemRecord?.metadata && typeof systemRecord.metadata === "object" ? systemRecord.metadata : {};
-  const metadataSystemRecord =
-    metadata?.systemRecord && typeof metadata.systemRecord === "object" ? metadata.systemRecord : {};
+  const displayReadySystem = buildDisplayReadySystem(systemRecord);
 
   return (
-    ensureSystemSuffix(systemName.value) ||
-    inferSystemNameFromSystemRecord(systemRecord) ||
-    normalizeHex(systemRecord?.systemId || hexCoord.value)
+    ensureSystemSuffix(firstNonEmptySystemName(systemName.value, route.query.systemName)) ||
+    inferSystemNameFromSystemRecord(displayReadySystem) ||
+    normalizeHex(displayReadySystem?.systemId || systemRecord?.systemId || hexCoord.value)
   );
 }
 
@@ -763,15 +789,22 @@ async function hydrateSystem() {
           )
         : null;
       const existing = existingById ?? systemStore.findSystemByHex(props.galaxyId, persistedSectorId, hexCoord.value);
-      if (existing?.stars?.length) {
-        const hydratedName = ensureSystemSuffix(inferSystemNameFromSystemRecord(existing));
-        primarySpectral.value = normalizePrimarySelection(
-          existing.stars[0]?.designation || existing.stars[0]?.spectralClass || existing?.primaryStar?.spectralClass,
+      const hydratedExisting = buildDisplayReadySystem(existing);
+      if (hydratedExisting?.stars?.length) {
+        const hydratedName = ensureSystemSuffix(
+          firstNonEmptySystemName(
+            systemName.value,
+            route.query.systemName,
+            inferSystemNameFromSystemRecord(hydratedExisting),
+          ),
         );
-        multiplicity.value = multiplicityFromStars(existing.stars);
-        const sortedPlanets = sortSystemPlanetsByOrbit(existing?.planets);
+        primarySpectral.value = normalizePrimarySelection(
+          resolveStarDisplayLabel(hydratedExisting.stars[0] || hydratedExisting?.primaryStar),
+        );
+        multiplicity.value = multiplicityFromStars(hydratedExisting.stars);
+        const sortedPlanets = sortSystemPlanetsByOrbit(hydratedExisting?.planets);
         system.value = {
-          ...existing,
+          ...hydratedExisting,
           planets: sortedPlanets,
           ...(hydratedName
             ? {
@@ -779,11 +812,14 @@ async function hydrateSystem() {
                 systemName: hydratedName,
                 systemDesignation: hydratedName,
                 metadata: {
-                  ...(existing?.metadata && typeof existing.metadata === "object" ? existing.metadata : {}),
+                  ...(hydratedExisting?.metadata && typeof hydratedExisting.metadata === "object"
+                    ? hydratedExisting.metadata
+                    : {}),
                   displayName: hydratedName,
                   systemRecord: {
-                    ...(existing?.metadata?.systemRecord && typeof existing.metadata.systemRecord === "object"
-                      ? existing.metadata.systemRecord
+                    ...(hydratedExisting?.metadata?.systemRecord &&
+                    typeof hydratedExisting.metadata.systemRecord === "object"
+                      ? hydratedExisting.metadata.systemRecord
                       : {}),
                     name: hydratedName,
                     systemName: hydratedName,
@@ -792,17 +828,17 @@ async function hydrateSystem() {
                 },
               }
             : {}),
-          systemId: normalizeHex(existing.systemId || hexCoord.value),
+          systemId: normalizeHex(hydratedExisting.systemId || hexCoord.value),
           habitableZone:
-            existing?.habitableZone && typeof existing.habitableZone === "object"
-              ? existing.habitableZone
-              : calculateSystemHabitableZone(existing?.stars ?? []),
+            hydratedExisting?.habitableZone && typeof hydratedExisting.habitableZone === "object"
+              ? hydratedExisting.habitableZone
+              : calculateSystemHabitableZone(hydratedExisting?.stars ?? []),
         };
-        systemName.value = hydratedName;
+        systemName.value = hydratedName || ensureSystemSuffix(String(route.query.systemName || "").trim());
         selectedWorldIndex.value = resolveSelectedWorldIndex(sortedPlanets);
-        systemStore.setCurrentSystem(existing.systemId);
-        hexCoord.value = normalizeHex(existing.systemId || hexCoord.value);
-        await syncSectorSurveyState(existing);
+        systemStore.setCurrentSystem(hydratedExisting.systemId || null);
+        hexCoord.value = normalizeHex(hydratedExisting.systemId || hexCoord.value);
+        await syncSectorSurveyState(hydratedExisting);
         return;
       }
 
