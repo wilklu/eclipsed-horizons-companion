@@ -25,6 +25,51 @@ function firstNonEmptyHexSummary(...values) {
   return "";
 }
 
+function ensureSystemSuffixLabel(name) {
+  const trimmed = String(name || "").trim();
+  if (!trimmed) return "";
+  const endsWithSystem = /\bsystem\s*$/i.test(trimmed);
+  const objectNounRegex =
+    /\b(?:belt|cluster|field|reach|expanse|ring|gate|spiral|domain|wastes|wilds|depths|shroud|corridor|band|zone|trail|chain|arc|shelf|spur|tract)\s*$/i;
+  if (endsWithSystem || objectNounRegex.test(trimmed)) return trimmed;
+  return `${trimmed} System`;
+}
+
+function inferSystemNameFromPrimaryDesignation(...values) {
+  for (const value of values) {
+    const designation = String(value || "").trim();
+    if (!designation) continue;
+
+    const match = designation.match(/^(.*?)\s+(?:Primus|Proximus|Proximum|Procul|Procol)\s+(?:Major|Minor)\s*$/i);
+    if (match?.[1]) {
+      return ensureSystemSuffixLabel(match[1]);
+    }
+  }
+
+  return "";
+}
+
+export function inferSystemNameFromSystemRecord(system = {}) {
+  const metadata = system?.metadata && typeof system.metadata === "object" ? system.metadata : {};
+  const metadataSystemRecord =
+    metadata?.systemRecord && typeof metadata.systemRecord === "object" ? metadata.systemRecord : {};
+
+  return firstNonEmptyString(
+    system?.name,
+    system?.systemName,
+    system?.systemDesignation,
+    metadataSystemRecord?.name,
+    metadataSystemRecord?.systemName,
+    metadataSystemRecord?.systemDesignation,
+    metadata?.displayName,
+    inferSystemNameFromPrimaryDesignation(
+      system?.primaryStar?.designation,
+      system?.stars?.[0]?.designation,
+      metadata?.generatedSurvey?.stars?.[0]?.designation,
+    ),
+  );
+}
+
 function normalizeTradeCodes(value) {
   if (Array.isArray(value)) {
     return value.map((entry) => String(entry ?? "").trim()).filter(Boolean);
@@ -430,12 +475,8 @@ export function summarizeSystemRecord(system) {
   const metadataSystemRecord =
     metadata?.systemRecord && typeof metadata.systemRecord === "object" ? metadata.systemRecord : {};
   const systemName = firstNonEmptyString(
-    system?.name,
-    system?.systemName,
-    system?.systemDesignation,
+    inferSystemNameFromSystemRecord(system),
     profiles?.systemDesignation,
-    metadataSystemRecord?.name,
-    metadata?.displayName,
     mainworld?.name,
   );
 
@@ -479,7 +520,12 @@ export function summarizeSystemRecord(system) {
 
 export function buildSystemSummaryLabel({ system = null, fallbackHex = "Unknown Hex", starLabel = "" } = {}) {
   const summary = summarizeSystemRecord(system);
-  const systemName = firstNonEmptyString(summary?.systemName, system?.systemId, fallbackHex);
+  const systemName = firstNonEmptyString(
+    summary?.systemName,
+    inferSystemNameFromSystemRecord(system),
+    system?.systemId,
+    fallbackHex,
+  );
   const primaryLabel = firstNonEmptyString(
     starLabel,
     system?.primaryStar?.designation,
@@ -493,6 +539,32 @@ export function buildSystemSummaryLabel({ system = null, fallbackHex = "Unknown 
 export function buildSystemHexSummary(system = {}) {
   const mainworld = system?.mainworld && typeof system.mainworld === "object" ? system.mainworld : null;
   const nativeLifeSummary = extractNativeLifeSummary(system, mainworld);
+  const metadata = system?.metadata && typeof system.metadata === "object" ? system.metadata : {};
+  const metadataSystemRecord =
+    metadata?.systemRecord && typeof metadata.systemRecord === "object" ? metadata.systemRecord : {};
+
+  const generatedStars = Array.isArray(system?.stars)
+    ? system.stars
+    : Array.isArray(system?.metadata?.generatedSurvey?.stars)
+      ? system.metadata.generatedSurvey.stars
+      : [];
+  const companionStars =
+    generatedStars.length > 1
+      ? generatedStars.slice(1)
+      : Array.isArray(system?.companionStars)
+        ? system.companionStars
+        : [];
+  const primaryStarName = firstNonEmptyHexSummary(
+    generatedStars[0]?.designation,
+    system?.primaryStar?.designation,
+    generatedStars[0]?.spectralClass,
+    system?.primaryStar?.spectralClass,
+  );
+  const secondaryStarNames = companionStars
+    .map((star) => firstNonEmptyHexSummary(star?.designation, star?.spectralClass))
+    .filter(Boolean);
+
+  const systemName = firstNonEmptyHexSummary(inferSystemNameFromSystemRecord(system));
 
   const mainworldTypeRecord = {
     ...mainworld,
@@ -500,6 +572,9 @@ export function buildSystemHexSummary(system = {}) {
   };
 
   return {
+    systemName,
+    primaryStarName,
+    secondaryStarNames,
     mainworldName: firstNonEmptyHexSummary(system?.mainworldName, mainworld?.name),
     mainworldUwp: isUwpRestrictedWorld(mainworldTypeRecord)
       ? ""

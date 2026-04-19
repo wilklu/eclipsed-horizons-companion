@@ -79,9 +79,30 @@ function normalizeHexCoordinates(value) {
 function normalizeSystem(system) {
   const metadata = system?.metadata && typeof system.metadata === "object" ? system.metadata : {};
   const snapshot = metadata?.systemRecord && typeof metadata.systemRecord === "object" ? metadata.systemRecord : {};
+  const resolvedName = String(
+    system?.name ??
+      system?.systemName ??
+      system?.systemDesignation ??
+      snapshot?.name ??
+      snapshot?.systemName ??
+      snapshot?.systemDesignation ??
+      metadata?.displayName ??
+      "",
+  ).trim();
+  const resolvedSystemDesignation = String(
+    system?.systemDesignation ?? snapshot?.systemDesignation ?? resolvedName,
+  ).trim();
+
   return {
     ...snapshot,
     ...system,
+    ...(resolvedName
+      ? {
+          name: resolvedName,
+          systemName: resolvedName,
+        }
+      : {}),
+    ...(resolvedSystemDesignation ? { systemDesignation: resolvedSystemDesignation } : {}),
     systemId: String(system?.systemId ?? snapshot?.systemId ?? ""),
     sectorId: String(system?.sectorId ?? snapshot?.sectorId ?? metadata?.sectorId ?? ""),
     galaxyId: String(system?.galaxyId ?? snapshot?.galaxyId ?? metadata?.galaxyId ?? ""),
@@ -95,7 +116,20 @@ function normalizeSystem(system) {
       : Array.isArray(snapshot?.companionStars)
         ? snapshot.companionStars
         : [],
-    metadata,
+    metadata: {
+      ...metadata,
+      ...(resolvedName ? { displayName: resolvedName } : {}),
+      systemRecord: {
+        ...snapshot,
+        ...(resolvedName
+          ? {
+              name: resolvedName,
+              systemName: resolvedName,
+            }
+          : {}),
+        ...(resolvedSystemDesignation ? { systemDesignation: resolvedSystemDesignation } : {}),
+      },
+    },
   };
 }
 

@@ -580,10 +580,26 @@ export function buildSystemSurveyPayload(surveyData) {
 export function mergeSystemSurveyRecord(currentRecord, surveyData, nowIso = new Date().toISOString()) {
   const payload = buildSystemSurveyPayload(surveyData);
   const current = currentRecord && typeof currentRecord === "object" ? currentRecord : {};
+  const resolvedSystemName = String(
+    payload.systemDesignation ||
+      current?.name ||
+      current?.systemName ||
+      current?.systemDesignation ||
+      current?.metadata?.systemRecord?.name ||
+      current?.metadata?.displayName ||
+      "",
+  ).trim();
 
   return {
     ...current,
     ...payload,
+    ...(resolvedSystemName
+      ? {
+          name: resolvedSystemName,
+          systemName: resolvedSystemName,
+          systemDesignation: resolvedSystemName,
+        }
+      : {}),
     worlds: cloneSurveyWorlds(payload.worlds),
     profiles: {
       ...(current?.profiles && typeof current.profiles === "object" ? current.profiles : {}),
@@ -600,6 +616,19 @@ export function mergeSystemSurveyRecord(currentRecord, surveyData, nowIso = new 
     travelZone: payload.travelZone,
     metadata: {
       ...(current?.metadata && typeof current.metadata === "object" ? current.metadata : {}),
+      ...(resolvedSystemName ? { displayName: resolvedSystemName } : {}),
+      systemRecord: {
+        ...(current?.metadata?.systemRecord && typeof current.metadata.systemRecord === "object"
+          ? current.metadata.systemRecord
+          : {}),
+        ...(resolvedSystemName
+          ? {
+              name: resolvedSystemName,
+              systemName: resolvedSystemName,
+              systemDesignation: resolvedSystemName,
+            }
+          : {}),
+      },
       lastModified: nowIso,
     },
   };

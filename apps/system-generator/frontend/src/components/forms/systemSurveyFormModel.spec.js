@@ -196,6 +196,39 @@ describe("systemSurveyFormModel", () => {
     expect(rehydrated.gasGiants).toBe(2);
   });
 
+  it("persists the saved system name into the canonical record fields", () => {
+    const merged = mergeSystemSurveyRecord(
+      {
+        systemId: "sector-1:0412",
+        metadata: {
+          systemRecord: {},
+        },
+      },
+      {
+        ...createEmptySurveyData(),
+        systemDesignation: "Aster System",
+        stars: [
+          {
+            designation: "Primary",
+            typeSubtype: "G2 V",
+            lumClass: "V",
+            mass: 1,
+            luminosity: 1,
+            temperature: 5800,
+            diameter: 1,
+            stellarProfile: "Primary",
+            notes: "",
+          },
+        ],
+      },
+      "2026-04-19T00:00:00.000Z",
+    );
+
+    expect(merged.name).toBe("Aster System");
+    expect(merged.metadata.displayName).toBe("Aster System");
+    expect(merged.metadata.systemRecord.name).toBe("Aster System");
+  });
+
   it("derives profile notes from mainworld social overlays when no explicit notes are stored", () => {
     const socialNotes = buildMainworldSocialProfileNotes({
       minimumSustainableTechLevel: { summary: "Minimal sustainable TL 5" },

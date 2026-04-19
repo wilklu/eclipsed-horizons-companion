@@ -53,7 +53,13 @@
         <div class="control-group">
           <label>System Name:</label>
           <div class="system-name-row">
-            <input v-model="systemName" placeholder="Optional system name" class="text-input" />
+            <input
+              v-model="systemName"
+              placeholder="Generated automatically if blank"
+              class="text-input"
+              @change="persistSystemName"
+              @blur="persistSystemName"
+            />
             <button type="button" class="btn" @click="generateSystemName">🎲</button>
             <button type="button" class="btn" :disabled="!systemName || !isTtsSupported" @click="toggleSpeakSystemName">
               <span v-if="isSpeaking">🔈 Stop</span>
@@ -251,6 +257,7 @@ import { generatePrimaryStar } from "../../utils/primaryStarGenerator.js";
 import { buildHexStarTypeMetadata, resolveGeneratedStarsFromSystem } from "../../utils/systemStarMetadata.js";
 import { buildProfiledWbhSystemPlanets, calculateSystemHabitableZone } from "../../utils/systemWorldGeneration.js";
 import { starDescriptorToCssClass } from "../../utils/starDisplay.js";
+import { inferSystemNameFromSystemRecord } from "../../utils/systemSummary.js";
 import { generateAutomaticWorldName } from "../../utils/worldProfileGenerator.js";
 import { generateMultipleStarSystemWbh } from "../../utils/wbh/starGenerationWbh.js";
 
@@ -622,11 +629,15 @@ function toPersistedSystem(nextSystem) {
   const companions = stars.slice(1).map((s) => ({ ...s }));
 
   // Ensure the persisted system name includes a backend-friendly suffix (e.g. "Sol System").
-  const finalName = ensureSystemSuffix(String(nextSystem.name || "").trim());
+  const finalName = ensureSystemSuffix(
+    String(nextSystem.name || inferSystemNameFromSystemRecord(nextSystem) || "").trim(),
+  );
 
   return {
     ...nextSystem,
     name: finalName,
+    systemName: finalName,
+    systemDesignation: finalName,
     systemId: `${persistedSectorId || "sector"}:${normalizedHex}`,
     galaxyId: props.galaxyId,
     sectorId: persistedSectorId,
@@ -653,6 +664,8 @@ function toPersistedSystem(nextSystem) {
       },
       systemRecord: {
         name: finalName,
+        systemName: finalName,
+        systemDesignation: finalName,
       },
       displayName: finalName,
       lastModified: new Date().toISOString(),
@@ -677,13 +690,7 @@ function resolveSystemDisplayName(systemRecord = null) {
 
   return (
     ensureSystemSuffix(systemName.value) ||
-    firstNonEmptySystemName(
-      systemRecord?.name,
-      systemRecord?.systemName,
-      systemRecord?.systemDesignation,
-      metadataSystemRecord?.name,
-      metadata?.displayName,
-    ) ||
+    inferSystemNameFromSystemRecord(systemRecord) ||
     normalizeHex(systemRecord?.systemId || hexCoord.value)
   );
 }
@@ -753,25 +760,39 @@ async function hydrateSystem() {
         : null;
       const existing = existingById ?? systemStore.findSystemByHex(props.galaxyId, persistedSectorId, hexCoord.value);
       if (existing?.stars?.length) {
+        const hydratedName = ensureSystemSuffix(inferSystemNameFromSystemRecord(existing));
         primarySpectral.value = normalizePrimarySelection(
           existing.stars[0]?.designation || existing.stars[0]?.spectralClass || existing?.primaryStar?.spectralClass,
         );
         multiplicity.value = multiplicityFromStars(existing.stars);
         system.value = {
           ...existing,
+          ...(hydratedName
+            ? {
+                name: hydratedName,
+                systemName: hydratedName,
+                systemDesignation: hydratedName,
+                metadata: {
+                  ...(existing?.metadata && typeof existing.metadata === "object" ? existing.metadata : {}),
+                  displayName: hydratedName,
+                  systemRecord: {
+                    ...(existing?.metadata?.systemRecord && typeof existing.metadata.systemRecord === "object"
+                      ? existing.metadata.systemRecord
+                      : {}),
+                    name: hydratedName,
+                    systemName: hydratedName,
+                    systemDesignation: hydratedName,
+                  },
+                },
+              }
+            : {}),
           systemId: normalizeHex(existing.systemId || hexCoord.value),
           habitableZone:
             existing?.habitableZone && typeof existing.habitableZone === "object"
               ? existing.habitableZone
               : calculateSystemHabitableZone(existing?.stars ?? []),
         };
-        systemName.value = firstNonEmptySystemName(
-          existing.name,
-          existing.systemName,
-          existing.systemDesignation,
-          existing?.metadata?.systemRecord?.name,
-          existing?.metadata?.displayName,
-        );
+        systemName.value = hydratedName;
         selectedWorldIndex.value = resolveSelectedWorldIndex(existing.planets);
         systemStore.setCurrentSystem(existing.systemId);
         hexCoord.value = normalizeHex(existing.systemId || hexCoord.value);
@@ -993,13 +1014,17 @@ async function buildSystem() {
           maxStars: multiplicity.value === "random" ? 3 : starCountLimit,
         }).slice(0, multiplicity.value === "random" ? 3 : starCountLimit);
 
+  const nextSystemName = ensureSystemSuffix(
+    String(systemName.value || system.value?.name || inferSystemNameFromSystemRecord(system.value) || "").trim() ||
+      generateSystemName(),
+  );
+  systemName.value = nextSystemName;
+
   // Assign system-based designations using the system name.
   // Naming rules: Primary => Primus Major / Primus Minor for companions; Close => Proximus Major/Minor;
   // Near => Proximum Major/Minor; Far => Procul Major / Procol Minor.
   (function applySystemStarDesignations() {
-    const rawSystemName = String(systemName.value || system.value?.name || "").trim();
-    const resolvedSystemName = rawSystemName || generateSystemName();
-    const baseName = String(resolvedSystemName)
+    const baseName = String(nextSystemName)
       .replace(/\s+System$/i, "")
       .trim();
 
@@ -1071,10 +1096,22 @@ async function buildSystem() {
     stars,
     habitableZone: hz,
     planets,
-    name: (function () {
-      const raw = String(systemName.value || system.value?.name || "").trim();
-      return raw ? ensureSystemSuffix(raw) : "";
-    })(),
+    name: nextSystemName,
+    systemName: nextSystemName,
+    systemDesignation: nextSystemName,
+    metadata: {
+      ...(system.value?.metadata && typeof system.value.metadata === "object" ? system.value.metadata : {}),
+      displayName: nextSystemName,
+      systemRecord: {
+        ...(system.value?.metadata?.systemRecord && typeof system.value.metadata.systemRecord === "object"
+          ? system.value.metadata.systemRecord
+          : {}),
+        name: nextSystemName,
+        systemName: nextSystemName,
+        systemDesignation: nextSystemName,
+      },
+      lastModified: new Date().toISOString(),
+    },
   };
 
   multiplicity.value = multiplicityFromStars(stars);
@@ -1227,6 +1264,48 @@ function generateSystemName() {
 
   systemName.value = next;
   return next;
+}
+
+async function persistSystemName() {
+  const resolvedName = ensureSystemSuffix(String(systemName.value || "").trim());
+  if (!resolvedName) {
+    return;
+  }
+
+  systemName.value = resolvedName;
+
+  if (!system.value) {
+    return;
+  }
+
+  const nextSystem = {
+    ...system.value,
+    name: resolvedName,
+    systemDesignation: resolvedName,
+    metadata: {
+      ...(system.value?.metadata && typeof system.value.metadata === "object" ? system.value.metadata : {}),
+      displayName: resolvedName,
+      systemRecord: {
+        ...(system.value?.metadata?.systemRecord && typeof system.value.metadata.systemRecord === "object"
+          ? system.value.metadata.systemRecord
+          : {}),
+        name: resolvedName,
+        systemName: resolvedName,
+        systemDesignation: resolvedName,
+      },
+      lastModified: new Date().toISOString(),
+    },
+  };
+
+  system.value = nextSystem;
+
+  if (!props.galaxyId || !props.sectorId) {
+    return;
+  }
+
+  const persisted = toPersistedSystem(nextSystem);
+  await systemStore.createSystem(persisted);
+  systemStore.setCurrentSystem(persisted.systemId);
 }
 
 function toggleSpeakSystemName() {

@@ -318,10 +318,18 @@
                 class="stellar-inline-card"
               >
                 <div class="stellar-inline-copy">
-                  <span class="stellar-inline-title">System {{ inspectedHexData.coord }}</span>
+                  <span class="stellar-inline-title">{{
+                    inspectedHexData.systemName || `System ${inspectedHexData.coord}`
+                  }}</span>
                   <span class="stellar-inline-source">{{ inspectedHexSourceLabel }}</span>
-                  <span class="stellar-inline-detail">{{ inspectedHexData.starType }}</span>
-                  <span v-if="inspectedHexData.secondaryStars?.length" class="stellar-inline-detail"
+                  <span v-if="inspectedHexData.primaryStarName" class="stellar-inline-detail"
+                    >Primary {{ inspectedHexData.primaryStarName }}</span
+                  >
+                  <span class="stellar-inline-detail">Class {{ inspectedHexData.starType }}</span>
+                  <span v-if="inspectedHexData.secondaryStarNames?.length" class="stellar-inline-detail"
+                    >Companions {{ inspectedHexData.secondaryStarNames.join(", ") }}</span
+                  >
+                  <span v-else-if="inspectedHexData.secondaryStars?.length" class="stellar-inline-detail"
                     >+ {{ inspectedHexData.secondaryStars.join(", ") }}</span
                   >
                   <span v-if="inspectedHexData.mainworldName" class="stellar-inline-detail"
