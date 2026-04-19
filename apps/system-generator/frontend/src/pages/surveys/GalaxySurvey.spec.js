@@ -448,6 +448,29 @@ describe("GalaxySurvey guided flow", () => {
     expect(calculateHexOccupancyProbability.mock.calls[0][0].realismScale).toBe(1.35);
   });
 
+  it("applies standard density across the current galaxy", async () => {
+    sectorStoreState.sectors = [
+      { ...createSectorRecord({ sectorId: "sec-0", gridX: 0, gridY: 0, displayName: "Center" }), densityClass: 5 },
+      { ...createSectorRecord({ sectorId: "sec-1", gridX: 1, gridY: 0, displayName: "Ring 1" }), densityClass: 1 },
+      { ...createSectorRecord({ sectorId: "sec-2", gridX: 2, gridY: 0, displayName: "Ring 2" }), densityClass: 4 },
+    ];
+
+    const wrapper = mount(GalaxySurvey);
+    await flushPromises();
+
+    await wrapper.get("[data-test='galaxy-density-standardize-btn']").trigger("click");
+    await flushPromises();
+
+    expect(galaxyStoreState.updateGalaxy).toHaveBeenCalledWith(
+      "gal-1",
+      expect.objectContaining({
+        metadata: expect.objectContaining({ densityProfileMode: "standard" }),
+      }),
+    );
+    expect(sectorStoreState.updateSector).toHaveBeenCalledTimes(3);
+    expect(sectorStoreState.sectors.every((sector) => sector.densityClass === 3)).toBe(true);
+  });
+
   it("advances the guided frontier, focuses the next ring, and announces the change", async () => {
     const runtimeErrors = [];
     const wrapper = mount(GalaxySurvey, {

@@ -1,6 +1,7 @@
 import { generatePrimaryStarHeuristic } from "../primaryStarGeneratorHeuristic.js";
 
-import { createRandomRoller, rollDice } from "./dice.js";
+import { createRandomRoller } from "./dice.js";
+import { roll2d, rollD3 } from "./diceFormulasWbh.js";
 export const STAR_WBH_RULES = Object.freeze([
   {
     id: "primary-star-types",
@@ -377,13 +378,7 @@ function applyTypeConstraints(type, luminosityClass) {
   return type;
 }
 
-function roll2d(rollDie) {
-  return rollDice(rollDie, 2, 6);
-}
-
-function rollD3(rollDie) {
-  return Math.ceil(rollDie(6) / 2);
-}
+// dice formulas centralized in diceFormulasWbh.js
 
 function getPrimaryPresenceDm(star) {
   const luminosityClass = String(star?.luminosityClass || "V").trim();
@@ -573,8 +568,8 @@ function rollStellarEccentricity(rollDie) {
   if (firstRoll <= 7) return Number((rollDie(6) / 200).toFixed(3));
   if (firstRoll <= 9) return Number((0.03 + rollDie(6) / 100).toFixed(3));
   if (firstRoll === 10) return Number((0.05 + rollDie(6) / 20).toFixed(3));
-  if (firstRoll === 11) return Number((0.05 + rollDice(rollDie, 2, 6) / 20).toFixed(3));
-  return Number((0.3 + rollDice(rollDie, 2, 6) / 20).toFixed(3));
+  if (firstRoll === 11) return Number((0.05 + roll2d(rollDie) / 20).toFixed(3));
+  return Number((0.3 + roll2d(rollDie) / 20).toFixed(3));
 }
 
 function buildStarKey(index) {

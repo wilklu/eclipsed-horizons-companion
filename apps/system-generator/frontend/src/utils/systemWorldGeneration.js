@@ -38,15 +38,23 @@ export function calculateSystemHabitableZone(stars = []) {
 }
 
 export function determineSystemPlanetZone(orbitAU, habitableZone) {
-  if (orbitAU < habitableZone.innerAU) return "hot";
-  if (orbitAU <= habitableZone.outerAU) return "habitable";
-  if (orbitAU <= habitableZone.frostLineAU) return "warm";
-  return "cold";
+  const numericOrbit = Number(orbitAU);
+  const innerAU = Number(habitableZone?.innerAU ?? 0);
+  const outerAU = Math.max(innerAU, Number(habitableZone?.outerAU ?? innerAU));
+  const frostLineAU = Math.max(outerAU, Number(habitableZone?.frostLineAU ?? outerAU));
+  const warmBoundaryAU = innerAU > 0 ? innerAU * 0.5 : 0;
+
+  if (!Number.isFinite(numericOrbit)) return "cold";
+  if (numericOrbit < warmBoundaryAU) return "hot";
+  if (numericOrbit < innerAU) return "warm";
+  if (numericOrbit <= outerAU) return "habitable";
+  if (numericOrbit <= frostLineAU) return "cold";
+  return "frozen";
 }
 
 export function pickSystemPlanetComposition(type, zone) {
   if (type === "Gas Giant") {
-    return zone === "cold" || zone === "warm"
+    return ["warm", "cold", "frozen"].includes(zone)
       ? "Hydrogen-helium envelope with volatile ices"
       : "Hydrogen-helium envelope";
   }
@@ -57,13 +65,50 @@ export function pickSystemPlanetComposition(type, zone) {
 
   const terrestrialOptionsByZone = {
     hot: ["Rocky silicates", "Metal-rich rocky body"],
-    habitable: ["Rocky silicates", "Rocky with surface volatiles"],
-    warm: ["Rocky with volatile deposits", "Rocky-icy crust"],
-    cold: ["Icy-rocky body", "Rocky core with ice mantle"],
+    warm: ["Rocky silicates", "Rocky with surface volatiles"],
+    habitable: ["Rocky with surface volatiles", "Temperate rocky world"],
+    cold: ["Rocky-icy crust", "Icy-rocky body"],
+    frozen: ["Ice-locked rocky body", "Rocky core with deep ice mantle"],
   };
 
   const options = terrestrialOptionsByZone[zone] || terrestrialOptionsByZone.habitable;
   return options[Math.floor(Math.random() * options.length)];
+}
+
+function resolvePlanetOrbitSortValue(planet = {}) {
+  const orbitAu = Number(planet?.orbitAU ?? planet?.orbitAu);
+  if (Number.isFinite(orbitAu)) {
+    return orbitAu;
+  }
+
+  const orbitNumber = Number(planet?.orbitNumber);
+  if (Number.isFinite(orbitNumber)) {
+    return orbitNumber;
+  }
+
+  return Number.POSITIVE_INFINITY;
+}
+
+export function sortSystemPlanetsByOrbit(planets = []) {
+  return [...(Array.isArray(planets) ? planets : [])].sort((left, right) => {
+    const orbitDelta = resolvePlanetOrbitSortValue(left) - resolvePlanetOrbitSortValue(right);
+    if (orbitDelta !== 0) {
+      return orbitDelta;
+    }
+
+    const moonDelta = Number(Boolean(left?.isMoon)) - Number(Boolean(right?.isMoon));
+    if (moonDelta !== 0) {
+      return moonDelta;
+    }
+
+    const slotDelta =
+      Number(left?.orbitalSlot ?? Number.POSITIVE_INFINITY) - Number(right?.orbitalSlot ?? Number.POSITIVE_INFINITY);
+    if (Number.isFinite(slotDelta) && slotDelta !== 0) {
+      return slotDelta;
+    }
+
+    return String(left?.name || "").localeCompare(String(right?.name || ""));
+  });
 }
 
 export function buildProfiledWbhSystemPlanets({
@@ -137,5 +182,5 @@ export function buildProfiledWbhSystemPlanets({
     return applyWorldProfileToPlanet(planet, enrichedProfile);
   });
 
-  return applySystemWorldSocialProfiles(profiledPlanets);
+  return sortSystemPlanetsByOrbit(applySystemWorldSocialProfiles(profiledPlanets));
 }

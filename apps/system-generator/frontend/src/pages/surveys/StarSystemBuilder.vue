@@ -255,7 +255,11 @@ import {
 } from "../../utils/speechSynthesis.js";
 import { generatePrimaryStar } from "../../utils/primaryStarGenerator.js";
 import { buildHexStarTypeMetadata, resolveGeneratedStarsFromSystem } from "../../utils/systemStarMetadata.js";
-import { buildProfiledWbhSystemPlanets, calculateSystemHabitableZone } from "../../utils/systemWorldGeneration.js";
+import {
+  buildProfiledWbhSystemPlanets,
+  calculateSystemHabitableZone,
+  sortSystemPlanetsByOrbit,
+} from "../../utils/systemWorldGeneration.js";
 import { starDescriptorToCssClass } from "../../utils/starDisplay.js";
 import { inferSystemNameFromSystemRecord } from "../../utils/systemSummary.js";
 import { generateAutomaticWorldName } from "../../utils/worldProfileGenerator.js";
@@ -623,7 +627,7 @@ function toPersistedSystem(nextSystem) {
   const normalizedHex = normalizeHex(nextSystem.systemId);
   const persistedSectorId = getPersistedSectorId();
   const stars = Array.isArray(nextSystem.stars) ? nextSystem.stars : [];
-  const planets = Array.isArray(nextSystem.planets) ? nextSystem.planets : [];
+  const planets = sortSystemPlanetsByOrbit(Array.isArray(nextSystem.planets) ? nextSystem.planets : []);
   const mainworld = planets.find((world) => world?.isMainworld) ?? null;
   const primary = stars[0] ? { ...stars[0] } : null;
   const companions = stars.slice(1).map((s) => ({ ...s }));
@@ -765,8 +769,10 @@ async function hydrateSystem() {
           existing.stars[0]?.designation || existing.stars[0]?.spectralClass || existing?.primaryStar?.spectralClass,
         );
         multiplicity.value = multiplicityFromStars(existing.stars);
+        const sortedPlanets = sortSystemPlanetsByOrbit(existing?.planets);
         system.value = {
           ...existing,
+          planets: sortedPlanets,
           ...(hydratedName
             ? {
                 name: hydratedName,
@@ -793,7 +799,7 @@ async function hydrateSystem() {
               : calculateSystemHabitableZone(existing?.stars ?? []),
         };
         systemName.value = hydratedName;
-        selectedWorldIndex.value = resolveSelectedWorldIndex(existing.planets);
+        selectedWorldIndex.value = resolveSelectedWorldIndex(sortedPlanets);
         systemStore.setCurrentSystem(existing.systemId);
         hexCoord.value = normalizeHex(existing.systemId || hexCoord.value);
         await syncSectorSurveyState(existing);
@@ -1071,25 +1077,27 @@ async function buildSystem() {
   })();
 
   const hz = calculateSystemHabitableZone(stars);
-  const planets = buildProfiledWbhSystemPlanets({
-    stars,
-    habitableZone: hz,
-    createPlanetName: ({ type, usedNames }) =>
-      type === "Planetoid Belt"
-        ? generateObjectName({
-            mode: String(preferencesStore.asteroidBeltNameMode || "phonotactic")
-              .trim()
-              .toLowerCase(),
-            objectType: "asteroid-belt",
-            mythicTheme: String(preferencesStore.galaxyMythicTheme || "all")
-              .trim()
-              .toLowerCase(),
-          })
-        : generateAutomaticWorldName({
-            mode: preferencesStore.worldNameMode,
-            usedNames,
-          }),
-  });
+  const planets = sortSystemPlanetsByOrbit(
+    buildProfiledWbhSystemPlanets({
+      stars,
+      habitableZone: hz,
+      createPlanetName: ({ type, usedNames }) =>
+        type === "Planetoid Belt"
+          ? generateObjectName({
+              mode: String(preferencesStore.asteroidBeltNameMode || "phonotactic")
+                .trim()
+                .toLowerCase(),
+              objectType: "asteroid-belt",
+              mythicTheme: String(preferencesStore.galaxyMythicTheme || "all")
+                .trim()
+                .toLowerCase(),
+            })
+          : generateAutomaticWorldName({
+              mode: preferencesStore.worldNameMode,
+              usedNames,
+            }),
+    }),
+  );
 
   const nextSystem = {
     systemId: hexCoord.value || "0000",
@@ -1781,6 +1789,10 @@ onMounted(async () => {
 .zone-badge.cold {
   background: #6b9fff33;
   color: #6b9fff;
+}
+.zone-badge.frozen {
+  background: #bcd8ff33;
+  color: #bcd8ff;
 }
 
 .empty-state {

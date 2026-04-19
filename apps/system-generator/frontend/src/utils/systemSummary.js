@@ -53,11 +53,14 @@ export function inferSystemNameFromSystemRecord(system = {}) {
   const metadata = system?.metadata && typeof system.metadata === "object" ? system.metadata : {};
   const metadataSystemRecord =
     metadata?.systemRecord && typeof metadata.systemRecord === "object" ? metadata.systemRecord : {};
+  const profiles = system?.profiles && typeof system.profiles === "object" ? system.profiles : {};
 
   return firstNonEmptyString(
     system?.name,
     system?.systemName,
     system?.systemDesignation,
+    profiles?.systemDesignation,
+    profiles?.systemName,
     metadataSystemRecord?.name,
     metadataSystemRecord?.systemName,
     metadataSystemRecord?.systemDesignation,
@@ -240,6 +243,38 @@ function hasNativeLifeIndicator(record = {}) {
   return Boolean(nativeLifeform) && !["0000", "NONE", "ABSENT", "N/A", "NULL", "UNINHABITED"].includes(nativeLifeform);
 }
 
+function buildNativeLifeCandidateKey(entry = {}, index = 0) {
+  const stableIdentifier = firstNonEmptyString(entry?.worldId, entry?.worldKey, entry?.planetId, entry?.id, entry?.key);
+
+  if (stableIdentifier) {
+    return String(stableIdentifier).trim().toUpperCase();
+  }
+
+  const orbitToken = [
+    entry?.moonOrdinal,
+    entry?.orbitalSlot,
+    entry?.orbitNumber,
+    entry?.orbitAU,
+    entry?.orbitAu,
+    entry?.hex,
+    entry?.coord,
+  ].find((value) => value !== undefined && value !== null && String(value).trim() !== "");
+
+  return [
+    firstNonEmptyString(entry?.name, entry?.designation, `candidate-${index}`),
+    firstNonEmptyString(entry?.type, entry?.worldType, entry?.isMoon ? "moon" : "world"),
+    firstNonEmptyString(entry?.parentWorldName, entry?.parentName, entry?.parentWorldType),
+    orbitToken,
+    entry?.isMoon ? "MOON" : "WORLD",
+  ]
+    .map((part) =>
+      String(part || "")
+        .trim()
+        .toUpperCase(),
+    )
+    .join("|");
+}
+
 function extractNativeLifeSummary(system = {}, mainworld = null) {
   const rawCandidates = [
     mainworld,
@@ -248,19 +283,7 @@ function extractNativeLifeSummary(system = {}, mainworld = null) {
   ].filter((entry) => entry && typeof entry === "object");
   const seenCandidates = new Set();
   const candidates = rawCandidates.filter((entry, index) => {
-    const candidateKey = [
-      firstNonEmptyString(entry?.name, entry?.designation, `candidate-${index}`),
-      firstNonEmptyString(entry?.type, entry?.worldType),
-      firstNonEmptyString(entry?.parentWorldName),
-      String(entry?.orbitAU ?? entry?.orbitAu ?? ""),
-      firstNonEmptyString(entry?.uwp),
-    ]
-      .map((part) =>
-        String(part || "")
-          .trim()
-          .toUpperCase(),
-      )
-      .join("|");
+    const candidateKey = buildNativeLifeCandidateKey(entry, index);
 
     if (seenCandidates.has(candidateKey)) {
       return false;

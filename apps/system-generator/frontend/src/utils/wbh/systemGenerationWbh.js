@@ -1,4 +1,5 @@
-import { createRandomRoller, rollDice } from "./dice.js";
+import { createRandomRoller } from "./dice.js";
+import { roll2d, rollD3 } from "./diceFormulasWbh.js";
 
 export const SYSTEM_WBH_RULES = Object.freeze([
   {
@@ -74,13 +75,7 @@ function roundOrbit(value) {
   return Number(numericValue.toFixed(2));
 }
 
-function roll2d(rollDie) {
-  return rollDice(rollDie, 2, 6);
-}
-
-function rollD3(rollDie) {
-  return Math.ceil(rollDie(6) / 2);
-}
+// dice formulas centralized in diceFormulasWbh.js
 
 function sumLuminosity(stars = []) {
   return stars.reduce((total, star) => total + Number(star?.luminosity || 0), 0);

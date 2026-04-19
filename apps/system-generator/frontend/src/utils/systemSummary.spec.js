@@ -127,6 +127,41 @@ describe("systemSummary", () => {
     expect(summary.nativeLifeWorldCount).toBe(0);
   });
 
+  it("deduplicates native sophont worlds when the same planet is mirrored in planets and worlds arrays", () => {
+    const summary = buildSystemHexSummary({
+      mainworld: {
+        name: "Verdant",
+        type: "Terrestrial Planet",
+        nativeSophontLife: true,
+        nativeLifeform: "2201",
+        orbitAU: 3.2,
+      },
+      planets: [
+        {
+          name: "Verdant",
+          type: "Terrestrial Planet",
+          nativeSophontLife: true,
+          nativeLifeform: "2201",
+          orbitAU: 3.2,
+        },
+      ],
+      worlds: [
+        {
+          name: "Verdant",
+          type: "Terrestrial Planet",
+          nativeSophontLife: true,
+          nativeLifeform: "2201",
+          orbitAU: 3.2,
+          uwp: "A867A99-C",
+        },
+      ],
+    });
+
+    expect(summary.nativeSophontLife).toBe(true);
+    expect(summary.nativeLifeWorldCount).toBe(1);
+    expect(summary.nativeSophontWorldCount).toBe(1);
+  });
+
   it("builds shared system summary labels from saved-system summaries and route fallbacks", () => {
     expect(
       buildSystemSummaryLabel({

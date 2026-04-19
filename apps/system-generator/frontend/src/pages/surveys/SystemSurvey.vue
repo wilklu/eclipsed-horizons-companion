@@ -89,12 +89,35 @@ const currentSystem = computed(() => {
       systemStore.getCurrentSystem);
 
   const routedSystemName = String(route.query.systemName || "").trim();
-  if (!baseSystem || !routedSystemName) {
+  if (!routedSystemName) {
     return baseSystem;
   }
 
+  if (!baseSystem) {
+    return {
+      systemId: resolvedSystemId.value || String(route.query.hex || "").trim(),
+      name: routedSystemName,
+      systemName: routedSystemName,
+      systemDesignation: routedSystemName,
+      stars: route.query.star ? [{ designation: String(route.query.star).trim() }] : [],
+      metadata: {
+        displayName: routedSystemName,
+        systemRecord: {
+          name: routedSystemName,
+          systemName: routedSystemName,
+          systemDesignation: routedSystemName,
+        },
+      },
+    };
+  }
+
   const existingName = String(
-    baseSystem?.name || baseSystem?.systemDesignation || baseSystem?.metadata?.systemRecord?.name || "",
+    baseSystem?.name ||
+      baseSystem?.systemName ||
+      baseSystem?.systemDesignation ||
+      baseSystem?.profiles?.systemDesignation ||
+      baseSystem?.metadata?.systemRecord?.name ||
+      "",
   ).trim();
   if (existingName) {
     return baseSystem;
@@ -103,6 +126,7 @@ const currentSystem = computed(() => {
   return {
     ...baseSystem,
     name: routedSystemName,
+    systemName: routedSystemName,
     systemDesignation: routedSystemName,
     metadata: {
       ...(baseSystem?.metadata && typeof baseSystem.metadata === "object" ? baseSystem.metadata : {}),
@@ -112,6 +136,8 @@ const currentSystem = computed(() => {
           ? baseSystem.metadata.systemRecord
           : {}),
         name: routedSystemName,
+        systemName: routedSystemName,
+        systemDesignation: routedSystemName,
       },
     },
   };

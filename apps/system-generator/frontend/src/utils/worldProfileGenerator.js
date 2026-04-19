@@ -3020,7 +3020,7 @@ function deriveSocialUwp({ world, isMainworld = true, mainworldPopulationCode = 
     habitability,
     resourceRating: determineResourceRating(normalizedWorld),
     importance: deriveImportance({ tradeCodes, starport, techLevel, populationCode }),
-    nativeLifeform: buildNativeLifeProfile(normalizedWorld),
+    nativeLifeform: normalizedWorld.nativeLifeform ?? buildNativeLifeProfile(normalizedWorld),
   };
 }
 

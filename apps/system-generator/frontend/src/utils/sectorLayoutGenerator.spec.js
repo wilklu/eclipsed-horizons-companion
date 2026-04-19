@@ -26,4 +26,17 @@ describe("sectorLayoutGenerator", () => {
     expect(layout[0].metadata.gridWidth).toBe(17);
     expect(layout[0].metadata.gridHeight).toBe(14);
   });
+
+  it("uses standard density across the entire layout when the galaxy override is enabled", () => {
+    const layout = generateGalaxySectorLayout({
+      galaxyId: "gal-1",
+      type: "Spiral",
+      galaxyDimensions: { diameterInParsecs: 96000 },
+      morphology: { bulgeRadius: 5000, armCount: 2, coreDensity: 0.7 },
+      metadata: { densityProfileMode: "standard" },
+    });
+
+    expect(layout.length).toBeGreaterThan(0);
+    expect(new Set(layout.map((sector) => sector.densityClass))).toEqual(new Set([3]));
+  });
 });

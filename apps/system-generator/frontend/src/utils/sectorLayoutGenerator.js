@@ -103,6 +103,16 @@ function densityClassFromScore(score) {
   return 0;
 }
 
+function resolveGalaxyDensityProfileMode(galaxy) {
+  const mode = String(
+    galaxy?.metadata?.densityProfileMode ?? galaxy?.metadata?.densityProfile ?? galaxy?.densityProfileMode ?? "",
+  )
+    .trim()
+    .toLowerCase();
+
+  return mode === "standard" ? "standard" : "morphology";
+}
+
 function computeSpiralDensityScore({ galaxy, nx, ny, radial, theta, bulgeRatio, coreDensity, armCount, barred }) {
   if (radial > 1.08) return 0;
 
@@ -174,6 +184,14 @@ function computeDwarfDensityScore({ galaxy, nx, ny, radial, coreDensity }) {
 }
 
 function densityProfileFor(galaxy, gridX, gridY, width, height) {
+  if (resolveGalaxyDensityProfileMode(galaxy) === "standard") {
+    return {
+      densityScore: 0.5,
+      densityClass: 3,
+      include: true,
+    };
+  }
+
   const halfWidth = Math.max(1, Math.floor(width / 2));
   const halfHeight = Math.max(1, Math.floor(height / 2));
   const nx = gridX / halfWidth;

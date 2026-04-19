@@ -5,6 +5,10 @@ import {
   WORLD_PHYSICAL_CHARACTERISTIC_RULES,
   buildNativeLifeProfile,
   buildWbhSeismologyProfile,
+  calculateBiomassRating,
+  calculateBiocomplexityRating,
+  calculateBiodiversityRating,
+  calculateCompatibilityRating,
   buildWbhSizeProfile,
   calculateAtmosphereTemperatureDm,
   calculateAtmosphereScaleHeightKm,
@@ -180,6 +184,7 @@ describe("worldPhysicalCharacteristicsWbh", () => {
       hydrographics: 7,
       avgTempC: 20,
       systemAgeGyr: 5,
+      rollDie: createSequenceRoller([6, 6, 6, 6, 6, 6, 6, 6]),
     });
 
     expect(lifeProfile).not.toBe("0000");
@@ -201,6 +206,60 @@ describe("worldPhysicalCharacteristicsWbh", () => {
     );
   });
 
+  it("matches the WBH native-life example formulas with seeded dice rolls", () => {
+    const biomass = calculateBiomassRating({
+      atmosphereCode: 6,
+      hydrographics: 6,
+      avgTempC: 27,
+      systemAgeGyr: 6.3,
+      rollDie: createSequenceRoller([3, 3]),
+    });
+    const biocomplexity = calculateBiocomplexityRating({
+      biomass,
+      atmosphereCode: 6,
+      systemAgeGyr: 6.3,
+      rollDie: createSequenceRoller([1, 2]),
+    });
+    const biodiversity = calculateBiodiversityRating({
+      biomass,
+      biocomplexity,
+      rollDie: createSequenceRoller([3, 3]),
+    });
+    const compatibility = calculateCompatibilityRating({
+      biocomplexity,
+      atmosphereCode: 6,
+      systemAgeGyr: 6.3,
+      rollDie: createSequenceRoller([3, 4]),
+    });
+
+    expect(biomass).toBe(10);
+    expect(biocomplexity).toBe(5);
+    expect(biodiversity).toBe(7);
+    expect(compatibility).toBe(6);
+  });
+
+  it("heavily penalizes frozen and boiling worlds unless the dice strongly support native life", () => {
+    expect(
+      calculateBiomassRating({
+        atmosphereCode: 5,
+        hydrographics: 0,
+        avgTempC: -80,
+        systemAgeGyr: 5,
+        rollDie: createSequenceRoller([6, 6]),
+      }),
+    ).toBeLessThanOrEqual(4);
+
+    expect(
+      calculateBiomassRating({
+        atmosphereCode: 5,
+        hydrographics: 0,
+        avgTempC: 120,
+        systemAgeGyr: 5,
+        rollDie: createSequenceRoller([6, 6]),
+      }),
+    ).toBeLessThanOrEqual(4);
+  });
+
   it("limits native sophont life to habitable-zone candidates", () => {
     expect(
       determineNativeSophontLife({
@@ -210,7 +269,7 @@ describe("worldPhysicalCharacteristicsWbh", () => {
         avgTempC: 20,
         orbitNumber: 6.4,
         hzco: 3.1,
-        rollDie: createSequenceRoller([6, 6]),
+        rollDie: createSequenceRoller([6, 6, 6, 6, 6, 6, 6, 6, 6, 6]),
       }),
     ).toBe(false);
 
@@ -222,7 +281,7 @@ describe("worldPhysicalCharacteristicsWbh", () => {
         avgTempC: 20,
         orbitNumber: 3.2,
         hzco: 3.1,
-        rollDie: createSequenceRoller([6, 6]),
+        rollDie: createSequenceRoller([6, 6, 6, 6, 6, 6, 6, 6, 6, 6]),
       }),
     ).toBe(true);
   });
@@ -237,7 +296,7 @@ describe("worldPhysicalCharacteristicsWbh", () => {
         orbitNumber: 3.2,
         hzco: 3.1,
         systemAgeGyr: 0.5,
-        rollDie: createSequenceRoller([6, 6]),
+        rollDie: createSequenceRoller([6, 6, 6, 6, 6, 6, 6, 6, 6, 6]),
       }),
     ).toBe(false);
   });
@@ -252,7 +311,7 @@ describe("worldPhysicalCharacteristicsWbh", () => {
         type: "Planetoid Belt",
         orbitNumber: 3.2,
         hzco: 3.1,
-        rollDie: createSequenceRoller([6, 6]),
+        rollDie: createSequenceRoller([6, 6, 6, 6, 6, 6, 6, 6, 6, 6]),
       }),
     ).toBe(false);
   });

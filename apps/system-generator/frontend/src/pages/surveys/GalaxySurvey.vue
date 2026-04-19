@@ -447,6 +447,20 @@
             <div class="generation-realism-help">
               {{ galaxyOccupancyRealismHelp }} Applies to all rings and guided runs for this galaxy.
             </div>
+            <div class="generation-realism-help generation-realism-help--actions">
+              <strong>{{ galaxyDensityProfileLabel }}</strong>
+              <button
+                type="button"
+                class="btn btn-secondary"
+                data-test="galaxy-density-standardize-btn"
+                :disabled="isGeneratingSectors || isGeneratingFullGalaxy || galaxyStandardDensityEnabled"
+                @click="applyGalaxyStandardDensity"
+              >
+                {{
+                  galaxyStandardDensityEnabled ? "✓ Standard Density Active" : "Set Entire Galaxy to Standard Density"
+                }}
+              </button>
+            </div>
           </section>
         </div>
 
@@ -1860,6 +1874,17 @@ const galaxyOccupancyRealismHelp = computed(() => {
   }
   return "Balanced, canonical density for a standard Traveller-style sweep.";
 });
+const galaxyStandardDensityEnabled = computed(
+  () =>
+    String(currentGalaxy.value?.metadata?.densityProfileMode || "")
+      .trim()
+      .toLowerCase() === "standard",
+);
+const galaxyDensityProfileLabel = computed(() =>
+  galaxyStandardDensityEnabled.value
+    ? "Galaxy density profile: Standard across all sectors."
+    : "Galaxy density profile: Morphology-driven. You can normalize everything to Standard.",
+);
 
 const generationPlannerSummary = computed(() => {
   const totalLayout = currentGalaxyLayoutCount.value;
@@ -3698,6 +3723,60 @@ function persistSharedOccupancyRealism(value) {
   }
 
   preferencesStore.surveyOccupancyRealism = normalized;
+}
+
+async function applyGalaxyStandardDensity() {
+  const galaxy = currentGalaxy.value;
+  if (!galaxy || galaxyStandardDensityEnabled.value) {
+    return;
+  }
+
+  const nowIso = new Date().toISOString();
+  const nextGalaxy = {
+    ...galaxy,
+    metadata: {
+      ...(galaxy?.metadata || {}),
+      densityProfileMode: "standard",
+      lastModified: nowIso,
+    },
+  };
+
+  await galaxyStore.updateGalaxy(galaxy.galaxyId, nextGalaxy);
+
+  if (Array.isArray(galaxyStore.galaxies)) {
+    const galaxyIndex = galaxyStore.galaxies.findIndex((entry) => String(entry?.galaxyId) === String(galaxy.galaxyId));
+    if (galaxyIndex >= 0) {
+      galaxyStore.galaxies[galaxyIndex] = nextGalaxy;
+    }
+  }
+
+  const sectors = Array.isArray(currentGalaxySectors.value) ? [...currentGalaxySectors.value] : [];
+  await Promise.all(
+    sectors.map(async (sector) => {
+      const nextSector = {
+        ...sector,
+        densityClass: 3,
+        metadata: {
+          ...(sector?.metadata || {}),
+          densityProfileMode: "standard",
+          lastModified: nowIso,
+        },
+      };
+
+      await sectorStore.updateSector(nextSector.sectorId, nextSector).catch(() => nextSector);
+      const sectorIndex = sectorStore.sectors.findIndex(
+        (entry) => String(entry?.sectorId) === String(nextSector.sectorId),
+      );
+      if (sectorIndex >= 0) {
+        sectorStore.sectors[sectorIndex] = nextSector;
+      }
+    }),
+  );
+
+  await loadCurrentGalaxySectorStats({ galaxyId: galaxy.galaxyId, silent: true, force: true });
+  toastService.success(
+    `Applied standard density to ${sectors.length.toLocaleString()} sector${sectors.length === 1 ? "" : "s"}.`,
+  );
 }
 
 function loadGalaxySurveyViewState() {

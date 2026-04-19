@@ -5,6 +5,7 @@ import { flushPromises, mount } from "@vue/test-utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import StarSystemBuilder from "./StarSystemBuilder.vue";
+import { determineSystemPlanetZone } from "../../utils/systemWorldGeneration.js";
 
 const hoisted = vi.hoisted(() => ({
   routeState: {
@@ -95,6 +96,16 @@ vi.mock("../../composables/useArchiveTransfer.js", () => ({
 }));
 
 describe("StarSystemBuilder page", () => {
+  it("maps orbit distance into Hot, Warm, Habitable, Cold, and Frozen zones", () => {
+    const habitableZone = { innerAU: 0.9, outerAU: 1.6, frostLineAU: 4.8 };
+
+    expect(determineSystemPlanetZone(0.2, habitableZone)).toBe("hot");
+    expect(determineSystemPlanetZone(0.7, habitableZone)).toBe("warm");
+    expect(determineSystemPlanetZone(1.2, habitableZone)).toBe("habitable");
+    expect(determineSystemPlanetZone(3.2, habitableZone)).toBe("cold");
+    expect(determineSystemPlanetZone(7.4, habitableZone)).toBe("frozen");
+  });
+
   beforeEach(() => {
     hoisted.routerPush.mockReset();
     hoisted.routerReplace.mockReset();
@@ -204,6 +215,155 @@ describe("StarSystemBuilder page", () => {
     expect(wrapper.text()).toContain("Native Sophonts");
     expect(wrapper.text()).toContain("Present");
     expect(wrapper.text()).toContain("Exist");
+  });
+
+  it("keeps the saved system designation in the Stellar Survey header", async () => {
+    const namedSystem = {
+      systemId: "gal-1:1,2:0101",
+      sectorId: "gal-1:1,2",
+      galaxyId: "gal-1",
+      stars: [
+        {
+          designation: "Aster Primus Major",
+          spectralClass: "G2V",
+          massInSolarMasses: 1,
+          luminosity: 1,
+          temperatureK: 5800,
+          orbitType: null,
+        },
+      ],
+      habitableZone: { innerAU: 0.9, outerAU: 1.6, frostLineAU: 4.8, hasRadiantHabitableZone: true },
+      planets: [],
+      profiles: {
+        systemDesignation: "Aster System",
+      },
+      metadata: {},
+    };
+
+    systemStoreState.systems = [namedSystem];
+    systemStoreState.loadSystems = vi.fn(async () => systemStoreState.systems);
+    systemStoreState.findSystemByHex = vi.fn(() => namedSystem);
+
+    const wrapper = mount(StarSystemBuilder, {
+      props: {
+        galaxyId: "gal-1",
+        sectorId: "grid:1:2",
+      },
+      global: {
+        stubs: {
+          LoadingSpinner: true,
+          SurveyNavigation: true,
+        },
+      },
+    });
+
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("Aster System");
+    expect(wrapper.text()).not.toContain("0101\n");
+  });
+
+  it("renders the Planetary Catalog from the closest orbit to the farthest", async () => {
+    const unsortedSystem = {
+      systemId: "gal-1:1,2:0101",
+      sectorId: "gal-1:1,2",
+      galaxyId: "gal-1",
+      stars: [
+        {
+          designation: "G2V",
+          spectralClass: "G2V",
+          massInSolarMasses: 1,
+          luminosity: 1,
+          temperatureK: 5800,
+          orbitType: null,
+        },
+      ],
+      habitableZone: { innerAU: 0.9, outerAU: 1.6, frostLineAU: 4.8, hasRadiantHabitableZone: true },
+      planets: [
+        { name: "Outer", type: "Terrestrial Planet", orbitAU: 4.8, zone: "cold", composition: "Rocky" },
+        { name: "Inner", type: "Terrestrial Planet", orbitAU: 0.4, zone: "hot", composition: "Rocky" },
+        { name: "Middle", type: "Terrestrial Planet", orbitAU: 1.2, zone: "habitable", composition: "Rocky" },
+      ],
+      metadata: {},
+    };
+
+    systemStoreState.systems = [unsortedSystem];
+    systemStoreState.loadSystems = vi.fn(async () => systemStoreState.systems);
+    systemStoreState.findSystemByHex = vi.fn(() => unsortedSystem);
+
+    const wrapper = mount(StarSystemBuilder, {
+      props: {
+        galaxyId: "gal-1",
+        sectorId: "grid:1:2",
+      },
+      global: {
+        stubs: {
+          LoadingSpinner: true,
+          SurveyNavigation: true,
+        },
+      },
+    });
+
+    await flushPromises();
+
+    const rows = wrapper.findAll(".planet-table tbody tr");
+    expect(rows).toHaveLength(3);
+    expect(rows[0].text()).toContain("Inner");
+    expect(rows[1].text()).toContain("Middle");
+    expect(rows[2].text()).toContain("Outer");
+  });
+
+  it("assigns zones in the expected sequence from hot to frozen", async () => {
+    const zonedSystem = {
+      systemId: "gal-1:1,2:0101",
+      sectorId: "gal-1:1,2",
+      galaxyId: "gal-1",
+      stars: [
+        {
+          designation: "G2V",
+          spectralClass: "G2V",
+          massInSolarMasses: 1,
+          luminosity: 1,
+          temperatureK: 5800,
+          orbitType: null,
+        },
+      ],
+      habitableZone: { innerAU: 0.9, outerAU: 1.6, frostLineAU: 4.8, hasRadiantHabitableZone: true },
+      planets: [
+        { name: "Mercury", type: "Terrestrial Planet", orbitAU: 0.2, zone: "hot", composition: "Rocky" },
+        { name: "Ember", type: "Terrestrial Planet", orbitAU: 0.7, zone: "warm", composition: "Rocky" },
+        { name: "Verdant", type: "Terrestrial Planet", orbitAU: 1.2, zone: "habitable", composition: "Rocky" },
+        { name: "Brisk", type: "Terrestrial Planet", orbitAU: 3.2, zone: "cold", composition: "Rocky" },
+        { name: "Rime", type: "Terrestrial Planet", orbitAU: 7.4, zone: "frozen", composition: "Rocky" },
+      ],
+      metadata: {},
+    };
+
+    systemStoreState.systems = [zonedSystem];
+    systemStoreState.loadSystems = vi.fn(async () => systemStoreState.systems);
+    systemStoreState.findSystemByHex = vi.fn(() => zonedSystem);
+
+    const wrapper = mount(StarSystemBuilder, {
+      props: {
+        galaxyId: "gal-1",
+        sectorId: "grid:1:2",
+      },
+      global: {
+        stubs: {
+          LoadingSpinner: true,
+          SurveyNavigation: true,
+        },
+      },
+    });
+
+    await flushPromises();
+
+    const rows = wrapper.findAll(".planet-table tbody tr");
+    expect(rows[0].text()).toContain("hot");
+    expect(rows[1].text()).toContain("warm");
+    expect(rows[2].text()).toContain("habitable");
+    expect(rows[3].text()).toContain("cold");
+    expect(rows[4].text()).toContain("frozen");
   });
 
   it("rebuilds a persisted system even when reused star records have no positive mass", async () => {

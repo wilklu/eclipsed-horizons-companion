@@ -1,6 +1,20 @@
 import { calculatePlanetaryOrbitalPeriod, fractionalOrbitToAu } from "./systemGenerationWbh.js";
 
-import { createRandomRoller, rollDice } from "./dice.js";
+import { createRandomRoller } from "./dice.js";
+import { rollSingleDie, rollD3, roll2d, rollNd } from "./diceFormulasWbh.js";
+import {
+  calculateBiomassRating,
+  calculateBiocomplexityRating,
+  calculateBiodiversityRating,
+  calculateCompatibilityRating,
+} from "./lifeRatingsWbh.js";
+
+export {
+  calculateBiomassRating,
+  calculateBiocomplexityRating,
+  calculateBiodiversityRating,
+  calculateCompatibilityRating,
+};
 
 export const WORLD_PHYSICAL_CHARACTERISTIC_RULES = Object.freeze([
   {
@@ -41,7 +55,6 @@ export const WORLD_PHYSICAL_CHARACTERISTIC_RULES = Object.freeze([
     status: "planned",
   },
 ]);
-
 const WORLD_SIZE_TABLE = Object.freeze({
   0: { averageDiameterKm: 0, minDiameterKm: null, maxDiameterKm: null, code: "0" },
   R: { averageDiameterKm: 0, minDiameterKm: null, maxDiameterKm: null, code: "R" },
@@ -62,19 +75,59 @@ const WORLD_SIZE_TABLE = Object.freeze({
   E: { averageDiameterKm: 22400, minDiameterKm: 21600, maxDiameterKm: 23199, code: "E" },
   F: { averageDiameterKm: 24000, minDiameterKm: 23200, maxDiameterKm: 24799, code: "F" },
 });
-const SIZE_CODE_SEQUENCE = ["S", 1, 2, 3, 4, 5, 6, 7, 8, 9, "A", "B", "C", "D", "E", "F"];
+const TERRA_DIAMETER_KM = 12742;
+const TERRA_RADIUS_KM = TERRA_DIAMETER_KM / 2;
+const TERRA_ESCAPE_VELOCITY_MPS = 11186;
+
 const TERRESTRIAL_COMPOSITION_TABLE = Object.freeze([
-  { min: -Infinity, max: -4, composition: "Exotic Ice" },
+  { min: Number.NEGATIVE_INFINITY, max: -4, composition: "Exotic Ice" },
   { min: -3, max: 2, composition: "Mostly Ice" },
   { min: 3, max: 6, composition: "Mostly Rock" },
   { min: 7, max: 11, composition: "Rock and Metal" },
   { min: 12, max: 14, composition: "Mostly Metal" },
-  { min: 15, max: Infinity, composition: "Compressed Metal" },
+  { min: 15, max: Number.POSITIVE_INFINITY, composition: "Compressed Metal" },
 ]);
+
 const TERRESTRIAL_DENSITY_TABLE = Object.freeze({
-  "Exotic Ice": { 2: 0.03, 3: 0.06, 4: 0.09, 5: 0.12, 6: 0.15, 7: 0.18, 8: 0.21, 9: 0.24, 10: 0.27, 11: 0.3, 12: 0.33 },
-  "Mostly Ice": { 2: 0.18, 3: 0.21, 4: 0.24, 5: 0.27, 6: 0.3, 7: 0.33, 8: 0.36, 9: 0.39, 10: 0.41, 11: 0.44, 12: 0.47 },
-  "Mostly Rock": { 2: 0.5, 3: 0.53, 4: 0.56, 5: 0.59, 6: 0.62, 7: 0.65, 8: 0.68, 9: 0.71, 10: 0.74, 11: 0.77, 12: 0.8 },
+  "Exotic Ice": {
+    2: 0.03,
+    3: 0.06,
+    4: 0.09,
+    5: 0.12,
+    6: 0.15,
+    7: 0.18,
+    8: 0.21,
+    9: 0.24,
+    10: 0.27,
+    11: 0.3,
+    12: 0.33,
+  },
+  "Mostly Ice": {
+    2: 0.18,
+    3: 0.21,
+    4: 0.24,
+    5: 0.27,
+    6: 0.3,
+    7: 0.33,
+    8: 0.36,
+    9: 0.39,
+    10: 0.41,
+    11: 0.44,
+    12: 0.47,
+  },
+  "Mostly Rock": {
+    2: 0.5,
+    3: 0.53,
+    4: 0.56,
+    5: 0.59,
+    6: 0.62,
+    7: 0.65,
+    8: 0.68,
+    9: 0.71,
+    10: 0.74,
+    11: 0.77,
+    12: 0.8,
+  },
   "Rock and Metal": {
     2: 0.82,
     3: 0.85,
@@ -82,7 +135,7 @@ const TERRESTRIAL_DENSITY_TABLE = Object.freeze({
     5: 0.91,
     6: 0.94,
     7: 0.97,
-    8: 1,
+    8: 1.0,
     9: 1.03,
     10: 1.06,
     11: 1.09,
@@ -101,11 +154,20 @@ const TERRESTRIAL_DENSITY_TABLE = Object.freeze({
     11: 1.42,
     12: 1.45,
   },
-  "Compressed Metal": { 2: 1.5, 3: 1.55, 4: 1.6, 5: 1.65, 6: 1.7, 7: 1.75, 8: 1.8, 9: 1.85, 10: 1.9, 11: 1.95, 12: 2 },
+  "Compressed Metal": {
+    2: 1.5,
+    3: 1.55,
+    4: 1.6,
+    5: 1.65,
+    6: 1.7,
+    7: 1.75,
+    8: 1.8,
+    9: 1.85,
+    10: 1.9,
+    11: 1.95,
+    12: 2.0,
+  },
 });
-const TERRA_DIAMETER_KM = 12742;
-const TERRA_RADIUS_KM = 6371;
-const TERRA_ESCAPE_VELOCITY_MPS = 11186;
 const AU_TO_MILLION_KM = 149.5978707;
 const SOLAR_MASS_TO_EARTH_MASS = 332946;
 const ATMOSPHERE_TABLE = Object.freeze({
@@ -376,13 +438,7 @@ function toRomanNumeral(value) {
   return result;
 }
 
-function rollSingleDie(rollDie, sides) {
-  return clamp(Math.round(Number(rollDie(sides)) || 1), 1, sides);
-}
-
-function rollD3(rollDie) {
-  return Math.ceil(rollSingleDie(rollDie, 6) / 2);
-}
+// dice helpers are provided by diceFormulasWbh.js
 
 function normalizeGasGiantDiameterCode(value) {
   const numericValue = Number(value);
@@ -436,13 +492,13 @@ export function determineGasGiantProfile({
   } else if (initialRoll <= 4) {
     sizeClass = "GM";
     diameterTerran = rollSingleDie(rollDie, 6) + 6;
-    massEarth = 20 * (rollDice(rollDie, 3, 6) - 1);
+    massEarth = 20 * (rollNd(rollDie, 3) - 1);
   } else {
     sizeClass = "GL";
-    diameterTerran = rollDice(rollDie, 2, 6) + 6;
-    massEarth = rollD3(rollDie) * 50 * (rollDice(rollDie, 3, 6) + 4);
+    diameterTerran = roll2d(rollDie) + 6;
+    massEarth = rollD3(rollDie) * 50 * (rollNd(rollDie, 3) + 4);
     if (massEarth >= 3000) {
-      massEarth = 4000 - (rollDice(rollDie, 2, 6) - 2) * 200;
+      massEarth = 4000 - (roll2d(rollDie) - 2) * 200;
     }
   }
 
@@ -494,7 +550,7 @@ export function determineSignificantMoonQuantity({
   }
 
   const penalty = penalized ? diceCount : 0;
-  const total = rollDice(rollDie, diceCount, 6) - subtract - penalty;
+  const total = rollNd(rollDie, diceCount) - subtract - penalty;
   return {
     quantity: Math.max(0, total),
     hasRingOnly: total === 0,
@@ -516,7 +572,7 @@ function resolveGasGiantSpecialMoonSize({ parentDiameterTerran, rollDie = create
     return Math.ceil(rollSingleDie(rollDie, 6) / 3);
   }
   if (firstRoll <= 5) {
-    return clamp(rollDice(rollDie, 2, 6) - 2, 0, 10);
+    return clamp(roll2d(rollDie) - 2, 0, 10);
   }
 
   const giantMoonSize = clamp(Math.round(parentDiameterTerran) - 1 - rollSingleDie(rollDie, 6), 6, 16);
@@ -548,7 +604,7 @@ export function determineSignificantMoonSizes({
       if (specialSize === 0) {
         size = "R";
       } else if (specialSize >= 16) {
-        size = gasGiantProfile?.sizeClass === "GL" && rollDice(rollDie, 2, 6) === 12 ? 12 : 6;
+        size = gasGiantProfile?.sizeClass === "GL" && roll2d(rollDie) === 12 ? 12 : 6;
       } else {
         size = specialSize;
       }
@@ -563,7 +619,7 @@ export function determineSignificantMoonSizes({
       }
 
       if (Number(size) === parentSize - 2) {
-        const twinCheck = rollDice(rollDie, 2, 6);
+        const twinCheck = roll2d(rollDie);
         if (twinCheck === 2) size = parentSize - 1;
         if (twinCheck === 12) size = parentSize;
       }
@@ -932,7 +988,7 @@ export function determineOxygenFraction({
   }
 
   const primaryRoll = oxygenPrimaryRoll ?? rollSingleDie(rollDie, 6);
-  const secondaryRoll = oxygen2dRoll ?? rollDice(rollDie, 2, 6);
+  const secondaryRoll = oxygen2dRoll ?? roll2d(rollDie);
   const ageDm = Number(systemAgeGyr) > 4 ? 1 : 0;
   let oxygenFraction =
     Number(primaryRoll + ageDm) / 20 + (Number(secondaryRoll) - 7) / 100 + Number(oxygenVariance || 0);
@@ -1036,7 +1092,7 @@ export function determineAtmosphereTaints({
     return subtype.code === "P*";
   };
 
-  const firstRoll = taintRollTotal ?? rollDice(rollDie, 2, 6);
+  const firstRoll = taintRollTotal ?? roll2d(rollDie);
   const firstSubtype = findAtmosphereTaintSubtype(Number(firstRoll) + dm);
 
   if (hasAutomaticOxygenTaint) {
@@ -1044,10 +1100,10 @@ export function determineAtmosphereTaints({
       if (!taints.some((entry) => entry.code === "P")) {
         taints.push(buildAtmosphereTaintEntry("P"));
       }
-      const secondRoll = secondaryTaintRollTotal ?? rollDice(rollDie, 2, 6);
+      const secondRoll = secondaryTaintRollTotal ?? roll2d(rollDie);
       const needsThirdRoll = appendFromRoll(secondRoll, false);
       if (needsThirdRoll) {
-        appendFromRoll(tertiaryTaintRollTotal ?? rollDice(rollDie, 2, 6), false);
+        appendFromRoll(tertiaryTaintRollTotal ?? roll2d(rollDie), false);
       }
     }
     return taints.slice(0, 3);
@@ -1055,10 +1111,10 @@ export function determineAtmosphereTaints({
 
   if (firstSubtype?.code === "P*") {
     taints.push(buildAtmosphereTaintEntry("P"));
-    const secondRoll = secondaryTaintRollTotal ?? rollDice(rollDie, 2, 6);
+    const secondRoll = secondaryTaintRollTotal ?? roll2d(rollDie);
     const needsThirdRoll = appendFromRoll(secondRoll, false);
     if (needsThirdRoll) {
-      appendFromRoll(tertiaryTaintRollTotal ?? rollDice(rollDie, 2, 6), false);
+      appendFromRoll(tertiaryTaintRollTotal ?? roll2d(rollDie), false);
     }
     return taints.slice(0, 3);
   }
@@ -1258,71 +1314,45 @@ function buildNativeLifeRatings({
   atmosphereCode,
   hydrographics,
   avgTempC,
+  atmosphereTaints = [],
   type,
   isMoon = false,
   systemAgeGyr = 5,
+  rollDie = null,
 } = {}) {
   if (Number(size) <= 0 || isRestrictedNativeLifeCandidate({ type, isMoon })) {
     return { biomass: 0, biocomplexity: 0, biodiversity: 0, compatibility: 0 };
   }
 
-  const numericAtmosphere = Number(atmosphereCode ?? 0);
-  const numericHydrographics = Number(hydrographics ?? 0);
-  const numericTemp = Number(avgTempC ?? 0);
-  const numericAge = Number.isFinite(Number(systemAgeGyr)) ? Number(systemAgeGyr) : 5;
+  const biomass = calculateBiomassRating({
+    atmosphereCode,
+    hydrographics,
+    avgTempC,
+    systemAgeGyr,
+    rollDie,
+  });
 
-  let biomassDm = 0;
-  if (numericAtmosphere === 0) biomassDm -= 6;
-  else if (numericAtmosphere === 1) biomassDm -= 4;
-  else if ([2, 3, 14].includes(numericAtmosphere)) biomassDm -= 3;
-  else if ([4, 5].includes(numericAtmosphere)) biomassDm -= 2;
-  else if ([8, 9, 13].includes(numericAtmosphere)) biomassDm += 2;
-  else if (numericAtmosphere === 10) biomassDm -= 3;
-  else if (numericAtmosphere === 11) biomassDm -= 5;
-  else if (numericAtmosphere === 12) biomassDm -= 8;
-
-  if (numericHydrographics >= 1 && numericHydrographics <= 3) biomassDm += 1;
-  else if (numericHydrographics >= 4 && numericHydrographics <= 8) biomassDm += 2;
-  else if (numericHydrographics >= 9) biomassDm += 1;
-  else biomassDm -= 2;
-
-  if (numericTemp >= 6 && numericTemp <= 30) biomassDm += 2;
-  else if (numericTemp >= -10 && numericTemp <= 38) biomassDm += 1;
-  else if (numericTemp < -20 || numericTemp > 60) biomassDm -= 4;
-  else biomassDm -= 2;
-
-  if (numericAge < 1) biomassDm -= 6;
-  else if (numericAge < 2) biomassDm -= 4;
-  else if (numericAge < 3) biomassDm -= 2;
-  else if (numericAge >= 5 && numericAge <= 10) biomassDm += 1;
-  else if (numericAge > 10) biomassDm += 2;
-
-  const biomass = clamp(7 + biomassDm, 0, 15);
   if (biomass <= 0) {
     return { biomass: 0, biocomplexity: 0, biodiversity: 0, compatibility: 0 };
   }
 
-  let biocomplexityDm = 0;
-  if (numericAtmosphere < 4 || numericAtmosphere > 9) biocomplexityDm -= 2;
-  if (numericAge < 1) biocomplexityDm -= 10;
-  else if (numericAge < 2) biocomplexityDm -= 8;
-  else if (numericAge < 3) biocomplexityDm -= 4;
-  else if (numericAge < 4) biocomplexityDm -= 2;
+  const biocomplexity = calculateBiocomplexityRating({
+    biomass,
+    atmosphereCode,
+    atmosphereTaints,
+    systemAgeGyr,
+    rollDie,
+  });
+  const biodiversity = calculateBiodiversityRating({ biomass, biocomplexity, rollDie });
+  const compatibility = calculateCompatibilityRating({
+    biomass,
+    biocomplexity,
+    atmosphereCode,
+    atmosphereTaints,
+    systemAgeGyr,
+    rollDie,
+  });
 
-  const biocomplexity = clamp(Math.max(1, Math.min(biomass, 9) + biocomplexityDm), 0, 15);
-  const biodiversity = clamp(Math.ceil((biomass + biocomplexity) / 2), biomass > 0 ? 1 : 0, 15);
-
-  let compatibilityDm = 0;
-  if ([3, 5, 8].includes(numericAtmosphere)) compatibilityDm += 1;
-  else if (numericAtmosphere === 6) compatibilityDm += 2;
-  else if ([2, 4, 7, 9].includes(numericAtmosphere)) compatibilityDm -= 2;
-  else if ([0, 1, 11].includes(numericAtmosphere)) compatibilityDm -= 8;
-  else if (numericAtmosphere === 10 || numericAtmosphere === 15) compatibilityDm -= 6;
-  else if (numericAtmosphere === 12) compatibilityDm -= 10;
-  else if ([13, 14].includes(numericAtmosphere)) compatibilityDm -= 1;
-  if (numericAge > 8) compatibilityDm -= 2;
-
-  const compatibility = clamp(Math.floor(7 - biocomplexity / 2 + compatibilityDm), 0, 15);
   return { biomass, biocomplexity, biodiversity, compatibility };
 }
 
@@ -1352,6 +1382,7 @@ export function rollNativeSophontLife({
     type,
     isMoon,
     systemAgeGyr,
+    rollDie,
   });
 
   if (biomass <= 0 || biocomplexity < 8) return false;
@@ -1359,7 +1390,7 @@ export function rollNativeSophontLife({
 }
 
 function rollTotalOrDice(count, sides, rollDie = createRandomRoller()) {
-  return rollDice(rollDie, count, sides);
+  return rollNd(rollDie, count, sides);
 }
 
 export function determineNativeSophontLife({
@@ -1399,6 +1430,8 @@ export function buildNativeLifeProfile(world = {}) {
     type: world?.type || world?.worldType,
     isMoon: world?.isMoon,
     systemAgeGyr: world?.systemAgeGyr ?? world?.systemAge,
+    atmosphereTaints: world?.atmosphereTaints ?? [],
+    rollDie: world?.rollDie ?? null,
   });
 
   return `${toExtendedHex(ratings.biomass)}${toExtendedHex(ratings.biocomplexity)}${toExtendedHex(ratings.biodiversity)}${toExtendedHex(ratings.compatibility)}`;
@@ -1633,7 +1666,7 @@ export function buildWbhSeismologyProfile({
     size,
     hydrographics,
     totalSeismicStress,
-    rollTotal: tectonicRollTotal ?? rollDice(rollDie, 2, 6),
+    rollTotal: tectonicRollTotal ?? roll2d(rollDie),
   });
 
   return {
@@ -1739,8 +1772,7 @@ export function buildWbhEnvironmentalProfile(params = {}) {
   const sizeCode = normalizeSizeCode(params.sizeCode ?? params.size ?? "5");
   const size = params.size ?? sizeCodeToNumeric(sizeCode);
   const atmosphereCode =
-    params.atmosphereCode ??
-    determineAtmosphereCode({ sizeCode, rollTotal: params.atmosphereRoll ?? rollDice(rollDie, 2, 6) });
+    params.atmosphereCode ?? determineAtmosphereCode({ sizeCode, rollTotal: params.atmosphereRoll ?? roll2d(rollDie) });
   const temperatureRawRoll =
     params.temperatureRawRoll ??
     calculateOrbitTemperatureRawRoll({ orbitNumber: params.orbitNumber, hzco: params.hzco });
@@ -1769,7 +1801,7 @@ export function buildWbhEnvironmentalProfile(params = {}) {
     determineHydrographicsDetailed({
       sizeCode,
       atmosphereCode,
-      rollTotal: params.hydrographicsRoll ?? rollDice(rollDie, 2, 6),
+      rollTotal: params.hydrographicsRoll ?? roll2d(rollDie),
       temperatureAdjustedRoll: runawayGreenhouse.temperatureAdjustedRoll,
       runawayGreenhouse,
     });
@@ -1924,7 +1956,7 @@ export function buildWbhEnvironmentalProfile(params = {}) {
         density: params.density,
         gravity: params.gravity,
         atmosphereCode,
-        rollTotal: params.magnetosphereRoll ?? rollDice(rollDie, 2, 6),
+        rollTotal: params.magnetosphereRoll ?? roll2d(rollDie),
       }),
     nativeSophontLife: isRestrictedNativeLifeCandidate({ type: params.type, isMoon: params.isMoon })
       ? false
@@ -2139,11 +2171,11 @@ export function generateWorldPhysicalCharacteristicsWbh(params = {}) {
       orbitNumber: params.orbitNumber,
       hzco: params.hzco,
       systemAgeGyr: params.systemAgeGyr,
-      rollTotal: params.compositionRoll ?? rollDice(rollDie, 2, 6),
+      rollTotal: params.compositionRoll ?? roll2d(rollDie),
     });
     density = determineTerrestrialDensity({
       composition,
-      rollTotal: params.densityRoll ?? rollDice(rollDie, 2, 6),
+      rollTotal: params.densityRoll ?? roll2d(rollDie),
     });
     gravity = calculateWorldGravity({ density, diameterKm });
     mass = calculateWorldMass({ density, diameterKm });
@@ -2186,7 +2218,7 @@ export function generateWorldPhysicalCharacteristicsWbh(params = {}) {
     rollDie,
   });
 
-  return {
+  const result = {
     ...fallbackWorld,
     ...environment,
     name: resolvedWorldName,
@@ -2211,5 +2243,18 @@ export function generateWorldPhysicalCharacteristicsWbh(params = {}) {
         ? "implemented-environment-size-zero"
         : "implemented-world-environment-and-physics",
     wbhCoverage: WORLD_PHYSICAL_CHARACTERISTIC_RULES,
+  };
+
+  // Compute native life profile using the same rollDie used for generation so
+  // biomass follows the WBH 2D + DMs rule deterministically when a seeded
+  // roller was supplied.
+  const nativeLifeform = buildNativeLifeProfile({
+    ...result,
+    rollDie,
+  });
+
+  return {
+    ...result,
+    nativeLifeform,
   };
 }
