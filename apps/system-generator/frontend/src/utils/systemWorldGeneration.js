@@ -3,6 +3,7 @@ import {
   applyWorldProfileToPlanet,
   generateWorldProfile,
 } from "./worldProfileGenerator.js";
+import { applyPlanetaryBodyClassification } from "./systemWorldClassification.js";
 import {
   calculateHabitableZoneCenterAu,
   calculateHabitableZoneCenterOrbit,
@@ -179,7 +180,7 @@ export function buildProfiledWbhSystemPlanets({
             stellarMasses,
           });
 
-    return applyWorldProfileToPlanet(planet, enrichedProfile);
+    return applyPlanetaryBodyClassification(applyWorldProfileToPlanet(planet, enrichedProfile));
   });
 
   return sortSystemPlanetsByOrbit(applySystemWorldSocialProfiles(profiledPlanets));

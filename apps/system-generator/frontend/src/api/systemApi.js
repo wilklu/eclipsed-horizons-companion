@@ -1,3 +1,5 @@
+import { applyPlanetaryBodyClassification } from "../utils/systemWorldClassification.js";
+
 const STORAGE_KEY = "eclipsed-horizons-systems";
 const API_BASE_URL = String(import.meta.env.VITE_API_BASE_URL || "http://localhost:3100/api").replace(/\/$/, "");
 
@@ -92,6 +94,15 @@ function normalizeSystem(system) {
   const resolvedSystemDesignation = String(
     system?.systemDesignation ?? snapshot?.systemDesignation ?? resolvedName,
   ).trim();
+  const normalizedPlanets = (
+    Array.isArray(system?.planets) ? system.planets : Array.isArray(snapshot?.planets) ? snapshot.planets : []
+  ).map((planet) => applyPlanetaryBodyClassification(planet));
+  const normalizedMainworld =
+    system?.mainworld && typeof system.mainworld === "object"
+      ? applyPlanetaryBodyClassification(system.mainworld)
+      : snapshot?.mainworld && typeof snapshot.mainworld === "object"
+        ? applyPlanetaryBodyClassification(snapshot.mainworld)
+        : null;
 
   return {
     ...snapshot,
@@ -116,6 +127,8 @@ function normalizeSystem(system) {
       : Array.isArray(snapshot?.companionStars)
         ? snapshot.companionStars
         : [],
+    planets: normalizedPlanets,
+    mainworld: normalizedMainworld,
     metadata: {
       ...metadata,
       ...(resolvedName ? { displayName: resolvedName } : {}),

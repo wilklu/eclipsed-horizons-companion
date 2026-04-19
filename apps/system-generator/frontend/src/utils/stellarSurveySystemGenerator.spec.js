@@ -98,6 +98,11 @@ describe("stellarSurveySystemGenerator", () => {
     expect(profiledWorld?.seismology).toBeDefined();
     expect(typeof profiledWorld?.seismology?.totalTidalEffectMeters).toBe("number");
     expect(typeof profiledWorld?.majorTectonicPlates).toBe("number");
+    expect(typeof profiledWorld?.orbitBand).toBe("string");
+    expect(typeof profiledWorld?.worldFamily).toBe("string");
+    expect(typeof profiledWorld?.worldClass).toBe("string");
+    expect(typeof profiledWorld?.worldSubtype).toBe("string");
+    expect(typeof profiledWorld?.worldDescriptor).toBe("string");
   });
 
   it("marks flat-label legacy star imports when rebuilding persisted survey systems", () => {

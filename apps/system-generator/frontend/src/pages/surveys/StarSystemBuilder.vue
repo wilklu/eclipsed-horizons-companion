@@ -271,6 +271,7 @@ import {
 } from "../../utils/speechSynthesis.js";
 import { generatePrimaryStar } from "../../utils/primaryStarGenerator.js";
 import { buildHexStarTypeMetadata, resolveGeneratedStarsFromSystem } from "../../utils/systemStarMetadata.js";
+import { applyPlanetaryBodyClassification } from "../../utils/systemWorldClassification.js";
 import {
   buildProfiledWbhSystemPlanets,
   calculateSystemHabitableZone,
@@ -643,7 +644,11 @@ function toPersistedSystem(nextSystem) {
   const normalizedHex = normalizeHex(nextSystem.systemId);
   const persistedSectorId = getPersistedSectorId();
   const stars = Array.isArray(nextSystem.stars) ? nextSystem.stars : [];
-  const planets = sortSystemPlanetsByOrbit(Array.isArray(nextSystem.planets) ? nextSystem.planets : []);
+  const planets = sortSystemPlanetsByOrbit(
+    (Array.isArray(nextSystem.planets) ? nextSystem.planets : []).map((planet) =>
+      applyPlanetaryBodyClassification(planet),
+    ),
+  );
   const mainworld = planets.find((world) => world?.isMainworld) ?? null;
   const primary = stars[0] ? { ...stars[0] } : null;
   const companions = stars.slice(1).map((s) => ({ ...s }));
@@ -719,8 +724,22 @@ function resolveStarDisplayLabel(star = null) {
 
 function buildDisplayReadySystem(systemRecord = null) {
   const stars = resolveGeneratedStarsFromSystem(systemRecord);
+  const normalizedPlanets = sortSystemPlanetsByOrbit(
+    (Array.isArray(systemRecord?.planets) ? systemRecord.planets : []).map((planet) =>
+      applyPlanetaryBodyClassification(planet),
+    ),
+  );
+
   if (!stars.length) {
-    return systemRecord;
+    return {
+      ...(systemRecord && typeof systemRecord === "object" ? systemRecord : {}),
+      planets: normalizedPlanets,
+      mainworld:
+        normalizedPlanets.find((planet) => planet?.isMainworld) ??
+        (systemRecord?.mainworld && typeof systemRecord.mainworld === "object"
+          ? applyPlanetaryBodyClassification(systemRecord.mainworld)
+          : (systemRecord?.mainworld ?? null)),
+    };
   }
 
   return {
@@ -728,6 +747,12 @@ function buildDisplayReadySystem(systemRecord = null) {
     stars,
     primaryStar: stars[0],
     companionStars: stars.slice(1),
+    planets: normalizedPlanets,
+    mainworld:
+      normalizedPlanets.find((planet) => planet?.isMainworld) ??
+      (systemRecord?.mainworld && typeof systemRecord.mainworld === "object"
+        ? applyPlanetaryBodyClassification(systemRecord.mainworld)
+        : (systemRecord?.mainworld ?? null)),
   };
 }
 
@@ -912,7 +937,21 @@ function describePlanetType(planet) {
     return planet.parentWorldName ? `Moon of ${planet.parentWorldName}` : "Significant Moon";
   }
 
-  return String(planet.type || "Unknown");
+  const baseType = String(planet.type || "Unknown");
+  const worldDescriptor = String(planet.worldDescriptor || "").trim();
+  const orbitBandKey = String(planet.orbitBandKey || "")
+    .trim()
+    .toLowerCase();
+  if (
+    worldDescriptor &&
+    orbitBandKey &&
+    orbitBandKey !== "unknown" &&
+    !worldDescriptor.toLowerCase().includes(baseType.toLowerCase())
+  ) {
+    return `${baseType} — ${worldDescriptor}`;
+  }
+
+  return baseType;
 }
 
 function normalizeCatalogNativeLifeProfile(profile) {

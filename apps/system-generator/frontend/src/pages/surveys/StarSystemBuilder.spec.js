@@ -267,6 +267,59 @@ describe("StarSystemBuilder page", () => {
     expect(wrapper.text()).not.toContain("0101\n");
   });
 
+  it("shows a descriptive subtype label for legacy persisted planets without precomputed classification", async () => {
+    const legacyTypedSystem = {
+      systemId: "gal-1:1,2:0101",
+      sectorId: "gal-1:1,2",
+      galaxyId: "gal-1",
+      stars: [
+        {
+          designation: "G2V",
+          spectralClass: "G2V",
+          massInSolarMasses: 1,
+          luminosity: 1,
+          temperatureK: 5800,
+          orbitType: null,
+        },
+      ],
+      habitableZone: { innerAU: 0.9, outerAU: 1.6, frostLineAU: 4.8, hasRadiantHabitableZone: true },
+      planets: [
+        {
+          name: "Verdant",
+          type: "Terrestrial Planet",
+          orbitNumber: 4,
+          orbitAU: 1.2,
+          zone: "habitable",
+          hydrographics: 6,
+          avgTempC: 18,
+          composition: "Rocky",
+        },
+      ],
+      metadata: {},
+    };
+
+    systemStoreState.systems = [legacyTypedSystem];
+    systemStoreState.loadSystems = vi.fn(async () => systemStoreState.systems);
+    systemStoreState.findSystemByHex = vi.fn(() => legacyTypedSystem);
+
+    const wrapper = mount(StarSystemBuilder, {
+      props: {
+        galaxyId: "gal-1",
+        sectorId: "grid:1:2",
+      },
+      global: {
+        stubs: {
+          LoadingSpinner: true,
+          SurveyNavigation: true,
+        },
+      },
+    });
+
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("Inner Zone Tectonic");
+  });
+
   it("preserves the routed system name and legacy star designation labels for saved surveys", async () => {
     routeState.query = {
       ...routeState.query,

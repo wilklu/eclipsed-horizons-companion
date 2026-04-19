@@ -63,6 +63,38 @@ describe("systemApi", () => {
     expect(JSON.parse(globalThis.localStorage.setItem.mock.calls.at(-1)[1])[0].systemId).toBe("sec-1:0101");
   });
 
+  it("enriches legacy persisted planets with descriptive orbit-band taxonomy on reload", async () => {
+    globalThis.fetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => [
+        {
+          systemId: "sec-1:0303",
+          sectorId: "sec-1",
+          galaxyId: "gal-1",
+          planets: [
+            {
+              name: "Verdant",
+              type: "Terrestrial Planet",
+              orbitNumber: 4,
+              orbitAU: 1.2,
+              hydrographics: 6,
+              avgTempC: 18,
+            },
+          ],
+          metadata: {},
+        },
+      ],
+    });
+
+    const systems = await getSystemsBySector("sec-1");
+
+    expect(systems[0].planets[0].orbitBand).toBe("Inner Zone");
+    expect(systems[0].planets[0].worldFamily).toBe("Terrestrial World");
+    expect(systems[0].planets[0].worldSubtype).toBe("Tectonic");
+    expect(systems[0].planets[0].worldDescriptor).toBe("Inner Zone Tectonic");
+  });
+
   it("falls back to cached systems when sector reload requests fail", async () => {
     globalThis.localStorage.setItem(
       "eclipsed-horizons-systems",
