@@ -363,7 +363,12 @@ import {
 import { formatBeastSummary, formatReactionValue } from "../../utils/beasts/beastFormatting.js";
 import { deserializeReturnRoute } from "../../utils/returnRoute.js";
 import * as toastService from "../../utils/toast.js";
-import { findMatchingWorldOption, resolveBoundSystemRecord, resolveSelectedWorldIndex } from "../../utils/worldLink.js";
+import {
+  findMatchingWorldOption,
+  listSystemWorldOptions,
+  resolveBoundSystemRecord,
+  resolveSelectedWorldIndex,
+} from "../../utils/worldLink.js";
 
 const { overlayProps: creatureExportOverlayProps, exportJson: exportCreatureArchive } = useArchiveTransfer({
   noun: "Creature",
@@ -400,22 +405,7 @@ const creature = ref(null);
 const faunaBundle = ref(null);
 const encounterTable = ref([]);
 
-const worldOptions = computed(() => {
-  const systems = Array.isArray(systemStore.getAllSystems) ? systemStore.getAllSystems : [];
-  return systems.flatMap((system) => {
-    const worlds = Array.isArray(system?.worlds) ? system.worlds : system?.mainworld ? [system.mainworld] : [];
-    return worlds
-      .filter((world) => world && typeof world === "object")
-      .map((world, index) => ({
-        key: `${system?.systemId || system?.name || "system"}:${world?.name || index}`,
-        label: `${world?.name || `World ${index + 1}`} — ${system?.name || system?.systemName || "Unnamed System"}`,
-        world,
-        systemId: String(system?.systemId || ""),
-        worldIndex: index,
-        worldName: String(world?.name || ""),
-      }));
-  });
-});
+const worldOptions = computed(() => listSystemWorldOptions(systemStore.getAllSystems));
 
 const selectedWorldOption = computed(
   () => worldOptions.value.find((entry) => entry.key === selectedWorldKey.value) || null,

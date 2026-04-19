@@ -427,10 +427,15 @@ export function summarizeSystemRecord(system) {
     system?.secondaryProfiles,
     metadata?.secondaryProfiles,
   );
+  const metadataSystemRecord =
+    metadata?.systemRecord && typeof metadata.systemRecord === "object" ? metadata.systemRecord : {};
   const systemName = firstNonEmptyString(
     system?.name,
+    system?.systemName,
     system?.systemDesignation,
     profiles?.systemDesignation,
+    metadataSystemRecord?.name,
+    metadata?.displayName,
     mainworld?.name,
   );
 

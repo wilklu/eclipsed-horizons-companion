@@ -69,7 +69,7 @@
       <!-- System Display -->
       <div v-if="system" class="system-display">
         <div class="system-header">
-          <h2>{{ system.name || system.systemId }}</h2>
+          <h2>{{ resolvedSystemDisplayName }}</h2>
           <span class="system-type-badge">{{ system.stars.length > 1 ? "Multiple" : "Single" }} Star</span>
         </div>
 
@@ -670,6 +670,36 @@ function ensureSystemSuffix(name) {
   return `${trimmed} System`;
 }
 
+function resolveSystemDisplayName(systemRecord = null) {
+  const metadata = systemRecord?.metadata && typeof systemRecord.metadata === "object" ? systemRecord.metadata : {};
+  const metadataSystemRecord =
+    metadata?.systemRecord && typeof metadata.systemRecord === "object" ? metadata.systemRecord : {};
+
+  return (
+    ensureSystemSuffix(systemName.value) ||
+    firstNonEmptySystemName(
+      systemRecord?.name,
+      systemRecord?.systemName,
+      systemRecord?.systemDesignation,
+      metadataSystemRecord?.name,
+      metadata?.displayName,
+    ) ||
+    normalizeHex(systemRecord?.systemId || hexCoord.value)
+  );
+}
+
+function firstNonEmptySystemName(...values) {
+  for (const value of values) {
+    const text = String(value || "").trim();
+    if (text) {
+      return text;
+    }
+  }
+  return "";
+}
+
+const resolvedSystemDisplayName = computed(() => resolveSystemDisplayName(system.value));
+
 async function hydrateSystem() {
   if (!props.galaxyId || !props.sectorId) {
     system.value = null;
@@ -735,7 +765,13 @@ async function hydrateSystem() {
               ? existing.habitableZone
               : calculateSystemHabitableZone(existing?.stars ?? []),
         };
-        systemName.value = String(existing.name || "");
+        systemName.value = firstNonEmptySystemName(
+          existing.name,
+          existing.systemName,
+          existing.systemDesignation,
+          existing?.metadata?.systemRecord?.name,
+          existing?.metadata?.displayName,
+        );
         selectedWorldIndex.value = resolveSelectedWorldIndex(existing.planets);
         systemStore.setCurrentSystem(existing.systemId);
         hexCoord.value = normalizeHex(existing.systemId || hexCoord.value);
@@ -1140,6 +1176,7 @@ function openSystemSurvey() {
     query: {
       systemId: String(system.value?.systemId || ""),
       systemRecordId: String(systemStore.currentSystemId || ""),
+      systemName: resolvedSystemDisplayName.value,
       hex: normalizeHex(system.value?.systemId || hexCoord.value),
       star: String(system.value?.stars?.[0]?.designation || route.query.star || "").trim(),
       ...(returnTo ? { returnTo } : {}),

@@ -457,13 +457,24 @@ export function buildSurveyDataFromSystem(systemRecord) {
           : base.worlds;
 
   const profiles = systemRecord?.profiles && typeof systemRecord.profiles === "object" ? systemRecord.profiles : {};
+  const metadata = systemRecord?.metadata && typeof systemRecord.metadata === "object" ? systemRecord.metadata : {};
+  const metadataSystemRecord =
+    metadata?.systemRecord && typeof metadata.systemRecord === "object" ? metadata.systemRecord : {};
   const derivedProfileNotes = buildMainworldSocialProfileNotes(mainworld);
   const legacyStarNote = buildLegacyStarMetadataNote(systemRecord);
   const derivedSecondaryProfiles = buildSecondaryProfilesSummary(systemRecord?.worlds || systemRecord?.planets || []);
 
   return {
     ...base,
-    systemDesignation: String(systemRecord?.systemDesignation || systemRecord?.name || systemRecord?.systemId || ""),
+    systemDesignation: String(
+      systemRecord?.systemDesignation ||
+        systemRecord?.name ||
+        systemRecord?.systemName ||
+        metadataSystemRecord?.name ||
+        metadata?.displayName ||
+        systemRecord?.systemId ||
+        "",
+    ),
     sectorHex:
       String(systemRecord?.sectorHex || "") ||
       `${String(systemRecord?.sectorId || "")}${systemRecord?.hexCoordinates ? ` ${String(systemRecord.hexCoordinates.x).padStart(2, "0")}${String(systemRecord.hexCoordinates.y).padStart(2, "0")}` : ""}`.trim(),

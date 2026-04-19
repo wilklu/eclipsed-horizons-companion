@@ -83,13 +83,38 @@ const resolvedSystemId = computed(() =>
 );
 
 const currentSystem = computed(() => {
-  if (!resolvedSystemId.value) {
-    return systemStore.getCurrentSystem;
+  const baseSystem = !resolvedSystemId.value
+    ? systemStore.getCurrentSystem
+    : (systemStore.systems.find((system) => String(system?.systemId) === resolvedSystemId.value) ??
+      systemStore.getCurrentSystem);
+
+  const routedSystemName = String(route.query.systemName || "").trim();
+  if (!baseSystem || !routedSystemName) {
+    return baseSystem;
   }
-  return (
-    systemStore.systems.find((system) => String(system?.systemId) === resolvedSystemId.value) ??
-    systemStore.getCurrentSystem
-  );
+
+  const existingName = String(
+    baseSystem?.name || baseSystem?.systemDesignation || baseSystem?.metadata?.systemRecord?.name || "",
+  ).trim();
+  if (existingName) {
+    return baseSystem;
+  }
+
+  return {
+    ...baseSystem,
+    name: routedSystemName,
+    systemDesignation: routedSystemName,
+    metadata: {
+      ...(baseSystem?.metadata && typeof baseSystem.metadata === "object" ? baseSystem.metadata : {}),
+      displayName: routedSystemName,
+      systemRecord: {
+        ...(baseSystem?.metadata?.systemRecord && typeof baseSystem.metadata.systemRecord === "object"
+          ? baseSystem.metadata.systemRecord
+          : {}),
+        name: routedSystemName,
+      },
+    },
+  };
 });
 
 const savedSystemSummary = computed(() => summarizeSystemRecord(currentSystem.value));

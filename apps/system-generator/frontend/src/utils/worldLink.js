@@ -46,6 +46,41 @@ export function normalizeSystemHex(value) {
     .slice(0, 4);
 }
 
+export function listSystemWorldOptions(systems = []) {
+  if (!Array.isArray(systems)) {
+    return [];
+  }
+
+  return systems.flatMap((system) => {
+    const candidateWorlds =
+      Array.isArray(system?.planets) && system.planets.length
+        ? system.planets
+        : Array.isArray(system?.worlds) && system.worlds.length
+          ? system.worlds
+          : system?.mainworld
+            ? [system.mainworld]
+            : [];
+
+    return candidateWorlds
+      .filter((world) => world && typeof world === "object")
+      .map((world, index) => {
+        const systemId = String(system?.systemId || "");
+        const resolvedIndex = Number.isInteger(world?.worldIndex) && world.worldIndex >= 0 ? world.worldIndex : index;
+        const worldName = String(world?.name || "");
+        const systemLabel = String(system?.name || system?.systemName || "Unnamed System");
+
+        return {
+          key: `${systemId || system?.name || "system"}:${worldName || resolvedIndex}`,
+          label: `${worldName || `World ${resolvedIndex + 1}`} — ${systemLabel}`,
+          world,
+          systemId,
+          worldIndex: resolvedIndex,
+          worldName,
+        };
+      });
+  });
+}
+
 export function resolveSelectedWorldIndex(selectedWorldOption = null, route = {}) {
   const explicitIndex = Number(selectedWorldOption?.worldIndex ?? route?.query?.worldIndex ?? -1);
   return Number.isInteger(explicitIndex) && explicitIndex >= 0 ? explicitIndex : null;
@@ -82,7 +117,7 @@ export function findMatchingWorldOption(options = [], route = {}) {
     return null;
   }
 
-  const targetSystemId = String(route?.query?.systemId || route?.query?.systemRecordId || "").trim();
+  const targetSystemId = String(route?.query?.systemRecordId || route?.query?.systemId || "").trim();
   const targetWorldName = String(route?.query?.worldName || "")
     .trim()
     .toLowerCase();
