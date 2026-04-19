@@ -66,6 +66,18 @@ const preferencesStoreState = reactive({
   ttsVoiceURI: "",
 });
 
+const creatureStoreState = reactive({
+  faunaBundlesByWorld: vi.fn(() => []),
+});
+
+const floraStoreState = reactive({
+  floraByWorld: vi.fn(() => []),
+});
+
+const sophontStoreState = reactive({
+  sophontsByWorld: vi.fn(() => []),
+});
+
 vi.mock("vue-router", () => ({
   useRouter: () => ({ push: hoisted.routerPush, replace: hoisted.routerReplace }),
   useRoute: () => routeState,
@@ -77,6 +89,18 @@ vi.mock("../../stores/systemStore.js", () => ({
 
 vi.mock("../../stores/preferencesStore.js", () => ({
   usePreferencesStore: () => preferencesStoreState,
+}));
+
+vi.mock("../../stores/creatureStore.js", () => ({
+  useCreatureStore: () => creatureStoreState,
+}));
+
+vi.mock("../../stores/floraStore.js", () => ({
+  useFloraStore: () => floraStoreState,
+}));
+
+vi.mock("../../stores/sophontStore.js", () => ({
+  useSophontStore: () => sophontStoreState,
 }));
 
 vi.mock("../../composables/useArchiveTransfer.js", () => ({
@@ -117,6 +141,12 @@ describe("WorldBuilder", () => {
     systemStoreState.getCurrentSystem = createSystemRecord();
     systemStoreState.updateSystem.mockClear();
     systemStoreState.setCurrentSystem.mockClear();
+    creatureStoreState.faunaBundlesByWorld.mockReset();
+    creatureStoreState.faunaBundlesByWorld.mockReturnValue([]);
+    floraStoreState.floraByWorld.mockReset();
+    floraStoreState.floraByWorld.mockReturnValue([]);
+    sophontStoreState.sophontsByWorld.mockReset();
+    sophontStoreState.sophontsByWorld.mockReturnValue([]);
   });
 
   it("renders partial stored world profiles without crashing on missing numeric fields", async () => {
@@ -233,6 +263,70 @@ describe("WorldBuilder", () => {
     expect(lifeSection.text()).toMatch(/Native Sophonts:(Exist|Absent|Extinct)/);
     expect(censusSection).toBeTruthy();
     expect(censusSection.text()).not.toContain("Biomass Rating:");
+  });
+
+  it("shows linked fauna and sophont summaries together when dossiers exist", async () => {
+    creatureStoreState.faunaBundlesByWorld.mockReturnValue([
+      {
+        balance: { stability: "Balanced biosphere", hazardLevel: "Moderate" },
+        focus: { name: "Fen Stalker" },
+        terrains: ["Wetland", "Shore"],
+        notes: ["Balanced biosphere with moderate encounter hazard pressure."],
+      },
+    ]);
+    floraStoreState.floraByWorld.mockReturnValue([
+      {
+        name: "Ionan Bloom",
+        biology: { "Growth Form": "Canopy Tree", Climate: "Temperate" },
+        uses: { "Primary Use": "medicinal resin", "Hazard Level": "Moderate" },
+        worldIntegration: { summary: "Ionan Bloom is a temperate canopy tree known for medicinal resin." },
+      },
+    ]);
+    sophontStoreState.sophontsByWorld.mockReturnValue([
+      {
+        name: "Caledans",
+        origin: "Native sophont lineage",
+        government: "Elected Senate",
+        techLevel: 11,
+        civilization: {
+          "Contact Status": "Open contact",
+          "Settlement Pattern": "Arcology city-states",
+        },
+        diplomacy: {
+          "Current Stance": "guarded neutrality",
+        },
+        factionTensions: {
+          summary: "Caledan Concord and Frontier Bloc are maneuvering over canal tolls.",
+        },
+        eventChain: [{ phase: "Catalyst", title: "Dispute over canal tolls" }],
+        historyTimeline: [{ era: "Present Tension", title: "Canal Accord Strain" }],
+        worldIntegration: { summary: "Caledans are a stellar-capable culture." },
+      },
+    ]);
+
+    const wrapper = mount(WorldBuilder, {
+      global: {
+        stubs: {
+          LoadingSpinner: { template: "<div data-test='loading-spinner' />" },
+          SurveyNavigation: { template: "<div data-test='survey-navigation' />" },
+        },
+      },
+    });
+
+    await flushPromises();
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("Linked Ecology & Society");
+    expect(wrapper.text()).toContain("Balanced biosphere");
+    expect(wrapper.text()).toContain("Fen Stalker");
+    expect(wrapper.text()).toContain("Ionan Bloom");
+    expect(wrapper.text()).toContain("medicinal resin");
+    expect(wrapper.text()).toContain("Caledans");
+    expect(wrapper.text()).toContain("Open contact");
+    expect(wrapper.text()).toContain("guarded neutrality");
+    expect(wrapper.text()).toContain("Canal Accord Strain");
+    expect(wrapper.text()).toContain("maneuvering over canal tolls");
+    expect(wrapper.text()).toContain("Dispute over canal tolls");
   });
 
   it("shows the WBH native lifeform profile in World Survey when native sophont life is present", async () => {

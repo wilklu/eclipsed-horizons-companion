@@ -1265,6 +1265,9 @@ onMounted(async () => {
 .survey-content {
   padding: 1.25rem;
   flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
 }
 
 .control-panel {

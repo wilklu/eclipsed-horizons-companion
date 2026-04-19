@@ -81,9 +81,15 @@ const routes = [
     meta: { title: "Creature Generator" },
   },
   {
+    path: "/flora-generator",
+    name: "FloraGenerator",
+    component: () => import("../pages/surveys/FloraGenerator.vue"),
+    meta: { title: "Flora Generator" },
+  },
+  {
     path: "/history-generator",
     name: "HistoryGenerator",
-    component: () => import("../pages/surveys/SurveyUnavailable.vue"),
+    component: () => import("../pages/surveys/HistoryGenerator.vue"),
     meta: { title: "History Generator" },
   },
   {

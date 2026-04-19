@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildSophontDiplomacyProfile,
+  buildSophontEventChain,
+  buildSophontFactionTensions,
+  buildSophontImagePrompt,
+  buildSophontHistoryTimeline,
+  buildSophontWorldUpdate,
   buildWorldLinkedSophontOptions,
+  describeSophontTechBand,
   generateSophontProfile,
   mapWorldToSophontEnvironment,
   recommendBodyPlan,
@@ -46,5 +53,96 @@ describe("sophontGenerator shared biology rules", () => {
     expect(second).toEqual(first);
     expect(first.sourceWorld?.name).toBe("Caledon");
     expect(first.origin).toBe("Native sophont lineage");
+    expect(first.civilization["Settlement Pattern"]).toBeTruthy();
+    expect(first.worldIntegration.summary).toContain("culture");
+    expect(first.diplomacy["Current Flashpoint"]).toBeTruthy();
+    expect(first.historyTimeline.length).toBeGreaterThan(1);
+    expect(first.factionTensions.summary).toContain("maneuvering");
+    expect(first.eventChain).toHaveLength(3);
+    expect(first.visualDescription).toContain("Caledans");
+    expect(first.imagePrompt).toContain("Detailed sci-fi species concept art");
+  });
+
+  it("builds an image-ready sophont description", () => {
+    const profile = generateSophontProfile({
+      seed: "art-case",
+      name: "Talari",
+      bodyPlan: "Avian",
+      homeEnvironment: "Mountain",
+    });
+
+    const prompt = buildSophontImagePrompt(profile);
+    expect(prompt.visualDescription).toContain("Talari");
+    expect(prompt.imagePrompt).toContain("full-body character sheet");
+    expect(prompt.imageCaption).toContain("sophont concept");
+  });
+
+  it("builds diplomacy hooks, faction tensions, and a short event chain", () => {
+    const diplomacy = buildSophontDiplomacyProfile({
+      techLevel: 10,
+      civilization: { "Contact Status": "Open contact", "Diplomatic Posture": "scholarly exchange" },
+    });
+    const timeline = buildSophontHistoryTimeline({
+      name: "Talari",
+      techLevel: 10,
+      civilization: { "Tech Band": "stellar-capable", "Settlement Pattern": "Arcology city-states" },
+      diplomacy,
+      sourceWorld: {
+        name: "Talara",
+        nativeSophontLife: true,
+        factionsProfile: { summary: "2 significant factions; Riots pressure from II" },
+        civilConflict: { active: true, trigger: "balkanization" },
+      },
+    });
+    const factionTensions = buildSophontFactionTensions({
+      name: "Talari",
+      civilization: { "Settlement Pattern": "Arcology city-states" },
+      diplomacy,
+      sourceWorld: {
+        name: "Talara",
+        factionsProfile: { summary: "2 significant factions; Riots pressure from II" },
+        civilConflict: { active: true, trigger: "balkanization" },
+      },
+    });
+    const eventChain = buildSophontEventChain({
+      name: "Talari",
+      diplomacy,
+      factionTensions,
+      historyTimeline: timeline,
+      sourceWorld: { name: "Talara" },
+    });
+
+    expect(diplomacy.hooks.length).toBeGreaterThan(0);
+    expect(timeline).toHaveLength(3);
+    expect(timeline[0].title).toBeTruthy();
+    expect(factionTensions.factions).toHaveLength(2);
+    expect(eventChain).toHaveLength(3);
+    expect(eventChain[0].title).toContain("Dispute");
+  });
+
+  it("builds a world update overlay from a saved sophont dossier", () => {
+    expect(describeSophontTechBand(12)).toBe("advanced interstellar");
+
+    const update = buildSophontWorldUpdate({
+      id: "s-1",
+      name: "Caledans",
+      techLevel: 11,
+      government: "Elected Senate",
+      socialStructure: "Democratic Collective",
+      origin: "Native sophont lineage",
+      civilization: {
+        "Settlement Pattern": "Arcology city-states",
+        "Contact Status": "Open contact",
+        "Cultural Focus": "scientific stewardship",
+        "Diplomatic Posture": "scholarly exchange",
+        "Tech Band": "advanced interstellar",
+      },
+    });
+
+    expect(update.nativeSophontLife).toBe(true);
+    expect(update.linkedSophontProfile.name).toBe("Caledans");
+    expect(update.secondaryWorldContext).toContain("Open contact");
+    expect(update.linkedSophontProfile.currentFlashpoint).toBeTruthy();
+    expect(update.remarks.length).toBeGreaterThan(0);
   });
 });

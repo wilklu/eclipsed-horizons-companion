@@ -50,6 +50,285 @@ async function requestJson(baseUrl, path, options = {}) {
   return payload;
 }
 
+test("history routes persist saved historical archives", async () => {
+  const tempDir = mkdtempSync(join(tmpdir(), "eh-api-test-"));
+  const dbPath = join(tempDir, "universe.test.db");
+  const port = 3113;
+  const baseUrl = `http://127.0.0.1:${port}/api`;
+  const child = spawn(process.execPath, [serverEntry], {
+    cwd: repoRoot,
+    env: {
+      ...process.env,
+      PORT: String(port),
+      EH_DB_PATH: dbPath,
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+
+  let stderr = "";
+  child.stderr.on("data", (chunk) => {
+    stderr += chunk.toString();
+  });
+
+  try {
+    await waitForHealth(baseUrl);
+
+    const saved = await requestJson(baseUrl, "/histories/upsert", {
+      method: "POST",
+      body: JSON.stringify({
+        id: "history-talara",
+        civilizationName: "Talari Concord",
+        worldName: "Talara",
+        systemId: "012:0,0:0203",
+        worldKey: "012:0,0:0203:Talara",
+        overview: { "Historical Themes": "Political, Diplomatic" },
+        events: [{ title: "Founding of Talara", yearsAgo: 2000 }],
+        dynasties: [{ id: "dynasty-1", name: "House Vey" }],
+        notablePeople: [{ name: "Corin Vey" }],
+        familyTree: [{ id: "dynasty-1", links: [] }],
+        context: { government: "Directorate", flashpoint: "succession blockade" },
+        meta: { historyLength: "long", eraStart: 25000 },
+      }),
+    });
+
+    assert.equal(saved.id, "history-talara");
+    assert.equal(saved.civilizationName, "Talari Concord");
+
+    const list = await requestJson(baseUrl, "/histories?systemId=012%3A0%2C0%3A0203&worldName=Talara");
+    assert.equal(Array.isArray(list), true);
+    assert.equal(list.length, 1);
+    assert.equal(list[0].worldName, "Talara");
+
+    const fetched = await requestJson(baseUrl, "/histories/history-talara");
+    assert.equal(fetched.meta.historyLength, "long");
+    assert.equal(fetched.events[0].title, "Founding of Talara");
+
+    await fetch(`${baseUrl}/histories/history-talara`, { method: "DELETE" });
+    const listAfterDelete = await requestJson(baseUrl, "/histories?systemId=012%3A0%2C0%3A0203&worldName=Talara");
+    assert.equal(listAfterDelete.length, 0);
+  } finally {
+    child.kill();
+    await new Promise((resolvePromise) => {
+      child.once("exit", () => resolvePromise());
+      setTimeout(resolvePromise, 1000);
+    });
+    rmSync(tempDir, { recursive: true, force: true });
+    if (stderr.trim()) {
+      assert.equal(stderr.trim(), "", stderr.trim());
+    }
+  }
+});
+
+test("sophont routes persist generated species dossiers", async () => {
+  const tempDir = mkdtempSync(join(tmpdir(), "eh-api-test-"));
+  const dbPath = join(tempDir, "universe.test.db");
+  const port = 3115;
+  const baseUrl = `http://127.0.0.1:${port}/api`;
+  const child = spawn(process.execPath, [serverEntry], {
+    cwd: repoRoot,
+    env: {
+      ...process.env,
+      PORT: String(port),
+      EH_DB_PATH: dbPath,
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+
+  let stderr = "";
+  child.stderr.on("data", (chunk) => {
+    stderr += chunk.toString();
+  });
+
+  try {
+    await waitForHealth(baseUrl);
+
+    const saved = await requestJson(baseUrl, "/sophonts/upsert", {
+      method: "POST",
+      body: JSON.stringify({
+        id: "sophont-talara",
+        name: "Talari",
+        systemId: "012:0,0:0203",
+        worldName: "Talara",
+        worldKey: "012:0,0:0203:Talara",
+        bodyPlanSelection: "Humanoid",
+        homeEnvironmentSelection: "Desert",
+        civilization: { "Tech Level": 11 },
+        biology: { "Body Plan": "Humanoid", "Home Environment": "Desert" },
+      }),
+    });
+
+    assert.equal(saved.id, "sophont-talara");
+    assert.equal(saved.worldName, "Talara");
+
+    const list = await requestJson(baseUrl, "/sophonts?systemId=012%3A0%2C0%3A0203&worldName=Talara");
+    assert.equal(Array.isArray(list), true);
+    assert.equal(list.length, 1);
+    assert.equal(list[0].name, "Talari");
+
+    const fetched = await requestJson(baseUrl, "/sophonts/sophont-talara");
+    assert.equal(fetched.bodyPlanSelection, "Humanoid");
+
+    await fetch(`${baseUrl}/sophonts/sophont-talara`, { method: "DELETE" });
+    const listAfterDelete = await requestJson(baseUrl, "/sophonts?systemId=012%3A0%2C0%3A0203&worldName=Talara");
+    assert.equal(listAfterDelete.length, 0);
+  } finally {
+    child.kill();
+    await new Promise((resolvePromise) => {
+      child.once("exit", () => resolvePromise());
+      setTimeout(resolvePromise, 1000);
+    });
+    rmSync(tempDir, { recursive: true, force: true });
+    if (stderr.trim()) {
+      assert.equal(stderr.trim(), "", stderr.trim());
+    }
+  }
+});
+
+test("flora routes persist generated plant dossiers", async () => {
+  const tempDir = mkdtempSync(join(tmpdir(), "eh-api-test-"));
+  const dbPath = join(tempDir, "universe.test.db");
+  const port = 3116;
+  const baseUrl = `http://127.0.0.1:${port}/api`;
+  const child = spawn(process.execPath, [serverEntry], {
+    cwd: repoRoot,
+    env: {
+      ...process.env,
+      PORT: String(port),
+      EH_DB_PATH: dbPath,
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+
+  let stderr = "";
+  child.stderr.on("data", (chunk) => {
+    stderr += chunk.toString();
+  });
+
+  try {
+    await waitForHealth(baseUrl);
+
+    const saved = await requestJson(baseUrl, "/flora/upsert", {
+      method: "POST",
+      body: JSON.stringify({
+        id: "flora-talara",
+        name: "Mirror Reed",
+        systemId: "012:0,0:0203",
+        worldName: "Talara",
+        worldKey: "012:0,0:0203:Talara",
+        biology: { "Growth Form": "reed" },
+        ecology: { Climate: "Desert oasis" },
+        uses: { "Primary Use": "Medicine" },
+      }),
+    });
+
+    assert.equal(saved.id, "flora-talara");
+    assert.equal(saved.worldName, "Talara");
+
+    const list = await requestJson(baseUrl, "/flora?systemId=012%3A0%2C0%3A0203&worldName=Talara");
+    assert.equal(Array.isArray(list), true);
+    assert.equal(list.length, 1);
+    assert.equal(list[0].name, "Mirror Reed");
+
+    const fetched = await requestJson(baseUrl, "/flora/flora-talara");
+    assert.equal(fetched.uses["Primary Use"], "Medicine");
+
+    await fetch(`${baseUrl}/flora/flora-talara`, { method: "DELETE" });
+    const listAfterDelete = await requestJson(baseUrl, "/flora?systemId=012%3A0%2C0%3A0203&worldName=Talara");
+    assert.equal(listAfterDelete.length, 0);
+  } finally {
+    child.kill();
+    await new Promise((resolvePromise) => {
+      child.once("exit", () => resolvePromise());
+      setTimeout(resolvePromise, 1000);
+    });
+    rmSync(tempDir, { recursive: true, force: true });
+    if (stderr.trim()) {
+      assert.equal(stderr.trim(), "", stderr.trim());
+    }
+  }
+});
+
+test("creature routes persist fauna dossiers and world bundles", async () => {
+  const tempDir = mkdtempSync(join(tmpdir(), "eh-api-test-"));
+  const dbPath = join(tempDir, "universe.test.db");
+  const port = 3117;
+  const baseUrl = `http://127.0.0.1:${port}/api`;
+  const child = spawn(process.execPath, [serverEntry], {
+    cwd: repoRoot,
+    env: {
+      ...process.env,
+      PORT: String(port),
+      EH_DB_PATH: dbPath,
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+
+  let stderr = "";
+  child.stderr.on("data", (chunk) => {
+    stderr += chunk.toString();
+  });
+
+  try {
+    await waitForHealth(baseUrl);
+
+    const savedCreature = await requestJson(baseUrl, "/creatures/upsert", {
+      method: "POST",
+      body: JSON.stringify({
+        id: "creature-talara",
+        name: "Glass Jackal",
+        systemId: "012:0,0:0203",
+        worldName: "Talara",
+        worldKey: "012:0,0:0203:Talara",
+        recordType: "creature",
+        terrain: "Desert",
+      }),
+    });
+
+    const savedBundle = await requestJson(baseUrl, "/creatures/upsert", {
+      method: "POST",
+      body: JSON.stringify({
+        id: "bundle-talara",
+        name: "Talara Bundle",
+        systemId: "012:0,0:0203",
+        worldName: "Talara",
+        worldKey: "012:0,0:0203:Talara",
+        recordType: "fauna-bundle",
+        entries: [{ name: "Glass Jackal" }, { name: "Dune Grazer" }],
+      }),
+    });
+
+    assert.equal(savedCreature.id, "creature-talara");
+    assert.equal(savedBundle.recordType, "fauna-bundle");
+
+    const creatures = await requestJson(
+      baseUrl,
+      "/creatures?systemId=012%3A0%2C0%3A0203&worldName=Talara&recordType=creature",
+    );
+    const bundles = await requestJson(
+      baseUrl,
+      "/creatures?systemId=012%3A0%2C0%3A0203&worldName=Talara&recordType=fauna-bundle",
+    );
+    assert.equal(creatures.length, 1);
+    assert.equal(bundles.length, 1);
+    assert.equal(bundles[0].entries.length, 2);
+
+    await fetch(`${baseUrl}/creatures/creature-talara`, { method: "DELETE" });
+    await fetch(`${baseUrl}/creatures/bundle-talara`, { method: "DELETE" });
+    const listAfterDelete = await requestJson(baseUrl, "/creatures?systemId=012%3A0%2C0%3A0203&worldName=Talara");
+    assert.equal(listAfterDelete.length, 0);
+  } finally {
+    child.kill();
+    await new Promise((resolvePromise) => {
+      child.once("exit", () => resolvePromise());
+      setTimeout(resolvePromise, 1000);
+    });
+    rmSync(tempDir, { recursive: true, force: true });
+    if (stderr.trim()) {
+      assert.equal(stderr.trim(), "", stderr.trim());
+    }
+  }
+});
+
 test("systems replace route persists Atlas-style system rows", async () => {
   const tempDir = mkdtempSync(join(tmpdir(), "eh-api-test-"));
   const dbPath = join(tempDir, "universe.test.db");

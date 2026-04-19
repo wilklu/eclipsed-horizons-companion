@@ -1,4 +1,4 @@
-# Creature Generator Implementation Plan
+# Creature and Flora Generator Implementation Plan
 
 ## Goal
 
@@ -63,6 +63,16 @@ Add world-aware generation from existing survey data:
 - use climate and terrain context from generated worlds
 - support multiple terrains per world
 - allow generating local fauna lists attached to a world record
+
+### Phase 4: Procedural Flora Generator
+
+Add a companion flora tool that can:
+
+- generate deterministic plant profiles from world climate and biosphere context
+- produce growth form, ecology, harvest use, and hazard summaries
+- save linked flora dossiers back onto the world record
+- surface flora alongside fauna and sophont summaries in World Survey
+- provide adventure hooks similar in spirit to the other generators without relying on external copyrighted text
 
 ## Architecture Plan
 

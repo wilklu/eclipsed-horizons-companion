@@ -48,6 +48,7 @@
         <div class="control-group control-action">
           <button class="btn btn-primary" @click="generateSophont">⚡ Generate Sophont</button>
           <button class="btn btn-secondary" :disabled="!sophont" @click="saveSophontRecord">💾 Save</button>
+          <button class="btn btn-secondary" @click="goToHistoryGenerator">📜 History</button>
           <button class="btn btn-secondary" @click="resetForm">Reset</button>
         </div>
       </div>
@@ -112,6 +113,50 @@
             </div>
           </section>
 
+          <section class="sophont-section">
+            <h3>🌐 Civilization & Contact</h3>
+            <div class="prop-list">
+              <div class="prop-row" v-for="(v, k) in sophont.civilization || {}" :key="k">
+                <span class="prop-label">{{ k }}:</span>
+                <span class="prop-value">{{ v }}</span>
+              </div>
+            </div>
+          </section>
+
+          <section class="sophont-section">
+            <h3>🤝 Diplomacy Hooks</h3>
+            <div class="prop-list">
+              <div class="prop-row" v-for="(v, k) in diplomacySummaryRows" :key="k">
+                <span class="prop-label">{{ k }}:</span>
+                <span class="prop-value">{{ v }}</span>
+              </div>
+            </div>
+            <div class="trait-list">
+              <div v-for="hook in sophont.diplomacy?.hooks || []" :key="hook" class="trait-item">{{ hook }}</div>
+            </div>
+          </section>
+
+          <section class="sophont-section">
+            <h3>⚔️ Faction Pressure</h3>
+            <div class="prop-list">
+              <div class="prop-row" v-for="(v, k) in factionSummaryRows" :key="k">
+                <span class="prop-label">{{ k }}:</span>
+                <span class="prop-value">{{ v }}</span>
+              </div>
+            </div>
+            <div class="trait-list">
+              <div
+                v-for="faction in sophont.factionTensions?.factions || []"
+                :key="`${faction.name}-${faction.role}`"
+                class="trait-item"
+              >
+                <span class="trait-name">{{ faction.name }} — {{ faction.role }}</span>
+                <span class="trait-desc">{{ faction.agenda }}</span>
+              </div>
+              <div v-for="hook in sophont.factionTensions?.hooks || []" :key="hook" class="trait-item">{{ hook }}</div>
+            </div>
+          </section>
+
           <!-- Tech & Society -->
           <section class="sophont-section">
             <h3>⚙️ Technology & Society</h3>
@@ -153,6 +198,54 @@
             </div>
             <div v-if="!sophont.specialAbilities.length" class="empty-state">None notable.</div>
           </section>
+
+          <section class="sophont-section">
+            <h3>History Timeline</h3>
+            <div class="trait-list">
+              <div
+                v-for="event in sophont.historyTimeline || []"
+                :key="`${event.era}-${event.title}`"
+                class="trait-item"
+              >
+                <span class="trait-name">{{ event.era }} — {{ event.title }}</span>
+                <span class="trait-desc">{{ event.summary }}</span>
+              </div>
+            </div>
+          </section>
+
+          <section class="sophont-section">
+            <h3>🎯 Event Chain</h3>
+            <div class="trait-list">
+              <div v-for="entry in sophont.eventChain || []" :key="`${entry.phase}-${entry.title}`" class="trait-item">
+                <span class="trait-name">{{ entry.phase }} — {{ entry.title }}</span>
+                <span class="trait-desc">{{ entry.summary }}</span>
+                <span class="trait-desc">Stake: {{ entry.stakes }}</span>
+              </div>
+            </div>
+          </section>
+
+          <section class="sophont-section sophont-section-wide">
+            <h3>🎨 Image Description</h3>
+            <p class="sophont-tagline prompt-summary">{{ sophont.visualDescription }}</p>
+            <div class="prompt-block">
+              <div class="prompt-header">
+                <span class="prompt-label">Image Prompt</span>
+                <button type="button" class="btn btn-secondary btn-copy" @click="copyPromptText(sophont.imagePrompt)">
+                  Copy Prompt
+                </button>
+              </div>
+              <textarea :value="sophont.imagePrompt" class="prompt-textarea" rows="5" readonly />
+            </div>
+            <p class="prompt-caption">{{ sophont.imageCaption }}</p>
+          </section>
+
+          <section class="sophont-section">
+            <h3>Linked World Context</h3>
+            <div class="trait-list">
+              <div class="trait-item">{{ sophont.worldIntegration?.summary || "Linked world context pending." }}</div>
+              <div v-for="note in sophont.worldIntegration?.notes || []" :key="note" class="trait-item">{{ note }}</div>
+            </div>
+          </section>
         </div>
       </div>
 
@@ -184,7 +277,7 @@
 
 <script setup>
 import { computed, ref, watch } from "vue";
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import LoadingSpinner from "../../components/common/LoadingSpinner.vue";
 import SurveyNavigation from "../../components/common/SurveyNavigation.vue";
 import { useArchiveTransfer } from "../../composables/useArchiveTransfer.js";
@@ -193,14 +286,18 @@ import { useSystemStore } from "../../stores/systemStore.js";
 import {
   BODY_PLANS,
   HOME_ENVS,
+  buildSophontImagePrompt,
+  buildSophontWorldUpdate,
   buildWorldLinkedSophontOptions,
   generateSophontProfile,
   randomSophontName,
 } from "../../utils/beasts/sophontGenerator.js";
-import { deserializeReturnRoute } from "../../utils/returnRoute.js";
+import { deserializeReturnRoute, serializeReturnRoute } from "../../utils/returnRoute.js";
 import * as toastService from "../../utils/toast.js";
+import { findMatchingWorldOption, resolveBoundSystemRecord, resolveSelectedWorldIndex } from "../../utils/worldLink.js";
 
 const route = useRoute();
+const router = useRouter();
 const sophontStore = useSophontStore();
 const systemStore = useSystemStore();
 
@@ -252,26 +349,78 @@ const activeWorldCriteria = computed(() => ({
 const savedSophonts = computed(() => sophontStore.sophontsByWorld(activeWorldCriteria.value));
 
 watch(
+  activeWorldCriteria,
+  async (criteria) => {
+    await sophontStore.hydrateSophonts(criteria);
+  },
+  { immediate: true, deep: true },
+);
+const diplomacySummaryRows = computed(() => {
+  if (!sophont.value?.diplomacy) {
+    return {};
+  }
+
+  const { hooks, techBand, ...display } = sophont.value.diplomacy;
+  return display;
+});
+const factionSummaryRows = computed(() => {
+  if (!sophont.value?.factionTensions) {
+    return {};
+  }
+
+  const { factions, hooks, ...display } = sophont.value.factionTensions;
+  return display;
+});
+
+async function persistSophontToWorldContext(record) {
+  const worldIndex = resolveSelectedWorldIndex(selectedWorldOption.value, route);
+  const persistedSystem = resolveBoundSystemRecord({
+    selectedWorldOption: selectedWorldOption.value,
+    route,
+    systemStore,
+  });
+  if (
+    worldIndex === null ||
+    !persistedSystem ||
+    !Array.isArray(persistedSystem.planets) ||
+    !persistedSystem.planets[worldIndex]
+  ) {
+    return false;
+  }
+
+  const nextPlanets = persistedSystem.planets.map((planet, index) => {
+    if (index !== worldIndex) {
+      return planet && typeof planet === "object" ? { ...planet } : planet;
+    }
+    return {
+      ...planet,
+      ...buildSophontWorldUpdate(record, planet),
+    };
+  });
+
+  const updatedSystem = await systemStore.updateSystem(persistedSystem.systemId, {
+    planets: nextPlanets,
+    metadata: {
+      ...(persistedSystem.metadata && typeof persistedSystem.metadata === "object" ? persistedSystem.metadata : {}),
+      linkedSophontsUpdatedAt: new Date().toISOString(),
+      lastModified: new Date().toISOString(),
+    },
+  });
+
+  if (updatedSystem?.systemId) {
+    systemStore.setCurrentSystem(updatedSystem.systemId);
+  }
+  return true;
+}
+
+watch(
   worldOptions,
   (options) => {
     if (!options.length || selectedWorldKey.value) {
       return;
     }
 
-    const targetSystemId = String(route.query.systemId || route.query.systemRecordId || "").trim();
-    const targetWorldName = String(route.query.worldName || "")
-      .trim()
-      .toLowerCase();
-    const targetWorldIndex = Number(route.query.worldIndex ?? -1);
-
-    const match =
-      options.find(
-        (entry) =>
-          (!targetSystemId || entry.systemId === targetSystemId) &&
-          ((targetWorldName && entry.worldName.toLowerCase() === targetWorldName) ||
-            (targetWorldIndex >= 0 && entry.worldIndex === targetWorldIndex)),
-      ) || options.find((entry) => targetSystemId && entry.systemId === targetSystemId);
-
+    const match = findMatchingWorldOption(options, route);
     if (match) {
       selectedWorldKey.value = match.key;
     }
@@ -298,6 +447,78 @@ function ensureSeed() {
 
 function randomizeName() {
   speciesName.value = randomSophontName(ensureSeed());
+}
+
+async function copyPromptText(text) {
+  if (!String(text || "").trim()) {
+    toastService.error("No image prompt is available to copy.");
+    return;
+  }
+
+  try {
+    if (globalThis?.navigator?.clipboard?.writeText) {
+      await globalThis.navigator.clipboard.writeText(text);
+    } else if (typeof document !== "undefined") {
+      const helper = document.createElement("textarea");
+      helper.value = text;
+      helper.setAttribute("readonly", "");
+      helper.style.position = "absolute";
+      helper.style.left = "-9999px";
+      document.body.appendChild(helper);
+      helper.select();
+      document.execCommand("copy");
+      document.body.removeChild(helper);
+    }
+
+    toastService.success("Image prompt copied to clipboard.");
+  } catch {
+    toastService.error("Unable to copy the image prompt.");
+  }
+}
+
+function buildHistoryRouteQuery() {
+  const returnTo = serializeReturnRoute({
+    name: String(route.name || "SophontGenerator"),
+    params: { ...route.params },
+    query: { ...route.query },
+  });
+
+  return {
+    civilizationName: String(sophont.value?.name || speciesName.value || "").trim(),
+    worldName: String(
+      selectedWorldOption.value?.worldName || sophont.value?.sourceWorld?.name || route.query.worldName || "",
+    ).trim(),
+    seed: String(seedValue.value || "").trim(),
+    government: String(sophont.value?.government || "").trim(),
+    diplomaticPosture: String(
+      sophont.value?.diplomacy?.["Current Stance"] || sophont.value?.civilization?.["Diplomatic Posture"] || "",
+    ).trim(),
+    pressureLevel: String(sophont.value?.factionTensions?.["Pressure Level"] || "").trim(),
+    techBand: String(sophont.value?.civilization?.["Tech Band"] || "").trim(),
+    worldTraits: [
+      sophont.value?.biology?.["Home Environment"],
+      selectedWorldRecord.value?.tempCategory,
+      selectedWorldRecord.value?.atmosphereDesc,
+      ...(Array.isArray(selectedWorldRecord.value?.tradeCodes) ? selectedWorldRecord.value.tradeCodes : []),
+    ]
+      .map((entry) => String(entry || "").trim())
+      .filter(Boolean)
+      .join(", "),
+    flashpoint: String(sophont.value?.diplomacy?.["Current Flashpoint"] || "").trim(),
+    conflictSummary: String(sophont.value?.factionTensions?.summary || "").trim(),
+    eventHook: String(
+      sophont.value?.eventChain?.[0]?.title || sophont.value?.historyTimeline?.at(-1)?.title || "",
+    ).trim(),
+    source: "sophont-generator",
+    ...(returnTo ? { returnTo } : {}),
+  };
+}
+
+function goToHistoryGenerator() {
+  router.push({
+    name: "HistoryGenerator",
+    query: buildHistoryRouteQuery(),
+  });
 }
 
 function generateSophont() {
@@ -329,13 +550,13 @@ function generateSophont() {
   };
 }
 
-function saveSophontRecord() {
+async function saveSophontRecord() {
   if (!sophont.value) {
     toastService.error("Generate a sophont before saving it.");
     return;
   }
 
-  const persisted = sophontStore.saveSophont({
+  const persisted = await sophontStore.saveSophont({
     ...sophont.value,
     seed: seedValue.value,
     bodyPlanSelection: bodyPlan.value,
@@ -346,24 +567,64 @@ function saveSophontRecord() {
   });
 
   sophont.value = { ...sophont.value, id: persisted.id, savedAt: persisted.savedAt, updatedAt: persisted.updatedAt };
-  toastService.success(`Saved sophont ${persisted.name}.`);
+  const linked = await persistSophontToWorldContext(persisted);
+  toastService.success(
+    linked ? `Saved sophont ${persisted.name} and linked it to the world survey.` : `Saved sophont ${persisted.name}.`,
+  );
 }
 
 function loadSavedSophont(record) {
   if (!record) return;
-  speciesName.value = record.name || "";
-  seedValue.value = record.seed || "sophont-alpha";
-  bodyPlan.value = record.bodyPlanSelection || record.biology?.["Body Plan"] || "random";
-  homeEnvironment.value = record.homeEnvironmentSelection || record.biology?.["Home Environment"] || "random";
-  if (record.worldKey) {
-    selectedWorldKey.value = record.worldKey;
+
+  const fallbackProfile =
+    record.civilization && record.worldIntegration
+      ? null
+      : generateSophontProfile({
+          seed: record.seed || "sophont-alpha",
+          name: record.name || "Generated Sophont",
+          bodyPlan: record.bodyPlanSelection || record.biology?.["Body Plan"] || "random",
+          homeEnvironment: record.homeEnvironmentSelection || record.biology?.["Home Environment"] || "random",
+          sourceWorld: record.sourceWorld || null,
+        });
+
+  const normalizedRecord = {
+    ...(fallbackProfile || {}),
+    ...record,
+    civilization: record.civilization || fallbackProfile?.civilization || {},
+    diplomacy: record.diplomacy || fallbackProfile?.diplomacy || { hooks: [] },
+    factionTensions: record.factionTensions || fallbackProfile?.factionTensions || { factions: [], hooks: [] },
+    historyTimeline: Array.isArray(record.historyTimeline)
+      ? [...record.historyTimeline]
+      : Array.isArray(fallbackProfile?.historyTimeline)
+        ? [...fallbackProfile.historyTimeline]
+        : [],
+    eventChain: Array.isArray(record.eventChain)
+      ? [...record.eventChain]
+      : Array.isArray(fallbackProfile?.eventChain)
+        ? [...fallbackProfile.eventChain]
+        : [],
+    worldIntegration: record.worldIntegration || fallbackProfile?.worldIntegration || { summary: "—", notes: [] },
+  };
+
+  const promptDetails = buildSophontImagePrompt(normalizedRecord);
+  normalizedRecord.visualDescription = normalizedRecord.visualDescription || promptDetails.visualDescription;
+  normalizedRecord.imagePrompt = normalizedRecord.imagePrompt || promptDetails.imagePrompt;
+  normalizedRecord.imageCaption = normalizedRecord.imageCaption || promptDetails.imageCaption;
+
+  speciesName.value = normalizedRecord.name || "";
+  seedValue.value = normalizedRecord.seed || "sophont-alpha";
+  bodyPlan.value = normalizedRecord.bodyPlanSelection || normalizedRecord.biology?.["Body Plan"] || "random";
+  homeEnvironment.value =
+    normalizedRecord.homeEnvironmentSelection || normalizedRecord.biology?.["Home Environment"] || "random";
+  if (normalizedRecord.worldKey) {
+    selectedWorldKey.value = normalizedRecord.worldKey;
   }
-  sophont.value = { ...record };
-  toastService.success(`Loaded sophont ${record.name}.`);
+  sophont.value = normalizedRecord;
+  toastService.success(`Loaded sophont ${normalizedRecord.name}.`);
 }
 
-function deleteSavedSophont(recordId) {
-  sophontStore.removeSophont(recordId);
+async function deleteSavedSophont(recordId) {
+  await sophontStore.removeSophont(recordId);
   if (sophont.value?.id === recordId) {
     sophont.value = null;
   }
@@ -521,6 +782,10 @@ async function exportSophont() {
   padding: 1.25rem;
 }
 
+.sophont-section-wide {
+  grid-column: 1 / -1;
+}
+
 .sophont-section h3 {
   color: #00ffff;
   margin-bottom: 1rem;
@@ -579,6 +844,60 @@ async function exportSophont() {
   display: flex;
   gap: 0.5rem;
   align-items: center;
+}
+
+.prompt-summary {
+  color: #d8e7ff;
+  font-style: normal;
+  line-height: 1.5;
+  margin-bottom: 0.85rem;
+}
+
+.prompt-block {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.prompt-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.prompt-block {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.prompt-label {
+  color: #00ffff;
+  font-weight: bold;
+  font-size: 0.85rem;
+}
+
+.prompt-textarea {
+  width: 100%;
+  min-height: 7rem;
+  padding: 0.75rem;
+  border-radius: 0.35rem;
+  border: 1px solid #00d9ff55;
+  background: #0d0d2b;
+  color: #d8e7ff;
+  resize: vertical;
+}
+
+.btn-copy {
+  min-height: 2rem;
+  padding: 0.35rem 0.8rem;
+  font-size: 0.8rem;
+}
+
+.prompt-caption {
+  margin: 0.75rem 0 0;
+  color: #9fb6d9;
+  font-style: italic;
 }
 
 .char-item {

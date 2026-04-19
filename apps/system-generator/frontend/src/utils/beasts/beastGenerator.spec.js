@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildCreatureImagePrompt,
   buildWorldLinkedCreatureOptions,
+  buildWorldTerrainPalette,
   generateBeastProfile,
+  generateWorldFaunaBundle,
   mapWorldToCreatureTerrain,
   resolveArmor,
   resolveBodyStructure,
@@ -15,6 +18,8 @@ import {
   resolveSize,
   resolveSpeed,
   resolveWeapon,
+  summarizeEcosystemBalance,
+  buildFaunaWorldUpdate,
 } from "./beastGenerator.js";
 import { formatBeastSummary, formatReactionValue } from "./beastFormatting.js";
 
@@ -83,6 +88,23 @@ describe("beastGenerator rules foundation", () => {
     expect(first.terrain).toBe("Woods");
     expect(first.ecologicalNiche.subniche).toBeTruthy();
     expect(first.combat.weapon.weapon).toBeTruthy();
+    expect(first.visualDescription).toContain(first.name);
+    expect(first.imagePrompt).toContain("Detailed sci-fi creature concept art");
+  });
+
+  it("builds an image-ready creature description", () => {
+    const beast = generateBeastProfile({
+      seed: "image-case",
+      name: "Tyaeda",
+      terrain: "Woods",
+      worldSize: "5",
+      primaryNiche: "Carnivore",
+    });
+
+    const prompt = buildCreatureImagePrompt(beast);
+    expect(prompt.visualDescription).toContain("Tyaeda");
+    expect(prompt.imagePrompt).toContain("field-guide");
+    expect(prompt.imageCaption).toContain("specimen");
   });
 
   it("derives terrain and world-link metadata from stored world records", () => {
@@ -101,6 +123,30 @@ describe("beastGenerator rules foundation", () => {
     expect(linked.sourceWorld.nativeSophontLife).toBe(true);
     expect(linked.worldSize).toBe(8);
     expect(linked.terrain).toBe("Wetland");
+  });
+
+  it("builds world fauna bundles with ecosystem balance summaries", () => {
+    const palette = buildWorldTerrainPalette({ hydrographics: 8, avgTempC: 18, nativeTerrain: "Wetland" });
+    expect(palette.length).toBeGreaterThan(0);
+
+    const bundle = generateWorldFaunaBundle({
+      seed: "caledon-fauna",
+      world: { name: "Caledon", size: 8, hydrographics: 8, avgTempC: 18, nativeSophontLife: true },
+      worldKey: "sys-1:Caledon",
+      systemId: "sys-1",
+    });
+
+    expect(bundle.entries).toHaveLength(6);
+    expect(bundle.balance.stability).toBeTruthy();
+    expect(bundle.focus?.name).toBeTruthy();
+
+    const balance = summarizeEcosystemBalance(bundle);
+    expect(balance.hazardLevel).toBeTruthy();
+    expect(balance.notes.length).toBeGreaterThan(0);
+
+    const worldUpdate = buildFaunaWorldUpdate(bundle, { remarks: [] });
+    expect(worldUpdate.linkedFaunaSummary.stability).toBeTruthy();
+    expect(worldUpdate.remarks.length).toBeGreaterThan(0);
   });
 
   it("formats reaction labels and creature summaries for UI use", () => {

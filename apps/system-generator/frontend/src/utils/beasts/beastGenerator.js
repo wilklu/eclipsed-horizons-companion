@@ -293,6 +293,31 @@ function pickFrom(values = [], rng = Math.random, fallback = "Unknown") {
   return values[Math.floor(rng() * values.length)] ?? fallback;
 }
 
+export function buildCreatureImagePrompt(profile = {}) {
+  const name = String(profile?.name || "Generated Beast");
+  const terrain = String(profile?.terrain || "frontier wilds").toLowerCase();
+  const locomotion = String(profile?.locomotion || "walker").toLowerCase();
+  const niche = String(profile?.ecologicalNiche?.niche || "omnivore").toLowerCase();
+  const subniche = String(profile?.ecologicalNiche?.subniche || "generalist").toLowerCase();
+  const sizeLabel = String(profile?.size?.label || "typical").toLowerCase();
+  const measure = String(profile?.size?.measure || "medium-sized silhouette");
+  const body = String(profile?.extended?.bodySymmetry || "bilateral frame").toLowerCase();
+  const stance = String(profile?.extended?.stance || "alert posture").toLowerCase();
+  const covering = String(profile?.extended?.covering || "natural hide").toLowerCase();
+  const weapon = String(profile?.combat?.weapon?.weapon || "body").toLowerCase();
+  const adaptation = String(profile?.extended?.notableAdaptation || "localized survival trait").toLowerCase();
+  const senses = Array.isArray(profile?.extended?.senses)
+    ? profile.extended.senses.slice(0, 2).join(", ")
+    : "sharp survival senses";
+  const worldName = String(profile?.sourceWorld?.name || "an alien frontier world");
+
+  return {
+    visualDescription: `${name} appears as a ${sizeLabel} ${niche} beast adapted to ${terrain}, with a ${body}, ${stance}, ${covering}, and a ${weapon}-based threat profile. Its frame suggests ${subniche} behavior, while notable features include ${adaptation} and ${senses}.`,
+    imagePrompt: `Detailed sci-fi creature concept art of ${name}, an alien ${niche} from ${worldName}, ${measure}, ${body}, ${stance}, ${covering}, moving as a ${locomotion}, natural weapon emphasis on ${weapon}, adapted for ${terrain}, hints of ${adaptation}, full body visible, naturalistic field-guide illustration, dramatic but realistic lighting, highly detailed.`,
+    imageCaption: `${name} — ${sizeLabel} ${niche} specimen from ${worldName}`,
+  };
+}
+
 export function resolveBodyStructure(
   { locomotion = "Walker", terrain = "Clear", niche = "Omnivore" } = {},
   rng = Math.random,
@@ -468,6 +493,111 @@ export function resolveEncounterHooks({
   ];
 }
 
+export function buildWorldTerrainPalette(world = {}, fallbackTerrain = null) {
+  const baseTerrain = resolveTerrain(
+    fallbackTerrain || world?.terrain || world?.nativeTerrain || mapWorldToCreatureTerrain(world),
+  );
+  const hydrographics = Number(world?.hydrographics ?? NaN);
+  const tempCategory = String(world?.tempCategory || "").toLowerCase();
+  const palette = [baseTerrain];
+
+  if (["Ocean", "Lake", "River", "Wetland"].includes(baseTerrain) || hydrographics >= 7) {
+    palette.push("Wetland", "Shore");
+  }
+  if (["Desert", "Baked lands"].includes(baseTerrain) || hydrographics <= 2) {
+    palette.push("Rough", "Mountain");
+  }
+  if (["Woods", "Rough Woods"].includes(baseTerrain)) {
+    palette.push("Rough Woods", "Clear");
+  }
+  if (tempCategory.includes("frozen")) {
+    palette.push("Frozen Lands", "Ice Field");
+  }
+  if (!palette.includes("Clear")) {
+    palette.push("Clear");
+  }
+
+  return [...new Set(palette.map((entry) => resolveTerrain(entry)).filter(Boolean))].slice(0, 3);
+}
+
+export function summarizeEcosystemBalance(bundleOrEntries = [], sourceWorld = null) {
+  const entries = Array.isArray(bundleOrEntries)
+    ? bundleOrEntries
+    : Array.isArray(bundleOrEntries?.entries)
+      ? bundleOrEntries.entries
+      : [];
+  const linkedWorld = sourceWorld || bundleOrEntries?.sourceWorld || null;
+
+  const counts = entries.reduce(
+    (totals, entry) => {
+      const niche = String(entry?.ecologicalNiche?.niche || "Unknown");
+      totals[niche] = (totals[niche] || 0) + 1;
+      return totals;
+    },
+    { Producer: 0, Herbivore: 0, Omnivore: 0, Carnivore: 0, Scavenger: 0 },
+  );
+
+  const predatorPressure = counts.Carnivore + counts.Scavenger;
+  const hazardScore = entries.reduce((score, entry) => {
+    let next = score;
+    if (entry?.ecologicalNiche?.niche === "Carnivore") next += 2;
+    if (entry?.ecologicalNiche?.niche === "Scavenger") next += 1;
+    if (["Killer", "Pouncer", "Siren"].includes(entry?.ecologicalNiche?.subniche)) next += 1;
+    if (Number(entry?.size?.size ?? 0) >= 5) next += 1;
+    return next;
+  }, 0);
+
+  let stability = "Balanced biosphere";
+  if (counts.Producer === 0 || counts.Herbivore === 0) {
+    stability = "Fragile biosphere";
+  } else if (predatorPressure > counts.Herbivore + counts.Omnivore) {
+    stability = "Predator-heavy biosphere";
+  } else if (linkedWorld?.nativeSophontLife) {
+    stability = "Sophont-influenced biosphere";
+  }
+
+  const hazardLevel = hazardScore >= 8 ? "High" : hazardScore >= 5 ? "Moderate" : "Low";
+
+  return {
+    counts,
+    predatorPressure,
+    hazardLevel,
+    stability,
+    notes: [
+      `${stability} with ${hazardLevel.toLowerCase()} encounter hazard pressure.`,
+      `${counts.Producer} producer, ${counts.Herbivore} herbivore, ${counts.Omnivore} omnivore, ${counts.Carnivore} carnivore, ${counts.Scavenger} scavenger roles are represented.`,
+    ],
+  };
+}
+
+export function buildFaunaWorldUpdate(bundle = {}, existingWorld = {}) {
+  const balance = bundle?.balance || summarizeEcosystemBalance(bundle, bundle?.sourceWorld || existingWorld);
+  const focus = bundle?.focus || (Array.isArray(bundle?.entries) ? bundle.entries[0] : null);
+  const summary = `${balance.stability} with ${balance.hazardLevel.toLowerCase()} hazard centered on ${focus?.name || "local fauna"}.`;
+  const remarks = [
+    ...(Array.isArray(existingWorld?.remarks) ? existingWorld.remarks : []),
+    `Ecology bundle: ${summary}`,
+  ]
+    .map((entry) => String(entry || "").trim())
+    .filter(Boolean)
+    .filter((entry, index, values) => values.indexOf(entry) === index)
+    .slice(-8);
+
+  return {
+    linkedFaunaSummary: {
+      worldName: String(bundle?.worldName || existingWorld?.name || "Linked World"),
+      stability: String(balance.stability || "Balanced biosphere"),
+      hazardLevel: String(balance.hazardLevel || "Low"),
+      terrains: Array.isArray(bundle?.terrains) ? [...bundle.terrains] : [],
+      focusName: String(focus?.name || "Local fauna"),
+      roleCount: Array.isArray(bundle?.entries) ? bundle.entries.length : 0,
+      summary,
+      updatedAt: String(bundle?.updatedAt || new Date().toISOString()),
+    },
+    remarks,
+  };
+}
+
 export function generateBeastProfile(options = {}) {
   const {
     seed = "beast-seed",
@@ -522,7 +652,7 @@ export function generateBeastProfile(options = {}) {
     extended,
   });
 
-  return {
+  const profile = {
     name,
     seed,
     worldSize: normalizeWorldSize(worldSize),
@@ -547,6 +677,11 @@ export function generateBeastProfile(options = {}) {
       version: 1,
     },
   };
+
+  return {
+    ...profile,
+    ...buildCreatureImagePrompt(profile),
+  };
 }
 
 export function generateEncounterTable(options = {}) {
@@ -564,6 +699,82 @@ export function generateEncounterTable(options = {}) {
   );
 
   return entries;
+}
+
+export function generateWorldFaunaBundle(options = {}) {
+  const {
+    world = {},
+    seed = "world-fauna",
+    terrain = null,
+    worldSize = null,
+    sourceWorld = null,
+    worldKey = "",
+    systemId = "",
+  } = options;
+
+  const linkedWorld =
+    world && Object.keys(world).length
+      ? buildWorldLinkedCreatureOptions(world)
+      : {
+          sourceWorld: sourceWorld || null,
+          worldSize: worldSize || "8",
+          terrain: resolveTerrain(terrain || "Clear"),
+        };
+
+  const terrainPalette = buildWorldTerrainPalette(world, terrain || linkedWorld.terrain);
+  const includeSophontPressure = Boolean(world?.nativeSophontLife ?? linkedWorld?.sourceWorld?.nativeSophontLife);
+  const roles = [
+    { slot: "Local Producers", primaryNiche: "Producer", terrain: terrainPalette[0] || linkedWorld.terrain },
+    { slot: "Grazer Bands", primaryNiche: "Herbivore", terrain: terrainPalette[0] || linkedWorld.terrain },
+    {
+      slot: "Opportunists",
+      primaryNiche: "Omnivore",
+      terrain: terrainPalette[1] || terrainPalette[0] || linkedWorld.terrain,
+    },
+    {
+      slot: "Predator Pack",
+      primaryNiche: "Carnivore",
+      terrain: terrainPalette[1] || terrainPalette[0] || linkedWorld.terrain,
+    },
+    {
+      slot: "Scavenger Pressure",
+      primaryNiche: "Scavenger",
+      terrain: terrainPalette[2] || terrainPalette[0] || linkedWorld.terrain,
+    },
+    {
+      slot: includeSophontPressure ? "Native Sophont Pressure" : "Hazard Encounter",
+      primaryNiche: includeSophontPressure ? "Omnivore" : "Carnivore",
+      terrain: terrainPalette[2] || terrainPalette[0] || linkedWorld.terrain,
+    },
+  ];
+
+  const entries = roles.map((role, index) => ({
+    ...generateBeastProfile({
+      seed: `${seed}-${index + 1}`,
+      terrain: role.terrain,
+      worldSize: linkedWorld.worldSize,
+      primaryNiche: role.primaryNiche,
+      name: `${role.slot} ${index + 1}`,
+      sourceWorld: linkedWorld.sourceWorld,
+    }),
+    role: role.slot,
+  }));
+
+  const balance = summarizeEcosystemBalance(entries, linkedWorld.sourceWorld);
+
+  return {
+    id: `fauna-${String(seed).replace(/\s+/g, "-")}`,
+    seed,
+    systemId: String(systemId || "").trim(),
+    worldKey: String(worldKey || "").trim(),
+    worldName: String(linkedWorld.sourceWorld?.name || world?.name || "Linked World"),
+    sourceWorld: linkedWorld.sourceWorld,
+    terrains: terrainPalette,
+    entries,
+    focus: entries.find((entry) => entry.ecologicalNiche?.niche === "Carnivore") || entries[0],
+    balance,
+    notes: balance.notes,
+  };
 }
 
 export function mapWorldToCreatureTerrain(world = {}) {

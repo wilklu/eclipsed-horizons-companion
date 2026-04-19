@@ -273,6 +273,102 @@
 
           <section class="world-section">
             <div class="section-header">
+              <h3>🌐 Linked Ecology & Society</h3>
+            </div>
+            <template v-if="latestLinkedFlora || latestLinkedFauna || latestLinkedSophont">
+              <div v-if="latestLinkedFlora" class="prop-list">
+                <div class="prop-row">
+                  <span class="prop-label">Linked Flora:</span>
+                  <span class="prop-value">{{ latestLinkedFlora.name }}</span>
+                </div>
+                <div class="prop-row">
+                  <span class="prop-label">Growth Form:</span>
+                  <span class="prop-value">{{ latestLinkedFlora.growthForm }}</span>
+                </div>
+                <div class="prop-row">
+                  <span class="prop-label">Climate:</span>
+                  <span class="prop-value">{{ latestLinkedFlora.climate }}</span>
+                </div>
+                <div class="prop-row">
+                  <span class="prop-label">Primary Use:</span>
+                  <span class="prop-value">{{ latestLinkedFlora.primaryUse }}</span>
+                </div>
+                <div class="prop-row">
+                  <span class="prop-label">Botanical Hazard:</span>
+                  <span class="prop-value">{{ latestLinkedFlora.hazardLevel }}</span>
+                </div>
+              </div>
+              <div v-if="latestLinkedFlora?.summary" class="world-note">{{ latestLinkedFlora.summary }}</div>
+
+              <div v-if="latestLinkedFauna" class="prop-list">
+                <div class="prop-row">
+                  <span class="prop-label">Fauna Stability:</span>
+                  <span class="prop-value">{{ latestLinkedFauna.stability }}</span>
+                </div>
+                <div class="prop-row">
+                  <span class="prop-label">Hazard Level:</span>
+                  <span class="prop-value">{{ latestLinkedFauna.hazardLevel }}</span>
+                </div>
+                <div class="prop-row">
+                  <span class="prop-label">Focus Species:</span>
+                  <span class="prop-value">{{ latestLinkedFauna.focusName }}</span>
+                </div>
+                <div class="prop-row">
+                  <span class="prop-label">Terrain Spread:</span>
+                  <span class="prop-value">{{ (latestLinkedFauna.terrains || []).join(", ") || "—" }}</span>
+                </div>
+              </div>
+              <div v-if="latestLinkedFauna?.summary" class="world-note">{{ latestLinkedFauna.summary }}</div>
+
+              <div v-if="latestLinkedSophont" class="prop-list">
+                <div class="prop-row">
+                  <span class="prop-label">Linked Sophont:</span>
+                  <span class="prop-value">{{ latestLinkedSophont.name }}</span>
+                </div>
+                <div class="prop-row">
+                  <span class="prop-label">Origin:</span>
+                  <span class="prop-value">{{ latestLinkedSophont.origin }}</span>
+                </div>
+                <div class="prop-row">
+                  <span class="prop-label">Contact Status:</span>
+                  <span class="prop-value">{{ latestLinkedSophont.contactStatus }}</span>
+                </div>
+                <div class="prop-row">
+                  <span class="prop-label">Diplomatic Stance:</span>
+                  <span class="prop-value">{{ latestLinkedSophont.currentStance }}</span>
+                </div>
+                <div class="prop-row">
+                  <span class="prop-label">Settlement Pattern:</span>
+                  <span class="prop-value">{{ latestLinkedSophont.settlementPattern }}</span>
+                </div>
+                <div class="prop-row">
+                  <span class="prop-label">Recent History:</span>
+                  <span class="prop-value">{{ latestLinkedSophont.historySummary }}</span>
+                </div>
+                <div class="prop-row">
+                  <span class="prop-label">Faction Pressure:</span>
+                  <span class="prop-value">{{ latestLinkedSophont.factionSummary }}</span>
+                </div>
+                <div class="prop-row">
+                  <span class="prop-label">Event Hook:</span>
+                  <span class="prop-value">{{ latestLinkedSophont.eventHook }}</span>
+                </div>
+                <div class="prop-row">
+                  <span class="prop-label">Government / TL:</span>
+                  <span class="prop-value"
+                    >{{ latestLinkedSophont.government }} · TL {{ latestLinkedSophont.techLevel }}</span
+                  >
+                </div>
+              </div>
+              <div v-if="latestLinkedSophont?.summary" class="world-note">{{ latestLinkedSophont.summary }}</div>
+            </template>
+            <div v-else class="world-note">
+              No linked flora, fauna bundles, or sophont dossiers are attached yet. Use the generators to add them.
+            </div>
+          </section>
+
+          <section class="world-section">
+            <div class="section-header">
               <h3>👥 Census Survey</h3>
               <button
                 class="btn btn-secondary section-reroll"
@@ -310,6 +406,7 @@
 
         <div class="action-buttons">
           <button class="btn btn-primary" @click="goToCreatureGenerator">🐾 Creature Generator →</button>
+          <button class="btn btn-primary" @click="goToFloraGenerator">🌱 Flora Generator →</button>
           <button
             class="btn btn-primary"
             :title="
@@ -355,6 +452,9 @@ import {
   speakTextWithPreferences,
   stopSpeechSynthesis,
 } from "../../utils/speechSynthesis.js";
+import { useCreatureStore } from "../../stores/creatureStore.js";
+import { useFloraStore } from "../../stores/floraStore.js";
+import { useSophontStore } from "../../stores/sophontStore.js";
 import { useSystemStore } from "../../stores/systemStore.js";
 import * as toastService from "../../utils/toast.js";
 
@@ -362,6 +462,9 @@ defineProps({ systemId: { type: String, default: null } });
 const router = useRouter();
 const route = useRoute();
 const preferencesStore = usePreferencesStore();
+const creatureStore = useCreatureStore();
+const floraStore = useFloraStore();
+const sophontStore = useSophontStore();
 const systemStore = useSystemStore();
 const backRoute = computed(() => {
   const explicitReturnRoute = deserializeReturnRoute(String(route.query.returnTo || ""));
@@ -648,6 +751,93 @@ const selectedCatalogWorldNumber = computed(() => {
 
 const canNavigateCatalogWorlds = computed(() => {
   return catalogWorldCount.value > 1 && selectedCatalogWorldNumber.value !== null;
+});
+
+const linkedWorldCriteria = computed(() => {
+  const persistedSystem = resolveBoundSystemRecord();
+  const systemId = String(persistedSystem?.systemId || route.query.systemRecordId || systemStore.currentSystemId || "");
+  const linkedWorldName = String(world.value?.name || worldName.value || route.query.worldName || "").trim();
+  return {
+    systemId,
+    worldName: linkedWorldName,
+    worldKey: [systemId, linkedWorldName].filter(Boolean).join(":"),
+  };
+});
+
+const latestLinkedFauna = computed(() => {
+  const stored = world.value?.linkedFaunaSummary;
+  if (stored && typeof stored === "object") {
+    return stored;
+  }
+
+  const bundle = creatureStore.faunaBundlesByWorld(linkedWorldCriteria.value)[0];
+  if (!bundle) {
+    return null;
+  }
+
+  return {
+    stability: bundle.balance?.stability || "Balanced biosphere",
+    hazardLevel: bundle.balance?.hazardLevel || "Low",
+    focusName: bundle.focus?.name || bundle.entries?.[0]?.name || "Local fauna",
+    terrains: Array.isArray(bundle.terrains) ? bundle.terrains : [],
+    summary: bundle.notes?.[0] || "Local ecology bundle linked.",
+  };
+});
+
+const latestLinkedFlora = computed(() => {
+  const stored = world.value?.linkedFloraSummary;
+  if (stored && typeof stored === "object") {
+    return stored;
+  }
+
+  const record = floraStore.floraByWorld(linkedWorldCriteria.value)[0];
+  if (!record) {
+    return null;
+  }
+
+  return {
+    name: record.name || "Linked flora",
+    growthForm: record.biology?.["Growth Form"] || "Flora cluster",
+    climate: record.biology?.Climate || "Temperate",
+    primaryUse: record.uses?.["Primary Use"] || "Ecological survey",
+    hazardLevel: record.uses?.["Hazard Level"] || "Low",
+    summary: record.worldIntegration?.summary || record.summary || "Linked flora dossier",
+  };
+});
+
+const latestLinkedSophont = computed(() => {
+  const stored = world.value?.linkedSophontProfile;
+  if (stored && typeof stored === "object") {
+    return {
+      ...stored,
+      factionSummary: stored.factionSummary || "Faction pressure contained",
+      eventHook:
+        stored.eventHook || stored.eventChainHighlights?.[0] || stored.diplomacyHooks?.[0] || "No active chain",
+    };
+  }
+
+  const record = sophontStore.sophontsByWorld(linkedWorldCriteria.value)[0];
+  if (!record) {
+    return null;
+  }
+
+  return {
+    name: record.name || "Linked Sophont",
+    origin: record.origin || "Unknown origin",
+    contactStatus: record.civilization?.["Contact Status"] || "Open contact",
+    currentStance:
+      record.diplomacy?.["Current Stance"] || record.civilization?.["Diplomatic Posture"] || "guarded neutrality",
+    settlementPattern: record.civilization?.["Settlement Pattern"] || "Localized settlements",
+    historySummary: record.historyTimeline?.at?.(-1)?.title || "Present Tension",
+    factionSummary:
+      record.factionTensions?.summary || record.sourceWorld?.factionsProfile?.summary || "Faction pressure contained",
+    pressureLevel: record.factionTensions?.["Pressure Level"] || "Managed",
+    eventHook: record.eventChain?.[0]?.title || record.diplomacy?.hooks?.[0] || "No active chain",
+    government: record.government || "—",
+    techBand: record.civilization?.["Tech Band"] || "local development band",
+    techLevel: Number(record.techLevel ?? 0),
+    summary: record.worldIntegration?.summary || record.tagline || "Linked species dossier",
+  };
 });
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -1278,6 +1468,13 @@ function goToCreatureGenerator() {
   });
 }
 
+function goToFloraGenerator() {
+  router.push({
+    name: "FloraGenerator",
+    query: buildGeneratorRouteQuery("world-builder-flora"),
+  });
+}
+
 function goToSophontGenerator() {
   router.push({
     name: "SophontGenerator",
@@ -1286,7 +1483,36 @@ function goToSophontGenerator() {
 }
 
 function goToHistoryGenerator() {
-  router.push({ name: "HistoryGenerator" });
+  const returnTo = serializeReturnRoute({
+    name: String(route.name || "WorldBuilder"),
+    params: { ...route.params },
+    query: { ...route.query },
+  });
+
+  router.push({
+    name: "HistoryGenerator",
+    query: {
+      civilizationName: String(latestLinkedSophont.value?.name || world.value?.name || worldName.value || "").trim(),
+      worldName: String(world.value?.name || worldName.value || "").trim(),
+      government: String(latestLinkedSophont.value?.government || world.value?.governmentDesc || "").trim(),
+      diplomaticPosture: String(latestLinkedSophont.value?.currentStance || "").trim(),
+      pressureLevel: String(latestLinkedSophont.value?.pressureLevel || "").trim(),
+      techBand: String(latestLinkedSophont.value?.techBand || `TL ${Number(world.value?.techLevel ?? 0)}`).trim(),
+      worldTraits: [
+        world.value?.tempCategory,
+        world.value?.atmosphereDesc,
+        ...(Array.isArray(world.value?.tradeCodes) ? world.value.tradeCodes : []),
+      ]
+        .map((entry) => String(entry || "").trim())
+        .filter(Boolean)
+        .join(", "),
+      flashpoint: String(world.value?.linkedSophontProfile?.currentFlashpoint || "").trim(),
+      conflictSummary: String(latestLinkedSophont.value?.factionSummary || "").trim(),
+      eventHook: String(latestLinkedSophont.value?.eventHook || "").trim(),
+      source: "world-builder-history",
+      ...(returnTo ? { returnTo } : {}),
+    },
+  });
 }
 
 function openSystemSurvey() {

@@ -54,9 +54,69 @@ db.exec(`
     UNIQUE(sectorId, hexCoordinates)
   );
 
+  CREATE TABLE IF NOT EXISTS histories (
+    id TEXT PRIMARY KEY NOT NULL,
+    systemId TEXT,
+    worldName TEXT,
+    worldKey TEXT,
+    civilizationName TEXT NOT NULL,
+    payload TEXT NOT NULL,
+    createdAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    lastModified TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS flora (
+    id TEXT PRIMARY KEY NOT NULL,
+    systemId TEXT,
+    worldName TEXT,
+    worldKey TEXT,
+    name TEXT NOT NULL,
+    payload TEXT NOT NULL,
+    createdAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    lastModified TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS creatures (
+    id TEXT PRIMARY KEY NOT NULL,
+    systemId TEXT,
+    worldName TEXT,
+    worldKey TEXT,
+    name TEXT NOT NULL,
+    recordType TEXT NOT NULL CHECK(recordType IN ('creature', 'fauna-bundle')),
+    payload TEXT NOT NULL,
+    createdAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    lastModified TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS sophonts (
+    sophontId TEXT PRIMARY KEY NOT NULL,
+    worldId TEXT NOT NULL,
+    name TEXT NOT NULL,
+    bodyPlan TEXT NOT NULL,
+    culture TEXT NOT NULL,
+    population TEXT,
+    techLevel INTEGER NOT NULL DEFAULT 0,
+    metadata TEXT NOT NULL,
+    createdAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    lastModified TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(worldId, name)
+  );
+
   CREATE INDEX IF NOT EXISTS idx_galaxies_name ON galaxies(name);
   CREATE INDEX IF NOT EXISTS idx_sectors_galaxyId ON sectors(galaxyId);
   CREATE INDEX IF NOT EXISTS idx_systems_sectorId ON systems(sectorId);
+  CREATE INDEX IF NOT EXISTS idx_histories_systemId ON histories(systemId);
+  CREATE INDEX IF NOT EXISTS idx_histories_worldKey ON histories(worldKey);
+  CREATE INDEX IF NOT EXISTS idx_histories_worldName ON histories(worldName);
+  CREATE INDEX IF NOT EXISTS idx_flora_systemId ON flora(systemId);
+  CREATE INDEX IF NOT EXISTS idx_flora_worldKey ON flora(worldKey);
+  CREATE INDEX IF NOT EXISTS idx_flora_worldName ON flora(worldName);
+  CREATE INDEX IF NOT EXISTS idx_creatures_systemId ON creatures(systemId);
+  CREATE INDEX IF NOT EXISTS idx_creatures_worldKey ON creatures(worldKey);
+  CREATE INDEX IF NOT EXISTS idx_creatures_worldName ON creatures(worldName);
+  CREATE INDEX IF NOT EXISTS idx_creatures_recordType ON creatures(recordType);
+  CREATE INDEX IF NOT EXISTS idx_sophonts_worldId ON sophonts(worldId);
+  CREATE INDEX IF NOT EXISTS idx_sophonts_created ON sophonts(createdAt);
 `);
 
 function sendJson(res, statusCode, payload) {
@@ -117,6 +177,230 @@ function toSystem(row) {
     metadata,
     createdAt: row.createdAt,
     lastModified: row.lastModified,
+  };
+}
+
+const SOPHONT_BODY_PLANS = new Set([
+  "Humanoid",
+  "Avian",
+  "Aquatic",
+  "Insectoid",
+  "Arachnoid",
+  "Serpentine",
+  "Amorphous",
+  "Radial",
+  "Exotic",
+]);
+const CREATURE_RECORD_TYPES = new Set(["creature", "fauna-bundle"]);
+
+function createHistoryId() {
+  return `history-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function toHistory(row) {
+  const payload = parseJsonField(row.payload, {});
+  return {
+    ...payload,
+    id: String(row.id || payload.id || ""),
+    systemId: String(row.systemId ?? payload.systemId ?? ""),
+    worldName: String(row.worldName ?? payload.worldName ?? payload?.context?.worldName ?? ""),
+    worldKey: String(row.worldKey ?? payload.worldKey ?? ""),
+    civilizationName: String(row.civilizationName ?? payload.civilizationName ?? "Generated Civilization"),
+    savedAt: row.createdAt,
+    updatedAt: row.lastModified,
+    createdAt: row.createdAt,
+    lastModified: row.lastModified,
+  };
+}
+
+function normalizeHistoryPayload(payload) {
+  const context = payload?.context && typeof payload.context === "object" ? { ...payload.context } : {};
+  const worldName = String(payload?.worldName || context?.worldName || "").trim();
+  const systemId = String(payload?.systemId || "").trim();
+
+  return {
+    id: String(payload?.id || createHistoryId()).trim(),
+    systemId,
+    worldName,
+    worldKey: String(payload?.worldKey || [systemId, worldName].filter(Boolean).join(":")).trim(),
+    civilizationName: String(payload?.civilizationName || "Generated Civilization").trim() || "Generated Civilization",
+    payload: {
+      ...payload,
+      id: String(payload?.id || "").trim() || undefined,
+      systemId,
+      worldName,
+      worldKey: String(payload?.worldKey || [systemId, worldName].filter(Boolean).join(":")).trim(),
+      civilizationName:
+        String(payload?.civilizationName || "Generated Civilization").trim() || "Generated Civilization",
+      context,
+      overview: payload?.overview && typeof payload.overview === "object" ? { ...payload.overview } : {},
+      events: Array.isArray(payload?.events) ? payload.events : [],
+      dynasties: Array.isArray(payload?.dynasties) ? payload.dynasties : [],
+      notablePeople: Array.isArray(payload?.notablePeople) ? payload.notablePeople : [],
+      familyTree: Array.isArray(payload?.familyTree) ? payload.familyTree : [],
+      categories: Array.isArray(payload?.categories) ? payload.categories : [],
+      meta: payload?.meta && typeof payload.meta === "object" ? { ...payload.meta } : {},
+    },
+  };
+}
+
+function createArchiveId(prefix) {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function toFlora(row) {
+  const payload = parseJsonField(row.payload, {});
+  return {
+    ...payload,
+    id: String(row.id || payload.id || ""),
+    systemId: String(row.systemId ?? payload.systemId ?? ""),
+    worldName: String(row.worldName ?? payload.worldName ?? payload?.sourceWorld?.name ?? ""),
+    worldKey: String(row.worldKey ?? payload.worldKey ?? ""),
+    name: String(row.name || payload.name || "Generated Flora"),
+    savedAt: row.createdAt,
+    updatedAt: row.lastModified,
+    createdAt: row.createdAt,
+    lastModified: row.lastModified,
+  };
+}
+
+function normalizeFloraPayload(payload) {
+  const sourceWorld =
+    payload?.sourceWorld && typeof payload.sourceWorld === "object" ? { ...payload.sourceWorld } : null;
+  const systemId = String(payload?.systemId || "").trim();
+  const worldName = String(payload?.worldName || sourceWorld?.name || "").trim();
+  const worldKey = String(payload?.worldKey || [systemId, worldName].filter(Boolean).join(":")).trim();
+  const id = String(payload?.id || createArchiveId("flora")).trim();
+  const name = String(payload?.name || "Generated Flora").trim() || "Generated Flora";
+
+  return {
+    id,
+    systemId,
+    worldName,
+    worldKey,
+    name,
+    payload: {
+      ...payload,
+      id,
+      systemId,
+      worldName,
+      worldKey,
+      name,
+      sourceWorld,
+    },
+  };
+}
+
+function toCreatureRecord(row) {
+  const payload = parseJsonField(row.payload, {});
+  return {
+    ...payload,
+    id: String(row.id || payload.id || ""),
+    systemId: String(row.systemId ?? payload.systemId ?? ""),
+    worldName: String(row.worldName ?? payload.worldName ?? payload?.sourceWorld?.name ?? ""),
+    worldKey: String(row.worldKey ?? payload.worldKey ?? ""),
+    name: String(row.name || payload.name || "Generated Beast"),
+    recordType: String(row.recordType || payload.recordType || "creature"),
+    savedAt: row.createdAt,
+    updatedAt: row.lastModified,
+    createdAt: row.createdAt,
+    lastModified: row.lastModified,
+  };
+}
+
+function normalizeCreaturePayload(payload) {
+  const sourceWorld =
+    payload?.sourceWorld && typeof payload.sourceWorld === "object" ? { ...payload.sourceWorld } : null;
+  const systemId = String(payload?.systemId || "").trim();
+  const worldName = String(payload?.worldName || sourceWorld?.name || "").trim();
+  const worldKey = String(payload?.worldKey || [systemId, worldName].filter(Boolean).join(":")).trim();
+  const recordTypeCandidate = String(payload?.recordType || "creature").trim();
+  const recordType = CREATURE_RECORD_TYPES.has(recordTypeCandidate) ? recordTypeCandidate : "creature";
+  const id = String(payload?.id || createArchiveId(recordType === "fauna-bundle" ? "fauna-bundle" : "creature")).trim();
+  const name =
+    String(
+      payload?.name || (recordType === "fauna-bundle" ? `${worldName || "World"} Fauna Bundle` : "Generated Beast"),
+    ).trim() || (recordType === "fauna-bundle" ? `${worldName || "World"} Fauna Bundle` : "Generated Beast");
+
+  return {
+    id,
+    systemId,
+    worldName,
+    worldKey,
+    name,
+    recordType,
+    payload: {
+      ...payload,
+      id,
+      systemId,
+      worldName,
+      worldKey,
+      name,
+      recordType,
+      sourceWorld,
+    },
+  };
+}
+
+function toSophont(row) {
+  const metadata = parseJsonField(row.metadata, {});
+  return {
+    ...metadata,
+    id: String(row.sophontId || metadata.id || ""),
+    sophontId: String(row.sophontId || metadata.id || ""),
+    systemId: String(metadata.systemId || ""),
+    worldName: String(metadata.worldName || ""),
+    worldKey: String(metadata.worldKey || ""),
+    name: String(row.name || metadata.name || "Generated Sophont"),
+    bodyPlanSelection: String(metadata.bodyPlanSelection || row.bodyPlan || "random"),
+    savedAt: row.createdAt,
+    updatedAt: row.lastModified,
+    createdAt: row.createdAt,
+    lastModified: row.lastModified,
+  };
+}
+
+function normalizeSophontPayload(payload) {
+  const sourceWorld =
+    payload?.sourceWorld && typeof payload.sourceWorld === "object" ? { ...payload.sourceWorld } : null;
+  const systemId = String(payload?.systemId || "").trim();
+  const worldName = String(payload?.worldName || sourceWorld?.name || "").trim();
+  const worldKey = String(payload?.worldKey || [systemId, worldName].filter(Boolean).join(":")).trim();
+  const bodyPlanCandidate = String(
+    payload?.bodyPlanSelection || payload?.biology?.["Body Plan"] || payload?.bodyPlan || "Humanoid",
+  ).trim();
+  const bodyPlan = SOPHONT_BODY_PLANS.has(bodyPlanCandidate) ? bodyPlanCandidate : "Humanoid";
+  const techLevelValue = Number.parseInt(
+    String(payload?.techLevel ?? payload?.civilization?.techLevel ?? payload?.civilization?.["Tech Level"] ?? 10),
+    10,
+  );
+
+  return {
+    sophontId: String(
+      payload?.id || payload?.sophontId || `sophont-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    ).trim(),
+    worldId: String(worldKey || worldName || "unlinked-world").trim(),
+    name: String(payload?.name || "Generated Sophont").trim() || "Generated Sophont",
+    bodyPlan,
+    culture: {
+      culture: payload?.culture ?? {},
+      civilization: payload?.civilization ?? {},
+      diplomacy: payload?.diplomacy ?? {},
+    },
+    population: payload?.population ?? {},
+    techLevel: Number.isFinite(techLevelValue) ? Math.max(0, Math.min(15, techLevelValue)) : 10,
+    metadata: {
+      ...payload,
+      id: String(payload?.id || payload?.sophontId || "").trim() || undefined,
+      systemId,
+      worldName,
+      worldKey,
+      sourceWorld,
+      bodyPlanSelection: String(payload?.bodyPlanSelection || bodyPlan || "random"),
+      homeEnvironmentSelection: String(
+        payload?.homeEnvironmentSelection || payload?.biology?.["Home Environment"] || "random",
+      ),
+    },
   };
 }
 
@@ -358,6 +642,117 @@ function upsertSystem(payload) {
   return toSystem(row);
 }
 
+function upsertHistory(payload) {
+  const history = normalizeHistoryPayload(payload);
+  if (!history.id) throw new Error("history id is required");
+  if (!history.civilizationName) throw new Error("civilizationName is required");
+
+  db.prepare(
+    `INSERT INTO histories (id, systemId, worldName, worldKey, civilizationName, payload)
+     VALUES (?, ?, ?, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET
+       systemId = excluded.systemId,
+       worldName = excluded.worldName,
+       worldKey = excluded.worldKey,
+       civilizationName = excluded.civilizationName,
+       payload = excluded.payload,
+       lastModified = CURRENT_TIMESTAMP`,
+  ).run(
+    history.id,
+    history.systemId,
+    history.worldName,
+    history.worldKey,
+    history.civilizationName,
+    JSON.stringify(history.payload),
+  );
+
+  const row = db.prepare("SELECT * FROM histories WHERE id = ?").get(history.id);
+  return toHistory(row);
+}
+
+function upsertFlora(payload) {
+  const flora = normalizeFloraPayload(payload);
+  if (!flora.id) throw new Error("flora id is required");
+  if (!flora.name) throw new Error("name is required");
+
+  db.prepare(
+    `INSERT INTO flora (id, systemId, worldName, worldKey, name, payload)
+     VALUES (?, ?, ?, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET
+       systemId = excluded.systemId,
+       worldName = excluded.worldName,
+       worldKey = excluded.worldKey,
+       name = excluded.name,
+       payload = excluded.payload,
+       lastModified = CURRENT_TIMESTAMP`,
+  ).run(flora.id, flora.systemId, flora.worldName, flora.worldKey, flora.name, JSON.stringify(flora.payload));
+
+  const row = db.prepare("SELECT * FROM flora WHERE id = ?").get(flora.id);
+  return toFlora(row);
+}
+
+function upsertCreature(payload) {
+  const creature = normalizeCreaturePayload(payload);
+  if (!creature.id) throw new Error("creature id is required");
+  if (!creature.name) throw new Error("name is required");
+
+  db.prepare(
+    `INSERT INTO creatures (id, systemId, worldName, worldKey, name, recordType, payload)
+     VALUES (?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET
+       systemId = excluded.systemId,
+       worldName = excluded.worldName,
+       worldKey = excluded.worldKey,
+       name = excluded.name,
+       recordType = excluded.recordType,
+       payload = excluded.payload,
+       lastModified = CURRENT_TIMESTAMP`,
+  ).run(
+    creature.id,
+    creature.systemId,
+    creature.worldName,
+    creature.worldKey,
+    creature.name,
+    creature.recordType,
+    JSON.stringify(creature.payload),
+  );
+
+  const row = db.prepare("SELECT * FROM creatures WHERE id = ?").get(creature.id);
+  return toCreatureRecord(row);
+}
+
+function upsertSophont(payload) {
+  const sophont = normalizeSophontPayload(payload);
+  if (!sophont.sophontId) throw new Error("sophontId is required");
+  if (!sophont.name) throw new Error("name is required");
+
+  db.prepare(
+    `INSERT INTO sophonts (sophontId, worldId, name, bodyPlan, culture, population, techLevel, metadata)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(sophontId) DO UPDATE SET
+       worldId = excluded.worldId,
+       name = excluded.name,
+       bodyPlan = excluded.bodyPlan,
+       culture = excluded.culture,
+       population = excluded.population,
+       techLevel = excluded.techLevel,
+       metadata = excluded.metadata,
+       lastModified = CURRENT_TIMESTAMP`,
+  ).run(
+    sophont.sophontId,
+    sophont.worldId,
+    sophont.name,
+    sophont.bodyPlan,
+    JSON.stringify(sophont.culture),
+    JSON.stringify(sophont.population),
+    sophont.techLevel,
+    JSON.stringify(sophont.metadata),
+  );
+
+  const row = db.prepare("SELECT * FROM sophonts WHERE sophontId = ?").get(sophont.sophontId);
+  return toSophont(row);
+}
+
 function replaceSectorSystems(sectorId, payload) {
   const normalizedSectorId = String(sectorId || "").trim();
   if (!normalizedSectorId) {
@@ -399,7 +794,7 @@ function resetUniverseData() {
       .all()
       .map((row) => String(row?.name || "")),
   );
-  const resetOrder = ["sophonts", "worlds", "systems", "sectors", "galaxies"];
+  const resetOrder = ["histories", "flora", "creatures", "sophonts", "worlds", "systems", "sectors", "galaxies"];
 
   const transaction = db.transaction(() => {
     for (const tableName of resetOrder) {
@@ -408,7 +803,7 @@ function resetUniverseData() {
     }
     if (existingTables.has("sqlite_sequence")) {
       db.prepare(
-        "DELETE FROM sqlite_sequence WHERE name IN ('sophonts', 'worlds', 'systems', 'sectors', 'galaxies')",
+        "DELETE FROM sqlite_sequence WHERE name IN ('flora', 'creatures', 'sophonts', 'worlds', 'systems', 'sectors', 'galaxies')",
       ).run();
     }
   });
@@ -469,7 +864,316 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    let params = matchPath(pathname, "/api/galaxies/:gid");
+    if (req.method === "GET" && pathname === "/api/histories") {
+      const systemId = String(searchParams.get("systemId") || "").trim();
+      const worldKey = String(searchParams.get("worldKey") || "").trim();
+      const worldName = String(searchParams.get("worldName") || "")
+        .trim()
+        .toLowerCase();
+      const limit = Math.min(Math.max(1, Number(searchParams.get("limit")) || 100), 1000);
+      const offset = Math.max(0, Number(searchParams.get("offset")) || 0);
+      const clauses = [];
+      const args = [];
+
+      if (systemId) {
+        clauses.push("systemId = ?");
+        args.push(systemId);
+      }
+      if (worldKey) {
+        clauses.push("worldKey = ?");
+        args.push(worldKey);
+      }
+      if (worldName) {
+        clauses.push("LOWER(worldName) = ?");
+        args.push(worldName);
+      }
+
+      const whereClause = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
+      const rows = db
+        .prepare(`SELECT * FROM histories ${whereClause} ORDER BY lastModified DESC LIMIT ? OFFSET ?`)
+        .all(...args, limit, offset);
+      sendJson(res, 200, rows.map(toHistory));
+      return;
+    }
+
+    if (req.method === "GET" && pathname === "/api/sophonts") {
+      const systemId = String(searchParams.get("systemId") || "").trim();
+      const worldKey = String(searchParams.get("worldKey") || "").trim();
+      const worldName = String(searchParams.get("worldName") || "")
+        .trim()
+        .toLowerCase();
+      const limit = Math.min(Math.max(1, Number(searchParams.get("limit")) || 100), 1000);
+      const offset = Math.max(0, Number(searchParams.get("offset")) || 0);
+      const clauses = [];
+      const args = [];
+
+      if (systemId) {
+        clauses.push("COALESCE(json_extract(metadata, '$.systemId'), '') = ?");
+        args.push(systemId);
+      }
+      if (worldKey) {
+        clauses.push("COALESCE(json_extract(metadata, '$.worldKey'), '') = ?");
+        args.push(worldKey);
+      }
+      if (worldName) {
+        clauses.push("LOWER(COALESCE(json_extract(metadata, '$.worldName'), '')) = ?");
+        args.push(worldName);
+      }
+
+      const whereClause = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
+      const rows = db
+        .prepare(`SELECT * FROM sophonts ${whereClause} ORDER BY lastModified DESC LIMIT ? OFFSET ?`)
+        .all(...args, limit, offset);
+      sendJson(res, 200, rows.map(toSophont));
+      return;
+    }
+
+    if (req.method === "GET" && pathname === "/api/flora") {
+      const systemId = String(searchParams.get("systemId") || "").trim();
+      const worldKey = String(searchParams.get("worldKey") || "").trim();
+      const worldName = String(searchParams.get("worldName") || "")
+        .trim()
+        .toLowerCase();
+      const limit = Math.min(Math.max(1, Number(searchParams.get("limit")) || 100), 1000);
+      const offset = Math.max(0, Number(searchParams.get("offset")) || 0);
+      const clauses = [];
+      const args = [];
+
+      if (systemId) {
+        clauses.push("systemId = ?");
+        args.push(systemId);
+      }
+      if (worldKey) {
+        clauses.push("worldKey = ?");
+        args.push(worldKey);
+      }
+      if (worldName) {
+        clauses.push("LOWER(worldName) = ?");
+        args.push(worldName);
+      }
+
+      const whereClause = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
+      const rows = db
+        .prepare(`SELECT * FROM flora ${whereClause} ORDER BY lastModified DESC LIMIT ? OFFSET ?`)
+        .all(...args, limit, offset);
+      sendJson(res, 200, rows.map(toFlora));
+      return;
+    }
+
+    if (req.method === "GET" && pathname === "/api/creatures") {
+      const systemId = String(searchParams.get("systemId") || "").trim();
+      const worldKey = String(searchParams.get("worldKey") || "").trim();
+      const worldName = String(searchParams.get("worldName") || "")
+        .trim()
+        .toLowerCase();
+      const recordType = String(searchParams.get("recordType") || "").trim();
+      const limit = Math.min(Math.max(1, Number(searchParams.get("limit")) || 100), 1000);
+      const offset = Math.max(0, Number(searchParams.get("offset")) || 0);
+      const clauses = [];
+      const args = [];
+
+      if (systemId) {
+        clauses.push("systemId = ?");
+        args.push(systemId);
+      }
+      if (worldKey) {
+        clauses.push("worldKey = ?");
+        args.push(worldKey);
+      }
+      if (worldName) {
+        clauses.push("LOWER(worldName) = ?");
+        args.push(worldName);
+      }
+      if (CREATURE_RECORD_TYPES.has(recordType)) {
+        clauses.push("recordType = ?");
+        args.push(recordType);
+      }
+
+      const whereClause = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
+      const rows = db
+        .prepare(`SELECT * FROM creatures ${whereClause} ORDER BY lastModified DESC LIMIT ? OFFSET ?`)
+        .all(...args, limit, offset);
+      sendJson(res, 200, rows.map(toCreatureRecord));
+      return;
+    }
+
+    let params = matchPath(pathname, "/api/histories/:id");
+    if (req.method === "GET" && params) {
+      const row = db.prepare("SELECT * FROM histories WHERE id = ?").get(params.id);
+      if (!row) {
+        sendJson(res, 404, { error: `History not found: ${params.id}` });
+        return;
+      }
+      sendJson(res, 200, toHistory(row));
+      return;
+    }
+
+    if (req.method === "POST" && pathname === "/api/histories") {
+      const payload = await readRequestBody(req);
+      const created = upsertHistory(payload);
+      sendJson(res, 201, created);
+      return;
+    }
+
+    if (req.method === "POST" && pathname === "/api/histories/upsert") {
+      const payload = await readRequestBody(req);
+      const updated = upsertHistory(payload);
+      sendJson(res, 201, updated);
+      return;
+    }
+
+    params = matchPath(pathname, "/api/histories/:id");
+    if (req.method === "PUT" && params) {
+      const payload = await readRequestBody(req);
+      const updated = upsertHistory({ ...payload, id: params.id });
+      sendJson(res, 200, updated);
+      return;
+    }
+
+    params = matchPath(pathname, "/api/histories/:id");
+    if (req.method === "DELETE" && params) {
+      const result = db.prepare("DELETE FROM histories WHERE id = ?").run(params.id);
+      if (result.changes === 0) {
+        sendJson(res, 404, { error: `History not found: ${params.id}` });
+        return;
+      }
+      sendNoContent(res);
+      return;
+    }
+
+    params = matchPath(pathname, "/api/flora/:id");
+    if (req.method === "GET" && params) {
+      const row = db.prepare("SELECT * FROM flora WHERE id = ?").get(params.id);
+      if (!row) {
+        sendJson(res, 404, { error: `Flora not found: ${params.id}` });
+        return;
+      }
+      sendJson(res, 200, toFlora(row));
+      return;
+    }
+
+    if (req.method === "POST" && pathname === "/api/flora") {
+      const payload = await readRequestBody(req);
+      const created = upsertFlora(payload);
+      sendJson(res, 201, created);
+      return;
+    }
+
+    if (req.method === "POST" && pathname === "/api/flora/upsert") {
+      const payload = await readRequestBody(req);
+      const updated = upsertFlora(payload);
+      sendJson(res, 201, updated);
+      return;
+    }
+
+    params = matchPath(pathname, "/api/flora/:id");
+    if (req.method === "PUT" && params) {
+      const payload = await readRequestBody(req);
+      const updated = upsertFlora({ ...payload, id: params.id });
+      sendJson(res, 200, updated);
+      return;
+    }
+
+    params = matchPath(pathname, "/api/flora/:id");
+    if (req.method === "DELETE" && params) {
+      const result = db.prepare("DELETE FROM flora WHERE id = ?").run(params.id);
+      if (result.changes === 0) {
+        sendJson(res, 404, { error: `Flora not found: ${params.id}` });
+        return;
+      }
+      sendNoContent(res);
+      return;
+    }
+
+    params = matchPath(pathname, "/api/creatures/:id");
+    if (req.method === "GET" && params) {
+      const row = db.prepare("SELECT * FROM creatures WHERE id = ?").get(params.id);
+      if (!row) {
+        sendJson(res, 404, { error: `Creature record not found: ${params.id}` });
+        return;
+      }
+      sendJson(res, 200, toCreatureRecord(row));
+      return;
+    }
+
+    if (req.method === "POST" && pathname === "/api/creatures") {
+      const payload = await readRequestBody(req);
+      const created = upsertCreature(payload);
+      sendJson(res, 201, created);
+      return;
+    }
+
+    if (req.method === "POST" && pathname === "/api/creatures/upsert") {
+      const payload = await readRequestBody(req);
+      const updated = upsertCreature(payload);
+      sendJson(res, 201, updated);
+      return;
+    }
+
+    params = matchPath(pathname, "/api/creatures/:id");
+    if (req.method === "PUT" && params) {
+      const payload = await readRequestBody(req);
+      const updated = upsertCreature({ ...payload, id: params.id });
+      sendJson(res, 200, updated);
+      return;
+    }
+
+    params = matchPath(pathname, "/api/creatures/:id");
+    if (req.method === "DELETE" && params) {
+      const result = db.prepare("DELETE FROM creatures WHERE id = ?").run(params.id);
+      if (result.changes === 0) {
+        sendJson(res, 404, { error: `Creature record not found: ${params.id}` });
+        return;
+      }
+      sendNoContent(res);
+      return;
+    }
+
+    params = matchPath(pathname, "/api/sophonts/:id");
+    if (req.method === "GET" && params) {
+      const row = db.prepare("SELECT * FROM sophonts WHERE sophontId = ?").get(params.id);
+      if (!row) {
+        sendJson(res, 404, { error: `Sophont not found: ${params.id}` });
+        return;
+      }
+      sendJson(res, 200, toSophont(row));
+      return;
+    }
+
+    if (req.method === "POST" && pathname === "/api/sophonts") {
+      const payload = await readRequestBody(req);
+      const created = upsertSophont(payload);
+      sendJson(res, 201, created);
+      return;
+    }
+
+    if (req.method === "POST" && pathname === "/api/sophonts/upsert") {
+      const payload = await readRequestBody(req);
+      const updated = upsertSophont(payload);
+      sendJson(res, 201, updated);
+      return;
+    }
+
+    params = matchPath(pathname, "/api/sophonts/:id");
+    if (req.method === "PUT" && params) {
+      const payload = await readRequestBody(req);
+      const updated = upsertSophont({ ...payload, id: params.id, sophontId: params.id });
+      sendJson(res, 200, updated);
+      return;
+    }
+
+    params = matchPath(pathname, "/api/sophonts/:id");
+    if (req.method === "DELETE" && params) {
+      const result = db.prepare("DELETE FROM sophonts WHERE sophontId = ?").run(params.id);
+      if (result.changes === 0) {
+        sendJson(res, 404, { error: `Sophont not found: ${params.id}` });
+        return;
+      }
+      sendNoContent(res);
+      return;
+    }
+
+    params = matchPath(pathname, "/api/galaxies/:gid");
     if (req.method === "GET" && params) {
       const row = db.prepare("SELECT * FROM galaxies WHERE galaxyId = ?").get(params.gid);
       if (!row) {

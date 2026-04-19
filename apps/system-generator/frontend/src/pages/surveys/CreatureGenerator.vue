@@ -30,6 +30,7 @@
           <select v-model="generationMode" class="select-input">
             <option value="single">Single Creature</option>
             <option value="table">6-Entry Encounter Table</option>
+            <option value="bundle">World Fauna Bundle</option>
           </select>
         </div>
 
@@ -73,8 +74,16 @@
         </div>
 
         <div class="control-group control-action">
-          <button class="btn btn-primary" @click="generateCreature">⚡ Generate Beast</button>
-          <button class="btn btn-secondary" :disabled="!creature" @click="saveCreatureRecord">💾 Save</button>
+          <button class="btn btn-primary" @click="generateCreature">
+            {{ generationMode === "bundle" ? "🌍 Generate Fauna List" : "⚡ Generate Beast" }}
+          </button>
+          <button
+            class="btn btn-secondary"
+            :disabled="generationMode === 'bundle' ? !faunaBundle : !creature"
+            @click="generationMode === 'bundle' ? saveFaunaBundleRecord() : saveCreatureRecord()"
+          >
+            {{ generationMode === "bundle" ? "💾 Save Bundle" : "💾 Save" }}
+          </button>
           <button class="btn btn-secondary" @click="resetForm">Reset</button>
         </div>
       </div>
@@ -104,6 +113,50 @@
                 <div>{{ entry.ecologicalNiche.subniche }}</div>
                 <div>{{ entry.locomotion }} · {{ entry.size.label }}</div>
                 <div>{{ entry.combat.weapon.weapon }} · {{ entry.quantity.label }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div v-if="faunaBundle" class="creature-section encounter-table">
+          <h3>🌍 World Ecology Bundle</h3>
+          <div class="creature-tags">
+            <span class="tag">{{ faunaBundle.balance.stability }}</span>
+            <span class="tag">Hazard {{ faunaBundle.balance.hazardLevel }}</span>
+            <span v-for="terrainEntry in faunaBundle.terrains" :key="terrainEntry" class="tag">{{ terrainEntry }}</span>
+          </div>
+
+          <div class="stats-grid section-offset">
+            <div class="stat-box">
+              <div class="stat-label">Producer</div>
+              <div class="stat-value">{{ faunaBundle.balance.counts.Producer }}</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-label">Herbivore</div>
+              <div class="stat-value">{{ faunaBundle.balance.counts.Herbivore }}</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-label">Predator</div>
+              <div class="stat-value">{{ faunaBundle.balance.counts.Carnivore }}</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-label">Scavenger</div>
+              <div class="stat-value">{{ faunaBundle.balance.counts.Scavenger }}</div>
+            </div>
+          </div>
+
+          <div class="trait-list section-offset">
+            <div v-for="note in faunaBundle.notes" :key="note" class="trait-item">{{ note }}</div>
+          </div>
+
+          <div class="encounter-grid section-offset">
+            <div v-for="(entry, index) in faunaBundle.entries" :key="`${entry.role}-${index}`" class="encounter-card">
+              <div class="encounter-roll">{{ index + 1 }}</div>
+              <div class="encounter-body">
+                <strong>{{ entry.role }}</strong>
+                <div>{{ entry.ecologicalNiche.niche }} · {{ entry.ecologicalNiche.subniche }}</div>
+                <div>{{ entry.terrain }} · {{ entry.size.label }}</div>
+                <div>{{ entry.name }}</div>
               </div>
             </div>
           </div>
@@ -214,6 +267,21 @@
               </div>
             </div>
           </section>
+
+          <section class="creature-section creature-section-wide">
+            <h3>🎨 Image Description</h3>
+            <p class="summary-copy section-offset">{{ creature.visualDescription }}</p>
+            <div class="prompt-block">
+              <div class="prompt-header">
+                <span class="prompt-label">Image Prompt</span>
+                <button type="button" class="btn btn-secondary btn-copy" @click="copyPromptText(creature.imagePrompt)">
+                  Copy Prompt
+                </button>
+              </div>
+              <textarea :value="creature.imagePrompt" class="prompt-textarea" rows="5" readonly />
+            </div>
+            <p class="prompt-caption">{{ creature.imageCaption }}</p>
+          </section>
         </div>
       </div>
 
@@ -240,7 +308,33 @@
         </div>
       </section>
 
-      <div v-if="!creature && !savedCreatures.length" class="empty-placeholder">
+      <section v-if="savedFaunaBundles.length" class="creature-display creature-archive">
+        <div class="creature-header">
+          <div class="creature-icon">🗺️</div>
+          <div class="header-copy">
+            <h2>Saved World Fauna Bundles</h2>
+            <p class="summary-copy">Local ecology sets are attached to the selected world link for quick reuse.</p>
+          </div>
+        </div>
+        <div class="saved-record-list">
+          <article v-for="entry in savedFaunaBundles" :key="entry.id" class="saved-record-card">
+            <div class="saved-record-copy">
+              <strong>{{ entry.worldName || "Linked World" }}</strong>
+              <span>{{ entry.balance?.stability || "Fauna bundle" }}</span>
+              <span>{{ entry.balance?.hazardLevel || "Low" }} hazard · {{ entry.entries?.length || 0 }} roles</span>
+            </div>
+            <div class="saved-record-actions">
+              <button class="btn btn-secondary" @click="loadSavedFaunaBundle(entry)">Load</button>
+              <button class="btn btn-secondary" @click="deleteSavedFaunaBundle(entry.id)">Delete</button>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <div
+        v-if="!creature && !faunaBundle && !savedCreatures.length && !savedFaunaBundles.length"
+        class="empty-placeholder"
+      >
         <h2>BeastMaker Creature Generator</h2>
         <p>Select terrain, world size, and niche guidance, then generate a rule-based creature profile.</p>
       </div>
@@ -258,14 +352,18 @@ import { useCreatureStore } from "../../stores/creatureStore.js";
 import { useSystemStore } from "../../stores/systemStore.js";
 import { DEFAULT_PRIMARY_NICHES, DEFAULT_TERRAINS } from "../../utils/beasts/beastTables.js";
 import {
+  buildCreatureImagePrompt,
+  buildFaunaWorldUpdate,
   buildWorldLinkedCreatureOptions,
   createSeededRng,
   generateBeastProfile,
   generateEncounterTable,
+  generateWorldFaunaBundle,
 } from "../../utils/beasts/beastGenerator.js";
 import { formatBeastSummary, formatReactionValue } from "../../utils/beasts/beastFormatting.js";
 import { deserializeReturnRoute } from "../../utils/returnRoute.js";
 import * as toastService from "../../utils/toast.js";
+import { findMatchingWorldOption, resolveBoundSystemRecord, resolveSelectedWorldIndex } from "../../utils/worldLink.js";
 
 const { overlayProps: creatureExportOverlayProps, exportJson: exportCreatureArchive } = useArchiveTransfer({
   noun: "Creature",
@@ -299,6 +397,7 @@ const worldSize = ref("8");
 const linkedWorldName = ref("");
 const selectedWorldKey = ref("");
 const creature = ref(null);
+const faunaBundle = ref(null);
 const encounterTable = ref([]);
 
 const worldOptions = computed(() => {
@@ -329,6 +428,65 @@ const activeWorldCriteria = computed(() => ({
     linkedWorldName.value.trim() || selectedWorldOption.value?.worldName || String(route.query.worldName || ""),
 }));
 const savedCreatures = computed(() => creatureStore.creaturesByWorld(activeWorldCriteria.value));
+const savedFaunaBundles = computed(() => creatureStore.faunaBundlesByWorld(activeWorldCriteria.value));
+
+watch(
+  activeWorldCriteria,
+  async (criteria) => {
+    await Promise.all([creatureStore.hydrateCreatures(criteria), creatureStore.hydrateFaunaBundles(criteria)]);
+  },
+  { immediate: true, deep: true },
+);
+
+async function persistFaunaBundleToWorldContext(bundle) {
+  const worldIndex = resolveSelectedWorldIndex(selectedWorldOption.value, route);
+  const persistedSystem = resolveBoundSystemRecord({
+    selectedWorldOption: selectedWorldOption.value,
+    route,
+    systemStore,
+  });
+  if (
+    worldIndex === null ||
+    !persistedSystem ||
+    !Array.isArray(persistedSystem.planets) ||
+    !persistedSystem.planets[worldIndex]
+  ) {
+    return false;
+  }
+
+  const nextPlanets = persistedSystem.planets.map((planet, index) => {
+    if (index !== worldIndex) {
+      return planet && typeof planet === "object" ? { ...planet } : planet;
+    }
+    return {
+      ...planet,
+      ...buildFaunaWorldUpdate(bundle, planet),
+    };
+  });
+
+  const updatedSystem = await systemStore.updateSystem(persistedSystem.systemId, {
+    planets: nextPlanets,
+    metadata: {
+      ...(persistedSystem.metadata && typeof persistedSystem.metadata === "object" ? persistedSystem.metadata : {}),
+      linkedFaunaUpdatedAt: new Date().toISOString(),
+      lastModified: new Date().toISOString(),
+    },
+  });
+
+  if (updatedSystem?.systemId) {
+    systemStore.setCurrentSystem(updatedSystem.systemId);
+  }
+  return true;
+}
+
+watch(generationMode, (mode) => {
+  if (mode !== "bundle") {
+    faunaBundle.value = null;
+  }
+  if (mode === "single") {
+    encounterTable.value = [];
+  }
+});
 
 watch(
   worldOptions,
@@ -337,24 +495,13 @@ watch(
       return;
     }
 
-    const targetSystemId = String(route.query.systemId || route.query.systemRecordId || "").trim();
-    const targetWorldName = String(route.query.worldName || "")
-      .trim()
-      .toLowerCase();
-    const targetWorldIndex = Number(route.query.worldIndex ?? -1);
-
-    const match =
-      options.find(
-        (entry) =>
-          (!targetSystemId || entry.systemId === targetSystemId) &&
-          ((targetWorldName && entry.worldName.toLowerCase() === targetWorldName) ||
-            (targetWorldIndex >= 0 && entry.worldIndex === targetWorldIndex)),
-      ) || options.find((entry) => targetSystemId && entry.systemId === targetSystemId);
+    const match = findMatchingWorldOption(options, route);
+    const routeWorldName = String(route.query.worldName || "").trim();
 
     if (match) {
       selectedWorldKey.value = match.key;
-    } else if (targetWorldName && !linkedWorldName.value.trim()) {
-      linkedWorldName.value = String(route.query.worldName || "").trim();
+    } else if (routeWorldName && !linkedWorldName.value.trim()) {
+      linkedWorldName.value = routeWorldName;
     }
   },
   { immediate: true },
@@ -457,45 +604,41 @@ function buildNotes(profile) {
   return notes;
 }
 
-function generateCreature() {
-  const seed = ensureSeed();
-  if (!String(creatureName.value || "").trim()) {
-    randomizeName();
+async function copyPromptText(text) {
+  if (!String(text || "").trim()) {
+    toastService.error("No image prompt is available to copy.");
+    return;
   }
 
-  const linkedWorld = selectedWorldRecord.value
-    ? buildWorldLinkedCreatureOptions(selectedWorldRecord.value)
-    : linkedWorldName.value.trim()
-      ? buildWorldLinkedCreatureOptions({
-          name: linkedWorldName.value.trim(),
-          terrain: terrain.value,
-          size: worldSize.value,
-        })
-      : { sourceWorld: null, terrain: terrain.value, worldSize: worldSize.value };
+  try {
+    if (globalThis?.navigator?.clipboard?.writeText) {
+      await globalThis.navigator.clipboard.writeText(text);
+    } else if (typeof document !== "undefined") {
+      const helper = document.createElement("textarea");
+      helper.value = text;
+      helper.setAttribute("readonly", "");
+      helper.style.position = "absolute";
+      helper.style.left = "-9999px";
+      document.body.appendChild(helper);
+      helper.select();
+      document.execCommand("copy");
+      document.body.removeChild(helper);
+    }
 
-  const profile = generateBeastProfile({
-    seed,
-    name: creatureName.value.trim() || "Generated Beast",
-    terrain: linkedWorld.terrain,
-    worldSize: linkedWorld.worldSize,
-    sourceWorld: linkedWorld.sourceWorld,
-    primaryNiche: primaryNiche.value === "random" ? null : primaryNiche.value,
-  });
+    toastService.success("Image prompt copied to clipboard.");
+  } catch {
+    toastService.error("Unable to copy the image prompt.");
+  }
+}
 
-  encounterTable.value =
-    generationMode.value === "table"
-      ? generateEncounterTable({
-          seed,
-          terrain: linkedWorld.terrain,
-          worldSize: linkedWorld.worldSize,
-          sourceWorld: linkedWorld.sourceWorld,
-        })
-      : [];
+function buildCreatureViewModel(profile, existingRecord = {}) {
+  const imageDetails = buildCreatureImagePrompt(profile);
 
-  creature.value = {
+  return {
     ...profile,
-    id: creature.value?.id || null,
-    savedAt: creature.value?.savedAt || null,
+    ...imageDetails,
+    id: existingRecord?.id || null,
+    savedAt: existingRecord?.savedAt || null,
     icon: buildIcon(profile),
     summary: formatBeastSummary(profile),
     physical: {
@@ -533,13 +676,71 @@ function generateCreature() {
   };
 }
 
-function saveCreatureRecord() {
+function generateCreature() {
+  const seed = ensureSeed();
+  if (!String(creatureName.value || "").trim()) {
+    randomizeName();
+  }
+
+  const linkedWorld = selectedWorldRecord.value
+    ? buildWorldLinkedCreatureOptions(selectedWorldRecord.value)
+    : linkedWorldName.value.trim()
+      ? buildWorldLinkedCreatureOptions({
+          name: linkedWorldName.value.trim(),
+          terrain: terrain.value,
+          size: worldSize.value,
+          nativeSophontLife: selectedWorldRecord.value?.nativeSophontLife,
+        })
+      : { sourceWorld: null, terrain: terrain.value, worldSize: worldSize.value };
+
+  if (generationMode.value === "bundle") {
+    const bundle = generateWorldFaunaBundle({
+      seed,
+      world: selectedWorldRecord.value || linkedWorld.sourceWorld || {},
+      terrain: linkedWorld.terrain,
+      worldSize: linkedWorld.worldSize,
+      sourceWorld: linkedWorld.sourceWorld,
+      worldKey: selectedWorldKey.value,
+      systemId: selectedWorldOption.value?.systemId || String(route.query.systemId || route.query.systemRecordId || ""),
+    });
+
+    faunaBundle.value = bundle;
+    encounterTable.value = [...bundle.entries];
+    const focusProfile = bundle.focus || bundle.entries[0];
+    creature.value = focusProfile ? buildCreatureViewModel(focusProfile, creature.value) : null;
+    return;
+  }
+
+  faunaBundle.value = null;
+  const profile = generateBeastProfile({
+    seed,
+    name: creatureName.value.trim() || "Generated Beast",
+    terrain: linkedWorld.terrain,
+    worldSize: linkedWorld.worldSize,
+    sourceWorld: linkedWorld.sourceWorld,
+    primaryNiche: primaryNiche.value === "random" ? null : primaryNiche.value,
+  });
+
+  encounterTable.value =
+    generationMode.value === "table"
+      ? generateEncounterTable({
+          seed,
+          terrain: linkedWorld.terrain,
+          worldSize: linkedWorld.worldSize,
+          sourceWorld: linkedWorld.sourceWorld,
+        })
+      : [];
+
+  creature.value = buildCreatureViewModel(profile, creature.value);
+}
+
+async function saveCreatureRecord() {
   if (!creature.value) {
     toastService.error("Generate a creature before saving it.");
     return;
   }
 
-  const persisted = creatureStore.saveCreature({
+  const persisted = await creatureStore.saveCreature({
     ...creature.value,
     seed: seedValue.value,
     primaryNicheSelection: primaryNiche.value,
@@ -553,6 +754,35 @@ function saveCreatureRecord() {
 
   creature.value = { ...creature.value, id: persisted.id, savedAt: persisted.savedAt, updatedAt: persisted.updatedAt };
   toastService.success(`Saved creature ${persisted.name}.`);
+}
+
+async function saveFaunaBundleRecord() {
+  if (!faunaBundle.value) {
+    toastService.error("Generate a fauna bundle before saving it.");
+    return;
+  }
+
+  const persisted = await creatureStore.saveFaunaBundle({
+    ...faunaBundle.value,
+    seed: seedValue.value,
+    systemId: selectedWorldOption.value?.systemId || String(route.query.systemId || route.query.systemRecordId || ""),
+    worldKey: selectedWorldKey.value,
+    worldName:
+      linkedWorldName.value.trim() || selectedWorldOption.value?.worldName || faunaBundle.value.worldName || "",
+  });
+
+  faunaBundle.value = {
+    ...faunaBundle.value,
+    id: persisted.id,
+    savedAt: persisted.savedAt,
+    updatedAt: persisted.updatedAt,
+  };
+  const linked = await persistFaunaBundleToWorldContext(persisted);
+  toastService.success(
+    linked
+      ? `Saved fauna bundle for ${persisted.worldName || "linked world"} and linked it to the world survey.`
+      : `Saved fauna bundle for ${persisted.worldName || "linked world"}.`,
+  );
 }
 
 function loadSavedCreature(record) {
@@ -590,6 +820,7 @@ function loadSavedCreature(record) {
       },
   };
 
+  faunaBundle.value = null;
   creatureName.value = normalizedRecord.name || "";
   seedValue.value = normalizedRecord.seed || "creature-alpha";
   generationMode.value =
@@ -602,18 +833,42 @@ function loadSavedCreature(record) {
   if (normalizedRecord.worldKey) {
     selectedWorldKey.value = normalizedRecord.worldKey;
   }
-  creature.value = normalizedRecord;
+  creature.value = buildCreatureViewModel(normalizedRecord, normalizedRecord);
   encounterTable.value = Array.isArray(normalizedRecord.encounterTable) ? [...normalizedRecord.encounterTable] : [];
   toastService.success(`Loaded creature ${normalizedRecord.name}.`);
 }
 
-function deleteSavedCreature(recordId) {
-  creatureStore.removeCreature(recordId);
+function loadSavedFaunaBundle(bundle) {
+  if (!bundle) return;
+
+  generationMode.value = "bundle";
+  seedValue.value = bundle.seed || "creature-alpha";
+  linkedWorldName.value = bundle.worldName || bundle.sourceWorld?.name || "";
+  if (bundle.worldKey) {
+    selectedWorldKey.value = bundle.worldKey;
+  }
+  faunaBundle.value = { ...bundle };
+  encounterTable.value = Array.isArray(bundle.entries) ? [...bundle.entries] : [];
+  const focusProfile = bundle.focus || bundle.entries?.[0] || null;
+  creature.value = focusProfile ? buildCreatureViewModel(focusProfile, creature.value) : null;
+  toastService.success(`Loaded fauna bundle for ${bundle.worldName || "linked world"}.`);
+}
+
+async function deleteSavedCreature(recordId) {
+  await creatureStore.removeCreature(recordId);
   if (creature.value?.id === recordId) {
     creature.value = null;
     encounterTable.value = [];
   }
   toastService.info("Saved creature deleted.");
+}
+
+async function deleteSavedFaunaBundle(bundleId) {
+  await creatureStore.removeFaunaBundle(bundleId);
+  if (faunaBundle.value?.id === bundleId) {
+    faunaBundle.value = null;
+  }
+  toastService.info("Saved fauna bundle deleted.");
 }
 
 function resetForm() {
@@ -626,15 +881,26 @@ function resetForm() {
   linkedWorldName.value = "";
   selectedWorldKey.value = "";
   creature.value = null;
+  faunaBundle.value = null;
   encounterTable.value = [];
 }
 
 async function exportCreature() {
-  if (!creature.value) return;
+  if (!creature.value && !faunaBundle.value) return;
+
+  const payload =
+    generationMode.value === "bundle" && faunaBundle.value
+      ? {
+          world: faunaBundle.value.worldName,
+          faunaBundle: faunaBundle.value,
+          focusCreature: creature.value,
+        }
+      : creature.value;
 
   await exportCreatureArchive({
-    data: creature.value,
-    filename: (creatureRecord) => `${creatureRecord.name.replace(/\s+/g, "-")}-BeastMaker.json`,
+    data: payload,
+    filename: (creatureRecord) =>
+      `${(creatureRecord?.name || faunaBundle.value?.worldName || "World-Fauna").replace(/\s+/g, "-")}-BeastMaker.json`,
     serializeMessage: "Serializing creature dossier...",
     encodeMessage: "Encoding creature archive for transfer...",
     readyMessage: "Creature archive staged for local transfer.",
@@ -829,10 +1095,56 @@ async function exportCreature() {
   align-items: center;
 }
 
+.prompt-block {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.prompt-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.prompt-label {
+  color: #00ffff;
+  font-weight: bold;
+  font-size: 0.85rem;
+}
+
+.prompt-textarea {
+  width: 100%;
+  min-height: 7rem;
+  padding: 0.75rem;
+  border-radius: 0.35rem;
+  border: 1px solid #00d9ff55;
+  background: #0d0d2b;
+  color: #d8e7ff;
+  resize: vertical;
+}
+
+.btn-copy {
+  min-height: 2rem;
+  padding: 0.35rem 0.8rem;
+  font-size: 0.8rem;
+}
+
+.prompt-caption {
+  margin: 0.75rem 0 0;
+  color: #9fb6d9;
+  font-style: italic;
+}
+
 .creature-section {
   background: #12122e;
   border-radius: 0.5rem;
   padding: 1.25rem;
+}
+
+.creature-section-wide {
+  grid-column: 1 / -1;
 }
 
 .creature-section h3 {
