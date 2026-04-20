@@ -121,6 +121,143 @@ function isTidalWorld(planet = {}) {
   return Boolean(planet.isMoon) || surfaceTidalEffect >= 2 || totalTidalEffect >= 2 || plateCount >= 10;
 }
 
+function resolveChemistrySummary(planet = {}) {
+  return [
+    planet.composition,
+    planet.hydrosphereLiquid,
+    planet.hydrosphereDescription,
+    planet.atmosphereComposition,
+    planet.atmosphereDesc,
+    planet.worldDescriptor,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
+function resolveHydrosphereChemistry(planet = {}) {
+  const chemistry = resolveChemistrySummary(planet);
+
+  if (/ammonia/.test(chemistry)) {
+    return "ammonia";
+  }
+
+  if (/methane|ethane|hydrocarbon|cryogenic/.test(chemistry)) {
+    return "methane";
+  }
+
+  if (/water|ocean|sea|pelagic|panthalassic/.test(chemistry)) {
+    return "water";
+  }
+
+  return "unknown";
+}
+
+function classifyOceanicWorld(planet = {}) {
+  const chemistry = resolveHydrosphereChemistry(planet);
+
+  if (chemistry === "ammonia") {
+    return { worldClass: "Oceanic", worldSubtype: "Nunnic" };
+  }
+
+  if (chemistry === "methane") {
+    return { worldClass: "Oceanic", worldSubtype: "Teathic" };
+  }
+
+  return {
+    worldClass: "Oceanic",
+    worldSubtype: "Pelagic",
+  };
+}
+
+function classifyVesperianWorld(planet = {}) {
+  const hydroPercent = resolveHydrographicsPercent(planet);
+  const chemistry = resolveChemistrySummary(planet);
+  const avgTempC = Number(planet.avgTempC);
+
+  if (/chlorine|chloride|hydrogen chloride/.test(chemistry)) {
+    return { worldClass: "Epistellar", worldSubtype: "ChloriVesperian" };
+  }
+
+  if (hydroPercent >= 80 || (hydroPercent >= 60 && Number.isFinite(avgTempC) && avgTempC >= 45)) {
+    return { worldClass: "Epistellar", worldSubtype: "BathyVesperian" };
+  }
+
+  if (hydroPercent <= 30) {
+    return { worldClass: "Epistellar", worldSubtype: "JaniVesperian" };
+  }
+
+  if (hydroPercent >= 50) {
+    return { worldClass: "Epistellar", worldSubtype: "EuVesperian" };
+  }
+
+  return { worldClass: "Epistellar", worldSubtype: "Vesperian" };
+}
+
+function classifyTelluricWorld(planet = {}, orbitBandKey) {
+  const atmosphereCode = resolveAtmosphereCode(planet);
+  const hydroPercent = resolveHydrographicsPercent(planet);
+  const avgTempC = Number(planet.avgTempC);
+
+  if (
+    orbitBandKey === "epistellar" ||
+    Boolean(planet.runawayGreenhouse) ||
+    atmosphereCode >= 13 ||
+    (Number.isFinite(avgTempC) && avgTempC >= 250) ||
+    (Number.isFinite(avgTempC) && avgTempC >= 180 && hydroPercent <= 2)
+  ) {
+    return { worldClass: "Telluric", worldSubtype: "Phosphorian" };
+  }
+
+  return { worldClass: "Telluric", worldSubtype: "Cytherean" };
+}
+
+function isGaianCandidate(
+  planet = {},
+  { hydroPercent = 0, atmosphereCode = 0, hasLife = false, orbitBandKey = "" } = {},
+) {
+  const avgTempC = Number(planet.avgTempC);
+  return (
+    orbitBandKey !== "epistellar" &&
+    hasLife &&
+    hydroPercent >= 35 &&
+    hydroPercent <= 90 &&
+    atmosphereCode >= 4 &&
+    atmosphereCode <= 9 &&
+    Number.isFinite(avgTempC) &&
+    avgTempC >= -10 &&
+    avgTempC <= 32
+  );
+}
+
+function isAmunianCandidate(planet = {}, { hydroPercent = 0, orbitBandKey = "" } = {}) {
+  const avgTempC = Number(planet.avgTempC);
+  const chemistry = resolveChemistrySummary(planet);
+  return (
+    orbitBandKey === "outer" &&
+    hydroPercent >= 2 &&
+    Number.isFinite(avgTempC) &&
+    avgTempC <= 0 &&
+    avgTempC >= -90 &&
+    (/ammonia/.test(chemistry) || (/nitrogen/.test(chemistry) && /carbon|hydrocarbon/.test(chemistry)))
+  );
+}
+
+function isTartarianCandidate(planet = {}, { hydroPercent = 0, orbitBandKey = "" } = {}) {
+  const avgTempC = Number(planet.avgTempC);
+  const chemistry = resolveChemistrySummary(planet);
+  return (
+    orbitBandKey === "outer" &&
+    hydroPercent >= 2 &&
+    Number.isFinite(avgTempC) &&
+    avgTempC <= -70 &&
+    (/methane|hydrocarbon|cryogenic/.test(chemistry) ||
+      String(planet.zone || "")
+        .trim()
+        .toLowerCase() === "frozen")
+  );
+}
+
 function inferWorldFamily(planet = {}) {
   const type = String(planet.type || "")
     .trim()
@@ -190,40 +327,65 @@ function classifyTerrestrialWorld(planet = {}, orbitBandKey) {
   const atmosphereCode = resolveAtmosphereCode(planet);
   const molten = isMoltenWorld(planet);
   const hasLife = hasNativeLife(planet);
+  const avgTempC = Number(planet.avgTempC);
+  const plateCount = Number(planet.majorTectonicPlates);
 
   if (orbitBandKey === "epistellar") {
-    if (hasLife && hydroPercent >= 10) {
-      return { worldClass: "Epistellar", worldSubtype: "Vesperian" };
+    const shouldStayVesperian = (hasLife || hydroPercent >= 20) && (!Number.isFinite(avgTempC) || avgTempC < 140);
+
+    if (shouldStayVesperian) {
+      return classifyVesperianWorld(planet);
     }
 
-    if (molten || atmosphereCode >= 10) {
-      return { worldClass: "Telluric", worldSubtype: "Telluric" };
+    if (molten || atmosphereCode >= 10 || (Number.isFinite(avgTempC) && avgTempC >= 140 && hydroPercent <= 20)) {
+      return classifyTelluricWorld(planet, orbitBandKey);
     }
 
     return { worldClass: "Epistellar", worldSubtype: "JaniLithic" };
   }
 
   if (hydroPercent >= 80) {
-    return { worldClass: "Oceanic", worldSubtype: "Oceanic" };
+    return classifyOceanicWorld(planet);
   }
 
-  if (hydroPercent >= 40 || hasLife) {
+  if (isTartarianCandidate(planet, { hydroPercent, orbitBandKey })) {
+    return { worldClass: "Tectonic", worldSubtype: "Tartarian" };
+  }
+
+  if (isAmunianCandidate(planet, { hydroPercent, orbitBandKey })) {
+    return { worldClass: "Tectonic", worldSubtype: "Amunian" };
+  }
+
+  if (isGaianCandidate(planet, { hydroPercent, atmosphereCode, hasLife, orbitBandKey })) {
+    return { worldClass: "Tectonic", worldSubtype: "Gaian" };
+  }
+
+  if (molten || (atmosphereCode >= 10 && hydroPercent <= 20)) {
+    return classifyTelluricWorld(planet, orbitBandKey);
+  }
+
+  if (hydroPercent >= 40 || hasLife || plateCount >= 6) {
     return { worldClass: "Tectonic", worldSubtype: "Tectonic" };
-  }
-
-  if (molten || atmosphereCode >= 10) {
-    return { worldClass: "Telluric", worldSubtype: "Telluric" };
   }
 
   return { worldClass: "Arid", worldSubtype: "Arid" };
 }
 
 function classifyHelianWorld(planet = {}, orbitBandKey) {
+  const hydroPercent = resolveHydrographicsPercent(planet);
+  const chemistry = resolveHydrosphereChemistry(planet);
+  const atmosphereCode = resolveAtmosphereCode(planet);
+  const avgTempC = Number(planet.avgTempC);
+
   if (orbitBandKey === "epistellar") {
+    if (hydroPercent <= 20 || atmosphereCode <= 2 || (Number.isFinite(avgTempC) && avgTempC >= 120)) {
+      return { worldClass: "Helian", worldSubtype: "Asphodelian" };
+    }
+
     return { worldClass: "Helian", worldSubtype: "Hot Helian" };
   }
 
-  if (orbitBandKey === "outer") {
+  if (orbitBandKey !== "outer" && (hydroPercent >= 70 || chemistry === "water")) {
     return { worldClass: "Helian", worldSubtype: "Panthalassic" };
   }
 

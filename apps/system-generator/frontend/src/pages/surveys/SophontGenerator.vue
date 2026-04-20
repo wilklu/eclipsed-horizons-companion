@@ -17,12 +17,30 @@
           <label>Species Name:</label>
           <div class="name-row">
             <input v-model="speciesName" placeholder="Enter species name…" class="text-input" />
-            <button class="btn btn-secondary" @click="randomizeName">🎲</button>
+            <button class="btn btn-secondary" type="button" @click="randomizeName">🎲</button>
+            <button
+              class="btn btn-secondary"
+              type="button"
+              :disabled="!supportsSpeechSynthesis"
+              :title="
+                supportsSpeechSynthesis
+                  ? isSpeakingName
+                    ? 'Stop name audio'
+                    : 'Speak name'
+                  : 'Text to speech not supported in this browser'
+              "
+              @click="toggleNameSpeech"
+            >
+              {{ isSpeakingName ? "■" : "🔊" }}
+            </button>
           </div>
         </div>
         <div class="control-group">
           <label>Seed:</label>
-          <input v-model="seedValue" placeholder="repeatable-seed" class="text-input" />
+          <div class="name-row">
+            <input v-model="seedValue" placeholder="guid-seed" class="text-input" />
+            <button class="btn btn-secondary" @click="generateNewSeed">🧬</button>
+          </div>
         </div>
         <div class="control-group">
           <label>Body Plan:</label>
@@ -43,6 +61,12 @@
           <select v-model="selectedWorldKey" class="select-input">
             <option value="">Manual / Unlinked</option>
             <option v-for="entry in worldOptions" :key="entry.key" :value="entry.key">{{ entry.label }}</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label>Art Style:</label>
+          <select v-model="artStyle" class="select-input">
+            <option v-for="entry in ART_STYLE_PRESETS" :key="entry" :value="entry">{{ entry }}</option>
           </select>
         </div>
         <div class="control-group control-action">
@@ -230,11 +254,36 @@
             <div class="prompt-block">
               <div class="prompt-header">
                 <span class="prompt-label">Image Prompt</span>
-                <button type="button" class="btn btn-secondary btn-copy" @click="copyPromptText(sophont.imagePrompt)">
-                  Copy Prompt
-                </button>
+                <div class="saved-record-actions">
+                  <button type="button" class="btn btn-secondary btn-copy" @click="copyPromptText(sophont.imagePrompt)">
+                    Copy Prompt
+                  </button>
+                  <button type="button" class="btn btn-secondary btn-copy" @click="generateConceptArt(sophont)">
+                    Generate Art
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-secondary btn-copy"
+                    :disabled="!artPreviewUrl"
+                    @click="openArtPreview"
+                  >
+                    Open
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-secondary btn-copy"
+                    :disabled="!artPreviewUrl"
+                    @click="clearArtPreview"
+                  >
+                    Clear
+                  </button>
+                </div>
               </div>
               <textarea :value="sophont.imagePrompt" class="prompt-textarea" rows="5" readonly />
+            </div>
+            <div v-if="artPreviewUrl" class="prompt-block section-offset">
+              <span class="prompt-label">Concept Art Preview · {{ artStyle }}</span>
+              <img :src="artPreviewUrl" alt="Generated sophont concept art preview" class="concept-art-preview" />
             </div>
             <p class="prompt-caption">{{ sophont.imageCaption }}</p>
           </section>
@@ -281,6 +330,7 @@ import { useRoute, useRouter } from "vue-router";
 import LoadingSpinner from "../../components/common/LoadingSpinner.vue";
 import SurveyNavigation from "../../components/common/SurveyNavigation.vue";
 import { useArchiveTransfer } from "../../composables/useArchiveTransfer.js";
+import { usePreferencesStore } from "../../stores/preferencesStore.js";
 import { useSophontStore } from "../../stores/sophontStore.js";
 import { useSystemStore } from "../../stores/systemStore.js";
 import {
@@ -292,7 +342,14 @@ import {
   generateSophontProfile,
   randomSophontName,
 } from "../../utils/beasts/sophontGenerator.js";
+import { generateGuidSeed } from "../../utils/beasts/beastGenerator.js";
 import { deserializeReturnRoute, serializeReturnRoute } from "../../utils/returnRoute.js";
+import {
+  isSpeechSynthesisSupported,
+  speakTextWithPreferences,
+  stopSpeechSynthesis,
+} from "../../utils/speechSynthesis.js";
+import { ART_STYLE_PRESETS, DEFAULT_ART_STYLE, buildConceptArtUrl } from "../../utils/imageGeneration.js";
 import * as toastService from "../../utils/toast.js";
 import {
   findMatchingWorldOption,
@@ -303,6 +360,7 @@ import {
 
 const route = useRoute();
 const router = useRouter();
+const preferencesStore = usePreferencesStore();
 const sophontStore = useSophontStore();
 const systemStore = useSystemStore();
 
@@ -319,7 +377,11 @@ const { overlayProps: sophontExportOverlayProps, exportJson: exportSophontArchiv
 });
 
 const speciesName = ref("");
-const seedValue = ref("sophont-alpha");
+const isSpeakingName = ref(false);
+const supportsSpeechSynthesis = isSpeechSynthesisSupported();
+const artStyle = ref(DEFAULT_ART_STYLE);
+const artPreviewUrl = ref("");
+const seedValue = ref(generateGuidSeed("sophont"));
 const bodyPlan = ref("random");
 const homeEnvironment = ref("random");
 const selectedWorldKey = ref("");
@@ -428,15 +490,98 @@ watch(selectedWorldRecord, (world) => {
   }
 });
 
+function generateNewSeed() {
+  seedValue.value = generateGuidSeed("sophont");
+  return seedValue.value;
+}
+
 function ensureSeed() {
   if (!String(seedValue.value || "").trim()) {
-    seedValue.value = `sophont-${Date.now()}`;
+    return generateNewSeed();
   }
   return String(seedValue.value).trim();
 }
 
 function randomizeName() {
-  speciesName.value = randomSophontName(ensureSeed());
+  speciesName.value = randomSophontName(generateGuidSeed("sophont-name"));
+}
+
+function stopNameSpeech() {
+  if (!supportsSpeechSynthesis) return;
+  stopSpeechSynthesis();
+  isSpeakingName.value = false;
+}
+
+function toggleNameSpeech() {
+  if (!supportsSpeechSynthesis) {
+    toastService.error("Text to speech is not supported in this browser.");
+    return;
+  }
+
+  if (isSpeakingName.value) {
+    stopNameSpeech();
+    return;
+  }
+
+  const displayName = String(speciesName.value || sophont.value?.name || "").trim();
+  if (!displayName) {
+    toastService.error("No sophont name is available to speak yet.");
+    return;
+  }
+
+  isSpeakingName.value = true;
+  const result = speakTextWithPreferences(displayName, {
+    rate: preferencesStore.ttsRate,
+    pitch: preferencesStore.ttsPitch,
+    voiceURI: preferencesStore.ttsVoiceURI,
+    onEnd: () => {
+      isSpeakingName.value = false;
+    },
+    onError: () => {
+      isSpeakingName.value = false;
+      toastService.error("Unable to play sophont name audio.");
+    },
+  });
+
+  if (!result.ok) {
+    isSpeakingName.value = false;
+    toastService.error(
+      result.reason === "unsupported"
+        ? "Text to speech is not supported in this browser."
+        : "Unable to play sophont name audio.",
+    );
+  }
+}
+
+function generateConceptArt(record = sophont.value) {
+  const prompt = String(record?.imagePrompt || "").trim();
+  if (!prompt) {
+    toastService.error("Generate a sophont before requesting concept art.");
+    return;
+  }
+
+  artPreviewUrl.value = buildConceptArtUrl(prompt, {
+    entityType: "sophont",
+    style: artStyle.value,
+    seed: record?.seed || seedValue.value,
+    width: 1024,
+    height: 1024,
+  });
+}
+
+function openArtPreview() {
+  if (!artPreviewUrl.value) {
+    toastService.error("No concept art preview is available yet.");
+    return;
+  }
+
+  if (typeof window !== "undefined") {
+    window.open(artPreviewUrl.value, "_blank", "noopener,noreferrer");
+  }
+}
+
+function clearArtPreview() {
+  artPreviewUrl.value = "";
 }
 
 async function copyPromptText(text) {
@@ -535,7 +680,7 @@ function generateSophont() {
 
   sophont.value = {
     ...next,
-    id: sophont.value?.id || null,
+    id: sophont.value?.id || next.id || null,
     savedAt: sophont.value?.savedAt || null,
   };
 }
@@ -570,7 +715,7 @@ function loadSavedSophont(record) {
     record.civilization && record.worldIntegration
       ? null
       : generateSophontProfile({
-          seed: record.seed || "sophont-alpha",
+          seed: record.seed || generateGuidSeed("sophont"),
           name: record.name || "Generated Sophont",
           bodyPlan: record.bodyPlanSelection || record.biology?.["Body Plan"] || "random",
           homeEnvironment: record.homeEnvironmentSelection || record.biology?.["Home Environment"] || "random",
@@ -602,7 +747,7 @@ function loadSavedSophont(record) {
   normalizedRecord.imageCaption = normalizedRecord.imageCaption || promptDetails.imageCaption;
 
   speciesName.value = normalizedRecord.name || "";
-  seedValue.value = normalizedRecord.seed || "sophont-alpha";
+  seedValue.value = normalizedRecord.seed || generateGuidSeed("sophont");
   bodyPlan.value = normalizedRecord.bodyPlanSelection || normalizedRecord.biology?.["Body Plan"] || "random";
   homeEnvironment.value =
     normalizedRecord.homeEnvironmentSelection || normalizedRecord.biology?.["Home Environment"] || "random";
@@ -622,8 +767,10 @@ async function deleteSavedSophont(recordId) {
 }
 
 function resetForm() {
+  stopNameSpeech();
+  clearArtPreview();
   speciesName.value = "";
-  seedValue.value = "sophont-alpha";
+  seedValue.value = generateGuidSeed("sophont");
   bodyPlan.value = "random";
   homeEnvironment.value = "random";
   selectedWorldKey.value = "";
@@ -647,11 +794,15 @@ async function exportSophont() {
   display: flex;
   flex-direction: column;
   min-height: calc(100vh - 60px);
+  height: calc(100vh - 60px);
 }
 
 .survey-content {
   padding: 1.25rem;
   flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
 }
 
 .control-panel {

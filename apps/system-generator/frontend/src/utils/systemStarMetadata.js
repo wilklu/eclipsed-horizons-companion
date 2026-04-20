@@ -110,6 +110,26 @@ export function resolveStarRecord(starType, orbitType = null) {
   };
 }
 
+function hasMeaningfulStarDesignation(value) {
+  const text = String(value || "").trim();
+  return Boolean(text) && !/^[A-Z]$/i.test(text);
+}
+
+function resolvePreferredStarLabel(star = {}) {
+  if (!star || typeof star !== "object" || Array.isArray(star)) {
+    return String(star || "").trim();
+  }
+
+  const designation = String(star?.designation || star?.name || star?.label || star?.starKey || "").trim();
+  if (hasMeaningfulStarDesignation(designation)) {
+    return designation;
+  }
+
+  return String(
+    star?.spectralClass || star?.spectralType || star?.typeSubtype || star?.starType || star?.objectType || designation,
+  ).trim();
+}
+
 export function cloneGeneratedStarRecord(star, fallbackOrbitType = null) {
   if (star && typeof star === "object" && !Array.isArray(star)) {
     const designationLabel = String(star?.designation || star?.starKey || "").trim();
@@ -121,7 +141,7 @@ export function cloneGeneratedStarRecord(star, fallbackOrbitType = null) {
         star?.objectType ||
         designationLabel,
     ).trim();
-    const designation = designationLabel || spectralValue;
+    const designation = resolvePreferredStarLabel(star) || designationLabel || spectralValue;
     const spectralClass = spectralValue || designation;
     const fallbackRecord = resolveStarRecord(spectralClass || designation || "G2V", fallbackOrbitType);
     const massInSolarMasses = Number(star?.massInSolarMasses ?? star?.mass);
@@ -380,12 +400,11 @@ export function resolveGeneratedStarsFromSystem(system = {}) {
 export function summarizeGeneratedStars(stars = []) {
   const starList = Array.isArray(stars) ? stars : [];
   const primary = starList[0] ?? resolveStarRecord("G2V");
-  const primaryDesignation =
-    String(primary?.spectralClass || primary?.spectralType || primary?.designation || "G2V").trim() || "G2V";
+  const primaryDesignation = resolvePreferredStarLabel(primary) || "G2V";
   const primaryCode = primaryDesignation.charAt(0).toUpperCase() || "G";
   const secondaryStars = starList
     .slice(1)
-    .map((star) => String(star?.spectralClass || star?.spectralType || star?.designation || "").trim())
+    .map((star) => resolvePreferredStarLabel(star))
     .filter(Boolean);
 
   return {

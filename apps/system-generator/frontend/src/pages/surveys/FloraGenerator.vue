@@ -16,13 +16,31 @@
           <label>Flora Name</label>
           <div class="name-row">
             <input v-model="floraName" placeholder="Enter flora name…" class="text-input" />
-            <button class="btn btn-secondary" @click="randomizeName">🎲</button>
+            <button class="btn btn-secondary" type="button" @click="randomizeName">🎲</button>
+            <button
+              class="btn btn-secondary"
+              type="button"
+              :disabled="!supportsSpeechSynthesis"
+              :title="
+                supportsSpeechSynthesis
+                  ? isSpeakingName
+                    ? 'Stop name audio'
+                    : 'Speak name'
+                  : 'Text to speech not supported in this browser'
+              "
+              @click="toggleNameSpeech"
+            >
+              {{ isSpeakingName ? "■" : "🔊" }}
+            </button>
           </div>
         </div>
 
         <div class="control-group">
           <label>Seed</label>
-          <input v-model="seedValue" placeholder="repeatable-seed" class="text-input" />
+          <div class="name-row">
+            <input v-model="seedValue" placeholder="guid-seed" class="text-input" />
+            <button class="btn btn-secondary" @click="generateNewSeed">🧬</button>
+          </div>
         </div>
 
         <div class="control-group">
@@ -46,6 +64,13 @@
           <select v-model="selectedWorldKey" class="select-input">
             <option value="">Manual / Unlinked</option>
             <option v-for="entry in worldOptions" :key="entry.key" :value="entry.key">{{ entry.label }}</option>
+          </select>
+        </div>
+
+        <div class="control-group">
+          <label>Art Style</label>
+          <select v-model="artStyle" class="select-input">
+            <option v-for="entry in ART_STYLE_PRESETS" :key="entry" :value="entry">{{ entry }}</option>
           </select>
         </div>
 
@@ -123,11 +148,36 @@
             <div class="prompt-block section-offset">
               <div class="prompt-header">
                 <div class="prompt-label">Image Prompt</div>
-                <button type="button" class="btn btn-secondary btn-copy" @click="copyPromptText(flora.imagePrompt)">
-                  Copy Prompt
-                </button>
+                <div class="saved-record-actions">
+                  <button type="button" class="btn btn-secondary btn-copy" @click="copyPromptText(flora.imagePrompt)">
+                    Copy Prompt
+                  </button>
+                  <button type="button" class="btn btn-secondary btn-copy" @click="generateConceptArt(flora)">
+                    Generate Art
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-secondary btn-copy"
+                    :disabled="!artPreviewUrl"
+                    @click="openArtPreview"
+                  >
+                    Open
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-secondary btn-copy"
+                    :disabled="!artPreviewUrl"
+                    @click="clearArtPreview"
+                  >
+                    Clear
+                  </button>
+                </div>
               </div>
               <textarea readonly class="prompt-textarea" :value="flora.imagePrompt"></textarea>
+            </div>
+            <div v-if="artPreviewUrl" class="prompt-block section-offset">
+              <div class="prompt-label">Concept Art Preview · {{ artStyle }}</div>
+              <img :src="artPreviewUrl" alt="Generated flora concept art preview" class="concept-art-preview" />
             </div>
             <p class="prompt-caption">{{ flora.imageCaption }}</p>
           </section>
@@ -180,6 +230,7 @@ import LoadingSpinner from "../../components/common/LoadingSpinner.vue";
 import SurveyNavigation from "../../components/common/SurveyNavigation.vue";
 import { useArchiveTransfer } from "../../composables/useArchiveTransfer.js";
 import { useFloraStore } from "../../stores/floraStore.js";
+import { usePreferencesStore } from "../../stores/preferencesStore.js";
 import { useSystemStore } from "../../stores/systemStore.js";
 import {
   buildFloraImagePrompt,
@@ -190,7 +241,14 @@ import {
   generateFloraProfile,
   randomFloraName,
 } from "../../utils/beasts/floraGenerator.js";
+import { generateGuidSeed } from "../../utils/beasts/beastGenerator.js";
 import { deserializeReturnRoute } from "../../utils/returnRoute.js";
+import {
+  isSpeechSynthesisSupported,
+  speakTextWithPreferences,
+  stopSpeechSynthesis,
+} from "../../utils/speechSynthesis.js";
+import { ART_STYLE_PRESETS, DEFAULT_ART_STYLE, buildConceptArtUrl } from "../../utils/imageGeneration.js";
 import * as toastService from "../../utils/toast.js";
 import {
   findMatchingWorldOption,
@@ -201,6 +259,7 @@ import {
 
 const route = useRoute();
 const floraStore = useFloraStore();
+const preferencesStore = usePreferencesStore();
 const systemStore = useSystemStore();
 
 const backRoute = computed(
@@ -216,7 +275,11 @@ const { overlayProps: floraExportOverlayProps, exportJson: exportFloraArchive } 
 });
 
 const floraName = ref("");
-const seedValue = ref("flora-alpha");
+const isSpeakingName = ref(false);
+const supportsSpeechSynthesis = isSpeechSynthesisSupported();
+const artStyle = ref(DEFAULT_ART_STYLE);
+const artPreviewUrl = ref("");
+const seedValue = ref(generateGuidSeed("flora"));
 const growthForm = ref("random");
 const climate = ref("random");
 const selectedWorldKey = ref("");
@@ -309,15 +372,98 @@ watch(selectedWorldRecord, (world) => {
   }
 });
 
+function generateNewSeed() {
+  seedValue.value = generateGuidSeed("flora");
+  return seedValue.value;
+}
+
 function ensureSeed() {
   if (!String(seedValue.value || "").trim()) {
-    seedValue.value = `flora-${Date.now()}`;
+    return generateNewSeed();
   }
   return String(seedValue.value).trim();
 }
 
 function randomizeName() {
-  floraName.value = randomFloraName(ensureSeed());
+  floraName.value = randomFloraName(generateGuidSeed("flora-name"));
+}
+
+function stopNameSpeech() {
+  if (!supportsSpeechSynthesis) return;
+  stopSpeechSynthesis();
+  isSpeakingName.value = false;
+}
+
+function toggleNameSpeech() {
+  if (!supportsSpeechSynthesis) {
+    toastService.error("Text to speech is not supported in this browser.");
+    return;
+  }
+
+  if (isSpeakingName.value) {
+    stopNameSpeech();
+    return;
+  }
+
+  const displayName = String(floraName.value || flora.value?.name || "").trim();
+  if (!displayName) {
+    toastService.error("No flora name is available to speak yet.");
+    return;
+  }
+
+  isSpeakingName.value = true;
+  const result = speakTextWithPreferences(displayName, {
+    rate: preferencesStore.ttsRate,
+    pitch: preferencesStore.ttsPitch,
+    voiceURI: preferencesStore.ttsVoiceURI,
+    onEnd: () => {
+      isSpeakingName.value = false;
+    },
+    onError: () => {
+      isSpeakingName.value = false;
+      toastService.error("Unable to play flora name audio.");
+    },
+  });
+
+  if (!result.ok) {
+    isSpeakingName.value = false;
+    toastService.error(
+      result.reason === "unsupported"
+        ? "Text to speech is not supported in this browser."
+        : "Unable to play flora name audio.",
+    );
+  }
+}
+
+function generateConceptArt(record = flora.value) {
+  const prompt = String(record?.imagePrompt || "").trim();
+  if (!prompt) {
+    toastService.error("Generate flora before requesting concept art.");
+    return;
+  }
+
+  artPreviewUrl.value = buildConceptArtUrl(prompt, {
+    entityType: "flora",
+    style: artStyle.value,
+    seed: record?.seed || seedValue.value,
+    width: 1024,
+    height: 1024,
+  });
+}
+
+function openArtPreview() {
+  if (!artPreviewUrl.value) {
+    toastService.error("No concept art preview is available yet.");
+    return;
+  }
+
+  if (typeof window !== "undefined") {
+    window.open(artPreviewUrl.value, "_blank", "noopener,noreferrer");
+  }
+}
+
+function clearArtPreview() {
+  artPreviewUrl.value = "";
 }
 
 async function copyPromptText(text) {
@@ -371,7 +517,7 @@ function generateFlora() {
 
   flora.value = {
     ...next,
-    id: flora.value?.id || null,
+    id: flora.value?.id || next.id || null,
     savedAt: flora.value?.savedAt || null,
   };
 }
@@ -406,7 +552,7 @@ function loadSavedFlora(record) {
     record.biology && record.ecology && record.uses
       ? null
       : generateFloraProfile({
-          seed: record.seed || "flora-alpha",
+          seed: record.seed || generateGuidSeed("flora"),
           name: record.name || "Generated Flora",
           growthForm: record.growthFormSelection || record.biology?.["Growth Form"] || "random",
           climate: record.climateSelection || record.biology?.Climate || "random",
@@ -438,7 +584,7 @@ function loadSavedFlora(record) {
   normalizedRecord.imageCaption = normalizedRecord.imageCaption || promptDetails.imageCaption;
 
   floraName.value = normalizedRecord.name || "";
-  seedValue.value = normalizedRecord.seed || "flora-alpha";
+  seedValue.value = normalizedRecord.seed || generateGuidSeed("flora");
   growthForm.value = normalizedRecord.growthFormSelection || normalizedRecord.biology?.["Growth Form"] || "random";
   climate.value = normalizedRecord.climateSelection || normalizedRecord.biology?.Climate || "random";
   if (normalizedRecord.worldKey) {
@@ -457,8 +603,10 @@ async function deleteSavedFlora(recordId) {
 }
 
 function resetForm() {
+  stopNameSpeech();
+  clearArtPreview();
   floraName.value = "";
-  seedValue.value = "flora-alpha";
+  seedValue.value = generateGuidSeed("flora");
   growthForm.value = "random";
   climate.value = "random";
   selectedWorldKey.value = "";
@@ -482,12 +630,15 @@ async function exportFlora() {
   display: flex;
   flex-direction: column;
   min-height: calc(100vh - 60px);
+  height: calc(100vh - 60px);
 }
 
 .survey-content {
   padding: 1.25rem;
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
+  scrollbar-gutter: stable;
 }
 
 .control-panel,

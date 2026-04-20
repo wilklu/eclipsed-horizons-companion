@@ -484,11 +484,15 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   min-height: calc(100vh - 60px);
+  height: calc(100vh - 60px);
 }
 
 .survey-content {
   padding: 1.25rem;
   flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
 }
 
 .control-panel {

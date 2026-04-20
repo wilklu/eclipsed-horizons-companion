@@ -709,15 +709,18 @@ function ensureSystemSuffix(name) {
 }
 
 function resolveStarDisplayLabel(star = null) {
+  const designation = String(star?.designation || star?.name || star?.label || star?.starKey || "").trim();
+  const preferredDesignation = /^[A-Z]$/i.test(designation) ? "" : designation;
+
   return (
     firstNonEmptySystemName(
-      star?.designation,
-      star?.starKey,
+      preferredDesignation,
       star?.spectralClass,
       star?.spectralType,
       star?.typeSubtype,
       star?.starType,
       star?.objectType,
+      star?.starKey,
     ) || "Unknown"
   );
 }
@@ -766,10 +769,15 @@ function resolveSystemDisplayName(systemRecord = null) {
   );
 }
 
+function isPlaceholderSystemName(value) {
+  const text = String(value || "").trim();
+  return Boolean(text) && /^\d{4}(?:\s+system)?$/i.test(text);
+}
+
 function firstNonEmptySystemName(...values) {
   for (const value of values) {
     const text = String(value || "").trim();
-    if (text) {
+    if (text && !isPlaceholderSystemName(text)) {
       return text;
     }
   }

@@ -16,13 +16,31 @@
           <label>Creature Name</label>
           <div class="name-row">
             <input v-model="creatureName" placeholder="Enter creature name…" class="text-input" />
-            <button class="btn btn-secondary" @click="randomizeName">🎲</button>
+            <button class="btn btn-secondary" type="button" @click="randomizeName">🎲</button>
+            <button
+              class="btn btn-secondary"
+              type="button"
+              :disabled="!supportsSpeechSynthesis"
+              :title="
+                supportsSpeechSynthesis
+                  ? isSpeakingName
+                    ? 'Stop name audio'
+                    : 'Speak name'
+                  : 'Text to speech not supported in this browser'
+              "
+              @click="toggleNameSpeech"
+            >
+              {{ isSpeakingName ? "■" : "🔊" }}
+            </button>
           </div>
         </div>
 
         <div class="control-group">
           <label>Seed</label>
-          <input v-model="seedValue" placeholder="repeatable-seed" class="text-input" />
+          <div class="name-row">
+            <input v-model="seedValue" placeholder="guid-seed" class="text-input" />
+            <button class="btn btn-secondary" @click="generateNewSeed">🧬</button>
+          </div>
         </div>
 
         <div class="control-group">
@@ -71,6 +89,13 @@
             placeholder="Optional world name for linked fauna generation"
             class="text-input"
           />
+        </div>
+
+        <div class="control-group">
+          <label>Art Style</label>
+          <select v-model="artStyle" class="select-input">
+            <option v-for="entry in ART_STYLE_PRESETS" :key="entry" :value="entry">{{ entry }}</option>
+          </select>
         </div>
 
         <div class="control-group control-action">
@@ -274,11 +299,40 @@
             <div class="prompt-block">
               <div class="prompt-header">
                 <span class="prompt-label">Image Prompt</span>
-                <button type="button" class="btn btn-secondary btn-copy" @click="copyPromptText(creature.imagePrompt)">
-                  Copy Prompt
-                </button>
+                <div class="saved-record-actions">
+                  <button
+                    type="button"
+                    class="btn btn-secondary btn-copy"
+                    @click="copyPromptText(creature.imagePrompt)"
+                  >
+                    Copy Prompt
+                  </button>
+                  <button type="button" class="btn btn-secondary btn-copy" @click="generateConceptArt(creature)">
+                    Generate Art
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-secondary btn-copy"
+                    :disabled="!artPreviewUrl"
+                    @click="openArtPreview"
+                  >
+                    Open
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-secondary btn-copy"
+                    :disabled="!artPreviewUrl"
+                    @click="clearArtPreview"
+                  >
+                    Clear
+                  </button>
+                </div>
               </div>
               <textarea :value="creature.imagePrompt" class="prompt-textarea" rows="5" readonly />
+            </div>
+            <div v-if="artPreviewUrl" class="prompt-block section-offset">
+              <span class="prompt-label">Concept Art Preview · {{ artStyle }}</span>
+              <img :src="artPreviewUrl" alt="Generated fauna concept art preview" class="concept-art-preview" />
             </div>
             <p class="prompt-caption">{{ creature.imageCaption }}</p>
           </section>
@@ -349,19 +403,27 @@ import LoadingSpinner from "../../components/common/LoadingSpinner.vue";
 import SurveyNavigation from "../../components/common/SurveyNavigation.vue";
 import { useArchiveTransfer } from "../../composables/useArchiveTransfer.js";
 import { useCreatureStore } from "../../stores/creatureStore.js";
+import { usePreferencesStore } from "../../stores/preferencesStore.js";
 import { useSystemStore } from "../../stores/systemStore.js";
 import { DEFAULT_PRIMARY_NICHES, DEFAULT_TERRAINS } from "../../utils/beasts/beastTables.js";
 import {
   buildCreatureImagePrompt,
   buildFaunaWorldUpdate,
   buildWorldLinkedCreatureOptions,
-  createSeededRng,
   generateBeastProfile,
+  generateGuidSeed,
   generateEncounterTable,
+  randomBeastName,
   generateWorldFaunaBundle,
 } from "../../utils/beasts/beastGenerator.js";
 import { formatBeastSummary, formatReactionValue } from "../../utils/beasts/beastFormatting.js";
 import { deserializeReturnRoute } from "../../utils/returnRoute.js";
+import {
+  isSpeechSynthesisSupported,
+  speakTextWithPreferences,
+  stopSpeechSynthesis,
+} from "../../utils/speechSynthesis.js";
+import { ART_STYLE_PRESETS, DEFAULT_ART_STYLE, buildConceptArtUrl } from "../../utils/imageGeneration.js";
 import * as toastService from "../../utils/toast.js";
 import {
   findMatchingWorldOption,
@@ -380,6 +442,7 @@ const { overlayProps: creatureExportOverlayProps, exportJson: exportCreatureArch
 
 const route = useRoute();
 const creatureStore = useCreatureStore();
+const preferencesStore = usePreferencesStore();
 const systemStore = useSystemStore();
 
 const backRoute = computed(
@@ -390,11 +453,12 @@ const PRIMARY_NICHE_OPTIONS = DEFAULT_PRIMARY_NICHES;
 const TERRAIN_OPTIONS = DEFAULT_TERRAINS;
 const WORLD_SIZE_OPTIONS = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "A", "B", "C", "D", "E", "F"];
 
-const NAME_PARTS1 = ["Vel", "Krax", "Shar", "Dun", "Mrak", "Oth", "Yss", "Cor", "Tya", "Giki"];
-const NAME_PARTS2 = ["ath", "rak", "ith", "orn", "alis", "yx", "oth", "eus", "ush", "eda"];
-
 const creatureName = ref("");
-const seedValue = ref("creature-alpha");
+const isSpeakingName = ref(false);
+const supportsSpeechSynthesis = isSpeechSynthesisSupported();
+const artStyle = ref(DEFAULT_ART_STYLE);
+const artPreviewUrl = ref("");
+const seedValue = ref(generateGuidSeed("fauna"));
 const generationMode = ref("single");
 const terrain = ref("Woods");
 const primaryNiche = ref("random");
@@ -505,25 +569,72 @@ watch(selectedWorldRecord, (world) => {
   worldSize.value = String(linked.worldSize ?? "8");
 });
 
-function pick(arr, rng = Math.random) {
-  return arr[Math.floor(rng() * arr.length)];
-}
-
 function formatSigned(value) {
   const number = Number(value) || 0;
   return number > 0 ? `+${number}` : String(number);
 }
 
+function generateNewSeed() {
+  seedValue.value = generateGuidSeed("fauna");
+  return seedValue.value;
+}
+
 function ensureSeed() {
   if (!String(seedValue.value || "").trim()) {
-    seedValue.value = `creature-${Date.now()}`;
+    return generateNewSeed();
   }
   return String(seedValue.value).trim();
 }
 
 function randomizeName() {
-  const rng = createSeededRng(ensureSeed());
-  creatureName.value = `${pick(NAME_PARTS1, rng)}${pick(NAME_PARTS2, rng)}`;
+  creatureName.value = randomBeastName(generateGuidSeed("fauna-name"));
+}
+
+function stopNameSpeech() {
+  if (!supportsSpeechSynthesis) return;
+  stopSpeechSynthesis();
+  isSpeakingName.value = false;
+}
+
+function toggleNameSpeech() {
+  if (!supportsSpeechSynthesis) {
+    toastService.error("Text to speech is not supported in this browser.");
+    return;
+  }
+
+  if (isSpeakingName.value) {
+    stopNameSpeech();
+    return;
+  }
+
+  const displayName = String(creatureName.value || creature.value?.name || "").trim();
+  if (!displayName) {
+    toastService.error("No creature name is available to speak yet.");
+    return;
+  }
+
+  isSpeakingName.value = true;
+  const result = speakTextWithPreferences(displayName, {
+    rate: preferencesStore.ttsRate,
+    pitch: preferencesStore.ttsPitch,
+    voiceURI: preferencesStore.ttsVoiceURI,
+    onEnd: () => {
+      isSpeakingName.value = false;
+    },
+    onError: () => {
+      isSpeakingName.value = false;
+      toastService.error("Unable to play creature name audio.");
+    },
+  });
+
+  if (!result.ok) {
+    isSpeakingName.value = false;
+    toastService.error(
+      result.reason === "unsupported"
+        ? "Text to speech is not supported in this browser."
+        : "Unable to play creature name audio.",
+    );
+  }
 }
 
 function buildIcon(profile) {
@@ -594,6 +705,37 @@ function buildNotes(profile) {
   return notes;
 }
 
+function generateConceptArt(record = creature.value) {
+  const prompt = String(record?.imagePrompt || "").trim();
+  if (!prompt) {
+    toastService.error("Generate fauna before requesting concept art.");
+    return;
+  }
+
+  artPreviewUrl.value = buildConceptArtUrl(prompt, {
+    entityType: "fauna",
+    style: artStyle.value,
+    seed: record?.seed || seedValue.value,
+    width: 1024,
+    height: 1024,
+  });
+}
+
+function openArtPreview() {
+  if (!artPreviewUrl.value) {
+    toastService.error("No concept art preview is available yet.");
+    return;
+  }
+
+  if (typeof window !== "undefined") {
+    window.open(artPreviewUrl.value, "_blank", "noopener,noreferrer");
+  }
+}
+
+function clearArtPreview() {
+  artPreviewUrl.value = "";
+}
+
 async function copyPromptText(text) {
   if (!String(text || "").trim()) {
     toastService.error("No image prompt is available to copy.");
@@ -627,7 +769,7 @@ function buildCreatureViewModel(profile, existingRecord = {}) {
   return {
     ...profile,
     ...imageDetails,
-    id: existingRecord?.id || null,
+    id: existingRecord?.id || profile.id || null,
     savedAt: existingRecord?.savedAt || null,
     icon: buildIcon(profile),
     summary: formatBeastSummary(profile),
@@ -782,7 +924,7 @@ function loadSavedCreature(record) {
     record.extended || record.physical
       ? null
       : generateBeastProfile({
-          seed: record.seed || "legacy-creature",
+          seed: record.seed || generateGuidSeed("fauna"),
           name: record.name || "Generated Beast",
           terrain: record.terrain || "Woods",
           worldSize: record.worldSize || "8",
@@ -812,7 +954,7 @@ function loadSavedCreature(record) {
 
   faunaBundle.value = null;
   creatureName.value = normalizedRecord.name || "";
-  seedValue.value = normalizedRecord.seed || "creature-alpha";
+  seedValue.value = normalizedRecord.seed || generateGuidSeed("fauna");
   generationMode.value =
     normalizedRecord.generationMode ||
     (Array.isArray(normalizedRecord.encounterTable) && normalizedRecord.encounterTable.length ? "table" : "single");
@@ -832,7 +974,7 @@ function loadSavedFaunaBundle(bundle) {
   if (!bundle) return;
 
   generationMode.value = "bundle";
-  seedValue.value = bundle.seed || "creature-alpha";
+  seedValue.value = bundle.seed || generateGuidSeed("fauna");
   linkedWorldName.value = bundle.worldName || bundle.sourceWorld?.name || "";
   if (bundle.worldKey) {
     selectedWorldKey.value = bundle.worldKey;
@@ -862,8 +1004,10 @@ async function deleteSavedFaunaBundle(bundleId) {
 }
 
 function resetForm() {
+  stopNameSpeech();
+  clearArtPreview();
   creatureName.value = "";
-  seedValue.value = "creature-alpha";
+  seedValue.value = generateGuidSeed("fauna");
   generationMode.value = "single";
   terrain.value = "Woods";
   primaryNiche.value = "random";
@@ -903,11 +1047,15 @@ async function exportCreature() {
   display: flex;
   flex-direction: column;
   min-height: calc(100vh - 60px);
+  height: calc(100vh - 60px);
 }
 
 .survey-content {
   padding: 1.25rem;
   flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
 }
 
 .control-panel {

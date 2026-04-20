@@ -69,6 +69,17 @@ describe("systemStarMetadata", () => {
     expect(metadata.generatedStars[1].orbitType).toBe("Companion");
   });
 
+  it("prefers persisted designation names over raw spectral codes when summarizing generated stars", () => {
+    const summary = summarizeGeneratedStars([
+      { designation: "Aster Primus Major", spectralClass: "G2 V" },
+      { designation: "Aster Proximus Major", spectralClass: "K7 V" },
+      { designation: "Aster Procul Minor", spectralClass: "M4 V" },
+    ]);
+
+    expect(summary.primaryDesignation).toBe("Aster Primus Major");
+    expect(summary.secondaryStars).toEqual(["Aster Proximus Major", "Aster Procul Minor"]);
+  });
+
   it("preserves anomaly labels in hex star metadata while keeping rich anomaly stars", () => {
     const metadata = buildHexStarTypeMetadata({
       anomalyType: "Black Hole",

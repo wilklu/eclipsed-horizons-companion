@@ -1,4 +1,4 @@
-import { buildWorldLinkedCreatureOptions, createSeededRng } from "./beastGenerator.js";
+import { buildWorldLinkedCreatureOptions, createSeededRng, generateGuidSeed } from "./beastGenerator.js";
 
 export const BODY_PLANS = [
   "Bilateral Symmetry",
@@ -400,7 +400,7 @@ export function buildSophontWorldUpdate(record = {}, existingWorld = {}) {
       "Faction pressure contained",
   );
   const nativeSophontLife = Boolean(existingWorld?.nativeSophontLife || record?.origin === "Native sophont lineage");
-  const summary = `${record?.name || "Linked sophonts"} maintain ${settlementPattern.toLowerCase()} with ${contactStatus.toLowerCase()} and ${currentStance}.`;
+  const summary = `${record?.name || "Linked sophonts"} maintain ${settlementPattern.toLowerCase()} with ${contactStatus} and ${currentStance}.`;
   const remarks = uniqueRemarks([
     ...(Array.isArray(existingWorld?.remarks) ? existingWorld.remarks : []),
     `Sophont dossier: ${summary}`,
@@ -538,14 +538,21 @@ export function buildSophontImagePrompt(profile = {}) {
 
 export function generateSophontProfile(options = {}) {
   const {
-    seed = "sophont-seed",
+    seed = "",
     name = "Generated Sophont",
+    nameSeed = "",
     bodyPlan = "random",
     homeEnvironment = "random",
     sourceWorld = null,
   } = options;
 
-  const rng = createSeededRng(seed);
+  const resolvedSeed = String(seed || "").trim() || generateGuidSeed("sophont");
+  const resolvedNameSeed = String(nameSeed || "").trim() || resolvedSeed;
+  const resolvedName =
+    !String(name || "").trim() || name === "Generated Sophont"
+      ? randomSophontName(resolvedNameSeed)
+      : String(name).trim();
+  const rng = createSeededRng(resolvedSeed);
   const resolvedEnvironment = homeEnvironment === "random" ? pick(HOME_ENVS, rng) : homeEnvironment;
   const resolvedBodyPlan = bodyPlan === "random" ? recommendBodyPlan(resolvedEnvironment, rng) : bodyPlan;
 
@@ -569,12 +576,25 @@ export function generateSophontProfile(options = {}) {
   const government = pick(GOVERNMENTS, rng);
   const civilization = buildSophontCivilizationProfile({ techLevel, socialStructure, government, sourceWorld }, rng);
   const diplomacy = buildSophontDiplomacyProfile({ techLevel, civilization, sourceWorld }, rng);
-  const historyTimeline = buildSophontHistoryTimeline({ name, techLevel, civilization, diplomacy, sourceWorld });
-  const factionTensions = buildSophontFactionTensions({ name, civilization, diplomacy, sourceWorld }, rng);
-  const eventChain = buildSophontEventChain({ name, diplomacy, factionTensions, historyTimeline, sourceWorld }, rng);
+  const historyTimeline = buildSophontHistoryTimeline({
+    name: resolvedName,
+    techLevel,
+    civilization,
+    diplomacy,
+    sourceWorld,
+  });
+  const factionTensions = buildSophontFactionTensions(
+    { name: resolvedName, civilization, diplomacy, sourceWorld },
+    rng,
+  );
+  const eventChain = buildSophontEventChain(
+    { name: resolvedName, diplomacy, factionTensions, historyTimeline, sourceWorld },
+    rng,
+  );
 
   const profile = {
-    name,
+    id: String(options.id || resolvedSeed),
+    name: resolvedName,
     icon: pick(ICONS, rng),
     tagline: pick(TAGLINES, rng),
     biology: {
@@ -611,7 +631,7 @@ export function generateSophontProfile(options = {}) {
     sourceWorld,
     origin: sourceWorld?.nativeSophontLife ? "Native sophont lineage" : "Adapted colonial or transplanted lineage",
     worldIntegration: {
-      summary: `${name} are a ${civilization["Tech Band"]} culture centered on ${String(civilization["Cultural Focus"] || "shared purpose")}.`,
+      summary: `${resolvedName} are a ${civilization["Tech Band"]} culture centered on ${String(civilization["Cultural Focus"] || "shared purpose")}.`,
       censusContext: `${government} / ${socialStructure}`,
       notes: [
         `${civilization["Contact Status"]} across ${String(civilization["Settlement Pattern"] || "local habitats").toLowerCase()}.`,
@@ -622,7 +642,7 @@ export function generateSophontProfile(options = {}) {
         `Recent turning point: ${String(historyTimeline.at(-1)?.title || "Present Tension")}.`,
       ],
     },
-    seed,
+    seed: resolvedSeed,
   };
 
   return {
@@ -631,7 +651,7 @@ export function generateSophontProfile(options = {}) {
   };
 }
 
-export function randomSophontName(seed = "sophont-seed") {
-  const rng = createSeededRng(seed);
+export function randomSophontName(seed = "") {
+  const rng = createSeededRng(String(seed || "").trim() || generateGuidSeed("sophont-name"));
   return `${pick(SPECIES_PREFIXES, rng)}${pick(SPECIES_SUFFIXES, rng)}`;
 }

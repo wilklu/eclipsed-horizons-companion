@@ -38,6 +38,43 @@ export function createSeededRng(seed = "beast-seed") {
   };
 }
 
+export function generateGuidSeed(prefix = "seed") {
+  const normalizedPrefix =
+    String(prefix || "seed")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "seed";
+
+  if (globalThis?.crypto?.randomUUID) {
+    return `${normalizedPrefix}-${globalThis.crypto.randomUUID()}`;
+  }
+
+  const bytes = new Uint8Array(16);
+  if (globalThis?.crypto?.getRandomValues) {
+    globalThis.crypto.getRandomValues(bytes);
+  } else {
+    for (let index = 0; index < bytes.length; index += 1) {
+      bytes[index] = Math.floor(Math.random() * 256);
+    }
+  }
+
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+
+  const hex = [...bytes].map((value) => value.toString(16).padStart(2, "0")).join("");
+  const uuid = `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+  return `${normalizedPrefix}-${uuid}`;
+}
+
+const FAUNA_NAME_PARTS_1 = ["Vel", "Krax", "Shar", "Dun", "Mrak", "Oth", "Yss", "Cor", "Tya", "Giki"];
+const FAUNA_NAME_PARTS_2 = ["ath", "rak", "ith", "orn", "alis", "yx", "oth", "eus", "ush", "eda"];
+
+export function randomBeastName(seed = "") {
+  const rng = createSeededRng(String(seed || "").trim() || generateGuidSeed("fauna-name"));
+  return `${FAUNA_NAME_PARTS_1[Math.floor(rng() * FAUNA_NAME_PARTS_1.length)]}${FAUNA_NAME_PARTS_2[Math.floor(rng() * FAUNA_NAME_PARTS_2.length)]}`;
+}
+
 export function rollDie(rng, sides = 6) {
   const roller = typeof rng === "function" ? rng : Math.random;
   return Math.floor(roller() * sides) + 1;
@@ -600,7 +637,7 @@ export function buildFaunaWorldUpdate(bundle = {}, existingWorld = {}) {
 
 export function generateBeastProfile(options = {}) {
   const {
-    seed = "beast-seed",
+    seed = "",
     terrain = "Clear",
     worldSize = "8",
     primaryNiche = null,
@@ -614,10 +651,15 @@ export function generateBeastProfile(options = {}) {
     armorCountFlux,
     armorFluxes,
     name = "Generated Beast",
+    nameSeed = "",
     sourceWorld = null,
   } = options;
 
-  const rng = createSeededRng(seed);
+  const resolvedSeed = String(seed || "").trim() || generateGuidSeed("fauna");
+  const resolvedNameSeed = String(nameSeed || "").trim() || resolvedSeed;
+  const resolvedName =
+    !String(name || "").trim() || name === "Generated Beast" ? randomBeastName(resolvedNameSeed) : String(name).trim();
+  const rng = createSeededRng(resolvedSeed);
   const resolvedTerrain = resolveTerrain(terrain);
   const gravityMod = resolveGravityMod(worldSize);
   const locomotion = resolveLocomotion(resolvedTerrain, locomotionRoll ?? rollDie(rng, 6));
@@ -653,8 +695,9 @@ export function generateBeastProfile(options = {}) {
   });
 
   const profile = {
-    name,
-    seed,
+    id: String(options.id || resolvedSeed),
+    name: resolvedName,
+    seed: resolvedSeed,
     worldSize: normalizeWorldSize(worldSize),
     gravityMod,
     terrain: resolvedTerrain,
@@ -685,7 +728,7 @@ export function generateBeastProfile(options = {}) {
 }
 
 export function generateEncounterTable(options = {}) {
-  const { seed = "encounter-table", terrain = "Clear", worldSize = "8", sourceWorld = null } = options;
+  const { seed = generateGuidSeed("encounter"), terrain = "Clear", worldSize = "8", sourceWorld = null } = options;
 
   const entries = ["Producer", "Herbivore", "Omnivore", "Carnivore", "Scavenger", null].map((primaryNiche, index) =>
     generateBeastProfile({
@@ -704,7 +747,7 @@ export function generateEncounterTable(options = {}) {
 export function generateWorldFaunaBundle(options = {}) {
   const {
     world = {},
-    seed = "world-fauna",
+    seed = generateGuidSeed("fauna"),
     terrain = null,
     worldSize = null,
     sourceWorld = null,
@@ -763,7 +806,7 @@ export function generateWorldFaunaBundle(options = {}) {
   const balance = summarizeEcosystemBalance(entries, linkedWorld.sourceWorld);
 
   return {
-    id: `fauna-${String(seed).replace(/\s+/g, "-")}`,
+    id: String(seed),
     seed,
     systemId: String(systemId || "").trim(),
     worldKey: String(worldKey || "").trim(),

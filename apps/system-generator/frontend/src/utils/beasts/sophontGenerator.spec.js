@@ -25,6 +25,22 @@ describe("sophontGenerator shared biology rules", () => {
     expect(["Avian", "Bilateral Symmetry", "Segmented"]).toContain(recommendBodyPlan("Mountain", () => 0));
   });
 
+  it("creates a guid-like seed and identifier when none is provided", () => {
+    const profile = generateSophontProfile();
+
+    expect(profile.seed).toMatch(/^sophont-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+    expect(profile.id).toBe(profile.seed);
+  });
+
+  it("allows sophont names to reroll independently from the main seed", () => {
+    const first = generateSophontProfile({ seed: "caledon-native", nameSeed: "sophont-name-a" });
+    const second = generateSophontProfile({ seed: "caledon-native", nameSeed: "sophont-name-b" });
+
+    expect(first.seed).toBe(second.seed);
+    expect(first.name).not.toBe(second.name);
+    expect(first.biology["Body Plan"]).toBe(second.biology["Body Plan"]);
+  });
+
   it("builds deterministic world-linked sophont profiles", () => {
     const linked = buildWorldLinkedSophontOptions({
       name: "Caledon",

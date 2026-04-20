@@ -5,6 +5,7 @@ import {
   buildWorldLinkedFloraOptions,
   generateFloraProfile,
   mapWorldToFloraClimate,
+  randomFloraName,
   recommendGrowthForm,
 } from "./floraGenerator.js";
 
@@ -17,6 +18,34 @@ describe("floraGenerator", () => {
 
   it("recommends climate-suitable growth forms", () => {
     expect(["Succulent Tower", "Crystal Moss", "Bulb Grove"]).toContain(recommendGrowthForm("Arid", () => 0));
+  });
+
+  it("maps subtype-rich worlds into more distinctive flora climates", () => {
+    expect(mapWorldToFloraClimate({ worldSubtype: "Gaian", hydrographics: 5, avgTempC: 19 })).toBe("Wetland");
+    expect(mapWorldToFloraClimate({ worldSubtype: "Tartarian", hydrographics: 5, avgTempC: 8 })).toBe("Tundra");
+  });
+
+  it("builds flora names from the configured naming convention tables", () => {
+    const name = randomFloraName("flora-seed");
+
+    expect(name).toMatch(/[ '\-]/);
+    expect(name.length).toBeGreaterThan(4);
+  });
+
+  it("creates a guid-like seed and identifier when none is provided", () => {
+    const flora = generateFloraProfile();
+
+    expect(flora.seed).toMatch(/^flora-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+    expect(flora.id).toBe(flora.seed);
+  });
+
+  it("allows flora names to reroll independently from the main seed", () => {
+    const first = generateFloraProfile({ seed: "iona-flora", nameSeed: "flora-name-a" });
+    const second = generateFloraProfile({ seed: "iona-flora", nameSeed: "flora-name-b" });
+
+    expect(first.seed).toBe(second.seed);
+    expect(first.name).not.toBe(second.name);
+    expect(first.biology["Growth Form"]).toBe(second.biology["Growth Form"]);
   });
 
   it("builds deterministic linked flora profiles", () => {

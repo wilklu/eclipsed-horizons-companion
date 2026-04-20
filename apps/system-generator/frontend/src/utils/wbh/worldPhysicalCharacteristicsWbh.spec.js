@@ -177,6 +177,88 @@ describe("worldPhysicalCharacteristicsWbh", () => {
     expect(world.moonsData.some((moon) => moon.type === "significant")).toBe(true);
   });
 
+  it("applies subtype-sensitive hydrographics and climate weighting hooks", () => {
+    const oceanicWorld = generateWorldPhysicalCharacteristicsWbh({
+      worldName: "Pelagia",
+      type: "Terrestrial Planet",
+      sizeCode: "6",
+      orbitNumber: 4,
+      hzco: 4,
+      atmosphereRoll: 7,
+      hydrographicsRoll: 5,
+      detailDie: 40,
+      worldSubtype: "Oceanic",
+      rollDie: createSequenceRoller([2, 4, 4, 4, 4, 4, 4, 4]),
+    });
+    const aridWorld = generateWorldPhysicalCharacteristicsWbh({
+      worldName: "Sere",
+      type: "Terrestrial Planet",
+      sizeCode: "6",
+      orbitNumber: 4,
+      hzco: 4,
+      atmosphereRoll: 7,
+      hydrographicsRoll: 5,
+      detailDie: 40,
+      worldSubtype: "Arid",
+      rollDie: createSequenceRoller([2, 4, 4, 4, 4, 4, 4, 4]),
+    });
+
+    expect(oceanicWorld.hydrographics).toBeGreaterThan(aridWorld.hydrographics);
+    expect(oceanicWorld.hydrographicsPercent).toBeGreaterThan(aridWorld.hydrographicsPercent);
+    expect(oceanicWorld.worldSubtype).toBe("Oceanic");
+  });
+
+  it("boosts native-life plausibility for wetter subtype families", () => {
+    const oceanicLife = buildNativeLifeProfile({
+      worldSubtype: "Oceanic",
+      atmosphereCode: 6,
+      hydrographics: 7,
+      avgTempC: 20,
+      systemAgeGyr: 5,
+      rollDie: createSequenceRoller([5, 5, 5, 5, 5, 5, 5, 5]),
+    });
+    const aridLife = buildNativeLifeProfile({
+      worldSubtype: "Arid",
+      atmosphereCode: 6,
+      hydrographics: 7,
+      avgTempC: 20,
+      systemAgeGyr: 5,
+      rollDie: createSequenceRoller([5, 5, 5, 5, 5, 5, 5, 5]),
+    });
+
+    expect(Number.parseInt(oceanicLife.charAt(0), 16)).toBeGreaterThan(Number.parseInt(aridLife.charAt(0), 16));
+  });
+
+  it("tunes vesperian and telluric subtype climates in distinct directions", () => {
+    const euvesperianWorld = generateWorldPhysicalCharacteristicsWbh({
+      worldName: "Euvia",
+      type: "Terrestrial Planet",
+      sizeCode: "6",
+      orbitNumber: 2,
+      hzco: 1.8,
+      atmosphereRoll: 7,
+      hydrographicsRoll: 5,
+      detailDie: 40,
+      worldSubtype: "EuVesperian",
+      rollDie: createSequenceRoller([2, 4, 4, 4, 4, 4, 4, 4]),
+    });
+    const phosphorianWorld = generateWorldPhysicalCharacteristicsWbh({
+      worldName: "Phos",
+      type: "Terrestrial Planet",
+      sizeCode: "6",
+      orbitNumber: 3,
+      hzco: 1.8,
+      atmosphereRoll: 7,
+      hydrographicsRoll: 5,
+      detailDie: 40,
+      worldSubtype: "Phosphorian",
+      rollDie: createSequenceRoller([2, 4, 4, 4, 4, 4, 4, 4]),
+    });
+
+    expect(euvesperianWorld.hydrographicsPercent).toBeGreaterThan(phosphorianWorld.hydrographicsPercent);
+    expect(euvesperianWorld.avgTempC).toBeLessThan(phosphorianWorld.avgTempC);
+  });
+
   it("derives Chapter 5 life, habitability, and resource summary helpers", () => {
     const lifeProfile = buildNativeLifeProfile({
       nativeSophontLife: false,

@@ -69,6 +69,38 @@ describe("systemSummary naming regressions", () => {
     ).toBe("Aster System · Aster Primus Major");
   });
 
+  it("prefers saved display names over legacy hex placeholders in stellar summaries", () => {
+    const summary = summarizeSystemRecord({
+      name: "0101",
+      systemId: "g-1:0101",
+      metadata: {
+        displayName: "Aster System",
+        systemRecord: {
+          name: "Aster System",
+        },
+      },
+      stars: [{ designation: "Aster Primus Major", spectralClass: "G2 V" }],
+    });
+
+    expect(summary.systemName).toBe("Aster System");
+    expect(
+      buildSystemSummaryLabel({
+        system: {
+          name: "0101",
+          systemId: "g-1:0101",
+          metadata: {
+            displayName: "Aster System",
+            systemRecord: {
+              name: "Aster System",
+            },
+          },
+          stars: [{ designation: "Aster Primus Major", spectralClass: "G2 V" }],
+        },
+        fallbackHex: "0101",
+      }),
+    ).toBe("Aster System · Aster Primus Major");
+  });
+
   it("preserves named stellar designations for preview cards", () => {
     const summary = buildSystemHexSummary({
       stars: [

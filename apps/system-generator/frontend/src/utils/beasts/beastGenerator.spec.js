@@ -5,6 +5,7 @@ import {
   buildWorldTerrainPalette,
   generateBeastProfile,
   generateWorldFaunaBundle,
+  generateGuidSeed,
   mapWorldToCreatureTerrain,
   resolveArmor,
   resolveBodyStructure,
@@ -78,6 +79,34 @@ describe("beastGenerator rules foundation", () => {
 
     const cycle = resolveLifeCycle({ size, quantity, niche: "Omnivore" }, () => 0);
     expect(cycle.reproduction).toBeTruthy();
+  });
+
+  it("generates guid-like seeds for fauna records", () => {
+    const seed = generateGuidSeed("fauna");
+    const profile = generateBeastProfile({ terrain: "Woods", worldSize: "8" });
+
+    expect(seed).toMatch(/^fauna-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+    expect(profile.seed).toMatch(/^fauna-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+    expect(profile.id).toBe(profile.seed);
+  });
+
+  it("allows fauna names to reroll independently from the main seed", () => {
+    const first = generateBeastProfile({
+      seed: "forest-hunter",
+      terrain: "Woods",
+      worldSize: "8",
+      nameSeed: "fauna-name-a",
+    });
+    const second = generateBeastProfile({
+      seed: "forest-hunter",
+      terrain: "Woods",
+      worldSize: "8",
+      nameSeed: "fauna-name-b",
+    });
+
+    expect(first.seed).toBe(second.seed);
+    expect(first.name).not.toBe(second.name);
+    expect(first.ecologicalNiche).toEqual(second.ecologicalNiche);
   });
 
   it("generates a deterministic beast profile from a seed", () => {

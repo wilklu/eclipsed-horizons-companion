@@ -35,6 +35,21 @@ function ensureSystemSuffixLabel(name) {
   return `${trimmed} System`;
 }
 
+function isHexPlaceholderName(value) {
+  const text = String(value ?? "").trim();
+  return Boolean(text) && /^\d{4}(?:\s+system)?$/i.test(text);
+}
+
+function firstMeaningfulSystemName(...values) {
+  for (const value of values) {
+    const text = String(value ?? "").trim();
+    if (text && !isHexPlaceholderName(text)) {
+      return text;
+    }
+  }
+  return "";
+}
+
 function inferSystemNameFromPrimaryDesignation(...values) {
   for (const value of values) {
     const designation = String(value || "").trim();
@@ -55,7 +70,7 @@ export function inferSystemNameFromSystemRecord(system = {}) {
     metadata?.systemRecord && typeof metadata.systemRecord === "object" ? metadata.systemRecord : {};
   const profiles = system?.profiles && typeof system.profiles === "object" ? system.profiles : {};
 
-  return firstNonEmptyString(
+  return firstMeaningfulSystemName(
     system?.name,
     system?.systemName,
     system?.systemDesignation,

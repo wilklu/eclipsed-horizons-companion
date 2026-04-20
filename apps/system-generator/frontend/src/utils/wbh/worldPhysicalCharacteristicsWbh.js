@@ -1,3 +1,4 @@
+import { classifyPlanetaryBody } from "../systemWorldClassification.js";
 import { calculatePlanetaryOrbitalPeriod, fractionalOrbitToAu } from "./systemGenerationWbh.js";
 
 import { createRandomRoller } from "./dice.js";
@@ -380,6 +381,249 @@ const MOON_SUFFIXES = Object.freeze("abcdefghijklmnopqrstuvwxyz".split(""));
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
+}
+
+function normalizeWorldSubtypeToken(value = "") {
+  return String(value || "")
+    .trim()
+    .toLowerCase();
+}
+
+function resolveWorldSubtypeEnvironmentalBias(world = {}) {
+  const subtype = normalizeWorldSubtypeToken(world?.worldSubtype || world?.worldClass || world?.worldDescriptor);
+  const orbitBandKey = normalizeWorldSubtypeToken(world?.orbitBandKey);
+  const type = normalizeWorldSubtypeToken(world?.type || world?.worldType);
+  const bias = {
+    atmosphereDm: 0,
+    hydrographicsDm: 0,
+    tempDm: 0,
+    biomassDm: 0,
+    biocomplexityDm: 0,
+    compatibilityDm: 0,
+    habitabilityDm: 0,
+    resourceDm: 0,
+    minHydrographics: null,
+    maxHydrographics: null,
+  };
+
+  if (!subtype) {
+    return bias;
+  }
+
+  if (subtype.includes("pelagic") || subtype.includes("panthalassic")) {
+    bias.hydrographicsDm += 5;
+    bias.tempDm -= 3;
+    bias.biomassDm += 2;
+    bias.biocomplexityDm += 2;
+    bias.compatibilityDm += 1;
+    bias.habitabilityDm += 2;
+    bias.resourceDm += 1;
+    bias.minHydrographics = 8;
+  } else if (subtype.includes("bathyvesperian")) {
+    bias.atmosphereDm += 1;
+    bias.hydrographicsDm += 5;
+    bias.tempDm += 2;
+    bias.biomassDm += 2;
+    bias.biocomplexityDm += 2;
+    bias.compatibilityDm += 1;
+    bias.habitabilityDm += 2;
+    bias.resourceDm += 1;
+    bias.minHydrographics = 8;
+  } else if (subtype.includes("euvesperian")) {
+    bias.atmosphereDm += 1;
+    bias.hydrographicsDm += 3;
+    bias.tempDm -= 2;
+    bias.biomassDm += 3;
+    bias.biocomplexityDm += 2;
+    bias.compatibilityDm += 2;
+    bias.habitabilityDm += 2;
+    bias.minHydrographics = 4;
+  } else if (subtype.includes("chlorivesperian")) {
+    bias.atmosphereDm += 1;
+    bias.hydrographicsDm += 2;
+    bias.tempDm -= 1;
+    bias.biomassDm += 2;
+    bias.biocomplexityDm += 2;
+    bias.compatibilityDm -= 1;
+    bias.habitabilityDm += 1;
+    bias.minHydrographics = 4;
+  } else if (subtype.includes("janivesperian")) {
+    bias.atmosphereDm += 1;
+    bias.hydrographicsDm += 1;
+    bias.tempDm += 2;
+    bias.biomassDm += 1;
+    bias.biocomplexityDm += 1;
+    bias.habitabilityDm += 1;
+    bias.minHydrographics = 2;
+  } else if (subtype.includes("nunnic")) {
+    bias.atmosphereDm += 1;
+    bias.hydrographicsDm += 4;
+    bias.tempDm -= 12;
+    bias.biomassDm += 1;
+    bias.biocomplexityDm += 1;
+    bias.compatibilityDm -= 1;
+    bias.habitabilityDm += 1;
+    bias.resourceDm += 1;
+    bias.minHydrographics = 8;
+  } else if (subtype.includes("teathic")) {
+    bias.atmosphereDm += 1;
+    bias.hydrographicsDm += 4;
+    bias.tempDm -= 18;
+    bias.biomassDm -= 1;
+    bias.biocomplexityDm += 0;
+    bias.compatibilityDm -= 2;
+    bias.habitabilityDm -= 1;
+    bias.resourceDm += 1;
+    bias.minHydrographics = 8;
+  } else if (subtype.includes("gaian")) {
+    bias.hydrographicsDm += 2;
+    bias.tempDm -= 1;
+    bias.biomassDm += 3;
+    bias.biocomplexityDm += 2;
+    bias.compatibilityDm += 2;
+    bias.habitabilityDm += 3;
+    bias.resourceDm += 1;
+    bias.minHydrographics = 4;
+  } else if (subtype.includes("amunian")) {
+    bias.atmosphereDm += 1;
+    bias.hydrographicsDm += 1;
+    bias.tempDm -= 12;
+    bias.biomassDm += 1;
+    bias.biocomplexityDm += 1;
+    bias.compatibilityDm -= 1;
+    bias.habitabilityDm += 1;
+    bias.resourceDm += 1;
+    bias.minHydrographics = 2;
+  } else if (subtype.includes("tartarian")) {
+    bias.atmosphereDm += 1;
+    bias.hydrographicsDm += 1;
+    bias.tempDm -= 18;
+    bias.biomassDm -= 1;
+    bias.biocomplexityDm += 0;
+    bias.compatibilityDm -= 2;
+    bias.habitabilityDm -= 1;
+    bias.resourceDm += 1;
+    bias.minHydrographics = 2;
+  } else if (subtype.includes("oceanic")) {
+    bias.hydrographicsDm += 4;
+    bias.tempDm -= 4;
+    bias.biomassDm += 2;
+    bias.biocomplexityDm += 1;
+    bias.compatibilityDm += 1;
+    bias.habitabilityDm += 2;
+    bias.minHydrographics = 6;
+  } else if (subtype.includes("tectonic") || subtype.includes("vesperian")) {
+    bias.atmosphereDm += 1;
+    bias.hydrographicsDm += 2;
+    bias.biomassDm += 1;
+    bias.biocomplexityDm += 1;
+    bias.habitabilityDm += 1;
+    bias.resourceDm += 1;
+    bias.minHydrographics = 3;
+  } else if (subtype.includes("arid")) {
+    bias.hydrographicsDm -= 3;
+    bias.tempDm += 4;
+    bias.biomassDm -= 2;
+    bias.compatibilityDm -= 1;
+    bias.habitabilityDm -= 1;
+    bias.maxHydrographics = 4;
+  } else if (subtype.includes("phosphorian")) {
+    bias.atmosphereDm += 2;
+    bias.hydrographicsDm -= 5;
+    bias.tempDm += 56;
+    bias.biomassDm -= 6;
+    bias.biocomplexityDm -= 3;
+    bias.compatibilityDm -= 4;
+    bias.habitabilityDm -= 4;
+    bias.resourceDm += 1;
+    bias.maxHydrographics = 1;
+  } else if (subtype.includes("cytherean")) {
+    bias.atmosphereDm += 2;
+    bias.hydrographicsDm -= 4;
+    bias.tempDm += 32;
+    bias.biomassDm -= 5;
+    bias.biocomplexityDm -= 2;
+    bias.compatibilityDm -= 3;
+    bias.habitabilityDm -= 3;
+    bias.resourceDm += 1;
+    bias.maxHydrographics = 2;
+  } else if (subtype.includes("telluric") || subtype.includes("meltball")) {
+    bias.atmosphereDm += 2;
+    bias.hydrographicsDm -= 4;
+    bias.tempDm += 18;
+    bias.biomassDm -= 5;
+    bias.biocomplexityDm -= 2;
+    bias.compatibilityDm -= 3;
+    bias.habitabilityDm -= 3;
+    bias.resourceDm += 1;
+    bias.maxHydrographics = 2;
+  } else if (subtype.includes("janilithic") || subtype.includes("rockball")) {
+    bias.atmosphereDm -= 1;
+    bias.hydrographicsDm -= 4;
+    bias.tempDm += 6;
+    bias.biomassDm -= 4;
+    bias.biocomplexityDm -= 2;
+    bias.compatibilityDm -= 2;
+    bias.habitabilityDm -= 2;
+    bias.resourceDm += 1;
+    bias.maxHydrographics = 2;
+  } else if (subtype.includes("snowball")) {
+    bias.hydrographicsDm += 2;
+    bias.tempDm -= 24;
+    bias.biomassDm -= 3;
+    bias.biocomplexityDm -= 2;
+    bias.habitabilityDm -= 2;
+    bias.minHydrographics = 2;
+  } else if (subtype.includes("geocyclic")) {
+    bias.hydrographicsDm += 1;
+    bias.biomassDm += 1;
+    bias.resourceDm += 1;
+  } else if (subtype.includes("geotidal") || subtype.includes("hebean")) {
+    bias.tempDm += 4;
+    bias.biomassDm -= 1;
+    bias.resourceDm += 2;
+  } else if (subtype.includes("ice giant")) {
+    bias.tempDm -= 20;
+    bias.biomassDm -= 6;
+    bias.habitabilityDm -= 4;
+    bias.resourceDm += 1;
+  } else if (subtype.includes("asphodelian")) {
+    bias.atmosphereDm -= 2;
+    bias.hydrographicsDm -= 5;
+    bias.tempDm += 22;
+    bias.biomassDm -= 6;
+    bias.biocomplexityDm -= 3;
+    bias.compatibilityDm -= 3;
+    bias.habitabilityDm -= 4;
+    bias.maxHydrographics = 1;
+  } else if (subtype.includes("hot helian") || subtype.includes("hot jovian")) {
+    bias.tempDm += 18;
+    bias.biomassDm -= 6;
+    bias.habitabilityDm -= 4;
+  }
+
+  if (orbitBandKey === "epistellar") {
+    bias.tempDm += 8;
+    bias.biomassDm -= 1;
+  } else if (orbitBandKey === "outer") {
+    bias.tempDm -= 8;
+  }
+
+  if (type.includes("gas giant") || type.includes("jovian")) {
+    bias.biomassDm = Math.min(bias.biomassDm, -6);
+  }
+
+  return bias;
+}
+
+function applySubtypeHydrographicsBias(hydrographics, bias = {}) {
+  const hasMinimum = bias?.minHydrographics !== null && bias?.minHydrographics !== undefined;
+  const hasMaximum = bias?.maxHydrographics !== null && bias?.maxHydrographics !== undefined;
+  const minimum = hasMinimum && Number.isFinite(Number(bias.minHydrographics)) ? Number(bias.minHydrographics) : 0;
+  const maximum = hasMaximum && Number.isFinite(Number(bias.maxHydrographics)) ? Number(bias.maxHydrographics) : 10;
+  const lowerBound = Math.min(minimum, maximum);
+  const upperBound = Math.max(minimum, maximum);
+  return clamp(Number(hydrographics || 0) + Number(bias?.hydrographicsDm || 0), lowerBound, upperBound);
 }
 
 function sizeCodeToNumeric(sizeCode) {
@@ -1319,39 +1563,53 @@ function buildNativeLifeRatings({
   isMoon = false,
   systemAgeGyr = 5,
   rollDie = null,
+  ...world
 } = {}) {
   if (Number(size) <= 0 || isRestrictedNativeLifeCandidate({ type, isMoon })) {
     return { biomass: 0, biocomplexity: 0, biodiversity: 0, compatibility: 0 };
   }
 
-  const biomass = calculateBiomassRating({
-    atmosphereCode,
-    hydrographics,
-    avgTempC,
-    systemAgeGyr,
-    rollDie,
-  });
+  const subtypeBias = resolveWorldSubtypeEnvironmentalBias(world);
+  const biomass = clamp(
+    calculateBiomassRating({
+      atmosphereCode,
+      hydrographics,
+      avgTempC,
+      systemAgeGyr,
+      rollDie,
+    }) + Number(subtypeBias.biomassDm || 0),
+    0,
+    15,
+  );
 
   if (biomass <= 0) {
     return { biomass: 0, biocomplexity: 0, biodiversity: 0, compatibility: 0 };
   }
 
-  const biocomplexity = calculateBiocomplexityRating({
-    biomass,
-    atmosphereCode,
-    atmosphereTaints,
-    systemAgeGyr,
-    rollDie,
-  });
+  const biocomplexity = clamp(
+    calculateBiocomplexityRating({
+      biomass,
+      atmosphereCode,
+      atmosphereTaints,
+      systemAgeGyr,
+      rollDie,
+    }) + Number(subtypeBias.biocomplexityDm || 0),
+    1,
+    15,
+  );
   const biodiversity = calculateBiodiversityRating({ biomass, biocomplexity, rollDie });
-  const compatibility = calculateCompatibilityRating({
-    biomass,
-    biocomplexity,
-    atmosphereCode,
-    atmosphereTaints,
-    systemAgeGyr,
-    rollDie,
-  });
+  const compatibility = clamp(
+    calculateCompatibilityRating({
+      biomass,
+      biocomplexity,
+      atmosphereCode,
+      atmosphereTaints,
+      systemAgeGyr,
+      rollDie,
+    }) + Number(subtypeBias.compatibilityDm || 0),
+    0,
+    15,
+  );
 
   return { biomass, biocomplexity, biodiversity, compatibility };
 }
@@ -1423,6 +1681,7 @@ export function determineNativeSophontLife({
 
 export function buildNativeLifeProfile(world = {}) {
   const ratings = buildNativeLifeRatings({
+    ...world,
     size: world?.size,
     atmosphereCode: world?.atmosphereCode,
     hydrographics: world?.hydrographics,
@@ -1437,26 +1696,36 @@ export function buildNativeLifeProfile(world = {}) {
   return `${toExtendedHex(ratings.biomass)}${toExtendedHex(ratings.biocomplexity)}${toExtendedHex(ratings.biodiversity)}${toExtendedHex(ratings.compatibility)}`;
 }
 
-export function determineHabitabilityRating({ candidateScore, size, atmosphereCode, hydrographics, avgTempC } = {}) {
+export function determineHabitabilityRating({
+  candidateScore,
+  size,
+  atmosphereCode,
+  hydrographics,
+  avgTempC,
+  ...world
+} = {}) {
+  const subtypeBias = resolveWorldSubtypeEnvironmentalBias(world);
   const numericCandidateScore = Number(candidateScore);
   if (Number.isFinite(numericCandidateScore)) {
-    if (numericCandidateScore >= 12) return "Excellent";
-    if (numericCandidateScore >= 8) return "Good";
-    if (numericCandidateScore >= 4) return "Marginal";
-    if (numericCandidateScore >= 1) return "Poor";
+    const adjustedCandidateScore = numericCandidateScore + Number(subtypeBias.habitabilityDm || 0);
+    if (adjustedCandidateScore >= 12) return "Excellent";
+    if (adjustedCandidateScore >= 8) return "Good";
+    if (adjustedCandidateScore >= 4) return "Marginal";
+    if (adjustedCandidateScore >= 1) return "Poor";
     return "Hostile";
   }
 
-  const environmentalScore = [
-    Number(size) >= 4 ? 1 : 0,
-    Number(atmosphereCode) >= 4 && Number(atmosphereCode) <= 9
-      ? 2
-      : Number(atmosphereCode) >= 2 && Number(atmosphereCode) <= 3
-        ? 1
-        : 0,
-    Number(hydrographics) >= 1 && Number(hydrographics) <= 9 ? 2 : Number(hydrographics) === 10 ? 1 : 0,
-    Number(avgTempC) >= -10 && Number(avgTempC) <= 38 ? 2 : Number(avgTempC) >= -30 && Number(avgTempC) <= 60 ? 1 : 0,
-  ].reduce((total, value) => total + value, 0);
+  const environmentalScore =
+    [
+      Number(size) >= 4 ? 1 : 0,
+      Number(atmosphereCode) >= 4 && Number(atmosphereCode) <= 9
+        ? 2
+        : Number(atmosphereCode) >= 2 && Number(atmosphereCode) <= 3
+          ? 1
+          : 0,
+      Number(hydrographics) >= 1 && Number(hydrographics) <= 9 ? 2 : Number(hydrographics) === 10 ? 1 : 0,
+      Number(avgTempC) >= -10 && Number(avgTempC) <= 38 ? 2 : Number(avgTempC) >= -30 && Number(avgTempC) <= 60 ? 1 : 0,
+    ].reduce((total, value) => total + value, 0) + Number(subtypeBias.habitabilityDm || 0);
 
   if (environmentalScore >= 6) return "Excellent";
   if (environmentalScore >= 4) return "Good";
@@ -1470,12 +1739,14 @@ export function determineResourceRating(world = {}) {
   const type = String(world?.type || world?.worldType || "");
   const atmosphereCode = Number(world?.atmosphereCode ?? 0);
   const hydrographics = Number(world?.hydrographics ?? 0);
+  const subtypeBias = resolveWorldSubtypeEnvironmentalBias(world);
   const base =
     (type === "Planetoid Belt" ? 3 : 0) +
     (type.includes("Gas Giant") ? 2 : 0) +
     (size >= 8 ? 2 : size >= 4 ? 1 : 0) +
     (atmosphereCode >= 10 ? 1 : 0) +
-    (hydrographics === 0 ? 1 : 0);
+    (hydrographics === 0 ? 1 : 0) +
+    Number(subtypeBias.resourceDm || 0);
 
   if (base >= 6) return "Abundant";
   if (base >= 4) return "Good";
@@ -1771,11 +2042,58 @@ export function buildWbhEnvironmentalProfile(params = {}) {
   const rollDie = typeof params.rollDie === "function" ? params.rollDie : createRandomRoller();
   const sizeCode = normalizeSizeCode(params.sizeCode ?? params.size ?? "5");
   const size = params.size ?? sizeCodeToNumeric(sizeCode);
-  const atmosphereCode =
+  const baseAtmosphereCode =
     params.atmosphereCode ?? determineAtmosphereCode({ sizeCode, rollTotal: params.atmosphereRoll ?? roll2d(rollDie) });
   const temperatureRawRoll =
     params.temperatureRawRoll ??
     calculateOrbitTemperatureRawRoll({ orbitNumber: params.orbitNumber, hzco: params.hzco });
+  const baseTemperatureAdjustedRoll = clamp(
+    temperatureRawRoll + calculateAtmosphereTemperatureDm(baseAtmosphereCode),
+    2,
+    12,
+  );
+  const baseRunawayGreenhouse = determineRunawayGreenhouse({
+    sizeCode,
+    atmosphereCode: baseAtmosphereCode,
+    systemAgeGyr: params.systemAgeGyr,
+    temperatureAdjustedRoll: baseTemperatureAdjustedRoll,
+    greenhouseCheckRoll: params.greenhouseCheckRoll,
+    greenhouseAtmosphereRoll: params.greenhouseAtmosphereRoll,
+  });
+  const hydrographicsRollTotal = params.hydrographicsRoll ?? roll2d(rollDie);
+  const baseHydrographics =
+    params.hydrographics ??
+    determineHydrographicsDetailed({
+      sizeCode,
+      atmosphereCode: baseAtmosphereCode,
+      rollTotal: hydrographicsRollTotal,
+      temperatureAdjustedRoll: baseRunawayGreenhouse.temperatureAdjustedRoll,
+      runawayGreenhouse: baseRunawayGreenhouse,
+    });
+  const baseAvgTempC =
+    params.avgTempC ??
+    calculateAverageSurfaceTemperature({
+      orbitNumber: params.orbitNumber,
+      hzco: params.hzco,
+      atmosphereCode: baseAtmosphereCode,
+      rawTemperatureRoll: temperatureRawRoll,
+    });
+  const derivedClassification = classifyPlanetaryBody({
+    ...params,
+    size,
+    sizeCode,
+    atmosphereCode: baseAtmosphereCode,
+    hydrographics: baseHydrographics,
+    avgTempC: baseAvgTempC,
+  });
+  const subtypeBias = resolveWorldSubtypeEnvironmentalBias({
+    type: params.type ?? params.baseWorld?.type,
+    orbitBandKey: params.orbitBandKey ?? params.baseWorld?.orbitBandKey ?? derivedClassification.orbitBandKey,
+    worldSubtype: params.worldSubtype ?? params.baseWorld?.worldSubtype,
+    worldClass: params.worldClass ?? params.baseWorld?.worldClass,
+    worldDescriptor: params.worldDescriptor ?? params.baseWorld?.worldDescriptor,
+  });
+  const atmosphereCode = clamp(baseAtmosphereCode + Number(subtypeBias.atmosphereDm || 0), 0, 15);
   const initialTemperatureAdjustedRoll = clamp(
     temperatureRawRoll + calculateAtmosphereTemperatureDm(atmosphereCode),
     2,
@@ -1798,21 +2116,26 @@ export function buildWbhEnvironmentalProfile(params = {}) {
   });
   const hydrographics =
     params.hydrographics ??
-    determineHydrographicsDetailed({
-      sizeCode,
-      atmosphereCode,
-      rollTotal: params.hydrographicsRoll ?? roll2d(rollDie),
-      temperatureAdjustedRoll: runawayGreenhouse.temperatureAdjustedRoll,
-      runawayGreenhouse,
-    });
+    applySubtypeHydrographicsBias(
+      determineHydrographicsDetailed({
+        sizeCode,
+        atmosphereCode,
+        rollTotal: hydrographicsRollTotal,
+        temperatureAdjustedRoll: runawayGreenhouse.temperatureAdjustedRoll,
+        runawayGreenhouse,
+      }),
+      subtypeBias,
+    );
   const avgTempC =
     params.avgTempC ??
-    calculateAverageSurfaceTemperature({
-      orbitNumber: params.orbitNumber,
-      hzco: params.hzco,
-      atmosphereCode,
-      rawTemperatureRoll: temperatureRawRoll,
-    });
+    Math.round(
+      calculateAverageSurfaceTemperature({
+        orbitNumber: params.orbitNumber,
+        hzco: params.hzco,
+        atmosphereCode,
+        rawTemperatureRoll: temperatureRawRoll,
+      }) + Number(subtypeBias.tempDm || 0),
+    );
   const atmosphereProfile = getWbhAtmosphereProfile(atmosphereCode);
   const temperatureAdjustedRoll = runawayGreenhouse.temperatureAdjustedRoll;
   const hydrographicsPercent =
@@ -2218,9 +2541,32 @@ export function generateWorldPhysicalCharacteristicsWbh(params = {}) {
     rollDie,
   });
 
-  const result = {
+  const resolvedClassification = classifyPlanetaryBody({
     ...fallbackWorld,
     ...environment,
+    type: params.type ?? fallbackWorld.type,
+    worldType: params.worldType ?? fallbackWorld.worldType,
+    size: resolvedSize,
+    sizeCode,
+  });
+  const explicitWorldSubtype = fallbackWorld.worldSubtype ?? params.worldSubtype ?? null;
+  const explicitWorldClass = fallbackWorld.worldClass ?? params.worldClass ?? null;
+  const explicitWorldDescriptor = fallbackWorld.worldDescriptor ?? params.worldDescriptor ?? null;
+
+  const classifiedResult = {
+    ...fallbackWorld,
+    ...environment,
+    ...resolvedClassification,
+    ...(explicitWorldClass ? { worldClass: explicitWorldClass } : {}),
+    ...(explicitWorldSubtype
+      ? {
+          worldSubtype: explicitWorldSubtype,
+          worldDescriptor:
+            explicitWorldDescriptor || `${resolvedClassification.orbitBand} ${explicitWorldSubtype}`.trim(),
+        }
+      : explicitWorldDescriptor
+        ? { worldDescriptor: explicitWorldDescriptor }
+        : {}),
     name: resolvedWorldName,
     size: resolvedSize,
     sizeCode,
@@ -2249,12 +2595,12 @@ export function generateWorldPhysicalCharacteristicsWbh(params = {}) {
   // biomass follows the WBH 2D + DMs rule deterministically when a seeded
   // roller was supplied.
   const nativeLifeform = buildNativeLifeProfile({
-    ...result,
+    ...classifiedResult,
     rollDie,
   });
 
   return {
-    ...result,
+    ...classifiedResult,
     nativeLifeform,
   };
 }

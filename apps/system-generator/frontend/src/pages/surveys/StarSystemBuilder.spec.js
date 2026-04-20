@@ -320,6 +320,172 @@ describe("StarSystemBuilder page", () => {
     expect(wrapper.text()).toContain("Inner Zone Tectonic");
   });
 
+  it("shows expanded pelagic subtype labels for saved ocean worlds", async () => {
+    const oceanicSavedSystem = {
+      systemId: "gal-1:1,2:0101",
+      sectorId: "gal-1:1,2",
+      galaxyId: "gal-1",
+      stars: [
+        {
+          designation: "G2V",
+          spectralClass: "G2V",
+          massInSolarMasses: 1,
+          luminosity: 1,
+          temperatureK: 5800,
+          orbitType: null,
+        },
+      ],
+      habitableZone: { innerAU: 0.9, outerAU: 1.6, frostLineAU: 4.8, hasRadiantHabitableZone: true },
+      planets: [
+        {
+          name: "Pelagia",
+          type: "Terrestrial Planet",
+          orbitNumber: 5,
+          orbitAU: 1.5,
+          zone: "habitable",
+          hydrographics: 10,
+          atmosphereCode: 6,
+          avgTempC: 14,
+          hydrosphereLiquid: "Liquid Water",
+          nativeLifeform: "A987",
+          composition: "Rocky with deep oceans",
+        },
+      ],
+      metadata: {},
+    };
+
+    systemStoreState.systems = [oceanicSavedSystem];
+    systemStoreState.loadSystems = vi.fn(async () => systemStoreState.systems);
+    systemStoreState.findSystemByHex = vi.fn(() => oceanicSavedSystem);
+
+    const wrapper = mount(StarSystemBuilder, {
+      props: {
+        galaxyId: "gal-1",
+        sectorId: "grid:1:2",
+      },
+      global: {
+        stubs: {
+          LoadingSpinner: true,
+          SurveyNavigation: true,
+        },
+      },
+    });
+
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("Inner Zone Pelagic");
+  });
+
+  it("shows vesperian subtype labels for saved epistellar worlds", async () => {
+    const epistellarSavedSystem = {
+      systemId: "gal-1:1,2:0101",
+      sectorId: "gal-1:1,2",
+      galaxyId: "gal-1",
+      stars: [
+        {
+          designation: "M2V",
+          spectralClass: "M2V",
+          massInSolarMasses: 0.42,
+          luminosity: 0.03,
+          temperatureK: 3500,
+          orbitType: null,
+        },
+      ],
+      habitableZone: { innerAU: 0.12, outerAU: 0.28, frostLineAU: 1.2, hasRadiantHabitableZone: true },
+      planets: [
+        {
+          name: "Vespera",
+          type: "Terrestrial Planet",
+          orbitNumber: 2,
+          orbitAU: 0.18,
+          zone: "habitable",
+          hydrographics: 4,
+          atmosphereCode: 7,
+          avgTempC: 22,
+          hydrosphereLiquid: "Liquid Water",
+          nativeLifeform: "B776",
+          composition: "Rocky silicate crust",
+        },
+      ],
+      metadata: {},
+    };
+
+    systemStoreState.systems = [epistellarSavedSystem];
+    systemStoreState.loadSystems = vi.fn(async () => systemStoreState.systems);
+    systemStoreState.findSystemByHex = vi.fn(() => epistellarSavedSystem);
+
+    const wrapper = mount(StarSystemBuilder, {
+      props: {
+        galaxyId: "gal-1",
+        sectorId: "grid:1:2",
+      },
+      global: {
+        stubs: {
+          LoadingSpinner: true,
+          SurveyNavigation: true,
+        },
+      },
+    });
+
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("Epistellar Vesperian");
+  });
+
+  it("shows telluric subtype labels for saved greenhouse worlds", async () => {
+    const telluricSavedSystem = {
+      systemId: "gal-1:1,2:0101",
+      sectorId: "gal-1:1,2",
+      galaxyId: "gal-1",
+      stars: [
+        {
+          designation: "F3V",
+          spectralClass: "F3V",
+          massInSolarMasses: 1.3,
+          luminosity: 2.4,
+          temperatureK: 6900,
+          orbitType: null,
+        },
+      ],
+      habitableZone: { innerAU: 1.2, outerAU: 2.3, frostLineAU: 6.8, hasRadiantHabitableZone: true },
+      planets: [
+        {
+          name: "Cytherea",
+          type: "Terrestrial Planet",
+          orbitNumber: 4,
+          orbitAU: 1.4,
+          zone: "warm",
+          hydrographics: 1,
+          atmosphereCode: 11,
+          avgTempC: 180,
+          composition: "Dense carbon dioxide atmosphere with sulfur clouds",
+        },
+      ],
+      metadata: {},
+    };
+
+    systemStoreState.systems = [telluricSavedSystem];
+    systemStoreState.loadSystems = vi.fn(async () => systemStoreState.systems);
+    systemStoreState.findSystemByHex = vi.fn(() => telluricSavedSystem);
+
+    const wrapper = mount(StarSystemBuilder, {
+      props: {
+        galaxyId: "gal-1",
+        sectorId: "grid:1:2",
+      },
+      global: {
+        stubs: {
+          LoadingSpinner: true,
+          SurveyNavigation: true,
+        },
+      },
+    });
+
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("Inner Zone Cytherean");
+  });
+
   it("preserves the routed system name and legacy star designation labels for saved surveys", async () => {
     routeState.query = {
       ...routeState.query,
