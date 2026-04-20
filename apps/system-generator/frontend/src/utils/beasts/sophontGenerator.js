@@ -1,4 +1,5 @@
 import { buildWorldLinkedCreatureOptions, createSeededRng, generateGuidSeed } from "./beastGenerator.js";
+import { buildLifeTaxonomy, buildLineageProfile } from "./taxonomy.js";
 
 export const BODY_PLANS = [
   "Bilateral Symmetry",
@@ -591,6 +592,21 @@ export function generateSophontProfile(options = {}) {
     { name: resolvedName, diplomacy, factionTensions, historyTimeline, sourceWorld },
     rng,
   );
+  const taxonomy = buildLifeTaxonomy({
+    seed: resolvedSeed,
+    name: resolvedName,
+    category: "sophont",
+    bodyPlan: resolvedBodyPlan,
+    environment: resolvedEnvironment,
+    niche: civilization["Cultural Focus"] || socialStructure,
+  });
+  const lineage = buildLineageProfile({
+    seed: resolvedSeed,
+    category: "sophont",
+    sourceWorld,
+    bodyPlan: resolvedBodyPlan,
+    environment: resolvedEnvironment,
+  });
 
   const profile = {
     id: String(options.id || resolvedSeed),
@@ -628,8 +644,10 @@ export function generateSophontProfile(options = {}) {
     government,
     ftlCapable: techLevel >= 9,
     specialAbilities,
+    taxonomy,
+    lineage,
     sourceWorld,
-    origin: sourceWorld?.nativeSophontLife ? "Native sophont lineage" : "Adapted colonial or transplanted lineage",
+    origin: lineage.originModel,
     worldIntegration: {
       summary: `${resolvedName} are a ${civilization["Tech Band"]} culture centered on ${String(civilization["Cultural Focus"] || "shared purpose")}.`,
       censusContext: `${government} / ${socialStructure}`,
@@ -640,6 +658,7 @@ export function generateSophontProfile(options = {}) {
         `Faction pressure: ${String(factionTensions.summary || "contained political rivalry")}.`,
         `Event chain opening: ${String(eventChain[0]?.title || "Present Tension")}.`,
         `Recent turning point: ${String(historyTimeline.at(-1)?.title || "Present Tension")}.`,
+        lineage.uniquenessStatement,
       ],
     },
     seed: resolvedSeed,

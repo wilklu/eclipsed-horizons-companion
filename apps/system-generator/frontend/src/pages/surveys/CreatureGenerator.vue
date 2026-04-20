@@ -250,6 +250,24 @@
           </section>
 
           <section class="creature-section">
+            <h3>📚 Taxonomy & Lineage</h3>
+            <div class="prop-list">
+              <div class="prop-row" v-for="(value, label) in creature.taxonomy || {}" :key="label">
+                <span class="prop-label">{{ label }}</span>
+                <span class="prop-value">{{ value }}</span>
+              </div>
+              <div class="prop-row">
+                <span class="prop-label">Origin Model</span>
+                <span class="prop-value">{{ creature.lineage?.originModel || creature.origin || "Unclassified" }}</span>
+              </div>
+              <div class="prop-row">
+                <span class="prop-label">Lineage Note</span>
+                <span class="prop-value">{{ creature.lineage?.uniquenessStatement || "Unique local biosphere" }}</span>
+              </div>
+            </div>
+          </section>
+
+          <section class="creature-section">
             <h3>🧬 Extended Dossier</h3>
             <div class="prop-list">
               <div class="prop-row">

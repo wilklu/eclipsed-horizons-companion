@@ -12,6 +12,7 @@ import {
   TERRAIN_LOCOMOTION_TABLE,
   WEAPON_TABLE,
 } from "./beastTables.js";
+import { buildLifeTaxonomy, buildLineageProfile } from "./taxonomy.js";
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -694,6 +695,22 @@ export function generateBeastProfile(options = {}) {
     extended,
   });
 
+  const taxonomy = buildLifeTaxonomy({
+    seed: resolvedSeed,
+    name: resolvedName,
+    category: "fauna",
+    bodyPlan: bodyProfile.bodySymmetry,
+    niche: `${ecologicalNiche.niche} ${ecologicalNiche.subniche}`,
+    environment: resolvedTerrain,
+  });
+  const lineage = buildLineageProfile({
+    seed: resolvedSeed,
+    category: "fauna",
+    sourceWorld,
+    bodyPlan: bodyProfile.bodySymmetry,
+    environment: resolvedTerrain,
+  });
+
   const profile = {
     id: String(options.id || resolvedSeed),
     name: resolvedName,
@@ -714,6 +731,9 @@ export function generateBeastProfile(options = {}) {
     },
     reactions,
     extended,
+    taxonomy,
+    lineage,
+    origin: lineage.originModel,
     sourceWorld,
     metadata: {
       ruleset: "BeastMaker Simple",

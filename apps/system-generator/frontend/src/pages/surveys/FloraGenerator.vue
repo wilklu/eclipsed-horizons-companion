@@ -107,6 +107,20 @@
           </section>
 
           <section class="flora-section">
+            <h3>📚 Taxonomy & Lineage</h3>
+            <div class="prop-list">
+              <div class="prop-row" v-for="(value, label) in flora.taxonomy || {}" :key="label">
+                <span class="prop-label">{{ label }}</span>
+                <span class="prop-value">{{ value }}</span>
+              </div>
+              <div class="prop-row">
+                <span class="prop-label">Origin Model</span>
+                <span class="prop-value">{{ flora.lineage?.originModel || flora.origin || "Unclassified" }}</span>
+              </div>
+            </div>
+          </section>
+
+          <section class="flora-section">
             <h3>🌍 Ecology</h3>
             <div class="prop-list">
               <div class="prop-row" v-for="(value, label) in flora.ecology" :key="label">

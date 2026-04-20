@@ -251,6 +251,36 @@
             </div>
 
             <div v-if="generatedSector" class="control-group control-group--span-2">
+              <label>Sector Concentration</label>
+              <div class="sector-concentration-card">
+                <div class="sector-concentration-row">
+                  <span class="sector-concentration-title">Stars in this sector</span>
+                  <strong class="sector-concentration-value">{{
+                    formatNumber(sectorConcentrationStats.currentStars)
+                  }}</strong>
+                  <span class="sector-concentration-meta"
+                    >Stars vs Standard · {{ sectorConcentrationStats.starsVsStandard }}</span
+                  >
+                  <span class="sector-concentration-meta"
+                    >Stars vs this galaxy · {{ sectorConcentrationStats.starsVsGalaxy }}</span
+                  >
+                </div>
+                <div class="sector-concentration-row">
+                  <span class="sector-concentration-title">Sophont sites in this sector</span>
+                  <strong class="sector-concentration-value">{{
+                    formatNumber(sectorConcentrationStats.currentSophonts)
+                  }}</strong>
+                  <span class="sector-concentration-meta"
+                    >Sophonts vs Standard · {{ sectorConcentrationStats.sophontsVsStandard }}</span
+                  >
+                  <span class="sector-concentration-meta"
+                    >Sophonts vs this galaxy · {{ sectorConcentrationStats.sophontsVsGalaxy }}</span
+                  >
+                </div>
+              </div>
+            </div>
+
+            <div v-if="generatedSector" class="control-group control-group--span-2">
               <label>Progress Checklist</label>
               <div class="survey-checklist-card">
                 <div class="survey-checklist-summary">
@@ -975,6 +1005,8 @@ const sectorSurveyFilterMode = ref("all");
 const activeReviewQueue = ref("presence");
 const supportsSpeechSynthesis = isSpeechSynthesisSupported();
 const SECTOR_SURVEY_WORKSPACE_STORAGE_KEY = "eclipsed-horizons-sector-survey-workspace";
+const STANDARD_STARS_PER_SECTOR = 640;
+const STANDARD_SOPHONTS_PER_SECTOR = 16;
 let gridWrapperResizeObserver = null;
 let applyingWorkspaceState = false;
 let workspaceStateHydrated = false;
@@ -982,6 +1014,7 @@ const { currentViewMode, currentSurveyRouteName, surveyPageLabel, switchSurveyPa
   props,
   route,
   router,
+  scope,
   selectedSectorId,
   selectedSubsector,
   subsectorName,
@@ -991,6 +1024,110 @@ function normalizeSharedSurveyOccupancyRealism(value, fallback = 1) {
   const fallbackValue = Number.isFinite(Number(fallback)) ? Number(fallback) : 1;
   const numeric = Number(value);
   return Math.min(2, Math.max(0, Number.isFinite(numeric) ? numeric : fallbackValue));
+}
+
+function countSectorObjects(sector = {}) {
+  const metadata = sector?.metadata && typeof sector.metadata === "object" ? sector.metadata : {};
+  const metadataSystemCount = Number(metadata?.systemCount);
+  if (Number.isFinite(metadataSystemCount)) {
+    return Math.max(0, metadataSystemCount);
+  }
+
+  if (Array.isArray(metadata?.occupiedHexes)) {
+    return metadata.occupiedHexes.length;
+  }
+
+  if (metadata?.hexStarTypes && typeof metadata.hexStarTypes === "object") {
+    return Object.keys(metadata.hexStarTypes).length;
+  }
+
+  return 0;
+}
+
+function isRestrictedSophontBody(record = {}) {
+  const type = String(record?.type ?? record?.worldType ?? record?.designation ?? "")
+    .trim()
+    .toLowerCase();
+  return type.includes("gas giant") || type.includes("belt");
+}
+
+function hasNativeSophontIndicator(record = {}) {
+  if (!record || typeof record !== "object" || isRestrictedSophontBody(record)) {
+    return false;
+  }
+
+  if (record.nativeSophontLife === true || record.mainworldNativeSophontLife === true) {
+    return true;
+  }
+
+  const status = String(record.nativeSophontStatus ?? record.mainworldNativeSophontStatus ?? record.sophontStatus ?? "")
+    .trim()
+    .toLowerCase();
+  if (["exist", "exists", "extant", "present", "current"].includes(status)) {
+    return true;
+  }
+
+  const countedWorlds = Number(record.nativeSophontWorldCount ?? record.sophontLifeWorldCount ?? NaN);
+  return Number.isFinite(countedWorlds) ? countedWorlds > 0 : false;
+}
+
+function buildSophontCandidateKey(record = {}, index = 0) {
+  return [
+    record?.worldId,
+    record?.planetId,
+    record?.id,
+    record?.name,
+    record?.designation,
+    record?.orbitNumber,
+    record?.orbitalSlot,
+    record?.coord,
+    index,
+  ]
+    .map((part) =>
+      String(part ?? "")
+        .trim()
+        .toUpperCase(),
+    )
+    .join("|");
+}
+
+function countSystemSophonts(system = {}) {
+  const rawCandidates = [
+    system?.mainworld,
+    ...(Array.isArray(system?.planets) ? system.planets : []),
+    ...(Array.isArray(system?.worlds) ? system.worlds : []),
+  ].filter((entry) => entry && typeof entry === "object");
+  const seen = new Set();
+  const uniqueCandidates = rawCandidates.filter((entry, index) => {
+    const key = buildSophontCandidateKey(entry, index);
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+
+  const directCount = uniqueCandidates.filter((entry) => hasNativeSophontIndicator(entry)).length;
+  if (directCount > 0) {
+    return directCount;
+  }
+
+  return hasNativeSophontIndicator(system) ? 1 : 0;
+}
+
+function formatSectorAverageComparison(value = 0, average = 0, label = "galaxy avg") {
+  const current = Number(value) || 0;
+  const target = Number(average) || 0;
+  if (target <= 0) {
+    return `${label} pending`;
+  }
+
+  return `${((current / target) * 100).toFixed(1)}% of ${label} (${target.toFixed(1)})`;
+}
+
+function formatNumber(value = 0) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric.toLocaleString() : "0";
 }
 
 function getSectorSurveyWorkspaceStorageBucket() {
@@ -1051,11 +1188,12 @@ function applySectorSurveyWorkspaceState({ restoreSelection = false, availableHe
   });
   const hasRequestedScope = Boolean(String(route.query.viewScope || "").trim());
   const hasRequestedSubsector = Boolean(String(route.query.subsector || "").trim());
+  const resolvedDefaultScope = currentViewMode.value === "subsector" ? "subsector" : "sector";
 
   applyingWorkspaceState = true;
   try {
     if (!hasRequestedScope) {
-      scope.value = restoredState.scope;
+      scope.value = resolvedDefaultScope;
     }
     gridSizeMode.value = restoredState.gridSizeMode;
     sectorSurveyFilterMode.value = restoredState.sectorSurveyFilterMode;
@@ -1106,7 +1244,16 @@ watch(
 );
 
 watch(
-  () => [route.query.sectorId, route.query.gridX, route.query.gridY, route.query.sectorName, route.query.from],
+  () => [
+    route.query.sectorId,
+    route.query.gridX,
+    route.query.gridY,
+    route.query.sectorName,
+    route.query.from,
+    route.query.viewScope,
+    route.query.subsector,
+    route.query.subsectorName,
+  ],
   async () => {
     if (!props.galaxyId) {
       return;
@@ -1834,6 +1981,68 @@ const surveyProgress = computed(() =>
 );
 const surveyFilterCounts = computed(() => summarizeSectorSurveyFilters(displayedSector.value?.hexes ?? []));
 const reviewQueueCounts = computed(() => buildSectorSurveyReviewQueue(displayedSector.value?.hexes ?? []));
+const currentGalaxySectors = computed(() =>
+  sectorStore.sectors.filter((sector) => String(sector?.galaxyId || "") === String(props.galaxyId || "")),
+);
+const currentSectorSystems = computed(() => {
+  const activeSectorId = String(
+    displayedSector.value?.sectorId || generatedSector.value?.sectorId || selectedSectorId.value || "",
+  ).trim();
+  return (Array.isArray(systemStore.systems) ? systemStore.systems : []).filter((system) => {
+    const systemSectorId = String(system?.sectorId || "").trim();
+    const systemId = String(system?.systemId || "").trim();
+    if (!activeSectorId) {
+      return true;
+    }
+    return systemSectorId === activeSectorId || systemId.startsWith(`${activeSectorId}:`);
+  });
+});
+const currentSectorSophontCount = computed(() =>
+  currentSectorSystems.value.reduce((sum, system) => sum + countSystemSophonts(system), 0),
+);
+const currentGalaxyAverageStarsPerSector = computed(() => {
+  const cachedAverage = Number(galaxyProfile.value?.metadata?.sectorStats?.avgObjectsPerSector ?? NaN);
+  if (Number.isFinite(cachedAverage) && cachedAverage > 0) {
+    return cachedAverage;
+  }
+
+  const sectorCounts = currentGalaxySectors.value.map((sector) => countSectorObjects(sector));
+  return sectorCounts.length ? sectorCounts.reduce((sum, count) => sum + count, 0) / sectorCounts.length : 0;
+});
+const currentGalaxyAverageSophontsPerSector = computed(() => {
+  const cachedAverage = Number(galaxyProfile.value?.metadata?.sectorStats?.avgSophontsPerSector ?? NaN);
+  if (Number.isFinite(cachedAverage) && cachedAverage > 0) {
+    return cachedAverage;
+  }
+
+  const groupedCounts = new Map();
+  currentSectorSystems.value.forEach((system) => {
+    const sectorId = String(system?.sectorId || displayedSector.value?.sectorId || "current").trim() || "current";
+    groupedCounts.set(sectorId, (groupedCounts.get(sectorId) || 0) + countSystemSophonts(system));
+  });
+  const totalCount = Array.from(groupedCounts.values()).reduce((sum, count) => sum + count, 0);
+  return currentGalaxySectors.value.length > 0 ? totalCount / currentGalaxySectors.value.length : totalCount;
+});
+const sectorConcentrationStats = computed(() => {
+  const currentStars = displayedOccupiedHexCount.value;
+  const currentSophonts = currentSectorSophontCount.value;
+  return {
+    currentStars,
+    currentSophonts,
+    starsVsStandard: `${((currentStars / STANDARD_STARS_PER_SECTOR) * 100).toFixed(1)}% of ${STANDARD_STARS_PER_SECTOR} baseline`,
+    starsVsGalaxy: formatSectorAverageComparison(
+      currentStars,
+      currentGalaxyAverageStarsPerSector.value,
+      "this galaxy avg",
+    ),
+    sophontsVsStandard: `${((currentSophonts / STANDARD_SOPHONTS_PER_SECTOR) * 100).toFixed(1)}% of ${STANDARD_SOPHONTS_PER_SECTOR} baseline`,
+    sophontsVsGalaxy: formatSectorAverageComparison(
+      currentSophonts,
+      currentGalaxyAverageSophontsPerSector.value,
+      "this galaxy avg",
+    ),
+  };
+});
 const surveyChecklist = computed(() =>
   buildSectorSurveyChecklist({
     sectorName: generatedSector.value?.name || sectorName.value,
@@ -4124,7 +4333,7 @@ async function initializeSectorSelection(galaxyId) {
     currentSectorId: sectorStore.currentSectorId || restoredWorkspaceState.selectedSectorId || null,
     requestedSectorId: route.query.sectorId,
     requestedGrid: getRequestedGridCoordinates(),
-    requestedViewport: requestedViewport?.scope ? requestedViewport : restoredWorkspaceState,
+    requestedViewport: requestedViewport?.scope ? requestedViewport : null,
   });
 
   if (initialSelection.mode === "load" && initialSelection.sectorId) {
@@ -4953,6 +5162,38 @@ async function generateSystemForSelectedHex({ openAfter = false } = {}) {
   border: 1px solid rgba(0, 217, 255, 0.18);
   border-radius: 0.65rem;
   background: rgba(7, 18, 28, 0.88);
+}
+
+.sector-concentration-card {
+  display: grid;
+  gap: 0.8rem;
+  padding: 0.85rem 0.9rem;
+  border: 1px solid rgba(0, 217, 255, 0.18);
+  border-radius: 0.65rem;
+  background: rgba(7, 18, 28, 0.88);
+}
+
+.sector-concentration-row {
+  display: grid;
+  gap: 0.22rem;
+}
+
+.sector-concentration-title {
+  color: #8db5ff;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.sector-concentration-value {
+  color: #f8fbff;
+  font-size: 1rem;
+}
+
+.sector-concentration-meta {
+  color: #cfe1ff;
+  font-size: 0.82rem;
 }
 
 .survey-progress-bar {

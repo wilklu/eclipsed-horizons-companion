@@ -99,6 +99,24 @@
             </div>
           </section>
 
+          <section class="sophont-section">
+            <h3>📚 Taxonomy & Lineage</h3>
+            <div class="prop-list">
+              <div class="prop-row" v-for="(v, k) in sophont.taxonomy || {}" :key="k">
+                <span class="prop-label">{{ k }}:</span>
+                <span class="prop-value">{{ v }}</span>
+              </div>
+              <div class="prop-row">
+                <span class="prop-label">Origin Model:</span>
+                <span class="prop-value">{{ sophont.lineage?.originModel || sophont.origin }}</span>
+              </div>
+              <div class="prop-row">
+                <span class="prop-label">Human Analogue:</span>
+                <span class="prop-value">{{ sophont.lineage?.humanAnalogueStatus || "No clear Terran analogue" }}</span>
+              </div>
+            </div>
+          </section>
+
           <!-- Characteristics -->
           <section class="sophont-section">
             <h3>📊 Characteristics (2D6 base ± modifier)</h3>

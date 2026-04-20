@@ -191,6 +191,30 @@ describe("sectorSurveyPersistence", () => {
     });
   });
 
+  it("keeps sector return routes on the sector page even when a subsector was active locally", () => {
+    const result = buildSectorSurveyReturnRoute({
+      currentSurveyRouteName: "SectorSurvey",
+      galaxyId: "gal-9",
+      routeQuery: { from: "atlas", gridX: 2, gridY: -3, viewScope: "subsector", subsector: "F" },
+      sectorId: "sector-b",
+      scope: "subsector",
+      selectedSubsector: "F",
+      subsectorName: "Drift",
+    });
+
+    expect(result).toEqual({
+      name: "SectorSurvey",
+      params: { galaxyId: "gal-9" },
+      query: {
+        from: "atlas",
+        gridX: 2,
+        gridY: -3,
+        sectorId: "sector-b",
+        viewScope: "sector",
+      },
+    });
+  });
+
   it("normalizes and restores persisted workspace state for a saved sector", () => {
     const persistedState = buildSectorSurveyWorkspaceState({
       galaxyId: "gal-7",

@@ -119,6 +119,10 @@ describe("beastGenerator rules foundation", () => {
     expect(first.combat.weapon.weapon).toBeTruthy();
     expect(first.visualDescription).toContain(first.name);
     expect(first.imagePrompt).toContain("Detailed sci-fi creature concept art");
+    expect(first.taxonomy.Domain).toBeTruthy();
+    expect(first.taxonomy["Phylum / Division"]).toBeTruthy();
+    expect(first.taxonomy.Species).toBeTruthy();
+    expect(first.lineage.originModel).toBeTruthy();
   });
 
   it("builds an image-ready creature description", () => {
@@ -175,6 +179,8 @@ describe("beastGenerator rules foundation", () => {
 
     const worldUpdate = buildFaunaWorldUpdate(bundle, { remarks: [] });
     expect(worldUpdate.linkedFaunaSummary.stability).toBeTruthy();
+    expect(worldUpdate.linkedFaunaSummary.scientificName).toBeTruthy();
+    expect(worldUpdate.linkedFaunaSummary.originModel).toBeTruthy();
     expect(worldUpdate.remarks.length).toBeGreaterThan(0);
   });
 

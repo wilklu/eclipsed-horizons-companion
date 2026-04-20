@@ -147,20 +147,28 @@ export function buildSectorSurveyReturnRoute({
   subsectorName = "",
   sectorSurveyFilterMode = "all",
 } = {}) {
-  const normalizedScope = scope === "subsector" ? "subsector" : "sector";
+  const normalizedRouteName =
+    String(currentSurveyRouteName || "SectorSurvey").trim() === "SubsectorSurvey" ? "SubsectorSurvey" : "SectorSurvey";
+  const normalizedScope = normalizedRouteName === "SubsectorSurvey" && scope === "subsector" ? "subsector" : "sector";
   const normalizedSubsectorName = String(subsectorName || "").trim();
   const normalizedFilterMode = normalizeWorkspaceMode(sectorSurveyFilterMode, WORKSPACE_FILTER_MODES, "all");
+  const baseQuery = { ...(routeQuery && typeof routeQuery === "object" ? routeQuery : {}) };
+
+  if (normalizedScope !== "subsector") {
+    delete baseQuery.subsector;
+    delete baseQuery.subsectorName;
+  }
 
   return {
-    name: String(currentSurveyRouteName || "SectorSurvey"),
+    name: normalizedRouteName,
     params: { galaxyId: galaxyId ?? "000" },
     query: {
-      ...(routeQuery && typeof routeQuery === "object" ? routeQuery : {}),
+      ...baseQuery,
       ...(sectorId ? { sectorId } : {}),
       viewScope: normalizedScope,
-      subsector: normalizedScope === "subsector" ? selectedSubsector || undefined : undefined,
-      subsectorName: normalizedScope === "subsector" ? normalizedSubsectorName || undefined : undefined,
-      sectorFilter: normalizedFilterMode !== "all" ? normalizedFilterMode : undefined,
+      ...(normalizedScope === "subsector" ? { subsector: selectedSubsector || undefined } : {}),
+      ...(normalizedScope === "subsector" && normalizedSubsectorName ? { subsectorName: normalizedSubsectorName } : {}),
+      ...(normalizedFilterMode !== "all" ? { sectorFilter: normalizedFilterMode } : {}),
     },
   };
 }

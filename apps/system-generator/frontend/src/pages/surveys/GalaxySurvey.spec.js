@@ -186,6 +186,16 @@ vi.mock("../../utils/galaxySectorStats.js", () => ({
     emptySectors: 0,
     totalObjects: 0,
     avgObjectsPerSector: 0,
+    starBaselinePerSector: 640,
+    starBaselinePercent: 0,
+    densestSectorObjects: 0,
+    sparsestSectorObjects: 0,
+    totalSophonts: 0,
+    avgSophontsPerSector: 0,
+    sophontBaselinePerSector: 16,
+    sophontBaselinePercent: 0,
+    sophontBearingSectors: 0,
+    densestSectorSophonts: 0,
     legacyReconstructedCount: 0,
     legacyHierarchyUnknownCount: 0,
     ...stats,
@@ -218,6 +228,16 @@ vi.mock("../../utils/galaxySurveyPersistence.js", () => ({
       emptySectors: 1,
       totalObjects: 2,
       avgObjectsPerSector: 0.66,
+      starBaselinePerSector: 640,
+      starBaselinePercent: 0.1,
+      densestSectorObjects: 1,
+      sparsestSectorObjects: 0,
+      totalSophonts: 1,
+      avgSophontsPerSector: 0.33,
+      sophontBaselinePerSector: 16,
+      sophontBaselinePercent: 2.1,
+      sophontBearingSectors: 1,
+      densestSectorSophonts: 1,
       legacyReconstructedCount: 0,
       legacyHierarchyUnknownCount: 0,
     },
@@ -410,6 +430,16 @@ describe("GalaxySurvey guided flow", () => {
 
     expect(wrapper.text()).toContain("Galaxy Map Preview");
     expect(wrapper.text()).toContain("Actual footprint 938×750 sectors");
+  });
+
+  it("shows sector average comparisons for stars and sophonts", async () => {
+    const wrapper = mount(GalaxySurvey);
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("Star Density vs Standard");
+    expect(wrapper.text()).toContain("Sophonts / Sector");
+    expect(wrapper.text()).toContain("640 baseline");
+    expect(wrapper.text()).toContain("16 baseline");
   });
 
   it("toggles selected ring highlighting when the same tile is clicked twice", async () => {

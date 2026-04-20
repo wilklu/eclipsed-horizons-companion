@@ -14,7 +14,15 @@ export function getRequestedSurveyViewport(route) {
   };
 }
 
-export function useSectorSurveyViewMode({ props, route, router, selectedSectorId, selectedSubsector, subsectorName }) {
+export function useSectorSurveyViewMode({
+  props,
+  route,
+  router,
+  scope,
+  selectedSectorId,
+  selectedSubsector,
+  subsectorName,
+}) {
   const currentViewMode = computed(() => (props.viewMode === "subsector" ? "subsector" : "sector"));
   const currentSurveyRouteName = computed(() =>
     currentViewMode.value === "subsector" ? "SubsectorSurvey" : "SectorSurvey",
@@ -25,21 +33,37 @@ export function useSectorSurveyViewMode({ props, route, router, selectedSectorId
 
   function switchSurveyPage(viewMode, galaxyId) {
     const targetView = viewMode === "subsector" ? "subsector" : "sector";
+    const routeName = targetView === "subsector" ? "SubsectorSurvey" : "SectorSurvey";
+    const nextQuery = {
+      ...route.query,
+      ...(selectedSectorId.value ? { sectorId: selectedSectorId.value } : {}),
+      viewScope: targetView,
+    };
+
+    if (targetView === "subsector") {
+      nextQuery.subsector = selectedSubsector.value || undefined;
+      nextQuery.subsectorName = String(subsectorName.value || "").trim() || undefined;
+    } else {
+      delete nextQuery.subsector;
+      delete nextQuery.subsectorName;
+    }
+
+    if (scope?.value !== targetView) {
+      scope.value = targetView;
+    }
+
+    const nextRoute = {
+      name: routeName,
+      params: { galaxyId: galaxyId ?? props.galaxyId ?? "000" },
+      query: nextQuery,
+    };
+
     if (targetView === currentViewMode.value) {
+      router.replace(nextRoute);
       return;
     }
 
-    router.push({
-      name: targetView === "subsector" ? "SubsectorSurvey" : "SectorSurvey",
-      params: { galaxyId: galaxyId ?? props.galaxyId ?? "000" },
-      query: {
-        ...route.query,
-        ...(selectedSectorId.value ? { sectorId: selectedSectorId.value } : {}),
-        viewScope: targetView,
-        subsector: selectedSubsector.value || undefined,
-        subsectorName: String(subsectorName.value || "").trim() || undefined,
-      },
-    });
+    router.push(nextRoute);
   }
 
   return {

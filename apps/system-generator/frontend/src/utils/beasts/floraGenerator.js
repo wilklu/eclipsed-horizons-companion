@@ -1,4 +1,5 @@
 import { buildWorldLinkedCreatureOptions, createSeededRng, generateGuidSeed } from "./beastGenerator.js";
+import { buildLifeTaxonomy, buildLineageProfile } from "./taxonomy.js";
 
 export const FLORA_GROWTH_FORMS = [
   "Canopy Tree",
@@ -1137,6 +1138,20 @@ export function generateFloraProfile(options = {}) {
     sourceWorld,
     rng,
   });
+  const taxonomy = buildLifeTaxonomy({
+    seed: resolvedSeed,
+    name: resolvedName,
+    category: "flora",
+    growthForm: resolvedGrowthForm,
+    climate: resolvedClimate,
+    environment: resolvedClimate,
+  });
+  const lineage = buildLineageProfile({
+    seed: resolvedSeed,
+    category: "flora",
+    sourceWorld,
+    environment: resolvedClimate,
+  });
 
   return {
     id: String(options.id || resolvedSeed),
@@ -1156,13 +1171,16 @@ export function generateFloraProfile(options = {}) {
     visualDescription,
     imagePrompt,
     imageCaption,
-    origin: sourceWorld?.nativeLifeform ? "Native floral lineage" : "Imported or engineered stock",
+    taxonomy,
+    lineage,
+    origin: lineage.originModel,
     sourceWorld,
     worldIntegration: {
       summary: `${resolvedName} is a ${String(resolvedClimate).toLowerCase()} ${String(resolvedGrowthForm).toLowerCase()} known for ${String(primaryUse).toLowerCase()}.`,
       notes: [
         `Hazard rating holds at ${hazardLevel.toLowerCase()}.`,
         `Typical adaptation profile includes ${adaptationList.join(", ")}.`,
+        lineage.uniquenessStatement,
       ],
     },
     seed: resolvedSeed,

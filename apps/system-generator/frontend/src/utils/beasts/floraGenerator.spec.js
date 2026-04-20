@@ -76,6 +76,10 @@ describe("floraGenerator", () => {
     expect(first.worldIntegration.summary).toContain("known for");
     expect(first.visualDescription).toContain("Ionan Bloom");
     expect(first.imagePrompt).toContain("Detailed botanical concept art");
+    expect(first.taxonomy.Domain).toBeTruthy();
+    expect(first.taxonomy["Phylum / Division"]).toBeTruthy();
+    expect(first.taxonomy.Species).toBeTruthy();
+    expect(first.lineage.originModel).toBeTruthy();
   });
 
   it("builds an image-ready flora description", () => {
@@ -109,6 +113,8 @@ describe("floraGenerator", () => {
 
     expect(update.linkedFloraSummary.name).toBe("Ionan Bloom");
     expect(update.linkedFloraSummary.primaryUse).toBe("medicinal resin");
+    expect(update.linkedFloraSummary.scientificName).toBeTruthy();
+    expect(update.linkedFloraSummary.originModel).toBeTruthy();
     expect(update.remarks.length).toBeGreaterThan(0);
   });
 });

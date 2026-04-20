@@ -51,6 +51,10 @@ const hoisted = vi.hoisted(() => ({
       lastModified: "2026-04-11T00:00:00.000Z",
       status: "Active",
       universeCoordinates: { x: 0, y: 0 },
+      sectorStats: {
+        avgObjectsPerSector: 2,
+        avgSophontsPerSector: 0.5,
+      },
     },
   },
 }));
@@ -301,6 +305,38 @@ describe("SectorSurvey page regressions", () => {
     expect(wrapper.text()).toContain("Occupancy Realism: 65%");
   });
 
+  it("lets the Sector button clear a carried-over subsector scope on the sector page", async () => {
+    routeState.query = {
+      sectorId: "sector-a",
+      from: "atlas",
+      viewScope: "subsector",
+      subsector: "B",
+      subsectorName: "Lanthan",
+    };
+
+    const wrapper = mountSectorSurvey({ galaxyId: "gal-1", viewMode: "sector" });
+    await flushPromises();
+    await flushPromises();
+
+    wrapper.vm.$.setupState.scope = "subsector";
+    wrapper.vm.$.setupState.selectedSubsector = "B";
+    wrapper.vm.$.setupState.subsectorName = "Lanthan";
+    await flushPromises();
+
+    const sectorButton = wrapper.findAll("button").find((entry) => entry.text().includes("Sector"));
+    expect(sectorButton).toBeTruthy();
+
+    await sectorButton.trigger("click");
+    await flushPromises();
+
+    expect(wrapper.vm.$.setupState.scope).toBe("sector");
+    const navigationTarget = routerReplace.mock.calls.at(-1)?.[0] || routerPush.mock.calls.at(-1)?.[0];
+    expect(navigationTarget).toMatchObject({ name: "SectorSurvey" });
+    expect(navigationTarget?.query?.viewScope ?? "sector").toBe("sector");
+    expect(navigationTarget?.query?.subsector).toBeUndefined();
+    expect(navigationTarget?.query?.subsectorName).toBeUndefined();
+  });
+
   it("keeps fresh sector generation from defaulting every primary star to G-type", async () => {
     const wrapper = mountSectorSurvey({ galaxyId: "gal-1", viewMode: "sector" });
     await flushPromises();
@@ -328,6 +364,29 @@ describe("SectorSurvey page regressions", () => {
     expect(wrapper.vm.$.setupState.occupancyRealism).toBeCloseTo(0.85, 5);
     expect(preferencesStoreState.surveyOccupancyRealism).toBeCloseTo(0.65, 5);
     expect(preferencesStoreState.set).not.toHaveBeenCalled();
+  });
+
+  it("shows sector concentration against the standard baseline and current galaxy", async () => {
+    systemStoreState.systems = [
+      {
+        systemId: "sector-a:0101",
+        sectorId: "sector-a",
+        hexCoordinates: { x: 1, y: 1 },
+        planets: [{ name: "Verdant", nativeSophontLife: true, nativeLifeform: "2201", type: "Terrestrial Planet" }],
+      },
+    ];
+    systemStoreState.loadSystems.mockImplementation(async () => systemStoreState.systems);
+
+    const wrapper = mountSectorSurvey({ galaxyId: "gal-1", viewMode: "sector" });
+    await flushPromises();
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("Sector Concentration");
+    expect(wrapper.text()).toContain("Stars vs Standard");
+    expect(wrapper.text()).toContain("640 baseline");
+    expect(wrapper.text()).toContain("Sophonts vs Standard");
+    expect(wrapper.text()).toContain("16 baseline");
+    expect(wrapper.text()).toContain("vs this galaxy");
   });
 
   it("renders checklist and advances the guided review queue from the page controls", async () => {

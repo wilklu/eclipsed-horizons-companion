@@ -68,7 +68,12 @@ describe("sophontGenerator shared biology rules", () => {
 
     expect(second).toEqual(first);
     expect(first.sourceWorld?.name).toBe("Caledon");
-    expect(first.origin).toBe("Native sophont lineage");
+    expect(first.origin).toBeTruthy();
+    expect(first.lineage.originModel).toBeTruthy();
+    expect(first.lineage.humanAnalogueStatus).toBeTruthy();
+    expect(first.taxonomy.Domain).toBeTruthy();
+    expect(first.taxonomy.Family).toBeTruthy();
+    expect(first.taxonomy.Species).toBeTruthy();
     expect(first.civilization["Settlement Pattern"]).toBeTruthy();
     expect(first.worldIntegration.summary).toContain("culture");
     expect(first.diplomacy["Current Flashpoint"]).toBeTruthy();
@@ -157,6 +162,8 @@ describe("sophontGenerator shared biology rules", () => {
 
     expect(update.nativeSophontLife).toBe(true);
     expect(update.linkedSophontProfile.name).toBe("Caledans");
+    expect(update.linkedSophontProfile.scientificName).toBeTruthy();
+    expect(update.linkedSophontProfile.originModel).toBeTruthy();
     expect(update.secondaryWorldContext).toContain("Open contact");
     expect(update.linkedSophontProfile.currentFlashpoint).toBeTruthy();
     expect(update.remarks.length).toBeGreaterThan(0);

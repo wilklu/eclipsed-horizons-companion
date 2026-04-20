@@ -372,6 +372,26 @@
                 <span class="label">Avg Objects / Sector:</span>
                 <span class="value">{{ currentGalaxySectorStats.avgObjectsPerSector.toFixed(1) }}</span>
               </div>
+              <div class="property">
+                <span class="label">Star Density vs Standard:</span>
+                <span class="value">{{ starDensityComparisonLabel }}</span>
+              </div>
+              <div class="property">
+                <span class="label">Sector Spread / Galaxy:</span>
+                <span class="value">{{ starDensitySpreadLabel }}</span>
+              </div>
+              <div class="property">
+                <span class="label">Sophonts / Sector:</span>
+                <span class="value">{{ currentGalaxySectorStats.avgSophontsPerSector.toFixed(1) }}</span>
+              </div>
+              <div class="property">
+                <span class="label">Sophonts vs Baseline:</span>
+                <span class="value">{{ sophontDensityComparisonLabel }}</span>
+              </div>
+              <div class="property">
+                <span class="label">Sophont Spread / Galaxy:</span>
+                <span class="value">{{ sophontDensitySpreadLabel }}</span>
+              </div>
               <div v-if="currentGalaxySectorStats.legacyReconstructedCount" class="property">
                 <span class="label">Legacy Trees:</span>
                 <span class="value">{{ formatNumber(currentGalaxySectorStats.legacyReconstructedCount) }}</span>
@@ -1421,6 +1441,11 @@ const currentGalaxySectors = computed(() =>
     (sector) => String(sector?.galaxyId || "") === String(currentGalaxy.value?.galaxyId || ""),
   ),
 );
+const currentGalaxySystems = computed(() =>
+  systemStore.systems.filter(
+    (system) => String(system?.galaxyId || "") === String(currentGalaxy.value?.galaxyId || ""),
+  ),
+);
 const importInProgress = computed(() => galaxyStore.importInProgress);
 const importProgress = computed(() => galaxyStore.importProgress);
 const isLoading = computed(() => galaxyStore.isLoading);
@@ -1854,12 +1879,7 @@ async function refreshCurrentGalaxyLayoutCount(galaxy) {
   }
 }
 
-const currentGalaxyCachedSystemCount = computed(
-  () =>
-    systemStore.systems.filter(
-      (system) => String(system?.galaxyId || "") === String(currentGalaxy.value?.galaxyId || ""),
-    ).length,
-);
+const currentGalaxyCachedSystemCount = computed(() => currentGalaxySystems.value.length);
 
 const galaxyOccupancyRealismPercent = computed(() =>
   Math.round(clamp(Number(galaxyOccupancyRealism.value) || 1, 0, 2) * 100),
@@ -2600,7 +2620,10 @@ const mapChipTitle = computed(() =>
 );
 
 function normalizeSectorStats(stats) {
-  return normalizeGalaxySectorStats(stats, { sectors: currentGalaxySectors.value });
+  return normalizeGalaxySectorStats(stats, {
+    sectors: currentGalaxySectors.value,
+    systems: currentGalaxySystems.value,
+  });
 }
 
 function getGalaxyById(galaxyId) {
@@ -2667,6 +2690,7 @@ async function loadCurrentGalaxySectorStats({
       normalizeStats: (stats, { sectors } = {}) =>
         normalizeGalaxySectorStats(stats, {
           sectors: Array.isArray(sectors) ? sectors : currentGalaxySectors.value,
+          systems: currentGalaxySystems.value,
         }),
       getGalaxyById,
       persistStats: persistCachedSectorStats,
@@ -2692,6 +2716,31 @@ const sectorGenerationCoverageLabel = computed(() => {
 
   const pct = Math.round((generated / total) * 100);
   return `${generated} / ${total} (${pct}%)`;
+});
+
+const starDensityComparisonLabel = computed(() => {
+  const percent = Number(currentGalaxySectorStats.value.starBaselinePercent || 0);
+  const baseline = Number(currentGalaxySectorStats.value.starBaselinePerSector || 640);
+  return `${percent.toFixed(1)}% of ${baseline.toLocaleString()} baseline`;
+});
+
+const starDensitySpreadLabel = computed(() => {
+  const low = Number(currentGalaxySectorStats.value.sparsestSectorObjects || 0);
+  const high = Number(currentGalaxySectorStats.value.densestSectorObjects || 0);
+  return `${formatNumber(low)}–${formatNumber(high)} per sector in this galaxy`;
+});
+
+const sophontDensityComparisonLabel = computed(() => {
+  const percent = Number(currentGalaxySectorStats.value.sophontBaselinePercent || 0);
+  const baseline = Number(currentGalaxySectorStats.value.sophontBaselinePerSector || 16);
+  return `${percent.toFixed(1)}% of ${baseline.toLocaleString()} baseline`;
+});
+
+const sophontDensitySpreadLabel = computed(() => {
+  const sectors = Number(currentGalaxySectorStats.value.sophontBearingSectors || 0);
+  const peak = Number(currentGalaxySectorStats.value.densestSectorSophonts || 0);
+  const sectorLabel = `${formatNumber(sectors)} sector${sectors === 1 ? "" : "s"}`;
+  return `${sectorLabel} reporting sophonts · peak ${formatNumber(peak)} in one sector`;
 });
 
 function buildGalaxyLoadErrorMessage(rawError) {
