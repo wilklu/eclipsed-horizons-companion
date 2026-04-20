@@ -441,7 +441,7 @@
         </div>
 
         <div class="action-buttons">
-          <button class="btn btn-primary" @click="goToCreatureGenerator">🐾 Creature Generator →</button>
+          <button class="btn btn-primary" @click="goToCreatureGenerator">🐾 Fauna Generator →</button>
           <button class="btn btn-primary" @click="goToFloraGenerator">🌱 Flora Generator →</button>
           <button
             class="btn btn-primary"

@@ -75,10 +75,11 @@ const routes = [
     meta: { title: "Sophont Generator" },
   },
   {
-    path: "/creature-generator",
+    path: "/fauna-generator",
+    alias: ["/creature-generator"],
     name: "CreatureGenerator",
     component: () => import("../pages/surveys/CreatureGenerator.vue"),
-    meta: { title: "Creature Generator" },
+    meta: { title: "Fauna Generator" },
   },
   {
     path: "/flora-generator",

@@ -2,7 +2,7 @@
   <div class="creature-generator">
     <LoadingSpinner v-bind="creatureExportOverlayProps" />
     <SurveyNavigation
-      currentClass="Creature Generator"
+      currentClass="Fauna Generator"
       :show-regenerate="!!creature"
       :show-export="!!creature"
       :back-route="backRoute"
@@ -409,7 +409,7 @@
         v-if="!creature && !faunaBundle && !savedCreatures.length && !savedFaunaBundles.length"
         class="empty-placeholder"
       >
-        <h2>BeastMaker Creature Generator</h2>
+        <h2>BeastMaker Fauna Generator</h2>
         <p>Select terrain, world size, and niche guidance, then generate a rule-based creature profile.</p>
       </div>
     </div>

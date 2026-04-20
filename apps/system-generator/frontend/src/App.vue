@@ -14,7 +14,7 @@
         <router-link to="/galaxy" class="nav-link">Galaxy Survey</router-link>
         <router-link :to="sectorSurveyRoute" class="nav-link">Sector Survey</router-link>
         <router-link to="/sophont-generator" class="nav-link">Sophont Generator</router-link>
-        <router-link to="/creature-generator" class="nav-link">Creature Generator</router-link>
+        <router-link to="/fauna-generator" class="nav-link">Fauna Generator</router-link>
         <router-link to="/flora-generator" class="nav-link">Flora Generator</router-link>
         <router-link to="/history-generator" class="nav-link">History Generator</router-link>
         <router-link to="/character-generator" class="nav-link">Character Generator</router-link>

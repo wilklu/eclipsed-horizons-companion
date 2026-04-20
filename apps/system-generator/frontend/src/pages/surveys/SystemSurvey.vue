@@ -45,7 +45,7 @@
           </div>
         </div>
         <div class="survey-header-actions">
-          <button class="survey-action-btn" type="button" @click="openCreatureGenerator">🐾 Creature Generator</button>
+          <button class="survey-action-btn" type="button" @click="openCreatureGenerator">🐾 Fauna Generator</button>
           <button class="survey-action-btn" type="button" @click="openSophontGenerator">🧬 Sophont Generator</button>
         </div>
       </header>
