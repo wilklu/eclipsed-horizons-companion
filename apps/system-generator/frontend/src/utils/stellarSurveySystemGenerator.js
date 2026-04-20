@@ -78,6 +78,7 @@ export function buildPersistedSurveySystemFromHex({ galaxyId, sectorId, hex, nam
       : null);
   const legacyReconstructed = Boolean(hex?.legacyReconstructed);
   const legacyHierarchyUnknown = Boolean(hex?.legacyHierarchyUnknown);
+  const lineageSeed = `${sectorId}:${String(hex?.coord || "0000").trim()}`;
   let habitableZone = null;
   let planets = [];
   let mainworld = null;
@@ -88,7 +89,7 @@ export function buildPersistedSurveySystemFromHex({ galaxyId, sectorId, hex, nam
     planets = buildProfiledWbhSystemPlanets({
       stars,
       habitableZone,
-      createPlanetName: ({ type, usedNames }) =>
+      createPlanetName: ({ type, usedNames, index }) =>
         type === "Planetoid Belt"
           ? generateObjectName({
               mode: String(namingOptions.asteroidBeltNameMode || "phonotactic")
@@ -98,10 +99,15 @@ export function buildPersistedSurveySystemFromHex({ galaxyId, sectorId, hex, nam
               mythicTheme: String(namingOptions.galaxyMythicTheme || "all")
                 .trim()
                 .toLowerCase(),
+              lineageSeed,
+              seed: `${lineageSeed}:belt:${index}`,
+              parentName: String(hex?.coord || "").trim(),
             })
           : generateAutomaticWorldName({
               mode: namingOptions.worldNameMode,
               usedNames,
+              systemName: String(hex?.coord || "").trim(),
+              seed: `${lineageSeed}:world:${index}`,
             }),
     });
     mainworld = planets.find((world) => world?.isMainworld) ?? null;

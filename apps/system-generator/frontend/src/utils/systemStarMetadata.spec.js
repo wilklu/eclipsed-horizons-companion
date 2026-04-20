@@ -80,6 +80,54 @@ describe("systemStarMetadata", () => {
     expect(summary.secondaryStars).toEqual(["Aster Proximus Major", "Aster Procul Minor"]);
   });
 
+  it("prefers legacy starKey designation names over generic spectral-code placeholders", () => {
+    const summary = summarizeGeneratedStars([
+      { designation: "G2 V", starKey: "Aster Primus Major", spectralClass: "G2 V" },
+      { designation: "K7 V", starKey: "Aster Proximus Major", spectralClass: "K7 V" },
+    ]);
+
+    expect(summary.primaryDesignation).toBe("Aster Primus Major");
+    expect(summary.secondaryStars).toEqual(["Aster Proximus Major"]);
+  });
+
+  it("ignores generic Star-0 placeholder keys when no saved designation exists", () => {
+    const summary = summarizeGeneratedStars([
+      { designation: "", starKey: "Star-0", typeSubtype: "G2 V", spectralClass: "G2 V" },
+      { designation: "", starKey: "Star-1", typeSubtype: "K7 V", spectralClass: "K7 V" },
+    ]);
+
+    expect(summary.primaryDesignation).toBe("G2 V");
+    expect(summary.secondaryStars).toEqual(["K7 V"]);
+  });
+
+  it("derives system-based Primus and Proximus designations when saved stars only have generic labels", () => {
+    const stars = resolveGeneratedStarsFromSystem({
+      name: "Aster System",
+      stars: [
+        { designation: "G2 V", starKey: "star-0", spectralClass: "G2 V", orbitType: null, massInSolarMasses: 1 },
+        { designation: "K7 V", starKey: "star-1", spectralClass: "K7 V", orbitType: "Close", massInSolarMasses: 0.7 },
+      ],
+    });
+    const summary = summarizeGeneratedStars(stars);
+
+    expect(summary.primaryDesignation).toBe("Aster Primus Major");
+    expect(summary.secondaryStars).toEqual(["Aster Proximus Major"]);
+  });
+
+  it("derives system-based Primus and Proximus designations when saved stars only have generic labels", () => {
+    const stars = resolveGeneratedStarsFromSystem({
+      name: "Aster System",
+      stars: [
+        { designation: "G2 V", starKey: "star-0", spectralClass: "G2 V", orbitType: null, massInSolarMasses: 1 },
+        { designation: "K7 V", starKey: "star-1", spectralClass: "K7 V", orbitType: "Close", massInSolarMasses: 0.7 },
+      ],
+    });
+    const summary = summarizeGeneratedStars(stars);
+
+    expect(summary.primaryDesignation).toBe("Aster Primus Major");
+    expect(summary.secondaryStars).toEqual(["Aster Proximus Major"]);
+  });
+
   it("preserves anomaly labels in hex star metadata while keeping rich anomaly stars", () => {
     const metadata = buildHexStarTypeMetadata({
       anomalyType: "Black Hole",

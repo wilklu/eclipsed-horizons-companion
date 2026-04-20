@@ -1,3 +1,5 @@
+import { resolveGeneratedStarsFromSystem, resolvePreferredStarLabel } from "./systemStarMetadata";
+
 const STARPORT_LABELS = Object.freeze({
   A: "Excellent",
   B: "Good",
@@ -81,6 +83,9 @@ export function inferSystemNameFromSystemRecord(system = {}) {
     metadataSystemRecord?.systemDesignation,
     metadata?.displayName,
     inferSystemNameFromPrimaryDesignation(
+      resolvePreferredStarLabel(system?.primaryStar),
+      resolvePreferredStarLabel(system?.stars?.[0]),
+      resolvePreferredStarLabel(metadata?.generatedSurvey?.stars?.[0]),
       system?.primaryStar?.designation,
       system?.stars?.[0]?.designation,
       metadata?.generatedSurvey?.stars?.[0]?.designation,
@@ -558,6 +563,7 @@ export function summarizeSystemRecord(system) {
 
 export function buildSystemSummaryLabel({ system = null, fallbackHex = "Unknown Hex", starLabel = "" } = {}) {
   const summary = summarizeSystemRecord(system);
+  const generatedStars = resolveGeneratedStarsFromSystem(system || {});
   const systemName = firstNonEmptyString(
     summary?.systemName,
     inferSystemNameFromSystemRecord(system),
@@ -566,6 +572,10 @@ export function buildSystemSummaryLabel({ system = null, fallbackHex = "Unknown 
   );
   const primaryLabel = firstNonEmptyString(
     starLabel,
+    resolvePreferredStarLabel(generatedStars[0]),
+    resolvePreferredStarLabel(system?.primaryStar),
+    resolvePreferredStarLabel(system?.stars?.[0]),
+    generatedStars[0]?.designation,
     system?.primaryStar?.designation,
     system?.stars?.[0]?.designation,
     "Unknown primary",
@@ -581,11 +591,7 @@ export function buildSystemHexSummary(system = {}) {
   const metadataSystemRecord =
     metadata?.systemRecord && typeof metadata.systemRecord === "object" ? metadata.systemRecord : {};
 
-  const generatedStars = Array.isArray(system?.stars)
-    ? system.stars
-    : Array.isArray(system?.metadata?.generatedSurvey?.stars)
-      ? system.metadata.generatedSurvey.stars
-      : [];
+  const generatedStars = resolveGeneratedStarsFromSystem(system);
   const companionStars =
     generatedStars.length > 1
       ? generatedStars.slice(1)
@@ -593,13 +599,15 @@ export function buildSystemHexSummary(system = {}) {
         ? system.companionStars
         : [];
   const primaryStarName = firstNonEmptyHexSummary(
+    resolvePreferredStarLabel(generatedStars[0]),
+    resolvePreferredStarLabel(system?.primaryStar),
     generatedStars[0]?.designation,
     system?.primaryStar?.designation,
     generatedStars[0]?.spectralClass,
     system?.primaryStar?.spectralClass,
   );
   const secondaryStarNames = companionStars
-    .map((star) => firstNonEmptyHexSummary(star?.designation, star?.spectralClass))
+    .map((star) => firstNonEmptyHexSummary(resolvePreferredStarLabel(star), star?.designation, star?.spectralClass))
     .filter(Boolean);
 
   const systemName = firstNonEmptyHexSummary(inferSystemNameFromSystemRecord(system));

@@ -78,19 +78,33 @@ function normalizeHexCoordinates(value) {
   };
 }
 
+function isHexPlaceholderName(value) {
+  const text = String(value ?? "").trim();
+  return Boolean(text) && /^\d{4}(?:\s+system)?$/i.test(text);
+}
+
+function firstMeaningfulSystemName(...values) {
+  for (const value of values) {
+    const text = String(value ?? "").trim();
+    if (text && !isHexPlaceholderName(text)) {
+      return text;
+    }
+  }
+  return "";
+}
+
 function normalizeSystem(system) {
   const metadata = system?.metadata && typeof system.metadata === "object" ? system.metadata : {};
   const snapshot = metadata?.systemRecord && typeof metadata.systemRecord === "object" ? metadata.systemRecord : {};
-  const resolvedName = String(
-    system?.name ??
-      system?.systemName ??
-      system?.systemDesignation ??
-      snapshot?.name ??
-      snapshot?.systemName ??
-      snapshot?.systemDesignation ??
-      metadata?.displayName ??
-      "",
-  ).trim();
+  const resolvedName = firstMeaningfulSystemName(
+    system?.name,
+    system?.systemName,
+    system?.systemDesignation,
+    snapshot?.name,
+    snapshot?.systemName,
+    snapshot?.systemDesignation,
+    metadata?.displayName,
+  );
   const resolvedSystemDesignation = String(
     system?.systemDesignation ?? snapshot?.systemDesignation ?? resolvedName,
   ).trim();

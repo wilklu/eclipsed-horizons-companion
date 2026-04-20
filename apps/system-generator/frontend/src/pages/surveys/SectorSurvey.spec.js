@@ -376,6 +376,33 @@ describe("SectorSurvey page regressions", () => {
     expect(wrapper.findAll(".subsector-grid--sidebar .subsector-btn").length).toBeGreaterThan(0);
   });
 
+  it("keeps a clicked subsector hex selected after the mouse leaves the cell", async () => {
+    routeState.query = { sectorId: "sector-a", viewScope: "subsector", subsector: "A", from: "atlas" };
+
+    const wrapper = mountSectorSurvey({ galaxyId: "gal-1", viewMode: "subsector" });
+    await flushPromises();
+    await flushPromises();
+
+    const targetHex = wrapper.get('[data-hex-coord="0101"]');
+
+    await targetHex.trigger("mouseenter");
+    await targetHex.trigger("click");
+    await flushPromises();
+
+    expect(wrapper.vm.$.setupState.selectedHex).toBe("0101");
+    expect(wrapper.vm.$.setupState.inspectedHexSourceLabel).toBe("Selected");
+    expect(targetHex.classes()).toContain("selected");
+
+    await targetHex.trigger("mouseleave");
+    await flushPromises();
+
+    expect(wrapper.vm.$.setupState.selectedHex).toBe("0101");
+    expect(wrapper.vm.$.setupState.hoveredHex).toBe("0101");
+    expect(wrapper.vm.$.setupState.inspectedHexSourceLabel).toBe("Selected");
+    expect(wrapper.get('[data-hex-coord="0101"]').classes()).toContain("selected");
+    expect(wrapper.get('[data-hex-coord="0101"]').classes()).toContain("hex-cell--hovered");
+  });
+
   it("shows the Native Life and Sophont Life filter chips in subsector view", async () => {
     routeState.query = { sectorId: "sector-a", viewScope: "subsector", subsector: "A", from: "atlas" };
     systemStoreState.systems = [

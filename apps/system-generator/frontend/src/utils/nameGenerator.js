@@ -636,10 +636,119 @@ function sample(list) {
   return list[Math.floor(Math.random() * list.length)];
 }
 
+function sampleWithRng(list, rng = Math.random) {
+  return list[Math.floor(rng() * list.length)];
+}
+
+function hashString(value = "") {
+  let hash = 2166136261;
+  const text = String(value || "");
+  for (let index = 0; index < text.length; index += 1) {
+    hash ^= text.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function createSeededNameRng(seed = "") {
+  let state = hashString(seed) || 1;
+  return () => {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let mixed = Math.imul(state ^ (state >>> 15), 1 | state);
+    mixed ^= mixed + Math.imul(mixed ^ (mixed >>> 7), 61 | mixed);
+    return ((mixed ^ (mixed >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
 function titleCase(value) {
   return String(value || "")
     .trim()
     .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function extractObjectStem(value = "") {
+  const trimmed = String(value || "")
+    .trim()
+    .replace(
+      /\s+(?:sector|system|reach|march|expanse|drift|basin|gate|domain|field|cluster|crown|halo|fold|tide|belt|ring|zone|corridor|band|chain|arc|trail|swarm|tangle|stream|shelf|spur|tract|prime|secundus|tertius|quartus|quintus|major|minor)$/i,
+      "",
+    );
+
+  const token = String(trimmed.split(/\s+/)[0] || "")
+    .replace(/[^A-Za-z]/g, "")
+    .trim();
+
+  return titleCase(token);
+}
+
+function buildLineageStem(lineageSeed = "", style = "phonotactic") {
+  const rng = createSeededNameRng(lineageSeed || style || "frontier");
+  const syllables = PHONOTACTIC_STYLES[style] || PHONOTACTIC_STYLES.phonotactic;
+  const count = 2 + Math.floor(rng() * 2);
+  let result = "";
+
+  for (let index = 0; index < count; index += 1) {
+    result += sampleWithRng(syllables, rng);
+  }
+
+  return titleCase(result.replace(/(.)\1{2,}/gi, "$1$1"));
+}
+
+function normalizeFamilyRoot(value = "") {
+  const cleaned = String(value || "")
+    .replace(/[^A-Za-z]/g, "")
+    .trim();
+
+  if (!cleaned) {
+    return "Aster";
+  }
+
+  const shortened =
+    cleaned.length > 6 ? cleaned.replace(/(?:ian|ean|an|ar|or|on|os|is|um|us|a|e)$/i, "") || cleaned : cleaned;
+
+  return titleCase(shortened);
+}
+
+function buildAdjectivalRoot(root = "", rng = Math.random) {
+  const base = normalizeFamilyRoot(root);
+  if (/[aeiou]$/i.test(base)) {
+    return `${base}${sampleWithRng(["n", "r"], rng)}`;
+  }
+  return `${base}${sampleWithRng(["an", "ian", "ar"], rng)}`;
+}
+
+function buildClusteredObjectName({
+  objectType = "generic",
+  seed = "",
+  lineageSeed = "",
+  parentName = "",
+  style = "phonotactic",
+} = {}) {
+  const familySeed = String(lineageSeed || parentName || seed || objectType || "frontier").trim();
+  const variantSeed = `${familySeed}:${seed}:${objectType}:${parentName}`;
+  const rng = createSeededNameRng(variantSeed);
+  const inheritedStem = extractObjectStem(parentName);
+  const lineageStem =
+    inheritedStem || buildLineageStem(familySeed, style === "normalized" ? "normalized" : "phonotactic");
+  const root = normalizeFamilyRoot(lineageStem);
+
+  if (objectType === "sector") {
+    return `${buildAdjectivalRoot(root, rng)} ${sampleWithRng(["Reach", "March", "Expanse", "Drift", "Basin", "Gate", "Frontier", "Depths"], rng)}`;
+  }
+
+  if (objectType === "asteroid-belt") {
+    return `${buildAdjectivalRoot(root, rng)} ${sampleWithRng(NORMALIZED_OBJECT_NOUNS["asteroid-belt"], rng)}`;
+  }
+
+  if (objectType === "system") {
+    return `${root}${sampleWithRng(["a", "ia", "is", "os", "on", "or", "ar", "um", "ea"], rng)}`;
+  }
+
+  if (objectType === "planet") {
+    return `${root}${sampleWithRng(["a", "e", "is", "on", "or", " Prime", " Secundus", " Tertius"], rng)}`;
+  }
+
+  return `${buildAdjectivalRoot(root, rng)} ${sampleWithRng(NORMALIZED_NOUNS, rng)}`;
 }
 
 function ensureObjectSuffix(value, objectType = "generic") {
@@ -766,7 +875,31 @@ export function generateObjectName({
   objectType = "generic",
   mythicTheme = "all",
   avoid = "",
+  seed = "",
+  lineageSeed = "",
+  parentName = "",
 } = {}) {
+  const blocked = String(avoid || "")
+    .trim()
+    .toLowerCase();
+
+  if (mode === "clustered") {
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      const nextName = titleCase(
+        buildClusteredObjectName({
+          objectType,
+          seed: `${seed || lineageSeed || objectType}:${attempt}`,
+          lineageSeed,
+          parentName,
+          style: objectType === "sector" ? "normalized" : "phonotactic",
+        }),
+      );
+      if (nextName && nextName.toLowerCase() !== blocked) {
+        return nextName;
+      }
+    }
+  }
+
   if (mode === "phonotactic") {
     return generatePhonotacticObjectName({ objectType, avoid });
   }

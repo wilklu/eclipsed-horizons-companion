@@ -1388,7 +1388,7 @@ import ConfirmDialog from "../../components/common/ConfirmDialog.vue";
 import GalaxySurveyOperationsPanel from "../../components/galaxy-survey/GalaxySurveyOperationsPanel.vue";
 import GalaxySurveyMapInspector from "../../components/galaxy-survey/GalaxySurveyMapInspector.vue";
 import * as toastService from "../../utils/toast.js";
-import { generateGalaxyName, generatePhonotacticName } from "../../utils/nameGenerator.js";
+import { generateGalaxyName, generateObjectName, generatePhonotacticName } from "../../utils/nameGenerator.js";
 import { usePreferencesStore } from "../../stores/preferencesStore.js";
 import { useArchiveTransfer } from "../../composables/useArchiveTransfer.js";
 import {
@@ -4721,6 +4721,14 @@ function randomSectorName() {
   if (mode === "list") {
     return SECTOR_NAMES[Math.floor(Math.random() * SECTOR_NAMES.length)];
   }
+  if (mode === "clustered") {
+    return generateObjectName({
+      mode: "clustered",
+      objectType: "sector",
+      lineageSeed: String(newGalaxyForm.value.name || route.query.galaxyId || "galaxy").trim(),
+      seed: `${String(newGalaxyForm.value.name || route.query.galaxyId || "galaxy")}:${Date.now()}`,
+    });
+  }
   return generatePhonotacticName({ style: mode, syllablesMin: 2, syllablesMax: 3 });
 }
 
@@ -4770,6 +4778,15 @@ const SEEDED_NAME_SUFFIXES = Object.freeze(["Reach", "March", "Span", "Expanse",
 function buildSeededSectorName(seed) {
   const style = String(preferencesStore.sectorNameMode || "list");
   const hash = hashString(seed);
+
+  if (style === "clustered") {
+    return generateObjectName({
+      mode: "clustered",
+      objectType: "sector",
+      lineageSeed: String(seed || "sector").trim(),
+      seed: String(seed || "sector").trim(),
+    });
+  }
 
   if (style === "list") {
     const base = SECTOR_NAMES[hash % SECTOR_NAMES.length];

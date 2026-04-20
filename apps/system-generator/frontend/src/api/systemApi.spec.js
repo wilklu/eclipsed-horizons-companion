@@ -117,6 +117,38 @@ describe("systemApi", () => {
     expect(systems[0].metadata.generatedSurvey.legacyReconstructed).toBe(true);
   });
 
+  it("keeps the saved system display name when legacy payloads only expose a hex placeholder at the top level", async () => {
+    globalThis.fetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => [
+        {
+          systemId: "sec-1:0101",
+          sectorId: "sec-1",
+          galaxyId: "gal-1",
+          name: "0101",
+          systemName: "0101",
+          metadata: {
+            displayName: "Aster System",
+            systemRecord: {
+              name: "Aster System",
+              systemDesignation: "Aster System",
+            },
+          },
+          stars: [{ designation: "Aster Primus Major", spectralClass: "G2 V" }],
+        },
+      ],
+    });
+
+    const systems = await getSystemsBySector("sec-1");
+
+    expect(systems).toHaveLength(1);
+    expect(systems[0].name).toBe("Aster System");
+    expect(systems[0].systemName).toBe("Aster System");
+    expect(systems[0].metadata.displayName).toBe("Aster System");
+    expect(systems[0].stars[0].designation).toBe("Aster Primus Major");
+  });
+
   it("replaces cached systems by sector without dropping other sectors", async () => {
     globalThis.localStorage.setItem(
       "eclipsed-horizons-systems",

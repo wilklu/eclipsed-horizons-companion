@@ -878,7 +878,7 @@ import { starDescriptorToColor, starDescriptorToCssClass } from "../../utils/sta
 import * as galaxyApi from "../../api/galaxyApi.js";
 import * as sectorApi from "../../api/sectorApi.js";
 import { calculateHexOccupancyProbability, pickCentralAnomalyType } from "../../utils/sectorGeneration.js";
-import { generatePhonotacticName } from "../../utils/nameGenerator.js";
+import { generateObjectName, generatePhonotacticName } from "../../utils/nameGenerator.js";
 import { generateGalaxySectorLayout } from "../../utils/sectorLayoutGenerator.js";
 import { buildPersistedSurveySystemFromHex } from "../../utils/stellarSurveySystemGenerator.js";
 import { buildSectorHexesFromMetadata as buildPersistedSectorHexesFromMetadata } from "../../utils/sectorPreviewState.js";
@@ -2572,8 +2572,10 @@ function hoverHex(hex) {
 
 function clearHoveredHex(hex = null) {
   const coord = String(hex?.coord || hex || "").trim();
+  const lockedCoord = String(selectedHex.value || "").trim();
+
   if (!coord || hoveredHex.value === coord) {
-    hoveredHex.value = null;
+    hoveredHex.value = lockedCoord || null;
   }
 }
 
@@ -2775,9 +2777,18 @@ function createSectorId(name, coordinates = null) {
 
 function generateRandomSectorBaseName() {
   const mode = preferencesStore.sectorNameMode;
-  return mode === "list"
-    ? SECTOR_NAMES[Math.floor(Math.random() * SECTOR_NAMES.length)]
-    : generatePhonotacticName({ style: mode, syllablesMin: 2, syllablesMax: 3 });
+  if (mode === "list") {
+    return SECTOR_NAMES[Math.floor(Math.random() * SECTOR_NAMES.length)];
+  }
+  if (mode === "clustered") {
+    return generateObjectName({
+      mode: "clustered",
+      objectType: "sector",
+      lineageSeed: String(props.galaxyId || route.query.galaxyId || selectedSectorId.value || "galaxy").trim(),
+      seed: `${String(props.galaxyId || route.query.galaxyId || selectedSectorId.value || "galaxy")}:${Date.now()}`,
+    });
+  }
+  return generatePhonotacticName({ style: mode, syllablesMin: 2, syllablesMax: 3 });
 }
 
 function buildGeneratedSectorName(baseName) {

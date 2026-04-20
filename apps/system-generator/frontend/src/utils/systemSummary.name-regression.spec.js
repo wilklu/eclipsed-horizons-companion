@@ -33,7 +33,7 @@ describe("systemSummary naming regressions", () => {
         },
         fallbackHex: "0101",
       }),
-    ).toBe("Aster System · K2 V");
+    ).toBe("Aster System · Aster Primus Major");
   });
 
   it("exposes the saved system name in stellar hex summaries for Sector Survey cards", () => {
@@ -69,6 +69,19 @@ describe("systemSummary naming regressions", () => {
     ).toBe("Aster System · Aster Primus Major");
   });
 
+  it("derives a system name from a legacy starKey designation when top-level names are only hex placeholders", () => {
+    expect(
+      buildSystemSummaryLabel({
+        system: {
+          name: "0101",
+          systemId: "g-1:0101",
+          stars: [{ designation: "G2 V", starKey: "Aster Primus Major", spectralClass: "G2 V" }],
+        },
+        fallbackHex: "0101",
+      }),
+    ).toBe("Aster System · Aster Primus Major");
+  });
+
   it("prefers saved display names over legacy hex placeholders in stellar summaries", () => {
     const summary = summarizeSystemRecord({
       name: "0101",
@@ -95,6 +108,38 @@ describe("systemSummary naming regressions", () => {
             },
           },
           stars: [{ designation: "Aster Primus Major", spectralClass: "G2 V" }],
+        },
+        fallbackHex: "0101",
+      }),
+    ).toBe("Aster System · Aster Primus Major");
+  });
+
+  it("builds system-based stellar labels from the saved system name when stars only have generic placeholders", () => {
+    expect(
+      buildSystemSummaryLabel({
+        system: {
+          name: "Aster System",
+          systemId: "g-1:0101",
+          stars: [
+            { designation: "G2 V", starKey: "star-0", spectralClass: "G2 V", orbitType: null },
+            { designation: "K7 V", starKey: "star-1", spectralClass: "K7 V", orbitType: "Close" },
+          ],
+        },
+        fallbackHex: "0101",
+      }),
+    ).toBe("Aster System · Aster Primus Major");
+  });
+
+  it("builds system-based stellar labels from the saved system name when stars only have generic placeholders", () => {
+    expect(
+      buildSystemSummaryLabel({
+        system: {
+          name: "Aster System",
+          systemId: "g-1:0101",
+          stars: [
+            { designation: "G2 V", starKey: "star-0", spectralClass: "G2 V", orbitType: null },
+            { designation: "K7 V", starKey: "star-1", spectralClass: "K7 V", orbitType: "Close" },
+          ],
         },
         fallbackHex: "0101",
       }),

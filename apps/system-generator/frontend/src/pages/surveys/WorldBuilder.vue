@@ -1158,6 +1158,8 @@ function generateRandomWorldName() {
     parentWorldName: selectedPlanet?.parentWorldName,
     moonOrdinal: selectedPlanet?.moonOrdinal,
     orbitalSlot: selectedPlanet?.orbitalSlot,
+    systemName: String(system.value?.name || route.query.systemName || route.query.star || "").trim(),
+    seed: `${String(system.value?.systemId || route.query.systemId || "world")}:${String(selectedPlanet?.orbitalSlot || selectedPlanet?.name || "0")}`,
   });
 }
 

@@ -1,4 +1,4 @@
-import { generatePhonotacticName } from "./nameGenerator.js";
+import { generateObjectName, generatePhonotacticName } from "./nameGenerator.js";
 import { resolveStarDescriptorToken } from "./starDisplay.js";
 import { scoreMainworldCandidateWbh, selectMainworldCandidateWbh } from "./wbh/systemGenerationWbh.js";
 import {
@@ -3135,6 +3135,8 @@ export function generateAutomaticWorldName({
   parentWorldName = "",
   moonOrdinal = null,
   orbitalSlot = null,
+  systemName = "",
+  seed = "",
 } = {}) {
   const normalizedMode = String(mode || "list")
     .trim()
@@ -3146,6 +3148,15 @@ export function generateAutomaticWorldName({
   }
 
   const buildCandidate = () => {
+    if (normalizedMode === "clustered") {
+      return generateObjectName({
+        mode: "clustered",
+        objectType: "planet",
+        parentName: systemName,
+        lineageSeed: String(systemName || seed || "frontier-world"),
+        seed: `${String(seed || systemName || "planet")}:${reserved?.size || 0}`,
+      });
+    }
     if (normalizedMode === "phonotactic" || normalizedMode === "normalized") {
       return generatePhonotacticName({ style: normalizedMode, syllablesMin: 2, syllablesMax: 4 });
     }

@@ -270,7 +270,11 @@ import {
   stopSpeechSynthesis,
 } from "../../utils/speechSynthesis.js";
 import { generatePrimaryStar } from "../../utils/primaryStarGenerator.js";
-import { buildHexStarTypeMetadata, resolveGeneratedStarsFromSystem } from "../../utils/systemStarMetadata.js";
+import {
+  buildHexStarTypeMetadata,
+  resolveGeneratedStarsFromSystem,
+  resolvePreferredStarLabel,
+} from "../../utils/systemStarMetadata.js";
 import { applyPlanetaryBodyClassification } from "../../utils/systemWorldClassification.js";
 import {
   buildProfiledWbhSystemPlanets,
@@ -709,20 +713,7 @@ function ensureSystemSuffix(name) {
 }
 
 function resolveStarDisplayLabel(star = null) {
-  const designation = String(star?.designation || star?.name || star?.label || star?.starKey || "").trim();
-  const preferredDesignation = /^[A-Z]$/i.test(designation) ? "" : designation;
-
-  return (
-    firstNonEmptySystemName(
-      preferredDesignation,
-      star?.spectralClass,
-      star?.spectralType,
-      star?.typeSubtype,
-      star?.starType,
-      star?.objectType,
-      star?.starKey,
-    ) || "Unknown"
-  );
+  return String(resolvePreferredStarLabel(star) || "").trim() || "Unknown";
 }
 
 function buildDisplayReadySystem(systemRecord = null) {
@@ -1236,7 +1227,7 @@ async function buildSystem() {
     buildProfiledWbhSystemPlanets({
       stars,
       habitableZone: hz,
-      createPlanetName: ({ type, usedNames }) =>
+      createPlanetName: ({ type, usedNames, index }) =>
         type === "Planetoid Belt"
           ? generateObjectName({
               mode: String(preferencesStore.asteroidBeltNameMode || "phonotactic")
@@ -1246,10 +1237,15 @@ async function buildSystem() {
               mythicTheme: String(preferencesStore.galaxyMythicTheme || "all")
                 .trim()
                 .toLowerCase(),
+              lineageSeed: `${props.sectorId || "sector"}:${nextSystemName}`,
+              seed: `${props.sectorId || "sector"}:${hexCoord.value || "0000"}:belt:${index}`,
+              parentName: nextSystemName,
             })
           : generateAutomaticWorldName({
               mode: preferencesStore.worldNameMode,
               usedNames,
+              systemName: nextSystemName,
+              seed: `${props.sectorId || "sector"}:${hexCoord.value || "0000"}:world:${index}`,
             }),
     }),
   );
@@ -1389,13 +1385,16 @@ function generateSystemName() {
     .trim()
     .toLowerCase();
 
+  const lineageSeed = `${props.galaxyId || "galaxy"}:${props.sectorId || route.query.sectorId || "sector"}`;
+  const systemSeed = `${lineageSeed}:${hexCoord.value || route.query.hex || "0000"}`;
+
   let next = "";
   if (mode === "normalized" || mode === "phonotactic") {
     next = generatePhonotacticName({ style: mode, syllablesMin: 2, syllablesMax: 4 });
   } else if (mode === "mythic") {
     next = generateObjectName({
       mode: "mythic",
-      objectType: "generic",
+      objectType: "system",
       mythicTheme: String(preferencesStore.galaxyMythicTheme || "all")
         .trim()
         .toLowerCase(),
@@ -1405,10 +1404,12 @@ function generateSystemName() {
       mode: String(mode || "normalized")
         .trim()
         .toLowerCase(),
-      objectType: "generic",
+      objectType: "system",
       mythicTheme: String(preferencesStore.galaxyMythicTheme || "all")
         .trim()
         .toLowerCase(),
+      lineageSeed,
+      seed: systemSeed,
     });
   }
 

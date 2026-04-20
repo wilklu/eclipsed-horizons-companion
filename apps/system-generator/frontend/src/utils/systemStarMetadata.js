@@ -112,15 +112,33 @@ export function resolveStarRecord(starType, orbitType = null) {
 
 function hasMeaningfulStarDesignation(value) {
   const text = String(value || "").trim();
-  return Boolean(text) && !/^[A-Z]$/i.test(text);
+  if (!text) {
+    return false;
+  }
+
+  const compact = text.toUpperCase().replace(/\s+/g, "");
+  return (
+    !/^[A-Z]$/i.test(text) &&
+    !/^(?:star|primary|secondary|tertiary|companion)(?:\s+star)?(?:[-_\s]*\d+)?$/i.test(text) &&
+    !/^(?:O|B|A|F|G|K|M|L|T|Y|D|BD)\d{0,2}(?:IA|IB|II|III|IV|V|VI|VII)?$/.test(compact) &&
+    !/^(?:PROTOSTAR|ANOMALY|BLACKHOLE|PULSAR|NEUTRONSTAR|QUASARREMNANT|DENSECLUSTER|NEBULA|STARCLUSTER)$/.test(compact)
+  );
 }
 
-function resolvePreferredStarLabel(star = {}) {
+export function resolvePreferredStarLabel(star = {}) {
   if (!star || typeof star !== "object" || Array.isArray(star)) {
     return String(star || "").trim();
   }
 
-  const designation = String(star?.designation || star?.name || star?.label || star?.starKey || "").trim();
+  const preferredNamedLabel = [star?.name, star?.label, star?.starKey]
+    .map((value) => String(value || "").trim())
+    .find((value) => hasMeaningfulStarDesignation(value));
+
+  if (preferredNamedLabel) {
+    return preferredNamedLabel;
+  }
+
+  const designation = String(star?.designation || "").trim();
   if (hasMeaningfulStarDesignation(designation)) {
     return designation;
   }
@@ -128,6 +146,130 @@ function resolvePreferredStarLabel(star = {}) {
   return String(
     star?.spectralClass || star?.spectralType || star?.typeSubtype || star?.starType || star?.objectType || designation,
   ).trim();
+}
+
+function isHexPlaceholderSystemName(value) {
+  const text = String(value || "").trim();
+  return Boolean(text) && (/^\d{4}(?:\s+system)?$/i.test(text) || /^[a-z0-9:_,-]*:\d{4}$/i.test(text));
+}
+
+function extractDirectSystemBaseName(value) {
+  const text = String(value || "").trim();
+  if (!text || isHexPlaceholderSystemName(text)) {
+    return "";
+  }
+
+  const baseName = text.replace(/\s+System$/i, "").trim();
+  return hasMeaningfulStarDesignation(baseName) ? baseName : "";
+}
+
+function extractSystemBaseNameFromDesignation(value) {
+  const text = String(value || "").trim();
+  if (!text) {
+    return "";
+  }
+
+  const designationMatch = text.match(/^(.*?)\s+(?:Primus|Proximus|Proximum|Procul|Procol)\s+(?:Major|Minor)\s*$/i);
+  return designationMatch?.[1] ? extractDirectSystemBaseName(designationMatch[1]) : "";
+}
+
+function resolveSystemBaseName(system = {}) {
+  const metadata = system?.metadata && typeof system.metadata === "object" ? system.metadata : {};
+  const snapshot = metadata?.systemRecord && typeof metadata.systemRecord === "object" ? metadata.systemRecord : {};
+  const profiles = system?.profiles && typeof system.profiles === "object" ? system.profiles : {};
+
+  const directName = [
+    system?.name,
+    system?.systemName,
+    system?.systemDesignation,
+    profiles?.systemDesignation,
+    profiles?.systemName,
+    snapshot?.name,
+    snapshot?.systemName,
+    snapshot?.systemDesignation,
+    metadata?.displayName,
+  ]
+    .map((value) => extractDirectSystemBaseName(value))
+    .find(Boolean);
+
+  if (directName) {
+    return directName;
+  }
+
+  return (
+    [
+      system?.primaryStar,
+      ...(Array.isArray(system?.stars) ? system.stars : []),
+      ...(Array.isArray(metadata?.generatedSurvey?.stars) ? metadata.generatedSurvey.stars : []),
+    ]
+      .map((star) => extractSystemBaseNameFromDesignation(resolvePreferredStarLabel(star)))
+      .find(Boolean) || ""
+  );
+}
+
+function normalizeStarOrbitCategory(star = {}, index = 0) {
+  if (index === 0) {
+    return "primary";
+  }
+
+  const raw = String(star?.orbitType || "far")
+    .trim()
+    .toLowerCase();
+
+  if (raw === "distant") return "far";
+  if (raw === "companion") return "close";
+  if (["primary", "close", "near", "far"].includes(raw)) return raw;
+  return index === 1 ? "close" : "far";
+}
+
+export function applySystemBasedStarDesignations(stars = [], system = {}) {
+  const baseName = typeof system === "string" ? extractSystemBaseName(system) : resolveSystemBaseName(system);
+  const starList = (Array.isArray(stars) ? stars : []).map((star) => ({ ...star }));
+
+  if (!baseName || !starList.length) {
+    return starList;
+  }
+
+  const groups = new Map();
+  starList.forEach((star, index) => {
+    const category = normalizeStarOrbitCategory(star, index);
+    if (!groups.has(category)) {
+      groups.set(category, []);
+    }
+    groups.get(category).push({ index, star });
+  });
+
+  const prefixes = { primary: "Primus", close: "Proximus", near: "Proximum", far: "Procul" };
+
+  for (const [category, entries] of groups.entries()) {
+    let majorEntry = entries[0];
+    if (category === "primary") {
+      majorEntry = entries.find((entry) => entry.index === 0) || entries[0];
+    } else {
+      majorEntry = entries.reduce((best, current) => {
+        const bestMass = Number(best.star?.massInSolarMasses ?? best.star?.mass ?? 0);
+        const currentMass = Number(current.star?.massInSolarMasses ?? current.star?.mass ?? 0);
+        return currentMass > bestMass ? current : best;
+      }, entries[0]);
+    }
+
+    for (const entry of entries) {
+      const alreadyNamed = [entry.star?.name, entry.star?.label, entry.star?.starKey, entry.star?.designation].some(
+        (value) => hasMeaningfulStarDesignation(value),
+      );
+      if (alreadyNamed) {
+        continue;
+      }
+
+      const suffix = entry === majorEntry ? "Major" : "Minor";
+      starList[entry.index] = {
+        ...starList[entry.index],
+        designation: `${baseName} ${prefixes[category] || "Procul"} ${suffix}`.trim(),
+      };
+    }
+  }
+
+  return starList;
 }
 
 export function cloneGeneratedStarRecord(star, fallbackOrbitType = null) {
@@ -141,13 +283,17 @@ export function cloneGeneratedStarRecord(star, fallbackOrbitType = null) {
         star?.objectType ||
         designationLabel,
     ).trim();
-    const designation = resolvePreferredStarLabel(star) || designationLabel || spectralValue;
-    const spectralClass = spectralValue || designation;
-    const fallbackRecord = resolveStarRecord(spectralClass || designation || "G2V", fallbackOrbitType);
+    const fallbackRecord = resolveStarRecord(spectralValue || designationLabel || "G2V", fallbackOrbitType);
+    const preferredLabel = resolvePreferredStarLabel(star);
+    const designation = hasMeaningfulStarDesignation(preferredLabel)
+      ? preferredLabel
+      : fallbackRecord.designation || designationLabel || spectralValue;
+    const spectralClass = spectralValue || fallbackRecord.spectralClass || designation;
     const massInSolarMasses = Number(star?.massInSolarMasses ?? star?.mass);
     const luminosity = Number(star?.luminosity);
     const temperatureK = Number(star?.temperatureK ?? star?.temperature);
     return {
+      ...fallbackRecord,
       ...star,
       designation,
       spectralClass,
@@ -207,10 +353,13 @@ export function buildHexStarTypeMetadata({
     existingGeneratedStars: generatedStars,
     fallbackStarType,
   });
-  const { primaryDesignation, secondaryStars: summarizedSecondaryStars } = summarizeGeneratedStars(stars);
+  const { secondaryStars: summarizedSecondaryStars } = summarizeGeneratedStars(stars);
+  const primarySpectralType = String(
+    stars[0]?.spectralClass || stars[0]?.spectralType || stars[0]?.typeSubtype || stars[0]?.starType || "",
+  ).trim();
 
   return {
-    starType: String(anomalyType || primaryDesignation || fallbackStarType).trim() || fallbackStarType,
+    starType: String(anomalyType || primarySpectralType || fallbackStarType).trim() || fallbackStarType,
     secondaryStars: summarizedSecondaryStars,
     generatedStars: stars,
     anomalyType: anomalyType ?? null,
@@ -389,19 +538,24 @@ export function resolveGeneratedStarsFromSystem(system = {}) {
             ? snapshot.secondaryStars
             : [];
 
-  return buildGeneratedStars({
+  const stars = buildGeneratedStars({
     primary: primarySource,
     secondaryStars: companionSource,
     existingGeneratedStars: explicitStars,
     fallbackStarType: system?.starType || snapshot?.starType || "G2V",
   });
+
+  return applySystemBasedStarDesignations(stars, system);
 }
 
 export function summarizeGeneratedStars(stars = []) {
   const starList = Array.isArray(stars) ? stars : [];
   const primary = starList[0] ?? resolveStarRecord("G2V");
   const primaryDesignation = resolvePreferredStarLabel(primary) || "G2V";
-  const primaryCode = primaryDesignation.charAt(0).toUpperCase() || "G";
+  const primaryCode = resolveStarDescriptorToken(
+    primary?.spectralClass || primary?.spectralType || primary?.typeSubtype || primary?.starType || primaryDesignation,
+    "G",
+  );
   const secondaryStars = starList
     .slice(1)
     .map((star) => resolvePreferredStarLabel(star))

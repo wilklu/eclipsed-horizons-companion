@@ -535,6 +535,219 @@ describe("StarSystemBuilder page", () => {
     expect(wrapper.text()).toContain("Aster Primus Major");
   });
 
+  it("shows saved legacy starKey names even when designation is only a spectral placeholder", async () => {
+    routeState.query = {
+      ...routeState.query,
+      systemName: "Aster System",
+    };
+
+    const legacyKeyedSystem = {
+      systemId: "gal-1:1,2:0101",
+      sectorId: "gal-1:1,2",
+      galaxyId: "gal-1",
+      stars: [
+        {
+          designation: "G2 V",
+          starKey: "Aster Primus Major",
+          spectralClass: "G2 V",
+          massInSolarMasses: 1,
+          luminosity: 1,
+          temperatureK: 5800,
+          orbitType: null,
+        },
+      ],
+      habitableZone: { innerAU: 0.9, outerAU: 1.6, frostLineAU: 4.8, hasRadiantHabitableZone: true },
+      planets: [],
+      metadata: {},
+    };
+
+    systemStoreState.systems = [legacyKeyedSystem];
+    systemStoreState.loadSystems = vi.fn(async () => systemStoreState.systems);
+    systemStoreState.findSystemByHex = vi.fn(() => legacyKeyedSystem);
+
+    const wrapper = mount(StarSystemBuilder, {
+      props: {
+        galaxyId: "gal-1",
+        sectorId: "grid:1:2",
+      },
+      global: {
+        stubs: {
+          LoadingSpinner: true,
+          SurveyNavigation: true,
+        },
+      },
+    });
+
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("Aster Primus Major");
+  });
+
+  it("does not fall back to hex names or Star-0 placeholders for legacy saved surveys", async () => {
+    routeState.query = {
+      hex: "0101",
+      systemRecordId: "gal-1:1,2:0101",
+    };
+
+    const genericLegacySystem = {
+      systemId: "gal-1:1,2:0101",
+      sectorId: "gal-1:1,2",
+      galaxyId: "gal-1",
+      name: "0101",
+      stars: [
+        {
+          designation: "Aster Primus Major",
+          starKey: "Star-0",
+          spectralClass: "G2 V",
+          massInSolarMasses: 1,
+          luminosity: 1,
+          temperatureK: 5800,
+          orbitType: null,
+        },
+      ],
+      habitableZone: { innerAU: 0.9, outerAU: 1.6, frostLineAU: 4.8, hasRadiantHabitableZone: true },
+      planets: [],
+      metadata: {
+        displayName: "Aster System",
+      },
+    };
+
+    systemStoreState.systems = [genericLegacySystem];
+    systemStoreState.loadSystems = vi.fn(async () => systemStoreState.systems);
+    systemStoreState.findSystemByHex = vi.fn(() => genericLegacySystem);
+
+    const wrapper = mount(StarSystemBuilder, {
+      props: {
+        galaxyId: "gal-1",
+        sectorId: "grid:1:2",
+      },
+      global: {
+        stubs: {
+          LoadingSpinner: true,
+          SurveyNavigation: true,
+        },
+      },
+    });
+
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("Aster System");
+    expect(wrapper.text()).toContain("Aster Primus Major");
+    expect(wrapper.text()).not.toContain("Star-0");
+  });
+
+  it("uses the system name to build Primus and Proximus designations for generic saved stars", async () => {
+    const autoNamedSystem = {
+      systemId: "gal-1:1,2:0101",
+      sectorId: "gal-1:1,2",
+      galaxyId: "gal-1",
+      name: "Aster System",
+      stars: [
+        {
+          designation: "G2 V",
+          starKey: "star-0",
+          spectralClass: "G2 V",
+          massInSolarMasses: 1,
+          luminosity: 1,
+          temperatureK: 5800,
+          orbitType: null,
+        },
+        {
+          designation: "K7 V",
+          starKey: "star-1",
+          spectralClass: "K7 V",
+          massInSolarMasses: 0.7,
+          luminosity: 0.2,
+          temperatureK: 4200,
+          orbitType: "Close",
+        },
+      ],
+      habitableZone: { innerAU: 0.9, outerAU: 1.6, frostLineAU: 4.8, hasRadiantHabitableZone: true },
+      planets: [],
+      metadata: {
+        displayName: "Aster System",
+      },
+    };
+
+    systemStoreState.systems = [autoNamedSystem];
+    systemStoreState.loadSystems = vi.fn(async () => systemStoreState.systems);
+    systemStoreState.findSystemByHex = vi.fn(() => autoNamedSystem);
+
+    const wrapper = mount(StarSystemBuilder, {
+      props: {
+        galaxyId: "gal-1",
+        sectorId: "grid:1:2",
+      },
+      global: {
+        stubs: {
+          LoadingSpinner: true,
+          SurveyNavigation: true,
+        },
+      },
+    });
+
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("Aster Primus Major");
+    expect(wrapper.text()).toContain("Aster Proximus Major");
+  });
+
+  it("uses the system name to build Primus and Proximus designations for generic saved stars", async () => {
+    const autoNamedSystem = {
+      systemId: "gal-1:1,2:0101",
+      sectorId: "gal-1:1,2",
+      galaxyId: "gal-1",
+      name: "Aster System",
+      stars: [
+        {
+          designation: "G2 V",
+          starKey: "star-0",
+          spectralClass: "G2 V",
+          massInSolarMasses: 1,
+          luminosity: 1,
+          temperatureK: 5800,
+          orbitType: null,
+        },
+        {
+          designation: "K7 V",
+          starKey: "star-1",
+          spectralClass: "K7 V",
+          massInSolarMasses: 0.7,
+          luminosity: 0.2,
+          temperatureK: 4200,
+          orbitType: "Close",
+        },
+      ],
+      habitableZone: { innerAU: 0.9, outerAU: 1.6, frostLineAU: 4.8, hasRadiantHabitableZone: true },
+      planets: [],
+      metadata: {
+        displayName: "Aster System",
+      },
+    };
+
+    systemStoreState.systems = [autoNamedSystem];
+    systemStoreState.loadSystems = vi.fn(async () => systemStoreState.systems);
+    systemStoreState.findSystemByHex = vi.fn(() => autoNamedSystem);
+
+    const wrapper = mount(StarSystemBuilder, {
+      props: {
+        galaxyId: "gal-1",
+        sectorId: "grid:1:2",
+      },
+      global: {
+        stubs: {
+          LoadingSpinner: true,
+          SurveyNavigation: true,
+        },
+      },
+    });
+
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("Aster Primus Major");
+    expect(wrapper.text()).toContain("Aster Proximus Major");
+  });
+
   it("renders clickable planet markers on the habitable-zone bar", async () => {
     const markerSystem = {
       systemId: "gal-1:1,2:0101",
