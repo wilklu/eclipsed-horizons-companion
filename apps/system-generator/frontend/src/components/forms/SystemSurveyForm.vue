@@ -325,16 +325,16 @@
                     <td>
                       <input v-model.number="world.temperature" type="number" class="table-input" placeholder="0" />
                       <div class="conversion">
-                        <small v-if="formatTemperatureFromKelvin(world.temperature) !== null">
+                        <small v-if="formatTemperatureFromKelvin(world.temperature) !== '—'">
                           ≈ {{ formatTemperatureFromKelvin(world.temperature) }}
                         </small>
                         <small v-else class="muted">—</small>
                         <div v-if="world.temperatureLow || world.temperatureHigh" style="margin-top: 4px">
-                          <small v-if="formatTemperatureFromKelvin(world.temperatureLow) !== null"
+                          <small v-if="formatTemperatureFromKelvin(world.temperatureLow) !== '—'"
                             >Low ≈ {{ formatTemperatureFromKelvin(world.temperatureLow) }}</small
                           >
                           <small
-                            v-if="formatTemperatureFromKelvin(world.temperatureHigh) !== null"
+                            v-if="formatTemperatureFromKelvin(world.temperatureHigh) !== '—'"
                             style="margin-left: 8px"
                             >High ≈ {{ formatTemperatureFromKelvin(world.temperatureHigh) }}</small
                           >
@@ -508,6 +508,7 @@
 import { computed, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import { useSystemStore } from "../../stores/systemStore";
+import { formatTemperatureFromKelvin } from "../../utils/temperatureFormatting.js";
 import {
   buildSurveyDataFromSystem,
   createEmptyStarRow,
@@ -671,32 +672,6 @@ const resetForm = () => {
 const printForm = () => {
   window.print();
 };
-
-// Temperature conversion helpers (Kelvin -> C / F)
-function formatNumber(value, decimals = 2) {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return "";
-  return n.toFixed(decimals).replace(/\.?0+$/, "");
-}
-
-function kelvinToCelsius(k) {
-  const n = Number(k);
-  if (!Number.isFinite(n)) return null;
-  return n - 273.15;
-}
-
-function kelvinToFahrenheit(k) {
-  const n = Number(k);
-  if (!Number.isFinite(n)) return null;
-  return (n - 273.15) * (9 / 5) + 32;
-}
-
-function formatTemperatureFromKelvin(k) {
-  const c = kelvinToCelsius(k);
-  const f = kelvinToFahrenheit(k);
-  if (c === null || f === null) return null;
-  return `${formatNumber(c, 2)} °C / ${formatNumber(f, 2)} °F`;
-}
 </script>
 
 <style scoped>

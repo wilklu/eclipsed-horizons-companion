@@ -181,4 +181,37 @@ describe("systemSummary", () => {
       }),
     ).toBe("1910 · K1 III");
   });
+
+  it("surfaces linked taxonomy badges for saved system summaries", () => {
+    const system = {
+      name: "Verdant",
+      stars: [{ designation: "Verdant Primus Major" }],
+      mainworld: {
+        name: "Verdant",
+        linkedFloraSummary: {
+          name: "Verdant Bloom",
+          scientificName: "Verdanta wetlandensis",
+          originModel: "Native botanical evolution",
+        },
+        linkedFaunaSummary: {
+          focusName: "Verdant Stalker",
+          scientificName: "Verdantus predatorensis",
+          originModel: "Ancient-seeded biosphere",
+        },
+        linkedSophontProfile: {
+          name: "Verdans",
+          scientificName: "Verdanis sapiens",
+          originModel: "Independent evolution",
+        },
+      },
+    };
+
+    const summary = summarizeSystemRecord(system);
+
+    expect(summary.linkedFloraScientificName).toBe("Verdanta wetlandensis");
+    expect(summary.linkedFaunaScientificName).toBe("Verdantus predatorensis");
+    expect(summary.linkedSophontScientificName).toBe("Verdanis sapiens");
+    expect(summary.ecologyBadges).toEqual(["🌿", "🐾", "🧬"]);
+    expect(buildSystemSummaryLabel({ system, fallbackHex: "0808" })).toContain("🌿 🐾 🧬");
+  });
 });

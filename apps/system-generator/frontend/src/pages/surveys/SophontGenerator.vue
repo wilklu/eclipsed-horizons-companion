@@ -328,8 +328,9 @@
           <article v-for="entry in savedSophonts" :key="entry.id" class="saved-record-card">
             <div class="saved-record-copy">
               <strong>{{ entry.name }}</strong>
-              <span>{{ entry.worldName || "Unlinked culture" }}</span>
-              <span>{{ entry.origin || entry.tagline }}</span>
+              <span>{{ entry.taxonomy?.["Scientific Name"] || "Unclassified sophont" }}</span>
+              <span>{{ entry.lineage?.originModel || entry.origin || entry.worldName || "Unlinked culture" }}</span>
+              <span>{{ entry.tagline || "Saved dossier" }}</span>
             </div>
             <div class="saved-record-actions">
               <button class="btn btn-secondary" @click="loadSavedSophont(entry)">Load</button>
@@ -798,7 +799,18 @@ function resetForm() {
 async function exportSophont() {
   if (!sophont.value) return;
   await exportSophontArchive({
-    data: sophont.value,
+    data: {
+      exportVersion: 1,
+      exportedAt: new Date().toISOString(),
+      recordType: "sophont",
+      manifest: {
+        displayName: sophont.value.name || "Sophont",
+        scientificName: sophont.value.taxonomy?.["Scientific Name"] || "Unclassified sophont",
+        originModel: sophont.value.lineage?.originModel || sophont.value.origin || "Unknown origin",
+        worldName: sophont.value.sourceWorld?.name || selectedWorldOption.value?.worldName || "Unlinked culture",
+      },
+      data: sophont.value,
+    },
     filename: (sophontRecord) => `${sophontRecord.name.replace(/\s+/g, "-")}-Sophont.json`,
     serializeMessage: "Serializing sophont dossier...",
     encodeMessage: "Encoding sophont archive for transfer...",

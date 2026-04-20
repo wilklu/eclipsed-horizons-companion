@@ -343,6 +343,68 @@ function summarizeSecondaryWorldProfiles(...sources) {
   return "";
 }
 
+function extractLinkedEcologySummary(system = {}, mainworld = null) {
+  const metadata = system?.metadata && typeof system.metadata === "object" ? system.metadata : {};
+  const candidates = [
+    mainworld,
+    ...(Array.isArray(system?.planets) ? system.planets : []),
+    ...(Array.isArray(system?.worlds) ? system.worlds : []),
+    metadata?.mainworld,
+  ].filter((entry) => entry && typeof entry === "object");
+
+  const flora =
+    candidates.find((entry) => entry?.linkedFloraSummary && typeof entry.linkedFloraSummary === "object")
+      ?.linkedFloraSummary || null;
+  const fauna =
+    candidates.find((entry) => entry?.linkedFaunaSummary && typeof entry.linkedFaunaSummary === "object")
+      ?.linkedFaunaSummary || null;
+  const sophont =
+    candidates.find((entry) => entry?.linkedSophontProfile && typeof entry.linkedSophontProfile === "object")
+      ?.linkedSophontProfile || null;
+
+  const signals = [
+    flora
+      ? {
+          kind: "flora",
+          icon: "🌿",
+          label: "Flora",
+          scientificName: firstNonEmptyString(flora?.scientificName, flora?.name) || "Unclassified flora",
+          originModel: firstNonEmptyString(flora?.originModel, flora?.origin) || "Unknown lineage",
+        }
+      : null,
+    fauna
+      ? {
+          kind: "fauna",
+          icon: "🐾",
+          label: "Fauna",
+          scientificName:
+            firstNonEmptyString(fauna?.scientificName, fauna?.focusName, fauna?.name) || "Unclassified fauna",
+          originModel: firstNonEmptyString(fauna?.originModel, fauna?.origin) || "Unknown lineage",
+        }
+      : null,
+    sophont
+      ? {
+          kind: "sophont",
+          icon: "🧬",
+          label: "Sophont",
+          scientificName: firstNonEmptyString(sophont?.scientificName, sophont?.name) || "Unclassified sophont",
+          originModel: firstNonEmptyString(sophont?.originModel, sophont?.origin) || "Unknown origin",
+        }
+      : null,
+  ].filter(Boolean);
+
+  return {
+    linkedFloraScientificName: firstNonEmptyString(flora?.scientificName, flora?.name) || "—",
+    linkedFloraOriginModel: firstNonEmptyString(flora?.originModel, flora?.origin) || "—",
+    linkedFaunaScientificName: firstNonEmptyString(fauna?.scientificName, fauna?.focusName, fauna?.name) || "—",
+    linkedFaunaOriginModel: firstNonEmptyString(fauna?.originModel, fauna?.origin) || "—",
+    linkedSophontScientificName: firstNonEmptyString(sophont?.scientificName, sophont?.name) || "—",
+    linkedSophontOriginModel: firstNonEmptyString(sophont?.originModel, sophont?.origin) || "—",
+    ecologyBadges: signals.map((entry) => entry.icon),
+    linkedEcologySignals: signals,
+  };
+}
+
 export function summarizeSystemRecord(system) {
   if (!system) {
     return {
@@ -368,6 +430,14 @@ export function summarizeSystemRecord(system) {
       factionsProfile: "—",
       tradeCodes: [],
       surveyStatus: "Stellar data only",
+      linkedFloraScientificName: "—",
+      linkedFloraOriginModel: "—",
+      linkedFaunaScientificName: "—",
+      linkedFaunaOriginModel: "—",
+      linkedSophontScientificName: "—",
+      linkedSophontOriginModel: "—",
+      ecologyBadges: [],
+      linkedEcologySignals: [],
     };
   }
 
@@ -515,6 +585,7 @@ export function summarizeSystemRecord(system) {
     system?.secondaryProfiles,
     metadata?.secondaryProfiles,
   );
+  const linkedEcologySummary = extractLinkedEcologySummary(system, mainworld);
   const metadataSystemRecord =
     metadata?.systemRecord && typeof metadata.systemRecord === "object" ? metadata.systemRecord : {};
   const systemName = firstNonEmptyString(
@@ -558,6 +629,7 @@ export function summarizeSystemRecord(system) {
     resourceRating: resourceRating || "—",
     tradeCodes,
     surveyStatus,
+    ...linkedEcologySummary,
   };
 }
 
@@ -581,7 +653,8 @@ export function buildSystemSummaryLabel({ system = null, fallbackHex = "Unknown 
     "Unknown primary",
   );
 
-  return `${systemName} · ${primaryLabel}`;
+  const ecologyBadgeSummary = Array.isArray(summary?.ecologyBadges) ? summary.ecologyBadges.join(" ") : "";
+  return `${systemName} · ${primaryLabel}${ecologyBadgeSummary ? ` · ${ecologyBadgeSummary}` : ""}`;
 }
 
 export function buildSystemHexSummary(system = {}) {
@@ -611,6 +684,7 @@ export function buildSystemHexSummary(system = {}) {
     .filter(Boolean);
 
   const systemName = firstNonEmptyHexSummary(inferSystemNameFromSystemRecord(system));
+  const linkedEcologySummary = extractLinkedEcologySummary(system, mainworld);
 
   const mainworldTypeRecord = {
     ...mainworld,
@@ -674,5 +748,6 @@ export function buildSystemHexSummary(system = {}) {
     nativeLifeform: nativeLifeSummary.nativeLifeform,
     nativeLifeWorldCount: nativeLifeSummary.nativeLifeWorldCount,
     nativeSophontWorldCount: nativeLifeSummary.nativeSophontWorldCount,
+    ...linkedEcologySummary,
   };
 }

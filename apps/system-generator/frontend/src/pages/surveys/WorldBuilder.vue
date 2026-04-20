@@ -103,7 +103,15 @@
                 v-if="Array.isArray(world.tradeCodes) && world.tradeCodes.length"
                 class="trade-codes trade-codes--header"
               >
-                <span v-for="code in world.tradeCodes" :key="code" class="trade-badge">{{ code }}</span>
+                <span
+                  v-for="code in world.tradeCodes"
+                  :key="code"
+                  class="trade-badge"
+                  :title="formatTradeCodeTooltip(code)"
+                  :aria-label="formatTradeCodeTooltip(code)"
+                >
+                  {{ code }}
+                </span>
               </div>
               <span v-else class="empty-state empty-state--inline">No trade codes applicable.</span>
             </div>
@@ -142,7 +150,9 @@
               </div>
               <div class="prop-row">
                 <span class="prop-label">Temperature:</span>
-                <span class="prop-value">{{ world.tempCategory }} (avg {{ world.avgTempC }}°C)</span>
+                <span class="prop-value"
+                  >{{ world.tempCategory }} (avg {{ formatTemperatureFromCelsius(world.avgTempC) }})</span
+                >
               </div>
               <div class="prop-row">
                 <span class="prop-label">Habitability:</span>
@@ -282,6 +292,10 @@
                   <span class="prop-value">{{ latestLinkedFlora.name }}</span>
                 </div>
                 <div class="prop-row">
+                  <span class="prop-label">Scientific Name:</span>
+                  <span class="prop-value">{{ latestLinkedFlora.scientificName || "Unclassified flora" }}</span>
+                </div>
+                <div class="prop-row">
                   <span class="prop-label">Growth Form:</span>
                   <span class="prop-value">{{ latestLinkedFlora.growthForm }}</span>
                 </div>
@@ -296,6 +310,10 @@
                 <div class="prop-row">
                   <span class="prop-label">Botanical Hazard:</span>
                   <span class="prop-value">{{ latestLinkedFlora.hazardLevel }}</span>
+                </div>
+                <div class="prop-row">
+                  <span class="prop-label">Origin Model:</span>
+                  <span class="prop-value">{{ latestLinkedFlora.originModel || "Unknown lineage" }}</span>
                 </div>
               </div>
               <div v-if="latestLinkedFlora?.summary" class="world-note">{{ latestLinkedFlora.summary }}</div>
@@ -314,8 +332,16 @@
                   <span class="prop-value">{{ latestLinkedFauna.focusName }}</span>
                 </div>
                 <div class="prop-row">
+                  <span class="prop-label">Scientific Name:</span>
+                  <span class="prop-value">{{ latestLinkedFauna.scientificName || "Unclassified fauna" }}</span>
+                </div>
+                <div class="prop-row">
                   <span class="prop-label">Terrain Spread:</span>
                   <span class="prop-value">{{ (latestLinkedFauna.terrains || []).join(", ") || "—" }}</span>
+                </div>
+                <div class="prop-row">
+                  <span class="prop-label">Origin Model:</span>
+                  <span class="prop-value">{{ latestLinkedFauna.originModel || "Unknown lineage" }}</span>
                 </div>
               </div>
               <div v-if="latestLinkedFauna?.summary" class="world-note">{{ latestLinkedFauna.summary }}</div>
@@ -324,6 +350,10 @@
                 <div class="prop-row">
                   <span class="prop-label">Linked Sophont:</span>
                   <span class="prop-value">{{ latestLinkedSophont.name }}</span>
+                </div>
+                <div class="prop-row">
+                  <span class="prop-label">Scientific Name:</span>
+                  <span class="prop-value">{{ latestLinkedSophont.scientificName || "Unclassified sophont" }}</span>
                 </div>
                 <div class="prop-row">
                   <span class="prop-label">Origin:</span>
@@ -358,6 +388,12 @@
                   <span class="prop-value"
                     >{{ latestLinkedSophont.government }} · TL {{ latestLinkedSophont.techLevel }}</span
                   >
+                </div>
+                <div class="prop-row">
+                  <span class="prop-label">Human Analogue:</span>
+                  <span class="prop-value">{{
+                    latestLinkedSophont.humanAnalogueStatus || "No clear Terran analogue"
+                  }}</span>
                 </div>
               </div>
               <div v-if="latestLinkedSophont?.summary" class="world-note">{{ latestLinkedSophont.summary }}</div>
@@ -456,6 +492,8 @@ import { useCreatureStore } from "../../stores/creatureStore.js";
 import { useFloraStore } from "../../stores/floraStore.js";
 import { useSophontStore } from "../../stores/sophontStore.js";
 import { useSystemStore } from "../../stores/systemStore.js";
+import { formatTemperatureFromCelsius } from "../../utils/temperatureFormatting.js";
+import { formatTradeCodeTooltip } from "../../utils/tradeCodes.js";
 import * as toastService from "../../utils/toast.js";
 
 defineProps({ systemId: { type: String, default: null } });
@@ -779,6 +817,8 @@ const latestLinkedFauna = computed(() => {
     stability: bundle.balance?.stability || "Balanced biosphere",
     hazardLevel: bundle.balance?.hazardLevel || "Low",
     focusName: bundle.focus?.name || bundle.entries?.[0]?.name || "Local fauna",
+    scientificName: bundle.focus?.taxonomy?.["Scientific Name"] || "Unclassified fauna",
+    originModel: bundle.focus?.lineage?.originModel || bundle.focus?.origin || "Unknown lineage",
     terrains: Array.isArray(bundle.terrains) ? bundle.terrains : [],
     summary: bundle.notes?.[0] || "Local ecology bundle linked.",
   };
@@ -797,6 +837,8 @@ const latestLinkedFlora = computed(() => {
 
   return {
     name: record.name || "Linked flora",
+    scientificName: record.taxonomy?.["Scientific Name"] || "Unclassified flora",
+    originModel: record.lineage?.originModel || record.origin || "Unknown lineage",
     growthForm: record.biology?.["Growth Form"] || "Flora cluster",
     climate: record.biology?.Climate || "Temperate",
     primaryUse: record.uses?.["Primary Use"] || "Ecological survey",
@@ -823,7 +865,10 @@ const latestLinkedSophont = computed(() => {
 
   return {
     name: record.name || "Linked Sophont",
-    origin: record.origin || "Unknown origin",
+    scientificName: record.taxonomy?.["Scientific Name"] || "Unclassified sophont",
+    origin: record.origin || record.lineage?.originModel || "Unknown origin",
+    originModel: record.lineage?.originModel || record.origin || "Unknown origin",
+    humanAnalogueStatus: record.lineage?.humanAnalogueStatus || "No clear Terran analogue",
     contactStatus: record.civilization?.["Contact Status"] || "Open contact",
     currentStance:
       record.diplomacy?.["Current Stance"] || record.civilization?.["Diplomatic Posture"] || "guarded neutrality",

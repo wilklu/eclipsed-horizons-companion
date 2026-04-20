@@ -823,6 +823,9 @@
             <div class="dr">
               <span class="dl">Survey</span><span class="dv">{{ inspectorData.surveyStatus }}</span>
             </div>
+            <div v-if="inspectorData.ecologyBadges?.length" class="dr">
+              <span class="dl">Ecology</span><span class="dv">{{ inspectorData.ecologyBadges.join(" ") }}</span>
+            </div>
             <div class="dr">
               <span class="dl">UWP</span><span class="dv dv--mono">{{ inspectorData.uwp }}</span>
             </div>
@@ -916,6 +919,16 @@
           >
             <span v-if="inspectorData.legacyReconstructed" class="legacy-code-chip">Legacy Star Tree</span>
             <span v-if="inspectorData.legacyHierarchyUnknown" class="legacy-code-chip">Hierarchy Inferred</span>
+          </div>
+
+          <div v-if="inspectorData.linkedEcologySignals?.length" class="trade-code-strip">
+            <span
+              v-for="signal in inspectorData.linkedEcologySignals"
+              :key="`${signal.kind}-${signal.scientificName}`"
+              class="trade-code-chip"
+            >
+              {{ signal.icon }} {{ signal.scientificName }}
+            </span>
           </div>
 
           <div v-if="inspectorData.tradeCodes?.length" class="trade-code-strip">
@@ -3741,6 +3754,8 @@ const inspectorData = computed(() => {
       mainworldParent: systemSummary.mainworldParent,
       habitability: systemSummary.habitability,
       resourceRating: systemSummary.resourceRating,
+      ecologyBadges: systemSummary.ecologyBadges,
+      linkedEcologySignals: systemSummary.linkedEcologySignals,
       routeCorridorLabel: inspectorStarRouteSummary.value?.label || "",
       routeCorridorDetail: inspectorStarRouteSummary.value?.detail || "",
       tradeCodes: systemSummary.tradeCodes,

@@ -333,7 +333,7 @@ function buildTradeCodes({ size, atmosphereCode, hydrographics, populationCode, 
     tradeCodes.push("In");
   }
   if (populationCode >= 1 && populationCode <= 3) tradeCodes.push("Lo");
-  if (techLevel <= 5) tradeCodes.push("Lt");
+  if (populationCode >= 1 && techLevel <= 5) tradeCodes.push("Lt");
   if (atmosphereCode <= 3 && hydrographics <= 3 && populationCode >= 6) tradeCodes.push("Na");
   if (populationCode >= 4 && populationCode <= 6) tradeCodes.push("Ni");
   if (atmosphereCode >= 2 && atmosphereCode <= 5 && hydrographics <= 3) tradeCodes.push("Po");

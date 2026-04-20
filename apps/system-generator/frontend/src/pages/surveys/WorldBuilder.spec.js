@@ -167,6 +167,36 @@ describe("WorldBuilder", () => {
     expect(wrapper.text()).toContain("No trade codes applicable.");
   });
 
+  it("shows trade-code hover details with the full label and definition", async () => {
+    const profiledSystem = createSystemRecord();
+    profiledSystem.planets = [
+      {
+        ...profiledSystem.planets[0],
+        tradeCodes: ["Ag", "Lt"],
+      },
+    ];
+    systemStoreState.systems = [profiledSystem];
+    systemStoreState.getCurrentSystem = profiledSystem;
+
+    const wrapper = mount(WorldBuilder, {
+      global: {
+        stubs: {
+          LoadingSpinner: { template: "<div data-test='loading-spinner' />" },
+          SurveyNavigation: { template: "<div data-test='survey-navigation' />" },
+        },
+      },
+    });
+
+    await flushPromises();
+    await flushPromises();
+
+    const badges = wrapper.findAll(".trade-badge");
+    expect(badges).toHaveLength(2);
+    expect(badges[0].attributes("title")).toContain("Agricultural");
+    expect(badges[0].attributes("title")).toContain("farming");
+    expect(badges[1].attributes("title")).toContain("Low Technology");
+  });
+
   it("keeps stale census values at the uninhabited baseline when native sophont life is absent", async () => {
     const staleSystem = createSystemRecord();
     staleSystem.planets = [

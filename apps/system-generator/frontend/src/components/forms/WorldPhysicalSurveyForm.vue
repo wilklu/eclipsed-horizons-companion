@@ -537,7 +537,7 @@
                   placeholder="310"
                 />
                 <div class="conversion">
-                  <small v-if="formatTemperatureFromKelvin(surveyData.temperature.high) !== null">
+                  <small v-if="formatTemperatureFromKelvin(surveyData.temperature.high) !== '—'">
                     ≈ {{ formatTemperatureFromKelvin(surveyData.temperature.high) }}
                   </small>
                   <small v-else class="muted">—</small>
@@ -574,7 +574,7 @@
                   placeholder="288"
                 />
                 <div class="conversion">
-                  <small v-if="formatTemperatureFromKelvin(surveyData.temperature.mean) !== null">
+                  <small v-if="formatTemperatureFromKelvin(surveyData.temperature.mean) !== '—'">
                     ≈ {{ formatTemperatureFromKelvin(surveyData.temperature.mean) }}
                   </small>
                   <small v-else class="muted">—</small>
@@ -603,7 +603,7 @@
                 <label class="cell-label">Low (K)</label>
                 <input v-model.number="surveyData.temperature.low" type="number" class="cell-input" placeholder="255" />
                 <div class="conversion">
-                  <small v-if="formatTemperatureFromKelvin(surveyData.temperature.low) !== null">
+                  <small v-if="formatTemperatureFromKelvin(surveyData.temperature.low) !== '—'">
                     ≈ {{ formatTemperatureFromKelvin(surveyData.temperature.low) }}
                   </small>
                   <small v-else class="muted">—</small>
@@ -982,6 +982,7 @@ import {
   buildUpdatedPlanetFromSurvey,
   createEmptySurveyData,
 } from "./worldPhysicalSurveyFormModel.js";
+import { formatTemperatureFromKelvin } from "../../utils/temperatureFormatting.js";
 
 const props = defineProps({
   systemRecord: {
@@ -1141,30 +1142,6 @@ function parseNumericString(value) {
   }
   const numericValue = Number(value);
   return Number.isFinite(numericValue) ? numericValue : null;
-}
-
-// Temperature conversion helpers
-function formatNumber(value, decimals = 2) {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return "";
-  return n.toFixed(decimals).replace(/\.?0+$/, "");
-}
-
-function kelvinToCelsius(k) {
-  const n = parseNumericString(k);
-  return n === null ? null : n - 273.15;
-}
-
-function kelvinToFahrenheit(k) {
-  const n = parseNumericString(k);
-  return n === null ? null : (n - 273.15) * (9 / 5) + 32;
-}
-
-function formatTemperatureFromKelvin(k) {
-  const c = kelvinToCelsius(k);
-  const f = kelvinToFahrenheit(k);
-  if (c === null || f === null) return null;
-  return `${formatNumber(c, 2)} °C / ${formatNumber(f, 2)} °F`;
 }
 
 function titleCase(value) {

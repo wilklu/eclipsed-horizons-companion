@@ -1203,6 +1203,8 @@ export function buildFloraWorldUpdate(record = {}, existingWorld = {}) {
     linkedFloraSummary: {
       id: String(record?.id || ""),
       name: String(record?.name || "Linked flora"),
+      scientificName: String(record?.taxonomy?.["Scientific Name"] || "Unclassified flora"),
+      originModel: String(record?.lineage?.originModel || record?.origin || "Unknown lineage"),
       growthForm,
       climate,
       primaryUse,

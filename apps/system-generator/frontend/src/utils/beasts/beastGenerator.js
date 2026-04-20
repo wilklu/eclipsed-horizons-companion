@@ -628,6 +628,8 @@ export function buildFaunaWorldUpdate(bundle = {}, existingWorld = {}) {
       hazardLevel: String(balance.hazardLevel || "Low"),
       terrains: Array.isArray(bundle?.terrains) ? [...bundle.terrains] : [],
       focusName: String(focus?.name || "Local fauna"),
+      scientificName: String(focus?.taxonomy?.["Scientific Name"] || "Unclassified fauna"),
+      originModel: String(focus?.lineage?.originModel || focus?.origin || "Unknown lineage"),
       roleCount: Array.isArray(bundle?.entries) ? bundle.entries.length : 0,
       summary,
       updatedAt: String(bundle?.updatedAt || new Date().toISOString()),

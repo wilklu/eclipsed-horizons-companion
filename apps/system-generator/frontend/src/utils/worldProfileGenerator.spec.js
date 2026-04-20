@@ -99,6 +99,7 @@ describe("worldProfileGenerator", () => {
     expect(world.lawLevel).toBe(0);
     expect(world.techLevel).toBe(0);
     expect(world.starport).toBe("X");
+    expect(world.tradeCodes ?? []).not.toContain("Lt");
   });
 
   it("builds regenerated moon names from the parent world plus suffix", () => {

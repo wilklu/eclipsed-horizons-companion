@@ -218,7 +218,8 @@
           <article v-for="entry in savedFlora" :key="entry.id" class="saved-record-card">
             <div class="saved-record-copy">
               <strong>{{ entry.name }}</strong>
-              <span>{{ entry.worldName || "Unlinked habitat" }}</span>
+              <span>{{ entry.taxonomy?.["Scientific Name"] || "Unclassified flora" }}</span>
+              <span>{{ entry.lineage?.originModel || entry.worldName || "Unlinked habitat" }}</span>
               <span>{{ entry.uses?.["Primary Use"] || entry.summary || "Saved flora" }}</span>
             </div>
             <div class="saved-record-actions">
@@ -630,7 +631,18 @@ function resetForm() {
 async function exportFlora() {
   if (!flora.value) return;
   await exportFloraArchive({
-    data: flora.value,
+    data: {
+      exportVersion: 1,
+      exportedAt: new Date().toISOString(),
+      recordType: "flora",
+      manifest: {
+        displayName: flora.value.name || "Flora",
+        scientificName: flora.value.taxonomy?.["Scientific Name"] || "Unclassified flora",
+        originModel: flora.value.lineage?.originModel || flora.value.origin || "Unknown lineage",
+        worldName: flora.value.sourceWorld?.name || selectedWorldOption.value?.worldName || "Unlinked habitat",
+      },
+      data: flora.value,
+    },
     filename: (record) => `${record.name.replace(/\s+/g, "-")}-Flora.json`,
     serializeMessage: "Serializing flora dossier...",
     encodeMessage: "Encoding flora archive for transfer...",

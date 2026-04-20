@@ -106,7 +106,9 @@
                 </div>
                 <div class="prop">
                   <span class="prop-label">Temperature:</span>
-                  <span class="prop-value">{{ star.temperatureK.toLocaleString() }} K</span>
+                  <span class="prop-value">{{
+                    formatTemperatureFromKelvin(star.temperatureK, { includeKelvin: true })
+                  }}</span>
                 </div>
                 <div class="prop" v-if="i > 0">
                   <span class="prop-label">Orbit Type:</span>
@@ -283,6 +285,7 @@ import {
 } from "../../utils/systemWorldGeneration.js";
 import { starDescriptorToCssClass } from "../../utils/starDisplay.js";
 import { inferSystemNameFromSystemRecord } from "../../utils/systemSummary.js";
+import { formatTemperatureFromKelvin } from "../../utils/temperatureFormatting.js";
 import { generateAutomaticWorldName } from "../../utils/worldProfileGenerator.js";
 import { generateMultipleStarSystemWbh } from "../../utils/wbh/starGenerationWbh.js";
 

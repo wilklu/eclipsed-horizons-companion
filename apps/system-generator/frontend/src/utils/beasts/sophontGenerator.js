@@ -400,7 +400,13 @@ export function buildSophontWorldUpdate(record = {}, existingWorld = {}) {
       existingWorld?.factionsProfile?.summary ||
       "Faction pressure contained",
   );
-  const nativeSophontLife = Boolean(existingWorld?.nativeSophontLife || record?.origin === "Native sophont lineage");
+  const originDescriptor = String(record?.lineage?.originModel || record?.origin || "").toLowerCase();
+  const nativeSophontLife = Boolean(
+    existingWorld?.nativeSophontLife ||
+    record?.sourceWorld?.nativeSophontLife ||
+    originDescriptor.includes("native") ||
+    originDescriptor.includes("independent evolution"),
+  );
   const summary = `${record?.name || "Linked sophonts"} maintain ${settlementPattern.toLowerCase()} with ${contactStatus} and ${currentStance}.`;
   const remarks = uniqueRemarks([
     ...(Array.isArray(existingWorld?.remarks) ? existingWorld.remarks : []),
@@ -431,7 +437,10 @@ export function buildSophontWorldUpdate(record = {}, existingWorld = {}) {
     linkedSophontProfile: {
       id: String(record?.id || ""),
       name: String(record?.name || "Linked Sophont"),
-      origin: String(record?.origin || "Unknown origin"),
+      scientificName: String(record?.taxonomy?.["Scientific Name"] || "Unclassified sophont"),
+      origin: String(record?.origin || record?.lineage?.originModel || "Unknown origin"),
+      originModel: String(record?.lineage?.originModel || record?.origin || "Unknown origin"),
+      humanAnalogueStatus: String(record?.lineage?.humanAnalogueStatus || "No clear Terran analogue"),
       techLevel: Number(record?.techLevel ?? 0),
       government: String(record?.government || "—"),
       socialStructure: String(record?.socialStructure || "—"),

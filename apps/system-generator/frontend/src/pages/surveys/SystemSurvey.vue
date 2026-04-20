@@ -24,6 +24,13 @@
               >Resources {{ savedSystemSummary.resourceRating }}</span
             >
             <span
+              v-for="signal in savedSystemSummary.linkedEcologySignals || []"
+              :key="`${signal.kind}-${signal.scientificName}`"
+              class="survey-summary-pill survey-summary-pill--wide"
+            >
+              {{ signal.icon }} {{ signal.scientificName }}
+            </span>
+            <span
               v-if="savedSystemSummary.secondaryProfiles !== '—'"
               class="survey-summary-pill survey-summary-pill--wide"
             >

@@ -374,6 +374,12 @@
                   <span v-if="inspectedHexData.resourceRating" class="stellar-inline-detail"
                     >Resources {{ inspectedHexData.resourceRating }}</span
                   >
+                  <span
+                    v-for="signal in inspectedHexData.linkedEcologySignals || []"
+                    :key="`${signal.kind}-${signal.scientificName}`"
+                    class="stellar-inline-flag"
+                    >{{ signal.icon }} {{ signal.scientificName }}</span
+                  >
                   <span v-if="inspectedHexData.minimumSustainableTechLevel" class="stellar-inline-detail">{{
                     inspectedHexData.minimumSustainableTechLevel
                   }}</span>

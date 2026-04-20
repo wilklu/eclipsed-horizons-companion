@@ -369,7 +369,8 @@
           <article v-for="entry in savedCreatures" :key="entry.id" class="saved-record-card">
             <div class="saved-record-copy">
               <strong>{{ entry.name }}</strong>
-              <span>{{ entry.worldName || "Unlinked habitat" }}</span>
+              <span>{{ entry.taxonomy?.["Scientific Name"] || "Unclassified fauna" }}</span>
+              <span>{{ entry.lineage?.originModel || entry.origin || entry.worldName || "Unlinked habitat" }}</span>
               <span>{{ entry.summary || entry.ecologicalNiche?.subniche || "Saved profile" }}</span>
             </div>
             <div class="saved-record-actions">
@@ -392,7 +393,8 @@
           <article v-for="entry in savedFaunaBundles" :key="entry.id" class="saved-record-card">
             <div class="saved-record-copy">
               <strong>{{ entry.worldName || "Linked World" }}</strong>
-              <span>{{ entry.balance?.stability || "Fauna bundle" }}</span>
+              <span>{{ entry.focus?.taxonomy?.["Scientific Name"] || entry.focus?.name || "Fauna bundle" }}</span>
+              <span>{{ entry.focus?.lineage?.originModel || entry.balance?.stability || "Fauna bundle" }}</span>
               <span>{{ entry.balance?.hazardLevel || "Low" }} hazard · {{ entry.entries?.length || 0 }} roles</span>
             </div>
             <div class="saved-record-actions">
@@ -1040,14 +1042,35 @@ function resetForm() {
 async function exportCreature() {
   if (!creature.value && !faunaBundle.value) return;
 
+  const focusRecord = creature.value || faunaBundle.value?.focus || null;
   const payload =
     generationMode.value === "bundle" && faunaBundle.value
       ? {
+          exportVersion: 1,
+          exportedAt: new Date().toISOString(),
+          recordType: "fauna-bundle",
+          manifest: {
+            displayName: faunaBundle.value.worldName || focusRecord?.name || "World Fauna",
+            scientificName: focusRecord?.taxonomy?.["Scientific Name"] || "Unclassified fauna",
+            originModel: focusRecord?.lineage?.originModel || focusRecord?.origin || "Unknown lineage",
+            worldName: faunaBundle.value.worldName || focusRecord?.sourceWorld?.name || "Linked World",
+          },
           world: faunaBundle.value.worldName,
           faunaBundle: faunaBundle.value,
-          focusCreature: creature.value,
+          focusCreature: focusRecord,
         }
-      : creature.value;
+      : {
+          exportVersion: 1,
+          exportedAt: new Date().toISOString(),
+          recordType: "creature",
+          manifest: {
+            displayName: focusRecord?.name || "Creature",
+            scientificName: focusRecord?.taxonomy?.["Scientific Name"] || "Unclassified fauna",
+            originModel: focusRecord?.lineage?.originModel || focusRecord?.origin || "Unknown lineage",
+            worldName: focusRecord?.sourceWorld?.name || linkedWorldName.value || "Unlinked habitat",
+          },
+          data: focusRecord,
+        };
 
   await exportCreatureArchive({
     data: payload,
