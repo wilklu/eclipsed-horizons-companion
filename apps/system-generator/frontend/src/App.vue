@@ -77,7 +77,7 @@ const routeTitleFallbacks = Object.freeze({
   TravellerAtlas: "Traveller Atlas",
   GalaxySurvey: "Galaxy Survey",
   SectorSurvey: "Sector Survey",
-  StarSystemBuilder: "Stellar Survey",
+  StarSystemBuilder: "System Survey",
   OrbitalView: "Orbital View",
   WorldBuilder: "World Survey",
 });

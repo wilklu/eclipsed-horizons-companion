@@ -245,6 +245,28 @@ describe("systemSurveyFormModel", () => {
     expect(merged.metadata.systemRecord.name).toBe("Aster System");
   });
 
+  it("parses spectral class into separate typeSubtype and lumClass fields when autofilling generated stars", () => {
+    const cases = [
+      { spectralClass: "G2 V", typeSubtype: "G2", lumClass: "V" },
+      { spectralClass: "K7 V", typeSubtype: "K7", lumClass: "V" },
+      { spectralClass: "M4 V", typeSubtype: "M4", lumClass: "V" },
+      { spectralClass: "G2V", typeSubtype: "G2", lumClass: "V" },
+      { spectralClass: "B2V", typeSubtype: "B2", lumClass: "V" },
+      { spectralClass: "Black Hole", typeSubtype: "Black Hole", lumClass: "" },
+      { spectralClass: "Neutron Star", typeSubtype: "Neutron Star", lumClass: "" },
+      { spectralClass: "D", typeSubtype: "D", lumClass: "" },
+    ];
+
+    for (const { spectralClass, typeSubtype, lumClass } of cases) {
+      const surveyData = buildSurveyDataFromSystem({
+        systemId: "sector-1:0101",
+        stars: [{ designation: "Primary", spectralClass, starKey: "primary" }],
+      });
+      expect(surveyData.stars[0].typeSubtype, `typeSubtype for ${spectralClass}`).toBe(typeSubtype);
+      expect(surveyData.stars[0].lumClass, `lumClass for ${spectralClass}`).toBe(lumClass);
+    }
+  });
+
   it("derives profile notes from mainworld social overlays when no explicit notes are stored", () => {
     const socialNotes = buildMainworldSocialProfileNotes({
       minimumSustainableTechLevel: { summary: "Minimal sustainable TL 5" },

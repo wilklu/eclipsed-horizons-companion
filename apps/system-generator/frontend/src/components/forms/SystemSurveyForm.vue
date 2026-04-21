@@ -686,7 +686,7 @@ const printForm = () => {
   background: #ffffff;
   border: 2px solid #000;
   margin: 0 auto;
-  max-width: 1000px;
+  max-width: 100%;
 }
 
 /* ── HEADER (BURGUNDY) ── */

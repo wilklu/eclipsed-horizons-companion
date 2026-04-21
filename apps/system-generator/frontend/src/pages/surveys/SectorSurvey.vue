@@ -33,481 +33,508 @@
             </div>
           </section>
 
-          <section class="control-card control-card--survey">
-            <div class="control-group">
-              <div class="view-toggle" role="tablist" aria-label="Survey view toggle">
-                <button
-                  type="button"
-                  class="btn btn-secondary view-toggle-btn"
-                  :class="{ active: currentViewMode === 'sector' }"
-                  :aria-pressed="currentViewMode === 'sector'"
-                  @click="switchSurveyPage('sector')"
-                >
-                  Sector
-                </button>
-                <button
-                  type="button"
-                  class="btn btn-secondary view-toggle-btn"
-                  :class="{ active: currentViewMode === 'subsector' }"
-                  :aria-pressed="currentViewMode === 'subsector'"
-                  @click="switchSurveyPage('subsector')"
-                >
-                  Subsector
-                </button>
-              </div>
+          <section class="control-card" :class="{ 'control-card--collapsed': card1Collapsed }">
+            <div class="control-card-header" @click="card1Collapsed = !card1Collapsed">
+              <span class="control-card-title">Sector Setup</span>
+              <button type="button" class="control-card-toggle" :aria-expanded="String(!card1Collapsed)">
+                {{ card1Collapsed ? "▶" : "▼" }}
+              </button>
             </div>
-
-            <div
-              v-if="currentViewMode === 'subsector'"
-              class="control-group control-group--span-2 subsector-focus-copy"
-            >
-              <label>Subsector</label>
-              <div class="control-help control-help--multiline">
-                Focused 8 × 10 survey with shared parent-sector save and load context.
+            <div v-show="!card1Collapsed" class="control-card-body">
+              <div class="control-group">
+                <div class="view-toggle" role="tablist" aria-label="Survey view toggle">
+                  <button
+                    type="button"
+                    class="btn btn-secondary view-toggle-btn"
+                    :class="{ active: currentViewMode === 'sector' }"
+                    :aria-pressed="currentViewMode === 'sector'"
+                    @click="switchSurveyPage('sector')"
+                  >
+                    Sector
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-secondary view-toggle-btn"
+                    :class="{ active: currentViewMode === 'subsector' }"
+                    :aria-pressed="currentViewMode === 'subsector'"
+                    @click="switchSurveyPage('subsector')"
+                  >
+                    Subsector
+                  </button>
+                </div>
               </div>
-            </div>
 
-            <div class="control-group control-group--span-2">
-              <label>{{ currentViewMode === "subsector" ? "Load Parent Sector:" : "Load Existing Sector:" }}</label>
-              <div class="control-inline-row control-inline-row--load">
-                <select v-model="selectedSectorId" class="select-input control-inline-select">
-                  <option value="">Select a saved sector...</option>
-                  <option v-for="sector in sectorOptions" :key="sector.sectorId" :value="sector.sectorId">
-                    {{ sector?.label || sector?.sectorId || "Unnamed sector" }}
-                  </option>
+              <div
+                v-if="currentViewMode === 'subsector'"
+                class="control-group control-group--span-2 subsector-focus-copy"
+              >
+                <label>Subsector</label>
+                <div class="control-help control-help--multiline">
+                  Focused 8 × 10 survey with shared parent-sector save and load context.
+                </div>
+              </div>
+
+              <div class="control-group control-group--span-2">
+                <label>{{ currentViewMode === "subsector" ? "Load Parent Sector:" : "Load Existing Sector:" }}</label>
+                <div class="control-inline-row control-inline-row--load">
+                  <select v-model="selectedSectorId" class="select-input control-inline-select">
+                    <option value="">Select a saved sector...</option>
+                    <option v-for="sector in sectorOptions" :key="sector.sectorId" :value="sector.sectorId">
+                      {{ sector?.label || sector?.sectorId || "Unnamed sector" }}
+                    </option>
+                  </select>
+                  <button
+                    class="btn btn-secondary btn-icon"
+                    :disabled="!canLoadSelectedSector"
+                    title="Load selected sector"
+                    aria-label="Load selected sector"
+                    @click="loadSelectedSector"
+                  >
+                    📂
+                  </button>
+                  <button
+                    class="btn btn-secondary btn-icon"
+                    :disabled="!canSaveSector"
+                    title="Save current sector"
+                    aria-label="Save current sector"
+                    @click="saveCurrentSector({ showToast: true })"
+                  >
+                    💾
+                  </button>
+                </div>
+              </div>
+
+              <div
+                v-if="scope === 'subsector' && currentViewMode !== 'subsector'"
+                class="control-group control-group--span-2"
+              >
+                <label>Subsector Tools</label>
+                <div class="control-help control-help--multiline">
+                  Naming, navigation, and batch generation are pinned in the right-hand tools column.
+                </div>
+              </div>
+
+              <div class="control-group control-group--span-2">
+                <label>{{ currentViewMode === "subsector" ? "Parent Sector Name:" : "Sector Name:" }}</label>
+                <div class="name-row" :class="{ 'name-row--locked': currentViewMode === 'subsector' }">
+                  <input
+                    v-model="sectorName"
+                    placeholder="Enter sector name…"
+                    class="text-input"
+                    :class="{ 'text-input--locked': currentViewMode === 'subsector' }"
+                    :readonly="currentViewMode === 'subsector'"
+                    @blur="persistSectorName()"
+                    @keydown.enter.prevent="persistSectorName({ showToast: true })"
+                  />
+                  <button
+                    v-if="currentViewMode !== 'subsector'"
+                    class="btn btn-secondary"
+                    @click="randomizeSectorName"
+                    title="Random sector name"
+                    aria-label="Random sector name"
+                  >
+                    🎲
+                  </button>
+                  <button
+                    v-if="currentViewMode !== 'subsector'"
+                    class="btn btn-secondary"
+                    type="button"
+                    :disabled="!supportsSpeechSynthesis"
+                    :title="
+                      supportsSpeechSynthesis
+                        ? isSpeakingSectorName
+                          ? 'Stop sector name audio'
+                          : 'Speak sector name'
+                        : 'Text to speech not supported in this browser'
+                    "
+                    :aria-label="
+                      supportsSpeechSynthesis
+                        ? isSpeakingSectorName
+                          ? 'Stop sector name audio'
+                          : 'Speak sector name'
+                        : 'Text to speech not supported in this browser'
+                    "
+                    @mousedown.prevent
+                    @click="toggleSectorNameSpeech"
+                  >
+                    {{ isSpeakingSectorName ? "■" : "🔊" }}
+                  </button>
+                  <button
+                    v-if="currentViewMode !== 'subsector'"
+                    class="btn btn-secondary"
+                    @click="persistSectorName({ showToast: true })"
+                    :disabled="!canPersistSectorName"
+                    title="Save sector name"
+                    aria-label="Save sector name"
+                  >
+                    💾
+                  </button>
+                </div>
+              </div>
+
+              <div class="control-group">
+                <label>Star Density:</label>
+                <select v-model="density" class="select-input" :disabled="currentViewMode === 'subsector'">
+                  <option value="core">Core (dense — 60–80 %)</option>
+                  <option value="dense">Dense (spiral arm — 40–60 %)</option>
+                  <option value="average">Average (disk — 20–40 %)</option>
+                  <option value="scattered">Scattered (outer — 10–20 %)</option>
+                  <option value="void">Void (halo — 1–5 %)</option>
                 </select>
-                <button
-                  class="btn btn-secondary btn-icon"
-                  :disabled="!canLoadSelectedSector"
-                  title="Load selected sector"
-                  aria-label="Load selected sector"
-                  @click="loadSelectedSector"
-                >
-                  📂
-                </button>
-                <button
-                  class="btn btn-secondary btn-icon"
-                  :disabled="!canSaveSector"
-                  title="Save current sector"
-                  aria-label="Save current sector"
-                  @click="saveCurrentSector({ showToast: true })"
-                >
-                  💾
-                </button>
               </div>
-            </div>
 
-            <div
-              v-if="scope === 'subsector' && currentViewMode !== 'subsector'"
-              class="control-group control-group--span-2"
-            >
-              <label>Subsector Tools</label>
-              <div class="control-help control-help--multiline">
-                Naming, navigation, and batch generation are pinned in the right-hand tools column.
-              </div>
-            </div>
-
-            <div class="control-group control-group--span-2">
-              <label>{{ currentViewMode === "subsector" ? "Parent Sector Name:" : "Sector Name:" }}</label>
-              <div class="name-row" :class="{ 'name-row--locked': currentViewMode === 'subsector' }">
-                <input
-                  v-model="sectorName"
-                  placeholder="Enter sector name…"
-                  class="text-input"
-                  :class="{ 'text-input--locked': currentViewMode === 'subsector' }"
-                  :readonly="currentViewMode === 'subsector'"
-                  @blur="persistSectorName()"
-                  @keydown.enter.prevent="persistSectorName({ showToast: true })"
-                />
-                <button
-                  v-if="currentViewMode !== 'subsector'"
-                  class="btn btn-secondary"
-                  @click="randomizeSectorName"
-                  title="Random sector name"
-                  aria-label="Random sector name"
-                >
-                  🎲
-                </button>
-                <button
-                  v-if="currentViewMode !== 'subsector'"
-                  class="btn btn-secondary"
-                  type="button"
-                  :disabled="!supportsSpeechSynthesis"
-                  :title="
-                    supportsSpeechSynthesis
-                      ? isSpeakingSectorName
-                        ? 'Stop sector name audio'
-                        : 'Speak sector name'
-                      : 'Text to speech not supported in this browser'
-                  "
-                  :aria-label="
-                    supportsSpeechSynthesis
-                      ? isSpeakingSectorName
-                        ? 'Stop sector name audio'
-                        : 'Speak sector name'
-                      : 'Text to speech not supported in this browser'
-                  "
-                  @mousedown.prevent
-                  @click="toggleSectorNameSpeech"
-                >
-                  {{ isSpeakingSectorName ? "■" : "🔊" }}
-                </button>
-                <button
-                  v-if="currentViewMode !== 'subsector'"
-                  class="btn btn-secondary"
-                  @click="persistSectorName({ showToast: true })"
-                  :disabled="!canPersistSectorName"
-                  title="Save sector name"
-                  aria-label="Save sector name"
-                >
-                  💾
-                </button>
-              </div>
-            </div>
-
-            <div class="control-group">
-              <label>Star Density:</label>
-              <select v-model="density" class="select-input" :disabled="currentViewMode === 'subsector'">
-                <option value="core">Core (dense — 60–80 %)</option>
-                <option value="dense">Dense (spiral arm — 40–60 %)</option>
-                <option value="average">Average (disk — 20–40 %)</option>
-                <option value="scattered">Scattered (outer — 10–20 %)</option>
-                <option value="void">Void (halo — 1–5 %)</option>
-              </select>
-            </div>
-
-            <div class="control-group control-group--span-2 control-group--slider">
-              <label>Occupancy Realism: {{ Math.round(occupancyRealism * 100) }}%</label>
-              <input v-model.number="occupancyRealism" class="range-input" type="range" min="0" max="2" step="0.05" />
-              <div class="control-help">
-                {{ occupancyRealismHelp }} Galaxy Survey sets the default, and this page can override it for sector
-                variance.
-              </div>
-            </div>
-
-            <div v-if="generatedSector" class="control-group control-group--span-2">
-              <label>Survey Progress</label>
-              <div class="survey-progress-card">
-                <div class="survey-progress-bar" aria-hidden="true">
-                  <span
-                    class="survey-progress-segment survey-progress-segment--typed"
-                    :style="{ width: `${surveyProgress.typedPercent}%` }"
-                  ></span>
-                  <span
-                    class="survey-progress-segment survey-progress-segment--presence"
-                    :style="{ width: `${surveyProgress.presencePercent}%` }"
-                  ></span>
-                  <span
-                    class="survey-progress-segment survey-progress-segment--empty"
-                    :style="{ width: `${surveyProgress.emptyPercent}%` }"
-                  ></span>
-                </div>
-                <div class="survey-progress-metrics">
-                  <span class="survey-progress-pill survey-progress-pill--typed"
-                    >{{ surveyProgress.typedCount.toLocaleString() }} typed</span
-                  >
-                  <span class="survey-progress-pill survey-progress-pill--presence"
-                    >{{ surveyProgress.presenceOnlyCount.toLocaleString() }} presence only</span
-                  >
-                  <span class="survey-progress-pill survey-progress-pill--empty"
-                    >{{ surveyProgress.emptyCount.toLocaleString() }} empty</span
-                  >
-                  <span class="survey-progress-pill survey-progress-pill--total"
-                    >{{ surveyProgress.completedPercent }}% mapped</span
-                  >
+              <div class="control-group control-group--span-2 control-group--slider">
+                <label>Occupancy Realism: {{ Math.round(occupancyRealism * 100) }}%</label>
+                <input v-model.number="occupancyRealism" class="range-input" type="range" min="0" max="2" step="0.05" />
+                <div class="control-help">
+                  {{ occupancyRealismHelp }} Galaxy Survey sets the default, and this page can override it for sector
+                  variance.
                 </div>
               </div>
             </div>
+            <!-- /card1-body -->
+          </section>
+          <!-- /card1 -->
 
-            <div v-if="currentViewMode !== 'subsector'" class="control-group control-group--span-2">
-              <label>Survey Options</label>
-              <div class="survey-option-grid" role="radiogroup" aria-label="Sector survey options">
-                <button
-                  v-for="option in generationModeOptions"
-                  :key="option.id"
-                  type="button"
-                  class="survey-option-btn"
-                  :class="{ active: effectiveGenerationMode === option.id }"
-                  :aria-pressed="effectiveGenerationMode === option.id"
-                  @click="generationMode = option.id"
-                >
-                  {{ option.label }}
-                </button>
-              </div>
-              <div class="control-help control-help--multiline">
-                {{ generationAction?.description }}
-              </div>
-              <div class="tier-policy-badge" :class="`tier-policy-badge--${generationPolicyBadge.tier}`">
-                <span class="tier-policy-badge__tier">{{ generationPolicyBadge.tierLabel }}</span>
-                <span class="tier-policy-badge__rule">{{ generationPolicyBadge.rule }}</span>
-                <span class="tier-policy-badge__mode">{{ generationPolicyBadge.modeLabel }}</span>
-              </div>
-              <div class="control-inline-row control-inline-row--generation">
-                <span class="survey-action-label">{{ generationAction?.label }}</span>
-                <button class="btn btn-primary" :disabled="isLoading" @click="runSurveyAction">
-                  {{ isLoading ? "Generating..." : generationAction?.label || "Generate" }}
-                </button>
-              </div>
+          <section class="control-card" :class="{ 'control-card--collapsed': card2Collapsed }">
+            <div class="control-card-header" @click="card2Collapsed = !card2Collapsed">
+              <span class="control-card-title">Survey &amp; Generation</span>
+              <button type="button" class="control-card-toggle" :aria-expanded="String(!card2Collapsed)">
+                {{ card2Collapsed ? "▶" : "▼" }}
+              </button>
             </div>
-
-            <div v-if="generatedSector" class="control-group control-group--span-2">
-              <label>Sector Concentration</label>
-              <div class="sector-concentration-card">
-                <div class="sector-concentration-row">
-                  <span class="sector-concentration-title">Stars in this sector</span>
-                  <strong class="sector-concentration-value">{{
-                    formatNumber(sectorConcentrationStats.currentStars)
-                  }}</strong>
-                  <span class="sector-concentration-meta"
-                    >Stars vs Standard · {{ sectorConcentrationStats.starsVsStandard }}</span
-                  >
-                  <span class="sector-concentration-meta"
-                    >Stars vs this galaxy · {{ sectorConcentrationStats.starsVsGalaxy }}</span
-                  >
-                </div>
-                <div class="sector-concentration-row">
-                  <span class="sector-concentration-title">Sophont sites in this sector</span>
-                  <strong class="sector-concentration-value">{{
-                    formatNumber(sectorConcentrationStats.currentSophonts)
-                  }}</strong>
-                  <span class="sector-concentration-meta"
-                    >Sophonts vs Standard · {{ sectorConcentrationStats.sophontsVsStandard }}</span
-                  >
-                  <span class="sector-concentration-meta"
-                    >Sophonts vs this galaxy · {{ sectorConcentrationStats.sophontsVsGalaxy }}</span
-                  >
+            <div v-show="!card2Collapsed" class="control-card-body">
+              <div v-if="generatedSector" class="control-group control-group--span-2">
+                <label>Survey Progress</label>
+                <div class="survey-progress-card">
+                  <div class="survey-progress-bar" aria-hidden="true">
+                    <span
+                      class="survey-progress-segment survey-progress-segment--typed"
+                      :style="{ width: `${surveyProgress.typedPercent}%` }"
+                    ></span>
+                    <span
+                      class="survey-progress-segment survey-progress-segment--presence"
+                      :style="{ width: `${surveyProgress.presencePercent}%` }"
+                    ></span>
+                    <span
+                      class="survey-progress-segment survey-progress-segment--empty"
+                      :style="{ width: `${surveyProgress.emptyPercent}%` }"
+                    ></span>
+                  </div>
+                  <div class="survey-progress-metrics">
+                    <span class="survey-progress-pill survey-progress-pill--typed"
+                      >{{ surveyProgress.typedCount.toLocaleString() }} typed</span
+                    >
+                    <span class="survey-progress-pill survey-progress-pill--presence"
+                      >{{ surveyProgress.presenceOnlyCount.toLocaleString() }} presence only</span
+                    >
+                    <span class="survey-progress-pill survey-progress-pill--empty"
+                      >{{ surveyProgress.emptyCount.toLocaleString() }} empty</span
+                    >
+                    <span class="survey-progress-pill survey-progress-pill--total"
+                      >{{ surveyProgress.completedPercent }}% mapped</span
+                    >
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div v-if="generatedSector" class="control-group control-group--span-2">
-              <label>Progress Checklist</label>
-              <div class="survey-checklist-card">
-                <div class="survey-checklist-summary">
-                  <span class="survey-checklist-summary__count">
-                    {{ surveyChecklist.completeCount }} / {{ surveyChecklist.totalCount }} complete
-                  </span>
-                  <span class="survey-checklist-summary__next">{{ surveyChecklist.nextAction }}</span>
-                </div>
-                <div class="survey-checklist-list" role="list" aria-label="Sector survey progress checklist">
-                  <div
-                    v-for="item in surveyChecklist.items"
-                    :key="item.id"
-                    class="survey-checklist-item"
-                    :class="`survey-checklist-item--${item.status}`"
-                    role="listitem"
+              <div v-if="currentViewMode !== 'subsector'" class="control-group control-group--span-2">
+                <label>Survey Options</label>
+                <div class="survey-option-grid" role="radiogroup" aria-label="Sector survey options">
+                  <button
+                    v-for="option in generationModeOptions"
+                    :key="option.id"
+                    type="button"
+                    class="survey-option-btn"
+                    :class="{ active: effectiveGenerationMode === option.id }"
+                    :aria-pressed="effectiveGenerationMode === option.id"
+                    @click="generationMode = option.id"
                   >
-                    <span class="survey-checklist-item__icon" aria-hidden="true">
-                      {{ item.status === "complete" ? "✓" : item.status === "active" ? "•" : "○" }}
+                    {{ option.label }}
+                  </button>
+                </div>
+                <div class="control-help control-help--multiline">
+                  {{ generationAction?.description }}
+                </div>
+                <div class="tier-policy-badge" :class="`tier-policy-badge--${generationPolicyBadge.tier}`">
+                  <span class="tier-policy-badge__tier">{{ generationPolicyBadge.tierLabel }}</span>
+                  <span class="tier-policy-badge__rule">{{ generationPolicyBadge.rule }}</span>
+                  <span class="tier-policy-badge__mode">{{ generationPolicyBadge.modeLabel }}</span>
+                </div>
+                <div class="control-inline-row control-inline-row--generation">
+                  <span class="survey-action-label">{{ generationAction?.label }}</span>
+                  <button class="btn btn-primary" :disabled="isLoading" @click="runSurveyAction">
+                    {{ isLoading ? "Generating..." : generationAction?.label || "Generate" }}
+                  </button>
+                </div>
+              </div>
+
+              <div v-if="generatedSector" class="control-group control-group--span-2">
+                <label>Sector Concentration</label>
+                <div class="sector-concentration-card">
+                  <div class="sector-concentration-row">
+                    <span class="sector-concentration-title">Stars in this sector</span>
+                    <strong class="sector-concentration-value">{{
+                      formatNumber(sectorConcentrationStats.currentStars)
+                    }}</strong>
+                    <span class="sector-concentration-meta"
+                      >Stars vs Standard · {{ sectorConcentrationStats.starsVsStandard }}</span
+                    >
+                    <span class="sector-concentration-meta"
+                      >Stars vs this galaxy · {{ sectorConcentrationStats.starsVsGalaxy }}</span
+                    >
+                  </div>
+                  <div class="sector-concentration-row">
+                    <span class="sector-concentration-title">Sophont sites in this sector</span>
+                    <strong class="sector-concentration-value">{{
+                      formatNumber(sectorConcentrationStats.currentSophonts)
+                    }}</strong>
+                    <span class="sector-concentration-meta"
+                      >Sophonts vs Standard · {{ sectorConcentrationStats.sophontsVsStandard }}</span
+                    >
+                    <span class="sector-concentration-meta"
+                      >Sophonts vs this galaxy · {{ sectorConcentrationStats.sophontsVsGalaxy }}</span
+                    >
+                  </div>
+                </div>
+              </div>
+
+              <div v-if="generatedSector" class="control-group control-group--span-2">
+                <label>Progress Checklist</label>
+                <div class="survey-checklist-card">
+                  <div class="survey-checklist-summary">
+                    <span class="survey-checklist-summary__count">
+                      {{ surveyChecklist.completeCount }} / {{ surveyChecklist.totalCount }} complete
                     </span>
-                    <span class="survey-checklist-item__copy">
-                      <span class="survey-checklist-item__label">{{ item.label }}</span>
-                      <span class="survey-checklist-item__detail">{{ item.detail }}</span>
+                    <span class="survey-checklist-summary__next">{{ surveyChecklist.nextAction }}</span>
+                  </div>
+                  <div class="survey-checklist-list" role="list" aria-label="Sector survey progress checklist">
+                    <div
+                      v-for="item in surveyChecklist.items"
+                      :key="item.id"
+                      class="survey-checklist-item"
+                      :class="`survey-checklist-item--${item.status}`"
+                      role="listitem"
+                    >
+                      <span class="survey-checklist-item__icon" aria-hidden="true">
+                        {{ item.status === "complete" ? "✓" : item.status === "active" ? "•" : "○" }}
+                      </span>
+                      <span class="survey-checklist-item__copy">
+                        <span class="survey-checklist-item__label">{{ item.label }}</span>
+                        <span class="survey-checklist-item__detail">{{ item.detail }}</span>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div v-if="generatedSector" class="control-group control-group--span-2">
+                <label>Guided Review Queue</label>
+                <div class="review-queue-card">
+                  <div class="review-queue-copy">
+                    Step through the highest-value follow-up targets in the current viewport without manually scanning
+                    the grid.
+                  </div>
+                  <div class="review-queue-grid" role="group" aria-label="Guided review queue">
+                    <button
+                      v-for="option in reviewQueueOptions"
+                      :key="option.id"
+                      type="button"
+                      class="survey-option-btn review-queue-btn"
+                      :class="{ active: activeReviewQueue === option.id }"
+                      :aria-pressed="activeReviewQueue === option.id"
+                      @click="jumpToReviewQueue(option.id)"
+                    >
+                      <span>{{ option.label }}</span>
+                      <span class="review-queue-badge">{{ option.count }}</span>
+                    </button>
+                  </div>
+                  <div class="control-inline-row control-inline-row--generation">
+                    <span class="survey-action-label">
+                      {{ activeReviewQueueMeta?.label || "Review" }} · {{ activeReviewQueueMeta?.count || 0 }} queued
+                    </span>
+                    <button class="btn btn-secondary" :disabled="!canAdvanceReviewQueue" @click="jumpToReviewQueue()">
+                      Next Target
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div
+                v-if="generatedSector && currentViewMode !== 'subsector'"
+                class="control-group control-group--span-2"
+              >
+                <label>Stellar Survey</label>
+                <div
+                  v-if="inspectedHexData?.hasSystem && !inspectedHexData?.presenceOnly && inspectedHexData?.starType"
+                  class="stellar-inline-card"
+                >
+                  <div class="stellar-inline-copy">
+                    <span class="stellar-inline-title">{{
+                      inspectedHexData.systemName || `System ${inspectedHexData.coord}`
+                    }}</span>
+                    <span class="stellar-inline-source">{{ inspectedHexSourceLabel }}</span>
+                    <span v-if="inspectedHexData.primaryStarName" class="stellar-inline-detail"
+                      >Primary {{ inspectedHexData.primaryStarName }}</span
+                    >
+                    <span class="stellar-inline-detail">Class {{ inspectedHexData.starType }}</span>
+                    <span v-if="inspectedHexData.secondaryStarNames?.length" class="stellar-inline-detail"
+                      >Companions {{ inspectedHexData.secondaryStarNames.join(", ") }}</span
+                    >
+                    <span v-else-if="inspectedHexData.secondaryStars?.length" class="stellar-inline-detail"
+                      >+ {{ inspectedHexData.secondaryStars.join(", ") }}</span
+                    >
+                    <span v-if="inspectedHexData.mainworldName" class="stellar-inline-detail"
+                      >Mainworld {{ inspectedHexData.mainworldName }}</span
+                    >
+                    <span v-if="inspectedHexData.mainworldUwp" class="stellar-inline-detail"
+                      >UWP {{ inspectedHexData.mainworldUwp }}</span
+                    >
+                    <span v-if="inspectedHexData.habitability" class="stellar-inline-detail"
+                      >Habitability {{ inspectedHexData.habitability }}</span
+                    >
+                    <span v-if="inspectedHexData.resourceRating" class="stellar-inline-detail"
+                      >Resources {{ inspectedHexData.resourceRating }}</span
+                    >
+                    <span
+                      v-for="signal in inspectedHexData.linkedEcologySignals || []"
+                      :key="`${signal.kind}-${signal.scientificName}`"
+                      class="stellar-inline-flag"
+                      >{{ signal.icon }} {{ signal.scientificName }}</span
+                    >
+                    <span v-if="inspectedHexData.minimumSustainableTechLevel" class="stellar-inline-detail">{{
+                      inspectedHexData.minimumSustainableTechLevel
+                    }}</span>
+                    <span v-if="inspectedHexData.majorCities" class="stellar-inline-detail">{{
+                      inspectedHexData.majorCities
+                    }}</span>
+                    <span v-if="inspectedHexData.governmentProfile" class="stellar-inline-detail"
+                      >Gov {{ inspectedHexData.governmentProfile }}</span
+                    >
+                    <span v-if="inspectedHexData.justiceProfile" class="stellar-inline-detail"
+                      >Justice {{ inspectedHexData.justiceProfile }}</span
+                    >
+                    <span v-if="inspectedHexData.lawProfile" class="stellar-inline-detail"
+                      >Law {{ inspectedHexData.lawProfile }}</span
+                    >
+                    <span v-if="inspectedHexData.appealProfile" class="stellar-inline-detail"
+                      >Appeals {{ inspectedHexData.appealProfile }}</span
+                    >
+                    <span v-if="inspectedHexData.privateLawProfile" class="stellar-inline-detail"
+                      >Private {{ inspectedHexData.privateLawProfile }}</span
+                    >
+                    <span v-if="inspectedHexData.personalRightsProfile" class="stellar-inline-detail"
+                      >Rights {{ inspectedHexData.personalRightsProfile }}</span
+                    >
+                    <span v-if="inspectedHexData.secondaryProfiles" class="stellar-inline-detail">{{
+                      inspectedHexData.secondaryProfiles
+                    }}</span>
+                    <span v-if="inspectedHexData.factionsProfile" class="stellar-inline-detail">{{
+                      inspectedHexData.factionsProfile
+                    }}</span>
+                    <span v-if="inspectedHexData.legacyReconstructed" class="stellar-inline-flag"
+                      >Legacy Star Tree</span
+                    >
+                    <span v-if="inspectedHexData.legacyHierarchyUnknown" class="stellar-inline-flag"
+                      >Hierarchy Inferred</span
+                    >
+                  </div>
+                  <div class="detail-actions">
+                    <button v-if="hasLockedHexSelection" class="btn btn-primary" @click="proceedToStarSystem">
+                      🔭 Stellar Survey →
+                    </button>
+                    <span v-else class="stellar-inline-hint">Hover preview only. Click to lock this hex.</span>
+                  </div>
+                </div>
+                <div v-else-if="hasSystemsInGrid" class="stellar-inline-card stellar-inline-card--placeholder">
+                  <div class="stellar-inline-copy">
+                    <span class="stellar-inline-title">No Hex Selected</span>
+                    <span class="stellar-inline-detail"
+                      >Select a surveyed hex (★) in the sector grid to open Stellar Survey.</span
+                    >
+                  </div>
+                </div>
+              </div>
+
+              <div v-if="galaxyMinimap" class="control-group galaxy-position-group control-group--span-2">
+                <label>Galaxy Position</label>
+                <div class="galaxy-minimap-container">
+                  <svg
+                    class="galaxy-minimap-svg"
+                    :viewBox="`0 0 ${galaxyMinimap.svgSize} ${galaxyMinimap.svgSize}`"
+                    :width="galaxyMinimap.svgSize"
+                    :height="galaxyMinimap.svgSize"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <ellipse
+                      :cx="galaxyMinimap.svgSize / 2"
+                      :cy="galaxyMinimap.svgSize / 2"
+                      :rx="galaxyMinimap.ellipseRx"
+                      :ry="galaxyMinimap.ellipseRy"
+                      class="galaxy-boundary"
+                    />
+                    <line
+                      :x1="galaxyMinimap.centerPx - 6"
+                      :y1="galaxyMinimap.centerPy"
+                      :x2="galaxyMinimap.centerPx + 6"
+                      :y2="galaxyMinimap.centerPy"
+                      class="galaxy-crosshair"
+                    />
+                    <line
+                      :x1="galaxyMinimap.centerPx"
+                      :y1="galaxyMinimap.centerPy - 6"
+                      :x2="galaxyMinimap.centerPx"
+                      :y2="galaxyMinimap.centerPy + 6"
+                      class="galaxy-crosshair"
+                    />
+                    <circle
+                      :cx="galaxyMinimap.centerPx"
+                      :cy="galaxyMinimap.centerPy"
+                      :r="galaxyMinimap.centerGuideRadius"
+                      class="galaxy-center-guide"
+                    />
+                    <path
+                      v-if="galaxyMinimap.centerBearingArcPath"
+                      :d="galaxyMinimap.centerBearingArcPath"
+                      class="galaxy-center-bearing"
+                    />
+                    <circle
+                      v-if="galaxyMinimap.centerBearingPoint"
+                      :cx="galaxyMinimap.centerBearingPoint.x"
+                      :cy="galaxyMinimap.centerBearingPoint.y"
+                      r="2.8"
+                      class="galaxy-center-bearing-dot"
+                    />
+                    <rect
+                      v-for="tile in galaxyMinimap.tiles"
+                      :key="tile.id"
+                      :x="tile.px - galaxyMinimap.tileHalf"
+                      :y="tile.py - galaxyMinimap.tileHalf"
+                      :width="galaxyMinimap.tileSize"
+                      :height="galaxyMinimap.tileSize"
+                      rx="1"
+                      ry="1"
+                      :class="tile.cls"
+                    />
+                  </svg>
+                  <div class="galaxy-position-legend">
+                    <span class="position-region">📍 {{ galaxyMinimap.regionLabel }}</span>
+                    <span v-if="galaxyMinimap.distanceLabel" class="position-dist">{{
+                      galaxyMinimap.distanceLabel
+                    }}</span>
+                    <span v-if="galaxyMinimap.coordLabel" class="position-coord"
+                      >Grid {{ galaxyMinimap.coordLabel }}</span
+                    >
+                    <span v-if="galaxyMinimap.centerBearingLabel" class="position-bearing">
+                      Center bearing {{ galaxyMinimap.centerBearingLabel }}
                     </span>
                   </div>
                 </div>
               </div>
             </div>
-
-            <div v-if="generatedSector" class="control-group control-group--span-2">
-              <label>Guided Review Queue</label>
-              <div class="review-queue-card">
-                <div class="review-queue-copy">
-                  Step through the highest-value follow-up targets in the current viewport without manually scanning the
-                  grid.
-                </div>
-                <div class="review-queue-grid" role="group" aria-label="Guided review queue">
-                  <button
-                    v-for="option in reviewQueueOptions"
-                    :key="option.id"
-                    type="button"
-                    class="survey-option-btn review-queue-btn"
-                    :class="{ active: activeReviewQueue === option.id }"
-                    :aria-pressed="activeReviewQueue === option.id"
-                    @click="jumpToReviewQueue(option.id)"
-                  >
-                    <span>{{ option.label }}</span>
-                    <span class="review-queue-badge">{{ option.count }}</span>
-                  </button>
-                </div>
-                <div class="control-inline-row control-inline-row--generation">
-                  <span class="survey-action-label">
-                    {{ activeReviewQueueMeta?.label || "Review" }} · {{ activeReviewQueueMeta?.count || 0 }} queued
-                  </span>
-                  <button class="btn btn-secondary" :disabled="!canAdvanceReviewQueue" @click="jumpToReviewQueue()">
-                    Next Target
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div v-if="generatedSector && currentViewMode !== 'subsector'" class="control-group control-group--span-2">
-              <label>Stellar Survey</label>
-              <div
-                v-if="inspectedHexData?.hasSystem && !inspectedHexData?.presenceOnly && inspectedHexData?.starType"
-                class="stellar-inline-card"
-              >
-                <div class="stellar-inline-copy">
-                  <span class="stellar-inline-title">{{
-                    inspectedHexData.systemName || `System ${inspectedHexData.coord}`
-                  }}</span>
-                  <span class="stellar-inline-source">{{ inspectedHexSourceLabel }}</span>
-                  <span v-if="inspectedHexData.primaryStarName" class="stellar-inline-detail"
-                    >Primary {{ inspectedHexData.primaryStarName }}</span
-                  >
-                  <span class="stellar-inline-detail">Class {{ inspectedHexData.starType }}</span>
-                  <span v-if="inspectedHexData.secondaryStarNames?.length" class="stellar-inline-detail"
-                    >Companions {{ inspectedHexData.secondaryStarNames.join(", ") }}</span
-                  >
-                  <span v-else-if="inspectedHexData.secondaryStars?.length" class="stellar-inline-detail"
-                    >+ {{ inspectedHexData.secondaryStars.join(", ") }}</span
-                  >
-                  <span v-if="inspectedHexData.mainworldName" class="stellar-inline-detail"
-                    >Mainworld {{ inspectedHexData.mainworldName }}</span
-                  >
-                  <span v-if="inspectedHexData.mainworldUwp" class="stellar-inline-detail"
-                    >UWP {{ inspectedHexData.mainworldUwp }}</span
-                  >
-                  <span v-if="inspectedHexData.habitability" class="stellar-inline-detail"
-                    >Habitability {{ inspectedHexData.habitability }}</span
-                  >
-                  <span v-if="inspectedHexData.resourceRating" class="stellar-inline-detail"
-                    >Resources {{ inspectedHexData.resourceRating }}</span
-                  >
-                  <span
-                    v-for="signal in inspectedHexData.linkedEcologySignals || []"
-                    :key="`${signal.kind}-${signal.scientificName}`"
-                    class="stellar-inline-flag"
-                    >{{ signal.icon }} {{ signal.scientificName }}</span
-                  >
-                  <span v-if="inspectedHexData.minimumSustainableTechLevel" class="stellar-inline-detail">{{
-                    inspectedHexData.minimumSustainableTechLevel
-                  }}</span>
-                  <span v-if="inspectedHexData.majorCities" class="stellar-inline-detail">{{
-                    inspectedHexData.majorCities
-                  }}</span>
-                  <span v-if="inspectedHexData.governmentProfile" class="stellar-inline-detail"
-                    >Gov {{ inspectedHexData.governmentProfile }}</span
-                  >
-                  <span v-if="inspectedHexData.justiceProfile" class="stellar-inline-detail"
-                    >Justice {{ inspectedHexData.justiceProfile }}</span
-                  >
-                  <span v-if="inspectedHexData.lawProfile" class="stellar-inline-detail"
-                    >Law {{ inspectedHexData.lawProfile }}</span
-                  >
-                  <span v-if="inspectedHexData.appealProfile" class="stellar-inline-detail"
-                    >Appeals {{ inspectedHexData.appealProfile }}</span
-                  >
-                  <span v-if="inspectedHexData.privateLawProfile" class="stellar-inline-detail"
-                    >Private {{ inspectedHexData.privateLawProfile }}</span
-                  >
-                  <span v-if="inspectedHexData.personalRightsProfile" class="stellar-inline-detail"
-                    >Rights {{ inspectedHexData.personalRightsProfile }}</span
-                  >
-                  <span v-if="inspectedHexData.secondaryProfiles" class="stellar-inline-detail">{{
-                    inspectedHexData.secondaryProfiles
-                  }}</span>
-                  <span v-if="inspectedHexData.factionsProfile" class="stellar-inline-detail">{{
-                    inspectedHexData.factionsProfile
-                  }}</span>
-                  <span v-if="inspectedHexData.legacyReconstructed" class="stellar-inline-flag">Legacy Star Tree</span>
-                  <span v-if="inspectedHexData.legacyHierarchyUnknown" class="stellar-inline-flag"
-                    >Hierarchy Inferred</span
-                  >
-                </div>
-                <div class="detail-actions">
-                  <button v-if="hasLockedHexSelection" class="btn btn-primary" @click="proceedToStarSystem">
-                    🔭 Stellar Survey →
-                  </button>
-                  <span v-else class="stellar-inline-hint">Hover preview only. Click to lock this hex.</span>
-                </div>
-              </div>
-              <div v-else-if="hasSystemsInGrid" class="stellar-inline-card stellar-inline-card--placeholder">
-                <div class="stellar-inline-copy">
-                  <span class="stellar-inline-title">No Hex Selected</span>
-                  <span class="stellar-inline-detail"
-                    >Select a surveyed hex (★) in the sector grid to open Stellar Survey.</span
-                  >
-                </div>
-              </div>
-            </div>
-
-            <div v-if="galaxyMinimap" class="control-group galaxy-position-group control-group--span-2">
-              <label>Galaxy Position</label>
-              <div class="galaxy-minimap-container">
-                <svg
-                  class="galaxy-minimap-svg"
-                  :viewBox="`0 0 ${galaxyMinimap.svgSize} ${galaxyMinimap.svgSize}`"
-                  :width="galaxyMinimap.svgSize"
-                  :height="galaxyMinimap.svgSize"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <ellipse
-                    :cx="galaxyMinimap.svgSize / 2"
-                    :cy="galaxyMinimap.svgSize / 2"
-                    :rx="galaxyMinimap.ellipseRx"
-                    :ry="galaxyMinimap.ellipseRy"
-                    class="galaxy-boundary"
-                  />
-                  <line
-                    :x1="galaxyMinimap.centerPx - 6"
-                    :y1="galaxyMinimap.centerPy"
-                    :x2="galaxyMinimap.centerPx + 6"
-                    :y2="galaxyMinimap.centerPy"
-                    class="galaxy-crosshair"
-                  />
-                  <line
-                    :x1="galaxyMinimap.centerPx"
-                    :y1="galaxyMinimap.centerPy - 6"
-                    :x2="galaxyMinimap.centerPx"
-                    :y2="galaxyMinimap.centerPy + 6"
-                    class="galaxy-crosshair"
-                  />
-                  <circle
-                    :cx="galaxyMinimap.centerPx"
-                    :cy="galaxyMinimap.centerPy"
-                    :r="galaxyMinimap.centerGuideRadius"
-                    class="galaxy-center-guide"
-                  />
-                  <path
-                    v-if="galaxyMinimap.centerBearingArcPath"
-                    :d="galaxyMinimap.centerBearingArcPath"
-                    class="galaxy-center-bearing"
-                  />
-                  <circle
-                    v-if="galaxyMinimap.centerBearingPoint"
-                    :cx="galaxyMinimap.centerBearingPoint.x"
-                    :cy="galaxyMinimap.centerBearingPoint.y"
-                    r="2.8"
-                    class="galaxy-center-bearing-dot"
-                  />
-                  <rect
-                    v-for="tile in galaxyMinimap.tiles"
-                    :key="tile.id"
-                    :x="tile.px - galaxyMinimap.tileHalf"
-                    :y="tile.py - galaxyMinimap.tileHalf"
-                    :width="galaxyMinimap.tileSize"
-                    :height="galaxyMinimap.tileSize"
-                    rx="1"
-                    ry="1"
-                    :class="tile.cls"
-                  />
-                </svg>
-                <div class="galaxy-position-legend">
-                  <span class="position-region">📍 {{ galaxyMinimap.regionLabel }}</span>
-                  <span v-if="galaxyMinimap.distanceLabel" class="position-dist">{{
-                    galaxyMinimap.distanceLabel
-                  }}</span>
-                  <span v-if="galaxyMinimap.coordLabel" class="position-coord"
-                    >Grid {{ galaxyMinimap.coordLabel }}</span
-                  >
-                  <span v-if="galaxyMinimap.centerBearingLabel" class="position-bearing">
-                    Center bearing {{ galaxyMinimap.centerBearingLabel }}
-                  </span>
-                </div>
-              </div>
-            </div>
+            <!-- /card2-body -->
           </section>
+          <!-- /card2 -->
         </aside>
 
         <section class="sector-pane">
@@ -1003,6 +1030,8 @@ const generationStatus = ref({ tone: "idle", message: "" });
 const gridWrapperRef = ref(null);
 const coordJumpInputRef = ref(null);
 const gridWrapperBounds = ref({ width: 0, height: 0 });
+const card1Collapsed = ref(false);
+const card2Collapsed = ref(false);
 const focusedOrbitalTarget = ref(null);
 const gridRenderNonce = ref(0);
 const hoveredHex = ref(null);
@@ -4948,15 +4977,56 @@ async function generateSystemForSelectedHex({ openAfter = false } = {}) {
 .control-card {
   display: flex;
   flex-direction: column;
-  gap: 0.9rem;
-  padding: 1.1rem;
+  gap: 0;
+  padding: 0;
   background: #1a1a1a;
   border-radius: 0.75rem;
   border: 2px solid #00d9ff;
+  overflow: hidden;
 }
 
-.control-card--survey {
+.control-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.65rem 1.1rem;
+  cursor: pointer;
+  user-select: none;
+  border-bottom: 1px solid #2a2a3e;
+  background: #12122e;
+}
+
+.control-card-header:hover {
+  background: #1a1a3e;
+}
+
+.control-card-title {
+  font-size: 0.8rem;
+  font-weight: bold;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #00d9ff;
+}
+
+.control-card-toggle {
+  background: none;
+  border: none;
+  color: #00d9ff;
+  font-size: 0.7rem;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+
+.control-card-body {
+  display: flex;
+  flex-direction: column;
   gap: 1rem;
+  padding: 1.1rem;
+}
+
+.control-card--collapsed .control-card-header {
+  border-bottom: none;
 }
 
 .control-group {

@@ -209,10 +209,26 @@ function isSurveyStarRow(star) {
   return Boolean(star && typeof star === "object" && ("typeSubtype" in star || "lumClass" in star));
 }
 
+function stripSystemNameFromStarDesignation(value) {
+  const text = String(value || "").trim();
+  const match = text.match(/\b(Primus|Proximus|Proximum|Procul|Procol)\s+(Major|Minor)\s*$/i);
+  return match ? `${match[1]} ${match[2]}` : text;
+}
+
+function parseSpectralClass(spectralClass) {
+  const text = String(spectralClass || "").trim();
+  if (!text) return { typeSubtype: "", lumClass: "" };
+  // Standard spectral type + optional luminosity class: "G2 V", "K7V", "B2V"
+  const m = text.match(/^([A-Z][0-9](?:\.[0-9]+)?)\s*(Ia0?|Ib|VII|VI|IV|V|III|II|I)?$/);
+  if (m) return { typeSubtype: m[1], lumClass: m[2] || "" };
+  // Pass through all other values (white dwarfs, black holes, exotic types)
+  return { typeSubtype: text, lumClass: "" };
+}
+
 function normalizeSurveyStarRow(star = {}) {
   if (isSurveyStarRow(star)) {
     return {
-      designation: String(star?.designation || ""),
+      designation: stripSystemNameFromStarDesignation(String(star?.designation || "")),
       typeSubtype: String(star?.typeSubtype || ""),
       lumClass: String(star?.lumClass || ""),
       mass: Number(star?.mass ?? 0) || null,
@@ -224,10 +240,11 @@ function normalizeSurveyStarRow(star = {}) {
     };
   }
 
+  const parsedSpectral = parseSpectralClass(star?.spectralClass);
   return {
-    designation: String(star?.designation || star?.starKey || ""),
-    typeSubtype: String(star?.spectralClass || star?.designation || star?.objectType || ""),
-    lumClass: String(star?.luminosityClass || ""),
+    designation: stripSystemNameFromStarDesignation(String(star?.designation || star?.starKey || "")),
+    typeSubtype: parsedSpectral.typeSubtype || String(star?.designation || star?.objectType || ""),
+    lumClass: parsedSpectral.lumClass || String(star?.luminosityClass || ""),
     mass: Number(star?.massInSolarMasses ?? star?.mass ?? 0) || null,
     luminosity: Number(star?.luminosity ?? 0) || null,
     temperature: Number(star?.temperatureK ?? star?.temperature ?? 0) || null,
@@ -548,25 +565,53 @@ export function buildSurveyDataFromSystem(systemRecord) {
     hzCentre: Number(systemRecord?.habitableZone?.centerAU ?? systemRecord?.habitabilityZone?.centre ?? 0) || null,
     hzInner: Number(systemRecord?.habitableZone?.innerAU ?? systemRecord?.habitabilityZone?.inner ?? 0) || null,
     hzOuter: Number(systemRecord?.habitableZone?.outerAU ?? systemRecord?.habitabilityZone?.outer ?? 0) || null,
-    gasGiants:
-      Number(systemRecord?.objectCounts?.gasGiants ?? systemRecord?.gasGiants ?? derivedObjectCounts.gasGiants ?? 0) ||
-      0,
-    belts:
-      Number(
-        systemRecord?.objectCounts?.belts ??
-          systemRecord?.objectCounts?.planetoidBelts ??
-          systemRecord?.belts ??
-          derivedObjectCounts.belts ??
-          0,
-      ) || 0,
-    terrestrials:
-      Number(
+    gasGiants: (() => {
+      const stored = systemRecord?.objectCounts?.gasGiants ?? systemRecord?.gasGiants ?? null;
+      const storedBelts =
+        systemRecord?.objectCounts?.belts ?? systemRecord?.objectCounts?.planetoidBelts ?? systemRecord?.belts ?? null;
+      const storedTerrestrials =
         systemRecord?.objectCounts?.terrestrials ??
-          systemRecord?.objectCounts?.terrestrialPlanets ??
-          systemRecord?.terrestrials ??
-          derivedObjectCounts.terrestrials ??
-          0,
-      ) || 0,
+        systemRecord?.objectCounts?.terrestrialPlanets ??
+        systemRecord?.terrestrials ??
+        null;
+      const anyNonZeroStored =
+        (stored !== null && stored > 0) ||
+        (storedBelts !== null && storedBelts > 0) ||
+        (storedTerrestrials !== null && storedTerrestrials > 0);
+      return anyNonZeroStored ? Number(stored ?? derivedObjectCounts.gasGiants) || 0 : derivedObjectCounts.gasGiants;
+    })(),
+    belts: (() => {
+      const stored =
+        systemRecord?.objectCounts?.belts ?? systemRecord?.objectCounts?.planetoidBelts ?? systemRecord?.belts ?? null;
+      const storedGasGiants = systemRecord?.objectCounts?.gasGiants ?? systemRecord?.gasGiants ?? null;
+      const storedTerrestrials =
+        systemRecord?.objectCounts?.terrestrials ??
+        systemRecord?.objectCounts?.terrestrialPlanets ??
+        systemRecord?.terrestrials ??
+        null;
+      const anyNonZeroStored =
+        (storedGasGiants !== null && storedGasGiants > 0) ||
+        (stored !== null && stored > 0) ||
+        (storedTerrestrials !== null && storedTerrestrials > 0);
+      return anyNonZeroStored ? Number(stored ?? derivedObjectCounts.belts) || 0 : derivedObjectCounts.belts;
+    })(),
+    terrestrials: (() => {
+      const stored =
+        systemRecord?.objectCounts?.terrestrials ??
+        systemRecord?.objectCounts?.terrestrialPlanets ??
+        systemRecord?.terrestrials ??
+        null;
+      const storedGasGiants = systemRecord?.objectCounts?.gasGiants ?? systemRecord?.gasGiants ?? null;
+      const storedBelts =
+        systemRecord?.objectCounts?.belts ?? systemRecord?.objectCounts?.planetoidBelts ?? systemRecord?.belts ?? null;
+      const anyNonZeroStored =
+        (storedGasGiants !== null && storedGasGiants > 0) ||
+        (storedBelts !== null && storedBelts > 0) ||
+        (stored !== null && stored > 0);
+      return anyNonZeroStored
+        ? Number(stored ?? derivedObjectCounts.terrestrials) || 0
+        : derivedObjectCounts.terrestrials;
+    })(),
     worlds,
     mainworldName: String(systemRecord?.mainworldName || profiles?.mainworldName || mainworld?.name || ""),
     mainworldType: String(

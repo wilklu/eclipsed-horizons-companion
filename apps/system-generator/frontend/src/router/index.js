@@ -38,7 +38,7 @@ const routes = [
     name: "StarSystemBuilder",
     component: () => import("../pages/surveys/StarSystemBuilder.vue"),
     props: true,
-    meta: { title: "Stellar Survey" },
+    meta: { title: "System Survey" },
   },
   {
     path: "/orbital/:galaxyId/:sectorId?",

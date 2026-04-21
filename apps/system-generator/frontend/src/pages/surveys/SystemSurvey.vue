@@ -275,13 +275,15 @@ function openSophontGenerator() {
 
 <style scoped>
 .system-survey-page {
-  min-height: 100%;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   background: radial-gradient(circle at top, #11243f, #09101f 60%);
   padding-bottom: 2rem;
 }
 
 .survey-shell {
-  max-width: 1100px;
+  max-width: 100%;
   margin: 0 auto;
   padding: 0.75rem 1rem 0;
 }

@@ -13,12 +13,7 @@
       :diagnostics="stellarLoadingState.diagnostics"
       :ledger="stellarLoadingState.ledger"
     />
-    <SurveyNavigation
-      currentClass="Stellar Survey"
-      :back-route="backRoute"
-      @regenerate="regenerateSystem"
-      @export="exportSystem"
-    />
+    <SurveyNavigation currentClass="System Survey" :show-regenerate="false" :show-export="false" />
 
     <div class="survey-content">
       <!-- Controls -->
@@ -68,7 +63,20 @@
           </div>
         </div>
         <div class="control-group control-action">
-          <button class="btn btn-primary" @click="buildSystem">⚡ Generate System + Worlds</button>
+          <button class="btn btn-primary" @click="buildSystem">⚡ Generate System</button>
+          <button class="btn btn-primary" :disabled="!system" @click="generateWorlds">🪐 Generate Worlds</button>
+          <div class="control-action-divider">
+            <button class="btn btn-secondary" @click="exportSystem">📤 Export</button>
+            <button class="btn btn-secondary" @click="triggerImport">📥 Import</button>
+          </div>
+          <input
+            ref="importFileInput"
+            type="file"
+            accept=".json,application/json"
+            class="import-file-hidden"
+            @change="importSystem"
+          />
+          <router-link v-if="backRoute" :to="backRoute" class="btn btn-outline control-action-back">← Back</router-link>
         </div>
       </div>
 
@@ -77,6 +85,9 @@
         <div class="system-header">
           <h2>{{ resolvedSystemDisplayName }}</h2>
           <span class="system-type-badge">{{ system.stars.length > 1 ? "Multiple" : "Single" }} Star</span>
+          <button class="btn btn-secondary system-header-survey-btn" @click="openSystemSurvey">
+            📡 Open System Survey
+          </button>
         </div>
 
         <!-- Stars -->
@@ -164,17 +175,6 @@
           </div>
         </div>
 
-        <!-- Quick Actions -->
-        <div class="action-buttons action-buttons--midpage">
-          <div v-if="selectedWorldCandidate" class="selected-world-chip">
-            Selected world: {{ summarizeSelectedWorld(selectedWorldCandidate) }}
-          </div>
-          <button v-if="system" class="btn btn-secondary" @click="openSystemSurvey">📡 Open System Survey</button>
-          <button v-if="selectedWorldCandidate" class="btn btn-primary" @click="proceedToWorldBuilder">
-            🌍 Build Selected World →
-          </button>
-        </div>
-
         <!-- Planetary Catalog -->
         <div class="planets-section">
           <h3>🪐 Planetary Catalog</h3>
@@ -204,6 +204,7 @@
                     selected: selectedWorldIndex === i,
                   }"
                   @click="selectWorldCandidate(i)"
+                  @dblclick="isWorldBuilderCandidate(planet) && proceedToWorldBuilder()"
                 >
                   <td>{{ i + 1 }}</td>
                   <td>
@@ -240,14 +241,17 @@
               </tbody>
             </table>
           </div>
+          <div v-if="selectedWorldCandidate" class="world-nav-hint">
+            Press <kbd>G</kbd> or double-click a row to open the selected world.
+          </div>
         </div>
       </div>
 
       <div v-else class="system-placeholder">
-        <h2>No Stellar Survey Yet</h2>
+        <h2>No System Survey Yet</h2>
         <p>
-          Hex {{ hexCoord }} has not been generated in Stellar Survey yet. Click Generate System + Worlds to create and
-          save the stellar survey and world profiles for this location.
+          Hex {{ hexCoord }} has not been generated in System Survey yet. Click Generate System + Worlds to create and
+          save the system survey and world profiles for this location.
         </p>
       </div>
     </div>
@@ -255,7 +259,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import LoadingSpinner from "../../components/common/LoadingSpinner.vue";
 import SurveyNavigation from "../../components/common/SurveyNavigation.vue";
@@ -1313,6 +1317,78 @@ function regenerateSystem() {
   return buildSystem();
 }
 
+async function generateWorlds() {
+  if (!system.value) return;
+
+  const existingStars = resolveGeneratedStarsFromSystem(system.value);
+  if (!existingStars.length) return;
+
+  const stars = existingStars.map((star) => ({ ...star }));
+  const nextSystemName = ensureSystemSuffix(
+    String(systemName.value || system.value?.name || "").trim() || generateSystemName(),
+  );
+
+  const hz = calculateSystemHabitableZone(stars);
+  const planets = sortSystemPlanetsByOrbit(
+    buildProfiledWbhSystemPlanets({
+      stars,
+      habitableZone: hz,
+      createPlanetName: ({ type, usedNames, index }) =>
+        type === "Planetoid Belt"
+          ? generateObjectName({
+              mode: String(preferencesStore.asteroidBeltNameMode || "phonotactic")
+                .trim()
+                .toLowerCase(),
+              objectType: "asteroid-belt",
+              mythicTheme: String(preferencesStore.galaxyMythicTheme || "all")
+                .trim()
+                .toLowerCase(),
+              lineageSeed: `${props.sectorId || "sector"}:${nextSystemName}`,
+              seed: `${props.sectorId || "sector"}:${hexCoord.value || "0000"}:belt:${index}`,
+              parentName: nextSystemName,
+            })
+          : generateAutomaticWorldName({
+              mode: preferencesStore.worldNameMode,
+              usedNames,
+              systemName: nextSystemName,
+              seed: `${props.sectorId || "sector"}:${hexCoord.value || "0000"}:world:${index}`,
+            }),
+    }),
+  );
+
+  const nextSystem = {
+    ...system.value,
+    stars,
+    habitableZone: hz,
+    planets,
+    name: nextSystemName,
+    systemName: nextSystemName,
+    systemDesignation: nextSystemName,
+    metadata: {
+      ...(system.value?.metadata && typeof system.value.metadata === "object" ? system.value.metadata : {}),
+      displayName: nextSystemName,
+      lastModified: new Date().toISOString(),
+    },
+  };
+
+  system.value = nextSystem;
+  selectedWorldIndex.value = resolveSelectedWorldIndex(planets);
+
+  if (props.galaxyId && props.sectorId) {
+    await runWithStellarLoading(
+      "System Survey Update",
+      `Regenerating worlds for hex ${normalizeHex(nextSystem.systemId)}...`,
+      async () => {
+        const persisted = toPersistedSystem(nextSystem);
+        await systemStore.createSystem(persisted);
+        systemStore.setCurrentSystem(persisted.systemId);
+        await syncSectorSurveyState(persisted);
+      },
+      "Saving regenerated world catalogue",
+    );
+  }
+}
+
 async function exportSystem() {
   if (!system.value) return;
   await exportSystemArchive({
@@ -1323,6 +1399,62 @@ async function exportSystem() {
     readyMessage: "Stellar archive staged for local transfer.",
     serializingProgress: 24,
     encodingProgress: 70,
+  });
+}
+
+const importFileInput = ref(null);
+
+function triggerImport() {
+  importFileInput.value?.click();
+}
+
+async function importSystem(event) {
+  const file = event.target?.files?.[0];
+  if (!importFileInput.value) return;
+  importFileInput.value.value = "";
+  if (!file) return;
+
+  let parsed;
+  try {
+    const text = await file.text();
+    parsed = JSON.parse(text);
+  } catch {
+    alert("Could not read the file. Make sure it is a valid JSON system archive.");
+    return;
+  }
+
+  if (!parsed || typeof parsed !== "object" || !parsed.systemId) {
+    alert("Invalid system archive: missing systemId.");
+    return;
+  }
+
+  await runWithStellarLoading("Import Stellar Archive", `Importing system ${parsed.systemId}...`, async () => {
+    const sortedPlanets = sortSystemPlanetsByOrbit(parsed?.planets);
+    const importedSystem = {
+      ...parsed,
+      planets: sortedPlanets,
+      habitableZone:
+        parsed?.habitableZone && typeof parsed.habitableZone === "object"
+          ? parsed.habitableZone
+          : calculateSystemHabitableZone(parsed?.stars ?? []),
+    };
+
+    system.value = importedSystem;
+    hexCoord.value = normalizeHex(importedSystem.systemId || hexCoord.value);
+    systemName.value = ensureSystemSuffix(
+      String(importedSystem.name || importedSystem.metadata?.displayName || "").trim(),
+    );
+    primarySpectral.value = normalizePrimarySelection(
+      resolveStarDisplayLabel(importedSystem.stars?.[0] || importedSystem.primaryStar),
+    );
+    multiplicity.value = multiplicityFromStars(importedSystem.stars);
+    selectedWorldIndex.value = resolveSelectedWorldIndex(sortedPlanets);
+
+    if (props.galaxyId && props.sectorId) {
+      const persisted = toPersistedSystem(importedSystem);
+      await systemStore.createSystem(persisted);
+      systemStore.setCurrentSystem(persisted.systemId);
+    }
   });
 }
 
@@ -1532,9 +1664,22 @@ watch(
   },
 );
 
+function handleGlobalKeydown(e) {
+  if (e.key === "g" || e.key === "G") {
+    const tag = document.activeElement?.tagName?.toLowerCase();
+    if (tag === "input" || tag === "textarea" || tag === "select") return;
+    if (selectedWorldCandidate.value) proceedToWorldBuilder();
+  }
+}
+
 onMounted(async () => {
   hexCoord.value = normalizeHex(hexCoord.value);
   await hydrateSystem();
+  window.addEventListener("keydown", handleGlobalKeydown);
+});
+
+onUnmounted(() => {
+  window.removeEventListener("keydown", handleGlobalKeydown);
 });
 </script>
 
@@ -1577,7 +1722,28 @@ onMounted(async () => {
 }
 
 .control-action {
-  justify-content: flex-end;
+  flex-direction: row;
+  align-items: flex-end;
+  flex: 1 1 auto;
+  min-width: unset;
+  gap: 0.6rem;
+}
+
+.control-action-back {
+  margin-left: auto;
+}
+
+.control-action-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding-left: 0.75rem;
+  border-left: 1px solid #444;
+  margin-left: 0.25rem;
+}
+
+.import-file-hidden {
+  display: none;
 }
 
 .select-input,
@@ -1606,6 +1772,22 @@ onMounted(async () => {
   overflow: auto;
 }
 
+.world-nav-hint {
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  color: #888;
+}
+
+.world-nav-hint kbd {
+  display: inline-block;
+  padding: 0.1rem 0.35rem;
+  border: 1px solid #555;
+  border-radius: 0.2rem;
+  font-size: 0.75rem;
+  color: #ccc;
+  background: #2a2a3e;
+}
+
 .btn {
   min-height: 2.5rem;
   padding: 0.6rem 1.25rem;
@@ -1619,6 +1801,17 @@ onMounted(async () => {
   font-size: 0.9rem;
   line-height: 1.2;
   transition: all 0.2s;
+  text-decoration: none;
+}
+
+.btn.btn-outline {
+  background: transparent;
+  color: #00d9ff;
+  border: 1px solid #00d9ff;
+}
+
+.btn.btn-outline:hover {
+  background: rgba(0, 217, 255, 0.1);
 }
 
 .btn-primary {
@@ -1664,6 +1857,12 @@ onMounted(async () => {
   margin-bottom: 1.5rem;
   padding-bottom: 1rem;
   border-bottom: 1px solid #333;
+}
+
+.system-header-survey-btn {
+  margin-left: auto;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .system-header h2 {

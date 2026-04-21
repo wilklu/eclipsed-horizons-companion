@@ -71,7 +71,7 @@ export function useArchiveTransfer({
     encodingProgress = 70,
   } = {}) {
     const resolvedData = resolveValue(data);
-    const resolvedFilename = resolveValue(filename);
+    const resolvedFilename = typeof filename === "function" ? filename(resolvedData) : unref(filename);
 
     if (!resolvedData || !resolvedFilename || state.value.active) {
       return false;

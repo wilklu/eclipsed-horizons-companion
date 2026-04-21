@@ -13,12 +13,7 @@
       :diagnostics="worldLoadingState.diagnostics"
       :ledger="worldLoadingState.ledger"
     />
-    <SurveyNavigation
-      currentClass="World Survey"
-      :back-route="backRoute"
-      @regenerate="regenerateWorld"
-      @export="exportWorld"
-    />
+    <SurveyNavigation currentClass="World Survey" :show-regenerate="false" :show-export="false" />
 
     <div class="survey-content">
       <!-- Controls -->
@@ -86,6 +81,7 @@
         </div>
         <div class="control-group control-action">
           <button class="btn btn-primary" @click="generateWorld">⚡ Generate World</button>
+          <router-link v-if="backRoute" :to="backRoute" class="btn btn-outline control-action-back">← Back</router-link>
         </div>
       </div>
 
@@ -116,12 +112,15 @@
               <span v-else class="empty-state empty-state--inline">No trade codes applicable.</span>
             </div>
           </div>
+          <button class="btn btn-secondary world-header-survey-btn" @click="openWorldPhysicalSurvey">
+            📝 Open World Survey
+          </button>
         </div>
 
         <div class="world-grid">
           <section class="world-section">
             <div class="section-header">
-              <h3>🔬 Physical Survey</h3>
+              <h3>🔬 Physical Properties</h3>
               <button
                 class="btn btn-secondary section-reroll"
                 type="button"
@@ -175,14 +174,11 @@
                 <span class="prop-value">{{ world.majorTectonicPlates ?? 0 }}</span>
               </div>
             </div>
-            <div class="section-actions">
-              <button class="btn btn-secondary" @click="openWorldPhysicalSurvey">🔬 Open Physical Survey</button>
-            </div>
           </section>
 
           <section class="world-section world-section--compact">
             <div class="section-header">
-              <h3>📡 System Survey</h3>
+              <h3>📡 Orbital Properties</h3>
               <button
                 class="btn btn-secondary section-reroll"
                 type="button"
@@ -213,9 +209,6 @@
                 <span class="prop-label">Magnetosphere:</span>
                 <span class="prop-value">{{ world.magnetosphere }}</span>
               </div>
-            </div>
-            <div class="section-actions">
-              <button class="btn btn-secondary" @click="openSystemSurvey">📡 Open System Survey</button>
             </div>
           </section>
 
@@ -405,7 +398,7 @@
 
           <section class="world-section">
             <div class="section-header">
-              <h3>👥 Census Survey</h3>
+              <h3>👥 World Census</h3>
               <button
                 class="btn btn-secondary section-reroll"
                 type="button"
@@ -1456,10 +1449,10 @@ async function rerollWorldSection(section) {
   }
 
   const sectionLabelMap = {
-    physical: "Physical Survey",
-    system: "System Survey",
+    physical: "Physical Properties",
+    system: "Orbital Properties",
     life: "Life Survey",
-    census: "Census Survey",
+    census: "World Census",
   };
   const sectionLabel = sectionLabelMap[section] || "World Survey";
   const worldLabel = String(world.value?.name || worldName.value || "prospective world").trim() || "prospective world";
@@ -1725,7 +1718,25 @@ onBeforeUnmount(() => {
 }
 
 .control-action {
-  justify-content: flex-end;
+  flex-direction: row;
+  align-items: flex-end;
+  flex: 1 1 auto;
+  gap: 0.6rem;
+}
+
+.control-action-back {
+  margin-left: auto;
+}
+
+.btn.btn-outline {
+  background: transparent;
+  color: #00d9ff;
+  border: 1px solid #00d9ff;
+  text-decoration: none;
+}
+
+.btn.btn-outline:hover {
+  background: rgba(0, 217, 255, 0.1);
 }
 
 .select-input,
@@ -1828,6 +1839,12 @@ onBeforeUnmount(() => {
   border-bottom: 1px solid #333;
 }
 
+.world-header-survey-btn {
+  margin-left: auto;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
 .world-icon {
   font-size: 3rem;
 }
@@ -1859,6 +1876,8 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 0.45rem;
+  flex: 1;
+  min-width: 0;
 }
 
 .uwp-display--with-meta {

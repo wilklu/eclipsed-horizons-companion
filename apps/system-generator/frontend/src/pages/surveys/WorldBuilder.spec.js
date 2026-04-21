@@ -276,9 +276,9 @@ describe("WorldBuilder", () => {
     await flushPromises();
 
     const sections = wrapper.findAll(".world-section");
-    const systemSection = sections.find((section) => section.text().includes("📡 System Survey"));
+    const systemSection = sections.find((section) => section.text().includes("📡 Orbital Properties"));
     const lifeSection = sections.find((section) => section.text().includes("🧬 Life Survey"));
-    const censusSection = sections.find((section) => section.text().includes("👥 Census Survey"));
+    const censusSection = sections.find((section) => section.text().includes("👥 World Census"));
     const worldHeader = wrapper.find(".world-header");
 
     expect(systemSection).toBeTruthy();
