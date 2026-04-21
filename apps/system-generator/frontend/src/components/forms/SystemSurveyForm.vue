@@ -241,7 +241,7 @@
                 <input v-model.number="surveyData.gasGiants" type="number" class="cell-input" />
               </div>
               <div class="form-cell grow-2">
-                <label class="cell-label">Belts</label>
+                <label class="cell-label">Planetoid Belts</label>
                 <input v-model.number="surveyData.belts" type="number" class="cell-input" />
               </div>
               <div class="form-cell grow-2">

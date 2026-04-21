@@ -196,6 +196,22 @@ describe("systemSurveyFormModel", () => {
     expect(rehydrated.gasGiants).toBe(2);
   });
 
+  it("derives object counts from the saved planetary roster when explicit counts are absent", () => {
+    const surveyData = buildSurveyDataFromSystem({
+      systemId: "sector-1:0412",
+      planets: [
+        { name: "Aurea", type: "Terrestrial Planet" },
+        { name: "Brimstone", type: "Terrestrial Planet" },
+        { name: "Jorund", type: "Gas Giant" },
+        { name: "Shale Ring", type: "Planetoid Belt" },
+      ],
+    });
+
+    expect(surveyData.terrestrials).toBe(2);
+    expect(surveyData.gasGiants).toBe(1);
+    expect(surveyData.belts).toBe(1);
+  });
+
   it("persists the saved system name into the canonical record fields", () => {
     const merged = mergeSystemSurveyRecord(
       {

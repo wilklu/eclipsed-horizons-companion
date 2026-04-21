@@ -433,6 +433,75 @@ function formatSurveyWorldOrbit(world) {
   return `${orbitNumber}/${orbitAu}`;
 }
 
+function resolveSystemDesignation(systemRecord = {}, metadata = {}, metadataSystemRecord = {}) {
+  return String(
+    systemRecord?.systemDesignation ||
+      systemRecord?.name ||
+      systemRecord?.systemName ||
+      metadataSystemRecord?.systemDesignation ||
+      metadataSystemRecord?.name ||
+      metadata?.displayName ||
+      systemRecord?.systemId ||
+      "",
+  ).trim();
+}
+
+function resolveSectorHexLabel(systemRecord = {}, metadata = {}, metadataSystemRecord = {}) {
+  const explicit = String(
+    systemRecord?.sectorHex || metadataSystemRecord?.sectorHex || metadata?.sectorHex || "",
+  ).trim();
+  if (explicit) {
+    return explicit;
+  }
+
+  const sectorLabel = String(
+    systemRecord?.sectorName ||
+      systemRecord?.sector?.name ||
+      metadataSystemRecord?.sectorName ||
+      metadata?.sectorName ||
+      systemRecord?.sectorId ||
+      "",
+  ).trim();
+  const directHex = String(systemRecord?.hex || systemRecord?.hexCoord || metadataSystemRecord?.hex || "")
+    .trim()
+    .replace(/\D/g, "");
+  const coordHex = systemRecord?.hexCoordinates
+    ? `${String(systemRecord.hexCoordinates.x).padStart(2, "0")}${String(systemRecord.hexCoordinates.y).padStart(2, "0")}`
+    : "";
+  return [sectorLabel, directHex || coordHex].filter(Boolean).join(" ").trim();
+}
+
+function deriveObjectCountsFromWorlds(worlds = []) {
+  return (Array.isArray(worlds) ? worlds : []).reduce(
+    (counts, world) => {
+      const normalizedType = String(world?.type || world?.worldType || "")
+        .trim()
+        .toLowerCase();
+
+      if (!normalizedType) {
+        return counts;
+      }
+
+      if (normalizedType === "gg" || normalizedType.includes("gas giant")) {
+        counts.gasGiants += 1;
+        return counts;
+      }
+
+      if (normalizedType === "blt" || normalizedType.includes("belt")) {
+        counts.belts += 1;
+        return counts;
+      }
+
+      if (normalizedType !== "mon" && !normalizedType.includes("moon")) {
+        counts.terrestrials += 1;
+      }
+
+      return counts;
+    },
+    { gasGiants: 0, belts: 0, terrestrials: 0 },
+  );
+}
+
 export function buildSurveyDataFromSystem(systemRecord) {
   const base = createEmptySurveyData();
   if (!systemRecord || typeof systemRecord !== "object") {
@@ -463,21 +532,12 @@ export function buildSurveyDataFromSystem(systemRecord) {
   const derivedProfileNotes = buildMainworldSocialProfileNotes(mainworld);
   const legacyStarNote = buildLegacyStarMetadataNote(systemRecord);
   const derivedSecondaryProfiles = buildSecondaryProfilesSummary(systemRecord?.worlds || systemRecord?.planets || []);
+  const derivedObjectCounts = deriveObjectCountsFromWorlds(systemRecord?.worlds || systemRecord?.planets || []);
 
   return {
     ...base,
-    systemDesignation: String(
-      systemRecord?.systemDesignation ||
-        systemRecord?.name ||
-        systemRecord?.systemName ||
-        metadataSystemRecord?.name ||
-        metadata?.displayName ||
-        systemRecord?.systemId ||
-        "",
-    ),
-    sectorHex:
-      String(systemRecord?.sectorHex || "") ||
-      `${String(systemRecord?.sectorId || "")}${systemRecord?.hexCoordinates ? ` ${String(systemRecord.hexCoordinates.x).padStart(2, "0")}${String(systemRecord.hexCoordinates.y).padStart(2, "0")}` : ""}`.trim(),
+    systemDesignation: resolveSystemDesignation(systemRecord, metadata, metadataSystemRecord),
+    sectorHex: resolveSectorHexLabel(systemRecord, metadata, metadataSystemRecord),
     surveyDate: String(systemRecord?.surveyDate || base.surveyDate),
     surveyClass: String(systemRecord?.surveyClass || base.surveyClass),
     systemAge: Number(systemRecord?.systemAge ?? systemRecord?.stars?.[0]?.systemAge ?? 0) || null,
@@ -488,10 +548,25 @@ export function buildSurveyDataFromSystem(systemRecord) {
     hzCentre: Number(systemRecord?.habitableZone?.centerAU ?? systemRecord?.habitabilityZone?.centre ?? 0) || null,
     hzInner: Number(systemRecord?.habitableZone?.innerAU ?? systemRecord?.habitabilityZone?.inner ?? 0) || null,
     hzOuter: Number(systemRecord?.habitableZone?.outerAU ?? systemRecord?.habitabilityZone?.outer ?? 0) || null,
-    gasGiants: Number(systemRecord?.objectCounts?.gasGiants ?? systemRecord?.gasGiants ?? 0) || 0,
-    belts: Number(systemRecord?.objectCounts?.belts ?? systemRecord?.objectCounts?.planetoidBelts ?? 0) || 0,
+    gasGiants:
+      Number(systemRecord?.objectCounts?.gasGiants ?? systemRecord?.gasGiants ?? derivedObjectCounts.gasGiants ?? 0) ||
+      0,
+    belts:
+      Number(
+        systemRecord?.objectCounts?.belts ??
+          systemRecord?.objectCounts?.planetoidBelts ??
+          systemRecord?.belts ??
+          derivedObjectCounts.belts ??
+          0,
+      ) || 0,
     terrestrials:
-      Number(systemRecord?.objectCounts?.terrestrials ?? systemRecord?.objectCounts?.terrestrialPlanets ?? 0) || 0,
+      Number(
+        systemRecord?.objectCounts?.terrestrials ??
+          systemRecord?.objectCounts?.terrestrialPlanets ??
+          systemRecord?.terrestrials ??
+          derivedObjectCounts.terrestrials ??
+          0,
+      ) || 0,
     worlds,
     mainworldName: String(systemRecord?.mainworldName || profiles?.mainworldName || mainworld?.name || ""),
     mainworldType: String(

@@ -46,11 +46,12 @@
         </div>
         <div class="survey-header-actions">
           <button class="survey-action-btn" type="button" @click="openCreatureGenerator">🐾 Fauna Generator</button>
+          <button class="survey-action-btn" type="button" @click="openFloraGenerator">🌱 Flora Generator</button>
           <button class="survey-action-btn" type="button" @click="openSophontGenerator">🧬 Sophont Generator</button>
         </div>
       </header>
 
-      <SystemSurveyForm :system-id="resolvedSystemId" :autofill="true" />
+      <SystemSurveyForm :system-record="currentSystem" :system-id="resolvedSystemId" :autofill="true" />
     </div>
   </div>
 </template>
@@ -89,6 +90,33 @@ const resolvedSystemId = computed(() =>
   ).trim(),
 );
 
+function parseHexCoordinates(value) {
+  const normalized = String(value || "")
+    .trim()
+    .replace(/\D/g, "");
+  if (!/^\d{4}$/.test(normalized)) {
+    return null;
+  }
+
+  return {
+    x: Number(normalized.slice(0, 2)),
+    y: Number(normalized.slice(2, 4)),
+  };
+}
+
+function buildSectorHexLabel({ sectorName = "", sectorId = "", hex = "", existing = "" } = {}) {
+  const explicit = String(existing || "").trim();
+  if (explicit) {
+    return explicit;
+  }
+
+  const sectorLabel = String(sectorName || sectorId || "").trim();
+  const hexLabel = String(hex || "")
+    .trim()
+    .replace(/\D/g, "");
+  return [sectorLabel, hexLabel].filter(Boolean).join(" ").trim();
+}
+
 const currentSystem = computed(() => {
   const baseSystem = !resolvedSystemId.value
     ? systemStore.getCurrentSystem
@@ -96,23 +124,43 @@ const currentSystem = computed(() => {
       systemStore.getCurrentSystem);
 
   const routedSystemName = String(route.query.systemName || "").trim();
-  if (!routedSystemName) {
-    return baseSystem;
-  }
+  const routedHex = String(route.query.hex || "")
+    .trim()
+    .replace(/\D/g, "");
+  const routedSectorName = String(route.query.sectorName || "").trim();
+  const routedSectorId = String(
+    props.sectorId || route.params.sectorId || route.query.sectorId || baseSystem?.sectorId || "",
+  ).trim();
+  const parsedHex = parseHexCoordinates(routedHex);
+  const existingSectorHex = String(baseSystem?.sectorHex || baseSystem?.metadata?.sectorHex || "").trim();
+  const nextSectorHex = buildSectorHexLabel({
+    sectorName: routedSectorName || baseSystem?.sectorName || baseSystem?.metadata?.sectorName,
+    sectorId: routedSectorId,
+    hex: routedHex,
+    existing: existingSectorHex,
+  });
 
   if (!baseSystem) {
     return {
-      systemId: resolvedSystemId.value || String(route.query.hex || "").trim(),
+      systemId: resolvedSystemId.value || routedHex,
+      ...(routedSectorId ? { sectorId: routedSectorId } : {}),
+      ...(routedSectorName ? { sectorName: routedSectorName } : {}),
+      ...(nextSectorHex ? { sectorHex: nextSectorHex } : {}),
+      ...(parsedHex ? { hexCoordinates: parsedHex } : {}),
       name: routedSystemName,
       systemName: routedSystemName,
       systemDesignation: routedSystemName,
       stars: route.query.star ? [{ designation: String(route.query.star).trim() }] : [],
       metadata: {
+        ...(routedSectorName ? { sectorName: routedSectorName } : {}),
+        ...(nextSectorHex ? { sectorHex: nextSectorHex } : {}),
         displayName: routedSystemName,
         systemRecord: {
           name: routedSystemName,
           systemName: routedSystemName,
           systemDesignation: routedSystemName,
+          ...(routedSectorName ? { sectorName: routedSectorName } : {}),
+          ...(nextSectorHex ? { sectorHex: nextSectorHex } : {}),
         },
       },
     };
@@ -126,25 +174,39 @@ const currentSystem = computed(() => {
       baseSystem?.metadata?.systemRecord?.name ||
       "",
   ).trim();
-  if (existingName) {
-    return baseSystem;
-  }
+  const nextSystemName = existingName || routedSystemName;
 
   return {
     ...baseSystem,
-    name: routedSystemName,
-    systemName: routedSystemName,
-    systemDesignation: routedSystemName,
+    ...(routedSectorId ? { sectorId: routedSectorId } : {}),
+    ...(routedSectorName ? { sectorName: routedSectorName } : {}),
+    ...(nextSectorHex ? { sectorHex: nextSectorHex } : {}),
+    ...(!baseSystem?.hexCoordinates && parsedHex ? { hexCoordinates: parsedHex } : {}),
+    ...(nextSystemName
+      ? {
+          name: nextSystemName,
+          systemName: nextSystemName,
+          systemDesignation: nextSystemName,
+        }
+      : {}),
     metadata: {
       ...(baseSystem?.metadata && typeof baseSystem.metadata === "object" ? baseSystem.metadata : {}),
-      displayName: routedSystemName,
+      ...(routedSectorName ? { sectorName: routedSectorName } : {}),
+      ...(nextSectorHex ? { sectorHex: nextSectorHex } : {}),
+      ...(nextSystemName ? { displayName: nextSystemName } : {}),
       systemRecord: {
         ...(baseSystem?.metadata?.systemRecord && typeof baseSystem.metadata.systemRecord === "object"
           ? baseSystem.metadata.systemRecord
           : {}),
-        name: routedSystemName,
-        systemName: routedSystemName,
-        systemDesignation: routedSystemName,
+        ...(nextSystemName
+          ? {
+              name: nextSystemName,
+              systemName: nextSystemName,
+              systemDesignation: nextSystemName,
+            }
+          : {}),
+        ...(routedSectorName ? { sectorName: routedSectorName } : {}),
+        ...(nextSectorHex ? { sectorHex: nextSectorHex } : {}),
       },
     },
   };
@@ -200,6 +262,10 @@ function buildGeneratorQuery(source = "system-survey") {
 
 function openCreatureGenerator() {
   router.push({ name: "CreatureGenerator", query: buildGeneratorQuery("system-survey-creature") });
+}
+
+function openFloraGenerator() {
+  router.push({ name: "FloraGenerator", query: buildGeneratorQuery("system-survey-flora") });
 }
 
 function openSophontGenerator() {
