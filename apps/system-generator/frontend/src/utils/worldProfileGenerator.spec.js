@@ -103,7 +103,7 @@ describe("worldProfileGenerator", () => {
   });
 
   it("builds regenerated moon names from the parent world plus suffix", () => {
-    expect(buildMoonDisplayName("Tethys", 2)).toBe("Tethys b");
+    expect(buildMoonDisplayName("Tethys", 2)).toBe("Tethys Bee");
     expect(
       generateAutomaticWorldName({
         mode: "list",
@@ -111,15 +111,27 @@ describe("worldProfileGenerator", () => {
         parentWorldName: "Tethys",
         moonOrdinal: 2,
       }),
-    ).toBe("Tethys b");
+    ).toBe("Tethys Bee");
   });
 
   it("renames dependent moons when the parent world name changes", () => {
     const renamed = renamePlanetaryCatalogEntry(
       [
         { name: "Tethys", type: "Gas Giant" },
-        { name: "Tethys a", type: "Gas Giant Moon", isMoon: true, parentWorldName: "Tethys", moonOrdinal: 1 },
-        { name: "Tethys b", type: "Gas Giant Moon", isMoon: true, parentWorldName: "Tethys", orbitalSlot: 2 },
+        {
+          name: "Tethys Ay",
+          type: "Gas Giant Moon",
+          isMoon: true,
+          parentWorldName: "Tethys",
+          moonOrdinal: 1,
+        },
+        {
+          name: "Tethys Bee",
+          type: "Gas Giant Moon",
+          isMoon: true,
+          parentWorldName: "Tethys",
+          orbitalSlot: 2,
+        },
       ],
       0,
       "Caledon",
@@ -127,8 +139,37 @@ describe("worldProfileGenerator", () => {
 
     expect(renamed[0].name).toBe("Caledon");
     expect(renamed[1].parentWorldName).toBe("Caledon");
-    expect(renamed[1].name).toBe("Caledon a");
-    expect(renamed[2].name).toBe("Caledon b");
+    expect(renamed[1].name).toBe("Caledon Ay");
+    expect(renamed[2].name).toBe("Caledon Bee");
+  });
+
+  it("keeps unique moon names while updating their parent link", () => {
+    const renamed = renamePlanetaryCatalogEntry(
+      [
+        { name: "Tethys", type: "Gas Giant" },
+        {
+          name: "Tethys Ay",
+          type: "Gas Giant Moon",
+          isMoon: true,
+          parentWorldName: "Tethys",
+          moonOrdinal: 1,
+        },
+        {
+          name: "Miranda",
+          type: "Gas Giant Moon",
+          isMoon: true,
+          parentWorldName: "Tethys",
+          orbitalSlot: 2,
+        },
+      ],
+      0,
+      "Caledon",
+    );
+
+    expect(renamed[1].name).toBe("Caledon Ay");
+    expect(renamed[1].parentWorldName).toBe("Caledon");
+    expect(renamed[2].name).toBe("Miranda");
+    expect(renamed[2].parentWorldName).toBe("Caledon");
   });
 
   it("prevents gas giants from carrying native sophont life while allowing their moons", () => {

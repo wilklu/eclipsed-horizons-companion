@@ -377,7 +377,37 @@ const SURFACE_DISTRIBUTION_TABLE = Object.freeze([
   { code: 10, label: "Extremely Concentrated", majorShare: "95%+" },
 ]);
 const GAS_GIANT_SIZE_CLASS_CODES = Object.freeze(["GS", "GM", "GL"]);
-const MOON_SUFFIXES = Object.freeze("abcdefghijklmnopqrstuvwxyz".split(""));
+const CLOSE_MOON_PHONETIC_SUFFIXES = Object.freeze([
+  "Ay",
+  "Bee",
+  "Cee",
+  "Dee",
+  "Ee",
+  "Eff",
+  "Gee",
+  "Aitch",
+  "Eye",
+  "Jay",
+  "Kay",
+  "Ell",
+  "Em",
+]);
+
+const FAR_MOON_PHONETIC_SUFFIXES = Object.freeze([
+  "En",
+  "Oh",
+  "Pee",
+  "Que",
+  "Arr",
+  "Ess",
+  "Tee",
+  "Yu",
+  "Vee",
+  "Dub",
+  "Ex",
+  "Wye",
+  "Zee",
+]);
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
@@ -803,7 +833,17 @@ export function determineSignificantMoonQuantity({
 }
 
 function resolveMoonOrdinal(index) {
-  return MOON_SUFFIXES[index] || `${index + 1}`;
+  const normalizedIndex = Math.max(0, Math.trunc(Number(index) || 0));
+  const ordinal = normalizedIndex + 1;
+  if (ordinal <= CLOSE_MOON_PHONETIC_SUFFIXES.length) {
+    return CLOSE_MOON_PHONETIC_SUFFIXES[ordinal - 1];
+  }
+
+  const farOrdinal = ordinal - CLOSE_MOON_PHONETIC_SUFFIXES.length;
+  const farIndex = (farOrdinal - 1) % FAR_MOON_PHONETIC_SUFFIXES.length;
+  const farCycle = Math.floor((farOrdinal - 1) / FAR_MOON_PHONETIC_SUFFIXES.length) + 1;
+  const base = FAR_MOON_PHONETIC_SUFFIXES[farIndex];
+  return farCycle > 1 ? `${base} ${farCycle}` : base;
 }
 
 function buildMoonName(parentName, index) {
