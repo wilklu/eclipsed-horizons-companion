@@ -1,5 +1,6 @@
 <template>
   <div id="app-root">
+    <ToastContainer />
     <LoadingSpinner
       :isVisible="isBooting"
       mode="boot"
@@ -44,6 +45,7 @@
 import { computed, onErrorCaptured, onMounted, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import LoadingSpinner from "./components/common/LoadingSpinner.vue";
+import ToastContainer from "./components/common/ToastContainer.vue";
 import { useGalaxyStore } from "./stores/galaxyStore.js";
 import { useSectorStore } from "./stores/sectorStore.js";
 

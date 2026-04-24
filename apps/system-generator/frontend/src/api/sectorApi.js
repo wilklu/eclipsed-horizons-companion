@@ -2,7 +2,8 @@ import { normalizeHexStarTypesMap } from "../utils/systemStarMetadata.js";
 
 const STORAGE_KEY = "eclipsed-horizons-sectors-cache";
 const API_BASE_URL = String(import.meta.env.VITE_API_BASE_URL || "http://localhost:3100/api").replace(/\/$/, "");
-const CACHE_HEX_DETAIL_LIMIT = 128;
+const CACHE_HEX_STAR_TYPE_DETAIL_LIMIT = 128;
+const CACHE_OCCUPIED_HEX_LIMIT = 1280;
 const CACHE_SECTOR_RETRY_LIMIT = 250;
 
 function isAbortError(error) {
@@ -65,7 +66,7 @@ function compactHexStarTypesForCache(hexStarTypes) {
     return hexStarTypes;
   }
   const entries = Object.entries(normalizeHexStarTypesMap(hexStarTypes));
-  if (entries.length <= CACHE_HEX_DETAIL_LIMIT) {
+  if (entries.length <= CACHE_HEX_STAR_TYPE_DETAIL_LIMIT) {
     return Object.fromEntries(entries);
   }
   return undefined;
@@ -77,7 +78,7 @@ function compactSectorForCache(sector) {
   const occupiedHexes = Array.isArray(metadata.occupiedHexes) ? metadata.occupiedHexes : [];
   const compactHexStarTypes = compactHexStarTypesForCache(metadata.hexStarTypes);
 
-  if (occupiedHexes.length > CACHE_HEX_DETAIL_LIMIT) {
+  if (occupiedHexes.length > CACHE_OCCUPIED_HEX_LIMIT) {
     metadata.occupiedHexesCount = occupiedHexes.length;
     delete metadata.occupiedHexes;
   }
@@ -487,9 +488,10 @@ export async function createSectorsBatch(sectors, options = {}) {
     if (isAbortError(error)) {
       throw error;
     }
+    const fallbackOptions = options?.persistCache === false ? { ...options, persistCache: true } : options;
     const created = [];
     for (const sector of payload) {
-      created.push(await upsertSector(sector, options));
+      created.push(await upsertSector(sector, fallbackOptions));
     }
     return created;
   }

@@ -1380,10 +1380,12 @@ import {
   createSectorsBatch,
   deleteSector,
   getSectorStats,
+  upsertSector,
+  updateSector,
   updateSectorStrict,
   upsertSectorStrict,
 } from "../../api/sectorApi.js";
-import { replaceSystemsForSectorStrict } from "../../api/systemApi.js";
+import { replaceSystemsForSector, replaceSystemsForSectorStrict } from "../../api/systemApi.js";
 import { calculateHexOccupancyProbability } from "../../utils/sectorGeneration.js";
 import { generatePrimaryStar } from "../../utils/primaryStarGenerator.js";
 import { buildHexStarTypeMetadata, normalizeHexStarTypeRecord } from "../../utils/systemStarMetadata.js";
@@ -4915,9 +4917,17 @@ function getRingLayoutSectors(galaxy, ring) {
   if (!Number.isFinite(targetRing) || targetRing < 0) {
     return [];
   }
-  return Array.from(iterateGalaxySectorLayout(galaxy, { scale: "true" })).filter(
-    (sector) => sectorRingDistance(sector) === targetRing,
-  );
+  const sectors = [];
+  for (const sector of iterateGalaxySectorLayoutByRing(galaxy, { scale: "true" })) {
+    const sectorRing = sectorRingDistance(sector);
+    if (sectorRing > targetRing) {
+      break;
+    }
+    if (sectorRing === targetRing) {
+      sectors.push(sector);
+    }
+  }
+  return sectors;
 }
 
 function formatDuration(seconds) {
@@ -5092,6 +5102,45 @@ function runGalaxyGenerationBatch({ worker, mode, galaxy, sectors, realismScale 
     worker.addEventListener("error", handleError);
     worker.postMessage(workerPayload);
   });
+}
+
+async function upsertSectorForGeneration(sectorPayload, requestOptions = {}, status = null) {
+  try {
+    return await upsertSectorStrict(sectorPayload, requestOptions);
+  } catch {
+    if (status && typeof status === "object") {
+      status.usedFallback = true;
+    }
+    const fallbackOptions =
+      requestOptions?.persistCache === false ? { ...requestOptions, persistCache: true } : requestOptions;
+    return upsertSector(sectorPayload, fallbackOptions);
+  }
+}
+
+async function updateSectorForGeneration(sectorId, sectorPayload, requestOptions = {}, status = null) {
+  try {
+    return await updateSectorStrict(sectorId, sectorPayload, requestOptions);
+  } catch {
+    if (status && typeof status === "object") {
+      status.usedFallback = true;
+    }
+    const fallbackOptions =
+      requestOptions?.persistCache === false ? { ...requestOptions, persistCache: true } : requestOptions;
+    return updateSector(sectorId, sectorPayload, fallbackOptions);
+  }
+}
+
+async function replaceSectorSystemsForGeneration(sectorId, systems, requestOptions = {}, status = null) {
+  try {
+    return await replaceSystemsForSectorStrict(sectorId, systems, requestOptions);
+  } catch {
+    if (status && typeof status === "object") {
+      status.usedFallback = true;
+    }
+    const fallbackOptions =
+      requestOptions?.persistCache === false ? { ...requestOptions, persistCache: true } : requestOptions;
+    return replaceSystemsForSector(sectorId, systems, fallbackOptions);
+  }
 }
 
 function sectorHexCoord(col, row) {
@@ -5313,7 +5362,7 @@ async function seedGalacticCenterSector(galaxy) {
     hexStarTypes: {},
   });
 
-  const persistedSector = await upsertSectorStrict(
+  const persistedSector = await upsertSectorForGeneration(
     {
       ...centerSector,
       metadata: ensureSectorNamingMetadata(centerSector, {
@@ -5332,15 +5381,11 @@ async function seedGalacticCenterSector(galaxy) {
     getGenerationRequestOptions(),
   );
 
-  const persistedSystems = await replaceSystemsForSectorStrict(
+  await replaceSectorSystemsForGeneration(
     persistedSector.sectorId,
     buildPersistedSystemRecordsForSector(persistedSector, seeded.hexStarTypes),
     getGenerationRequestOptions(),
   );
-  const retainedSystems = systemStore.systems.filter(
-    (system) => String(system?.sectorId) !== String(persistedSector.sectorId),
-  );
-  systemStore.systems = retainedSystems.concat(persistedSystems);
 
   return true;
 }
@@ -5546,7 +5591,7 @@ async function generateSectorPresenceForSectors(
         ringPopulatedCount += 1;
       }
 
-      const persistedSector = await upsertSectorStrict(
+      const persistedSector = await upsertSectorForGeneration(
         {
           ...sector,
           metadata: ensureSectorNamingMetadata(sector, {
@@ -5564,15 +5609,11 @@ async function generateSectorPresenceForSectors(
         getBulkGenerationRequestOptions(),
       );
 
-      const persistedSystems = await replaceSystemsForSectorStrict(
+      await replaceSectorSystemsForGeneration(
         persistedSector.sectorId,
         buildPersistedSystemRecordsForSector(persistedSector, seeded.hexStarTypes),
         getBulkGenerationRequestOptions(),
       );
-      const retainedSystems = systemStore.systems.filter(
-        (system) => String(system?.sectorId) !== String(persistedSector.sectorId),
-      );
-      systemStore.systems = retainedSystems.concat(persistedSystems);
 
       processed += 1;
       ringProcessedCount += 1;
@@ -5611,6 +5652,7 @@ async function generateSectorPresenceForSectors(
 
   await persistCachedSectorStats(galaxy, stats);
   currentGalaxySectorStats.value = stats;
+  await systemStore.loadSystems(galaxy.galaxyId);
   clearGenerationRingCheckpoint();
 
   return {
@@ -5805,7 +5847,7 @@ async function generateSectorSystemsForSectors(
         ringPopulatedCount += 1;
       }
 
-      const persistedSector = await upsertSectorStrict(
+      const persistedSector = await upsertSectorForGeneration(
         {
           ...sector,
           metadata: ensureSectorNamingMetadata(sector, {
@@ -5824,15 +5866,11 @@ async function generateSectorSystemsForSectors(
         getBulkGenerationRequestOptions(),
       );
 
-      const persistedSystems = await replaceSystemsForSectorStrict(
+      await replaceSectorSystemsForGeneration(
         persistedSector.sectorId,
         buildPersistedSystemRecordsForSector(persistedSector, seeded.hexStarTypes),
         getBulkGenerationRequestOptions(),
       );
-      const retainedSystems = systemStore.systems.filter(
-        (system) => String(system?.sectorId) !== String(persistedSector.sectorId),
-      );
-      systemStore.systems = retainedSystems.concat(persistedSystems);
 
       processed += 1;
       ringProcessedCount += 1;
@@ -5871,6 +5909,7 @@ async function generateSectorSystemsForSectors(
 
   await persistCachedSectorStats(galaxy, stats);
   currentGalaxySectorStats.value = stats;
+  await systemStore.loadSystems(galaxy.galaxyId);
   clearGenerationRingCheckpoint();
 
   return {
@@ -6295,6 +6334,7 @@ async function resetGalaxyGeneratedContent({ level = "systems", sectorIds = null
   }
 
   isApplyingSectorReset.value = true;
+  const persistenceStatus = { usedFallback: false };
   const startedAt = Date.now();
   try {
     for (const sector of targetSectors) {
@@ -6318,10 +6358,15 @@ async function resetGalaxyGeneratedContent({ level = "systems", sectorIds = null
               hexPresenceGenerated: occupiedHexes.length > 0,
             });
 
-      const updatedSector = await updateSectorStrict(sector.sectorId, {
-        ...sector,
-        metadata: nextMetadata,
-      });
+      const updatedSector = await updateSectorForGeneration(
+        sector.sectorId,
+        {
+          ...sector,
+          metadata: nextMetadata,
+        },
+        {},
+        persistenceStatus,
+      );
       const sectorIndex = sectorStore.sectors.findIndex(
         (entry) => String(entry?.sectorId) === String(updatedSector?.sectorId),
       );
@@ -6330,13 +6375,12 @@ async function resetGalaxyGeneratedContent({ level = "systems", sectorIds = null
       } else {
         sectorStore.sectors.unshift(updatedSector);
       }
-      await replaceSystemsForSectorStrict(sector.sectorId, []);
+      await replaceSectorSystemsForGeneration(sector.sectorId, [], {}, persistenceStatus);
       systemStore.systems = systemStore.systems.filter(
         (system) => String(system?.sectorId) !== String(sector.sectorId),
       );
     }
 
-    await sectorStore.loadSectors(galaxy.galaxyId);
     await loadCurrentGalaxySectorStats({ galaxyId: galaxy.galaxyId, silent: true, force: true });
     recordGalaxySurveyHistory({
       galaxyId: galaxy.galaxyId,
@@ -6352,6 +6396,9 @@ async function resetGalaxyGeneratedContent({ level = "systems", sectorIds = null
     toastService.success(
       `${level === "presence" ? "Survey presence and systems" : "Systems"} cleared for ${targetSectors.length.toLocaleString()} sector${targetSectors.length === 1 ? "" : "s"}.`,
     );
+    if (persistenceStatus.usedFallback) {
+      toastService.info("Clear completed using local fallback storage because the strict API path was unavailable.");
+    }
   } catch (err) {
     toastService.error(`Failed to reset generated content: ${err.message}`);
   } finally {

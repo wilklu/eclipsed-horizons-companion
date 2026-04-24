@@ -70,11 +70,21 @@ export const useSystemStore = defineStore("system", {
       this.isLoading = true;
       this.error = null;
       try {
-        const all = sectorId ? await systemApi.getSystemsBySector(sectorId, options) : loadSystems();
+        if (sectorId) {
+          // Sector-scoped load: merge into existing store so other sectors' systems are not evicted.
+          const fetched = await systemApi.getSystemsBySector(sectorId, options);
+          const filtered = fetched.filter((system) => {
+            const galaxyMatches = !galaxyId || String(system.galaxyId) === String(galaxyId);
+            return galaxyMatches && String(system.sectorId) === String(sectorId);
+          });
+          const others = this.systems.filter((system) => String(system.sectorId) !== String(sectorId));
+          this.systems = others.concat(filtered);
+          return filtered;
+        }
+        // Galaxy-wide (or unscoped) load: replace entire store.
+        const all = loadSystems();
         this.systems = all.filter((system) => {
-          const galaxyMatches = !galaxyId || String(system.galaxyId) === String(galaxyId);
-          const sectorMatches = !sectorId || String(system.sectorId) === String(sectorId);
-          return galaxyMatches && sectorMatches;
+          return !galaxyId || String(system.galaxyId) === String(galaxyId);
         });
         return this.systems;
       } catch (err) {

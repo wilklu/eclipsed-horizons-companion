@@ -1537,6 +1537,7 @@ const atlasGenerationProgress = ref({
   legacyReconstructedCount: 0,
   legacyHierarchyUnknownCount: 0,
 });
+const hydratedAtlasSectorSystemKeys = new Set();
 
 const atlasGenerationProgressPercent = computed(() => {
   if (!atlasGenerationProgress.value.active || atlasGenerationProgress.value.total <= 0) return 0;
@@ -2326,6 +2327,11 @@ function buildStarMarkersForTiles(tiles) {
   for (const tile of tiles) {
     const hexStarTypes = tile.sector?.metadata?.hexStarTypes ?? {};
     const occupiedHexes = tile.sector?.metadata?.occupiedHexes ?? [];
+    const compactedHexStarTypeCount = Number(tile.sector?.metadata?.hexStarTypeCount);
+    const inferredTypedCoverage =
+      Number.isFinite(compactedHexStarTypeCount) &&
+      occupiedHexes.length > 0 &&
+      compactedHexStarTypeCount >= occupiedHexes.length;
     const typedCoords = new Set();
 
     for (const [coord, info] of Object.entries(hexStarTypes)) {
@@ -2392,6 +2398,7 @@ function buildStarMarkersForTiles(tiles) {
       const hrow = parseInt(coord.slice(2, 4), 10);
       if (!Number.isFinite(hcol) || !Number.isFinite(hrow)) continue;
       const { wx, wy } = hexWorldCenter(tile.sx, tile.sy, hcol, hrow);
+      const inferredPresenceOnly = !inferredTypedCoverage;
       const marker = {
         key,
         galaxyId: tile.sector?.galaxyId,
@@ -2402,7 +2409,7 @@ function buildStarMarkersForTiles(tiles) {
         coord,
         wx,
         wy,
-        starType: "?",
+        starType: inferredPresenceOnly ? "?" : "G2V",
         starClass: "",
         color: "#909090",
         compColor: "#707070",
@@ -2416,8 +2423,8 @@ function buildStarMarkersForTiles(tiles) {
         importance: "—",
         governmentProfile: "—",
         factionsProfile: "—",
-        hasSavedSystem: false,
-        presenceOnly: true,
+        hasSavedSystem: !inferredPresenceOnly,
+        presenceOnly: inferredPresenceOnly,
         name: "",
       };
       markerByKey.set(key, marker);
@@ -4199,6 +4206,7 @@ function onSectorTileClick(tile) {
 
   setAtlasGenerationDefaultsForScope("sector");
   inspectorSector.value = tile.sector;
+  void hydrateAtlasSectorSystems(tile.sector);
   syncAtlasSelectionState(tile.sector);
   inspectorMode.value = "sector";
   selectedHexKey.value = null;
@@ -4219,6 +4227,7 @@ function onGridCellClick(tile) {
   const existing = sectorByCoord.value.get(`${sx}:${sy}`);
   if (existing) {
     inspectorSector.value = existing;
+    void hydrateAtlasSectorSystems(existing);
   } else {
     inspectorSector.value = {
       sectorId: `grid:${sx}:${sy}`,
@@ -4251,6 +4260,7 @@ function onStarClick(star) {
   if (dragging.value) return;
   setAtlasGenerationDefaultsForScope("sector");
   selectedHexKey.value = star.key;
+  void hydrateAtlasSectorSystems({ sectorId: star.sectorId, galaxyId: star.galaxyId });
   inspectorStar.value = { ...star };
   syncAtlasSelectionState({
     sectorId: star.sectorId,
@@ -4458,6 +4468,27 @@ function applySectorUpdate(updatedSector) {
   }
   inspectorSector.value = updatedSector;
   syncAtlasSelectionState(updatedSector);
+}
+
+async function hydrateAtlasSectorSystems(sectorLike) {
+  const sectorId = String(sectorLike?.sectorId || "").trim();
+  const galaxyId = String(sectorLike?.galaxyId || selectedGalaxyId.value || "").trim();
+
+  if (!sectorId || !galaxyId || sectorId.startsWith("grid:")) {
+    return;
+  }
+
+  const cacheKey = `${galaxyId}:${sectorId}`;
+  if (hydratedAtlasSectorSystemKeys.has(cacheKey)) {
+    return;
+  }
+  hydratedAtlasSectorSystemKeys.add(cacheKey);
+
+  try {
+    await systemStore.loadSystems(galaxyId, sectorId);
+  } catch {
+    hydratedAtlasSectorSystemKeys.delete(cacheKey);
+  }
 }
 
 function syncAtlasSelectionState(sector) {
@@ -5212,6 +5243,7 @@ function openOrbitalView() {
 // ── Data loading ───────────────────────────────────────────────────────────
 async function handleGalaxyChange() {
   clearSelection();
+  hydratedAtlasSectorSystemKeys.clear();
   if (!selectedGalaxyId.value) {
     atlasSectors.value = [];
     return;
