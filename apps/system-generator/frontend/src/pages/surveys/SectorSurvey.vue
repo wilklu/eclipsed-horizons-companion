@@ -1395,7 +1395,7 @@ watch(gridWrapperRef, (element) => {
 const showHexCoords = computed(() => {
   if (!displayedSector.value) return true;
   if (isSubsectorViewport.value) {
-    return true;
+    return gridSizeMode.value !== "fit";
   }
   return gridSizeMode.value !== "fit";
 });

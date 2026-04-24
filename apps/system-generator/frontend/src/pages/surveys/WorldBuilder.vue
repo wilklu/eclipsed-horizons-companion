@@ -1190,14 +1190,17 @@ function hydrateStoredWorldProfile() {
 
 function generateRandomWorldName() {
   const selectedPlanet = getSelectedPlanetRecord();
+  const boundSystem = resolveBoundSystemRecord();
   return generateAutomaticWorldName({
     mode: preferencesStore.worldNameMode,
     isMoon: Boolean(selectedPlanet?.isMoon || selectedPlanet?.parentWorldName),
     parentWorldName: selectedPlanet?.parentWorldName,
     moonOrdinal: selectedPlanet?.moonOrdinal,
     orbitalSlot: selectedPlanet?.orbitalSlot,
-    systemName: String(system.value?.name || route.query.systemName || route.query.star || "").trim(),
-    seed: `${String(system.value?.systemId || route.query.systemId || "world")}:${String(selectedPlanet?.orbitalSlot || selectedPlanet?.name || "0")}`,
+    systemName: String(
+      boundSystem?.name || boundSystem?.systemName || route.query.systemName || route.query.star || "",
+    ).trim(),
+    seed: `${String(boundSystem?.systemId || route.query.systemId || "world")}:${String(selectedPlanet?.orbitalSlot || selectedPlanet?.name || "0")}`,
   });
 }
 
@@ -1677,6 +1680,9 @@ onBeforeUnmount(() => {
 .survey-content {
   padding: 1.25rem;
   flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
 }
 
 .control-panel {

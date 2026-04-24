@@ -506,7 +506,7 @@
 
 <script setup>
 import { computed, ref, watch } from "vue";
-import { useRoute } from "vue-router";
+import { onBeforeRouteLeave, useRoute } from "vue-router";
 import { useSystemStore } from "../../stores/systemStore";
 import { formatTemperatureFromKelvin } from "../../utils/temperatureFormatting.js";
 import {
@@ -534,6 +534,8 @@ const props = defineProps({
 
 const route = useRoute();
 const systemStore = useSystemStore();
+
+let _nameSaveTimer = null;
 
 const resolvedSystemRecord = computed(() => {
   if (props.systemRecord && typeof props.systemRecord === "object") {
@@ -630,6 +632,78 @@ const removeWorld = (index) => {
 const countWorldsByType = (type) => {
   return surveyData.value.worlds.filter((w) => w.type === type).length;
 };
+
+// Save system name — shared helper
+function saveSystemName(nextName, systemRecord) {
+  if (!systemRecord?.systemId) return;
+  const name = String(nextName || "").trim();
+  if (!name) return;
+  systemStore
+    .updateSystem(systemRecord.systemId, {
+      ...systemRecord,
+      name,
+      systemName: name,
+      systemDesignation: name,
+      metadata: {
+        ...(systemRecord.metadata && typeof systemRecord.metadata === "object" ? systemRecord.metadata : {}),
+        displayName: name,
+        systemRecord: {
+          ...(systemRecord.metadata?.systemRecord && typeof systemRecord.metadata.systemRecord === "object"
+            ? systemRecord.metadata.systemRecord
+            : {}),
+          name,
+          systemName: name,
+          systemDesignation: name,
+        },
+        lastModified: new Date().toISOString(),
+      },
+    })
+    .catch(() => {});
+}
+
+// Debounced auto-save as user types the system name
+watch(
+  () => surveyData.value.systemDesignation,
+  (nextName) => {
+    if (_nameSaveTimer) clearTimeout(_nameSaveTimer);
+    _nameSaveTimer = setTimeout(() => {
+      const systemRecord = resolvedSystemRecord.value;
+      const stored = String(
+        systemRecord?.name ||
+          systemRecord?.systemName ||
+          systemRecord?.systemDesignation ||
+          systemRecord?.metadata?.systemRecord?.name ||
+          systemRecord?.metadata?.displayName ||
+          "",
+      ).trim();
+      if (String(nextName || "").trim() !== stored) {
+        saveSystemName(nextName, systemRecord);
+      }
+    }, 800);
+  },
+);
+
+// Also flush on navigate-away in case the debounce hasn't fired yet
+onBeforeRouteLeave(() => {
+  if (_nameSaveTimer) {
+    clearTimeout(_nameSaveTimer);
+    _nameSaveTimer = null;
+  }
+  const systemRecord = resolvedSystemRecord.value;
+  const nextName = String(surveyData.value.systemDesignation || "").trim();
+  if (!nextName) return;
+  const stored = String(
+    systemRecord?.name ||
+      systemRecord?.systemName ||
+      systemRecord?.systemDesignation ||
+      systemRecord?.metadata?.systemRecord?.name ||
+      systemRecord?.metadata?.displayName ||
+      "",
+  ).trim();
+  if (nextName !== stored) {
+    saveSystemName(nextName, systemRecord);
+  }
+});
 
 // Save survey
 const saveSurvey = async () => {

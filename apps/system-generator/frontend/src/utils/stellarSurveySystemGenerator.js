@@ -129,11 +129,21 @@ export function buildPersistedSurveySystemFromHex({ galaxyId, sectorId, hex, nam
   }
 
   const nowIso = new Date().toISOString();
+  const resolvedSystemName = String(
+    hex?.name || hex?.systemName || hex?.systemDesignation || mainworld?.name || "",
+  ).trim();
 
   return {
     systemId: `${sectorId}:${String(hex?.coord || "0000").trim()}`,
     galaxyId,
     sectorId,
+    ...(resolvedSystemName
+      ? {
+          name: resolvedSystemName,
+          systemName: resolvedSystemName,
+          systemDesignation: resolvedSystemName,
+        }
+      : {}),
     hexCoordinates: {
       x: Number(String(hex?.coord || "0000").slice(0, 2)) || 0,
       y: Number(String(hex?.coord || "0000").slice(2, 4)) || 0,
