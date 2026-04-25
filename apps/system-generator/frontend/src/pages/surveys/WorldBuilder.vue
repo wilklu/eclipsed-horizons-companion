@@ -140,9 +140,39 @@
                 <span class="prop-label">Atmosphere:</span>
                 <span class="prop-value">{{ world.atmosphereCode }} — {{ world.atmosphereDesc }}</span>
               </div>
+              <div class="prop-row" v-if="world.atmosphereComposition || world.atmosphereCompositionDetailed">
+                <span class="prop-label">Composition:</span>
+                <span class="prop-value">{{
+                  world.atmosphereComposition || world.atmosphereCompositionDetailed?.description
+                }}</span>
+              </div>
+              <div class="prop-row" v-if="world.atmosphereCompositionDetailed?.gases?.length">
+                <span class="prop-label">Gases:</span>
+                <span class="prop-value">
+                  {{
+                    world.atmosphereCompositionDetailed.gases
+                      .map((g) => `${g.gas}${g.fraction ? " " + Math.round(g.fraction * 100) + "%" : ""}`)
+                      .join(", ")
+                  }}
+                </span>
+              </div>
               <div class="prop-row">
                 <span class="prop-label">Hydrographics:</span>
                 <span class="prop-value">{{ world.hydrographics }}0 % surface water</span>
+              </div>
+              <div class="prop-row" v-if="world.hydrographicsComposition || world.hydrographicsCompositionDetailed">
+                <span class="prop-label">Hydrographics:</span>
+                <span class="prop-value">{{
+                  world.hydrographicsComposition || world.hydrographicsCompositionDetailed?.description
+                }}</span>
+              </div>
+              <div class="prop-row" v-if="world.hydrographicsCompositionDetailed">
+                <span class="prop-label">Water Breakdown:</span>
+                <span class="prop-value">
+                  {{ Math.round((world.hydrographicsCompositionDetailed.waterFraction || 0) * 100) }}% water — ocean
+                  {{ Math.round((world.hydrographicsCompositionDetailed.oceanFraction || 0) * 100) }}%, ice
+                  {{ Math.round((world.hydrographicsCompositionDetailed.iceFraction || 0) * 100) }}%
+                </span>
               </div>
               <div class="prop-row">
                 <span class="prop-label">Gravity:</span>

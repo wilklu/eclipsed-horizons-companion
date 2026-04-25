@@ -84,6 +84,8 @@ const sectorStoreState = reactive({
 
 const systemStoreState = reactive({
   systems: [],
+  replaceSectorSystems: vi.fn().mockResolvedValue([]),
+  loadSystems: vi.fn().mockResolvedValue([]),
 });
 
 const preferencesStoreState = reactive({
@@ -148,6 +150,7 @@ vi.mock("../../api/sectorApi.js", () => ({
   getSectors: vi.fn().mockResolvedValue([createAnomalySector()]),
   getSectorsWindow: vi.fn().mockResolvedValue([createAnomalySector()]),
   getSector: vi.fn().mockResolvedValue(createAnomalySector()),
+  upsertSector: vi.fn(async (payload) => payload),
 }));
 
 vi.mock("../../utils/sectorLayoutGenerator.js", () => ({
@@ -177,9 +180,14 @@ describe("TravellerMap anomaly display", () => {
     const baseSector = createAnomalySector();
     sectorStoreState.sectors = [baseSector];
     systemStoreState.systems = [];
+    systemStoreState.replaceSectorSystems.mockReset();
+    systemStoreState.replaceSectorSystems.mockResolvedValue([]);
+    systemStoreState.loadSystems.mockReset();
+    systemStoreState.loadSystems.mockResolvedValue([]);
     sectorApi.getSectors.mockResolvedValue([baseSector]);
     sectorApi.getSectorsWindow.mockResolvedValue([baseSector]);
     sectorApi.getSector.mockResolvedValue(baseSector);
+    sectorApi.upsertSector.mockResolvedValue(baseSector);
     sectorLayoutGenerator.generateGalaxySectorLayoutWindow.mockReturnValue([baseSector]);
     localStorage.clear();
   });
@@ -327,5 +335,32 @@ describe("TravellerMap anomaly display", () => {
     expect(planningOverlay.exists()).toBe(true);
     expect(Number(planningOverlay.attributes("x"))).toBe(22);
     expect(Number(planningOverlay.attributes("y"))).toBe(6);
+  });
+
+  it("clears persisted systems when rerolling atlas sector presence", async () => {
+    const baseSector = createAnomalySector();
+    sectorStoreState.sectors = [baseSector];
+    sectorApi.getSectors.mockResolvedValue([baseSector]);
+    sectorApi.getSectorsWindow.mockResolvedValue([baseSector]);
+    sectorApi.getSector.mockResolvedValue(baseSector);
+    sectorApi.upsertSector.mockResolvedValue(baseSector);
+
+    const wrapper = mount(TravellerMap, {
+      global: {
+        stubs: {
+          LoadingSpinner: { template: "<div data-test='loading-spinner' />" },
+        },
+      },
+    });
+
+    await flushPromises();
+    await flushPromises();
+
+    wrapper.vm.$.setupState.inspectorSector = baseSector;
+
+    await wrapper.vm.$.setupState.generateInspectorSector();
+
+    expect(sectorApi.upsertSector).toHaveBeenCalled();
+    expect(systemStoreState.replaceSectorSystems).toHaveBeenCalledWith("gal-1:0,0", []);
   });
 });

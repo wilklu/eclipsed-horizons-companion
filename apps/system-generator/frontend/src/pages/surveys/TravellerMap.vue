@@ -4747,6 +4747,7 @@ async function generateInspectorSectorPresenceInternalWithOptions(sector, { incl
   };
 
   const updated = await sectorApi.upsertSector(payload);
+  await systemStore.replaceSectorSystems(updated.sectorId, []);
   applySectorUpdate(updated);
   return { updated, occupiedHexes };
 }

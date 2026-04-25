@@ -47,6 +47,14 @@ export function createEmptySurveyData() {
     hydrographics: {
       coverage: null,
       composition: "",
+      compositionDetailed: {
+        waterFraction: null,
+        oceanFraction: null,
+        landFraction: null,
+        iceFraction: null,
+        salinity: "",
+        surfaceDistribution: "",
+      },
       distribution: "",
       majorBodies: "",
       minorBodies: "",
@@ -523,6 +531,7 @@ export function buildSurveyDataFromWorld(systemRecord, worldRecord) {
         worldRecord?.hydrosphereLiquid ||
           (Number(worldRecord?.hydrographics ?? 0) > 0 ? "Water-based surface volatiles" : "Dry world"),
       ),
+      compositionDetailed: worldRecord?.hydrographicsCompositionDetailed || null,
       distribution: String(
         worldRecord?.surfaceDistribution ||
           (String(worldRecord?.hydrographics ?? 0) > "0"
@@ -611,6 +620,9 @@ export function buildUpdatedPlanetFromSurvey(currentPlanet, surveyPayload) {
     surfaceDistribution: String(payload?.hydrographics?.distribution || planet.surfaceDistribution || ""),
     surfaceDistributionSummary: String(payload?.hydrographics?.majorBodies || planet.surfaceDistributionSummary || ""),
     dominantSurface: dominantSurface || planet.dominantSurface,
+    hydrographicsComposition: payload?.hydrographics?.composition ?? planet.hydrographicsComposition,
+    hydrographicsCompositionDetailed:
+      payload?.hydrographics?.compositionDetailed ?? planet.hydrographicsCompositionDetailed,
     runawayGreenhouse: parseGreenhouseLabel(payload?.temperature?.greenhouse, planet.runawayGreenhouse),
     greenhouseAtmosphereCode: parseGreenhouseAtmosphereCode(
       payload?.temperature?.greenhouse,

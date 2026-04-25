@@ -392,6 +392,51 @@
             </div>
 
             <div class="form-row">
+              <div class="form-cell">
+                <label class="cell-label">Water (%)</label>
+                <input
+                  v-model.number="surveyData.hydrographics.compositionDetailed.waterFraction"
+                  type="number"
+                  min="0"
+                  max="100"
+                  class="cell-input"
+                  placeholder="71"
+                />
+              </div>
+              <div class="form-cell">
+                <label class="cell-label">Ocean (%)</label>
+                <input
+                  v-model.number="surveyData.hydrographics.compositionDetailed.oceanFraction"
+                  type="number"
+                  min="0"
+                  max="100"
+                  class="cell-input"
+                  placeholder="65"
+                />
+              </div>
+              <div class="form-cell">
+                <label class="cell-label">Ice (%)</label>
+                <input
+                  v-model.number="surveyData.hydrographics.compositionDetailed.iceFraction"
+                  type="number"
+                  min="0"
+                  max="100"
+                  class="cell-input"
+                  placeholder="5"
+                />
+              </div>
+              <div class="form-cell">
+                <label class="cell-label">Salinity</label>
+                <select v-model="surveyData.hydrographics.compositionDetailed.salinity" class="cell-input">
+                  <option value="">—</option>
+                  <option value="fresh">Fresh</option>
+                  <option value="brackish">Brackish</option>
+                  <option value="saline">Saline</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-row">
               <div class="form-cell grow-2">
                 <label class="cell-label">Distribution Summary</label>
                 <input

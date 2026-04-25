@@ -136,6 +136,31 @@ function resolveChemistrySummary(planet = {}) {
 }
 
 function resolveHydrosphereChemistry(planet = {}) {
+  // Prefer the structured hydrography if available
+  try {
+    const detailed = planet?.hydrographicsCompositionDetailed;
+    if (detailed && typeof detailed === "object") {
+      const wf = Number(detailed.waterFraction || 0);
+      const ocean = Number(detailed.oceanFraction || 0);
+      const ice = Number(detailed.iceFraction || 0);
+      // Mostly water and reasonable ocean share -> water
+      if (wf >= 0.5 && ocean >= 0.3) return "water";
+      // Very icy ocean-dominated worlds at cryogenic temperatures may be hydrocarbon seas
+      const avgTempC = Number(planet?.avgTempC);
+      const hydroPercent = resolveHydrographicsPercent(planet);
+      if (hydroPercent > 0 && Number.isFinite(avgTempC) && avgTempC <= -70 && wf < 0.25) return "methane";
+      if (
+        String(detailed.salinity || "")
+          .toLowerCase()
+          .includes("fresh") &&
+        wf > 0
+      )
+        return "water";
+    }
+  } catch (e) {
+    // fall through to text-based heuristics
+  }
+
   const chemistry = resolveChemistrySummary(planet);
 
   if (/ammonia/.test(chemistry)) {

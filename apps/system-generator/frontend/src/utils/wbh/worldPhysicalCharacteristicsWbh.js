@@ -9,6 +9,11 @@ import {
   calculateBiodiversityRating,
   calculateCompatibilityRating,
 } from "./lifeRatingsWbh.js";
+import { generateAtmosphereComposition, generateAtmosphereCompositionDetailed } from "./atmosphereCompositionWbh.js";
+import {
+  generateHydrographicsComposition,
+  generateHydrographicsCompositionDetailed,
+} from "./hydrographicsCompositionWbh.js";
 
 export {
   calculateBiomassRating,
@@ -2238,6 +2243,42 @@ export function buildWbhEnvironmentalProfile(params = {}) {
         tertiaryTaintRollTotal: params.tertiaryTaintRollTotal,
         rollDie,
       }));
+  const generatedAtmosphereComposition = generateAtmosphereComposition({
+    atmosphereCode,
+    oxygenFraction,
+    oxygenPartialPressureBar,
+    avgTempC,
+    hydrographics,
+    atmosphereTaints,
+    isGasGiant: params.isGasGiant,
+    gasGiantProfile: params.gasGiantProfile,
+  });
+  const generatedAtmosphereCompositionDetailed = generateAtmosphereCompositionDetailed({
+    atmosphereCode,
+    oxygenFraction,
+    oxygenPartialPressureBar,
+    avgTempC,
+    hydrographics,
+    atmosphereTaints,
+    isGasGiant: params.isGasGiant,
+    gasGiantProfile: params.gasGiantProfile,
+  });
+  const generatedHydrographicsComposition = generateHydrographicsComposition({
+    hydrographics,
+    hydrographicsPercent,
+    avgTempC,
+    atmosphereCode,
+    surfaceDistribution: surfaceDistribution.distribution,
+    isGasGiant: params.isGasGiant,
+  });
+  const generatedHydrographicsCompositionDetailed = generateHydrographicsCompositionDetailed({
+    hydrographics,
+    hydrographicsPercent,
+    avgTempC,
+    atmosphereCode,
+    surfaceDistribution: surfaceDistribution.distribution,
+    isGasGiant: params.isGasGiant,
+  });
   const moonsData = determineWorldMoons({
     sizeCode,
     atmosphereCode,
@@ -2287,7 +2328,8 @@ export function buildWbhEnvironmentalProfile(params = {}) {
   return {
     atmosphereCode,
     atmosphereDesc: getWbhAtmosphereDescription(atmosphereCode),
-    atmosphereComposition: atmosphereProfile.composition,
+    atmosphereComposition: generatedAtmosphereComposition || atmosphereProfile.composition,
+    atmosphereCompositionDetailed: generatedAtmosphereCompositionDetailed,
     atmospherePressureBar,
     atmospherePressureRangeBar:
       atmosphereProfile.minimumPressureBar !== null && atmosphereProfile.maximumPressureBar !== null
@@ -2301,6 +2343,8 @@ export function buildWbhEnvironmentalProfile(params = {}) {
     atmosphereTaintProfile: atmosphereTaints.map((entry) => entry.label).join(", "),
     hydrographics,
     hydrographicsPercent,
+    hydrographicsComposition: generatedHydrographicsComposition,
+    hydrographicsCompositionDetailed: generatedHydrographicsCompositionDetailed,
     hydrosphereLiquid: hydrosphere.liquid,
     hydrosphereDescription: hydrosphere.description,
     surfaceDistribution: surfaceDistribution.distribution,
