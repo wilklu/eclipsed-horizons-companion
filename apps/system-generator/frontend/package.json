@@ -6,7 +6,10 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:wbh": "vitest run src/api/systemApi.spec.js src/stores/systemStore.spec.js src/stores/galaxyStore.spec.js src/components/forms/worldPhysicalSurveyFormModel.spec.js src/components/forms/systemSurveyFormModel.spec.js src/components/galaxy-survey/GalaxySurveyOperationsPanel.spec.js src/components/galaxy-survey/GalaxySurveyMapInspector.spec.js src/composables/useGalaxySurveyGenerationController.spec.js src/pages/surveys/GalaxySurvey.spec.js src/pages/surveys/SectorSurvey.spec.js src/pages/surveys/TravellerMap.spec.js src/utils/nameGenerator.spec.js src/utils/speechSynthesis.spec.js src/utils/systemStarMetadata.spec.js src/utils/systemSummary.spec.js src/utils/sectorPreviewState.spec.js src/utils/galaxySectorStats.spec.js src/utils/galaxySurveyPersistence.spec.js src/utils/galaxySurveyGenerationGuidance.spec.js src/utils/sectorSurveyInteractions.spec.js src/utils/sectorSurveyPersistence.spec.js src/utils/tradeRoutePolicy.spec.js src/utils/wbh/worldPhysicalCharacteristicsWbh.spec.js src/utils/stellarSurveySystemGenerator.spec.js src/utils/wbh/wbhConformance.spec.js src/utils/worldProfileGenerator.spec.js src/utils/wbh/systemGenerationWbh.spec.js"
   },
   "dependencies": {
     "pinia": "^2.1.7",
@@ -14,7 +17,10 @@
     "vue-router": "^4.3.0"
   },
   "devDependencies": {
+    "@vue/test-utils": "^2.4.6",
     "@vitejs/plugin-vue": "^5.0.0",
-    "vite": "^5.0.0"
+    "jsdom": "^26.1.0",
+    "vite": "^5.0.0",
+    "vitest": "^3.2.4"
   }
 }

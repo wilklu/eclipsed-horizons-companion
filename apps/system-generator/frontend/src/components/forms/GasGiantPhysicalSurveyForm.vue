@@ -285,6 +285,12 @@
             class="cell-input"
             placeholder="110"
           />
+          <div class="conversion">
+            <small v-if="formatTemperatureFromKelvin(surveyData.composition.temperature) !== '—'">
+              ≈ {{ formatTemperatureFromKelvin(surveyData.composition.temperature) }}
+            </small>
+            <small v-else class="muted">—</small>
+          </div>
         </div>
         <div class="form-cell grow-2">
           <label class="cell-label">Internal Heat?</label>
@@ -594,6 +600,7 @@
 
 <script setup>
 import { ref } from "vue";
+import { formatTemperatureFromKelvin } from "../../utils/temperatureFormatting.js";
 
 // Form data
 const surveyData = ref({

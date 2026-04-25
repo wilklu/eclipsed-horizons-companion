@@ -34,3 +34,49 @@ version: 1.0
 **Status:** OPTIONAL  
 **Source:** Adapted from various supplements  
 **Rule:** On any world with TL 5+, the referee may declare that specific industries or settlements operate at TL±2 from the world's nominal TL. A TL 8 world might have a TL 10 research enclave or TL 6 frontier settlements. This reflects the uneven distribution of technology in a realistic economy.
+
+---
+
+## Timekeeping and Calendar
+
+### HR-WB-030 — Galactic Calendar
+
+**Status:** APPROVED  
+**Source:** Eclipsed Horizons setting baseline  
+**Rule:** The campaign uses the Galactic Calendar for formal historical records, navigation logs, and interstellar archives. The epoch begins at 0.0.0.0.0.0, and the current reference date is 13.6.4.3.43.128.
+
+#### Date Structure
+
+The standard long-form notation is:
+
+**Eon.Age.Millennium.Century.Year.Day**
+
+Example: **13.6.4.3.43.128**
+
+Hours, minutes, and seconds may be appended for precise logs:
+
+**Eon.Age.Millennium.Century.Year.Day.HH.MM.SS**
+
+#### Unit Scale
+
+| Unit       |              Length |
+| ---------- | ------------------: |
+| Eon        | 1,000,000,000 years |
+| Age        |     1,000,000 years |
+| Millennium |         1,000 years |
+| Century    |           100 years |
+| Year       |     1 standard year |
+| Day        |            24 hours |
+
+#### Historical Eras
+
+- **Founding Ages** — mythic deep history and the earliest durable civilizations
+- **The Emergence** — first civilizations reach space
+- **The Reaching** — early interstellar expansion and colonial growth
+- **The First Contact** — discovery of other sophont species and the diplomatic age that followed
+
+#### Usage Notes
+
+- Everyday records usually omit Eon and Age unless the reference is ancient or scholarly.
+- Modern shorthand generally uses **Millennium.Century.Year.Day**.
+- Referees may use full notation for archaeology, precursor timelines, and very old star charts.

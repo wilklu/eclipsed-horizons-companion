@@ -1,19 +1,11 @@
 <template>
-  <div class="survey-navigation">
-    <div class="survey-breadcrumb">
-      <span class="breadcrumb-label">Survey Class:</span>
-      <span class="breadcrumb-current">{{ currentClass }}</span>
-    </div>
+  <div v-if="showRegenerate || showExport || backRoute" class="survey-navigation">
     <div class="survey-actions">
       <button v-if="showRegenerate" class="btn btn-secondary" @click="$emit('regenerate')">
-        🔄 Regenerate
+        {{ regenerateLabel }}
       </button>
-      <button v-if="showExport" class="btn btn-secondary" @click="$emit('export')">
-        📤 Export
-      </button>
-      <router-link v-if="backRoute" :to="backRoute" class="btn btn-outline">
-        ← Back
-      </router-link>
+      <button v-if="showExport" class="btn btn-secondary" @click="$emit('export')">📤 Export</button>
+      <router-link v-if="backRoute" :to="backRoute" class="btn btn-outline"> ← Back </router-link>
     </div>
   </div>
 </template>
@@ -32,6 +24,10 @@ defineProps({
     type: Boolean,
     default: true,
   },
+  regenerateLabel: {
+    type: String,
+    default: "🔄 Regenerate",
+  },
   showExport: {
     type: Boolean,
     default: true,
@@ -45,35 +41,16 @@ defineEmits(["regenerate", "export"]);
 .survey-navigation {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 1rem 2rem;
-  background: linear-gradient(135deg, #0d0d2b, #1a1a3e);
-  border-bottom: 1px solid #333;
-  margin-bottom: 0;
-}
-
-.survey-breadcrumb {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.breadcrumb-label {
-  color: #888;
-  font-size: 0.85rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.breadcrumb-current {
-  color: #00d9ff;
-  font-weight: bold;
-  font-size: 1rem;
+  justify-content: flex-end;
+  padding: 0.4rem 1.25rem 0;
 }
 
 .survey-actions {
   display: flex;
-  gap: 0.75rem;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  width: 100%;
 }
 
 .btn {

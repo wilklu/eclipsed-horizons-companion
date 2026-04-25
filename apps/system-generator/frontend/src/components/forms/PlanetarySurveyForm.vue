@@ -76,7 +76,7 @@
           />
         </div>
         <div class="objects-cell">
-          <label class="cell-label">Class III Status?</label>
+          <label class="cell-label">Planetary Survey Status?</label>
           <select v-model="surveyData.classIIIStatus" class="cell-input objects-input">
             <option value="">—</option>
             <option value="yes">Yes</option>

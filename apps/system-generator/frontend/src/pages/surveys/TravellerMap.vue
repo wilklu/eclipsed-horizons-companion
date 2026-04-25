@@ -1,0 +1,6882 @@
+<template>
+  <div ref="atlasRootRef" class="atlas-root">
+    <LoadingSpinner :isVisible="isLoading" context="atlas" tone="sync" message="Loading atlas data..." />
+    <LoadingSpinner
+      :isVisible="atlasGenerationProgress.active"
+      context="atlas"
+      tone="fabrication"
+      kicker="Atlas Relay"
+      stateLabel="REGION FABRICATION"
+      title="Atlas Generation In Progress"
+      :message="atlasGenerationProgress.label"
+      barLabel="Projecting atlas sectors and overlays"
+      statusCode="ATLAS-FAB"
+      :diagnostics="atlasGenerationDiagnostics"
+      :ledger="atlasGenerationLedger"
+      :progressCurrent="atlasGenerationProgress.current"
+      :progressTotal="atlasGenerationProgress.total"
+      :progressPercent="atlasGenerationProgressPercent"
+      :progressMeta="`${atlasGenerationProgressPercent}% complete`"
+    />
+
+    <!-- ── Floating toolbar ──────────────────────────────────────────────── -->
+    <header class="atlas-toolbar">
+      <span class="toolbar-brand">🌌 Traveller Atlas</span>
+
+      <div class="toolbar-center">
+        <select v-model="selectedGalaxyId" @change="handleGalaxyChange" class="atlas-select">
+          <option value="">— Select Galaxy —</option>
+          <option :value="ALL_GALAXIES_VALUE">— All Galaxies —</option>
+          <option v-for="g in galaxyOptions" :key="g.galaxyId" :value="g.galaxyId">
+            {{ g.label }}
+          </option>
+        </select>
+
+        <div class="zoom-cluster">
+          <button class="tb-btn" @click="zoomOut" title="Zoom out one hierarchy level">−</button>
+          <button class="zoom-badge" @click="resetView" title="Reset to fit galaxy">{{ parsecBadge }}</button>
+          <button class="tb-btn" @click="zoomIn" title="Zoom in one hierarchy level">+</button>
+        </div>
+
+        <div class="level-cluster">
+          <button class="tb-btn" @click="zoomToPreviousHierarchyLevel" title="Previous hierarchy level">◀</button>
+          <span class="lod-pill" :class="`lod-${currentLod}`" :title="currentHierarchyLevel.description">
+            {{ currentHierarchyLevel.label }}
+          </span>
+          <button class="tb-btn" @click="zoomToNextHierarchyLevel" title="Next hierarchy level">▶</button>
+        </div>
+      </div>
+
+      <div class="toolbar-layers">
+        <button
+          class="tb-toggle"
+          :class="{ active: layerHexGrid }"
+          @click="layerHexGrid = !layerHexGrid"
+          title="Hex grid"
+        >
+          Grid
+        </button>
+        <button
+          class="tb-toggle"
+          :class="{ active: layerNames }"
+          @click="layerNames = !layerNames"
+          title="System names"
+        >
+          Names
+        </button>
+        <button
+          class="tb-toggle"
+          :class="{ active: layerSectorNames }"
+          @click="layerSectorNames = !layerSectorNames"
+          title="Sector names"
+        >
+          Sector Names
+        </button>
+        <button
+          class="tb-toggle"
+          :class="{ active: layerCoords }"
+          @click="layerCoords = !layerCoords"
+          title="Hex coordinates"
+        >
+          Coords
+        </button>
+        <button
+          class="tb-toggle"
+          :class="{ active: layerZones }"
+          @click="layerZones = !layerZones"
+          title="Travel zones"
+        >
+          Zones
+        </button>
+        <button
+          class="tb-toggle"
+          :class="{ active: layerRoutes }"
+          @click="layerRoutes = !layerRoutes"
+          title="Trade and relay routes"
+        >
+          Routes
+        </button>
+        <button
+          class="tb-toggle"
+          :class="{ active: layerAnomalies }"
+          @click="layerAnomalies = !layerAnomalies"
+          title="Anomaly clouds and nebulae"
+        >
+          Anomalies
+        </button>
+        <button
+          class="tb-toggle"
+          :class="{ active: layerBadges }"
+          @click="layerBadges = !layerBadges"
+          title="System state badges"
+        >
+          Badges
+        </button>
+        <button
+          class="tb-toggle"
+          :class="{ active: layerPolity }"
+          @click="layerPolity = !layerPolity"
+          title="Polity glyphs"
+        >
+          Polity
+        </button>
+        <button
+          class="tb-toggle"
+          :class="{ active: layerKnownSpace }"
+          @click="layerKnownSpace = !layerKnownSpace"
+          title="Highlight Known Space (generated sectors plus one-ring frontier)"
+        >
+          Known Space
+        </button>
+        <button
+          class="tb-toggle"
+          :class="{ active: activeKnownSpaceOnly }"
+          @click="activeKnownSpaceOnly = !activeKnownSpaceOnly"
+          title="Only show Known Space sectors"
+        >
+          Known Only
+        </button>
+        <button
+          class="tb-toggle"
+          :class="{ active: layerPlanningWindow }"
+          @click="layerPlanningWindow = !layerPlanningWindow"
+          title="Show planning window overlay and capacity"
+        >
+          Planning
+        </button>
+        <button class="tb-toggle tb-toggle--utility" @click="resetAtlasLayers" title="Restore Atlas layer defaults">
+          Reset
+        </button>
+      </div>
+    </header>
+
+    <!-- ── Map canvas ────────────────────────────────────────────────────── -->
+    <svg
+      ref="svgRef"
+      class="atlas-svg"
+      :class="{ dragging }"
+      @wheel.prevent="onWheel"
+      @pointerdown="onPointerDown"
+      @pointermove="onPointerMove"
+      @pointerup="onPointerUp"
+      @pointercancel="onPointerUp"
+    >
+      <defs>
+        <pattern id="dustfield" x="0" y="0" width="400" height="400" patternUnits="userSpaceOnUse">
+          <circle cx="23" cy="61" r="0.85" fill="rgba(255,255,255,0.12)" />
+          <circle cx="110" cy="18" r="0.65" fill="rgba(200,220,255,0.14)" />
+          <circle cx="263" cy="122" r="1.05" fill="rgba(255,248,220,0.10)" />
+          <circle cx="174" cy="240" r="0.75" fill="rgba(255,255,255,0.09)" />
+          <circle cx="341" cy="304" r="0.90" fill="rgba(200,220,255,0.11)" />
+          <circle cx="67" cy="350" r="0.70" fill="rgba(255,255,255,0.13)" />
+          <circle cx="194" cy="376" r="0.80" fill="rgba(255,248,220,0.10)" />
+          <circle cx="318" cy="57" r="0.60" fill="rgba(180,200,255,0.12)" />
+          <circle cx="45" cy="195" r="1.10" fill="rgba(255,255,255,0.08)" />
+        </pattern>
+        <filter id="softglow" x="-60%" y="-60%" width="220%" height="220%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="1.8" result="blur" />
+          <feMerge>
+            <feMergeNode in="blur" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+        <filter id="orbitglow" x="-60%" y="-60%" width="220%" height="220%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="1.2" result="blur" />
+          <feMerge>
+            <feMergeNode in="blur" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+        <radialGradient id="galaxy-glow-grad" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="#6090ff" stop-opacity="0.8" />
+          <stop offset="50%" stop-color="#3060cc" stop-opacity="0.4" />
+          <stop offset="100%" stop-color="#1030a0" stop-opacity="0" />
+        </radialGradient>
+      </defs>
+
+      <!-- Infinite space background -->
+      <rect x="-200000" y="-200000" width="400000" height="400000" fill="#070b1c" @click="clearSelection" />
+      <rect x="-200000" y="-200000" width="400000" height="400000" fill="url(#dustfield)" @click="clearSelection" />
+
+      <!-- ── World-space group (all LOD layers) ─────────────────────────── -->
+      <g :transform="cameraTransform">
+        <!-- 0 ── Universe: galaxy blobs (visible at >1000 pc) -->
+        <g v-if="showUniverseLayer" class="layer-universe">
+          <g
+            v-for="dot in galaxyDots"
+            :key="`gdot-${dot.galaxyId}`"
+            class="galaxy-dot"
+            :class="{ 'galaxy-dot--selected': dot.isSelected }"
+            @click.stop="onGalaxyDotClick(dot)"
+            style="cursor: pointer"
+          >
+            <!-- Diffuse halo -->
+            <circle :cx="dot.wx" :cy="dot.wy" :r="GALAXY_DOT_R * 3" fill="url(#galaxy-glow-grad)" />
+            <!-- Core body -->
+            <circle
+              :cx="dot.wx"
+              :cy="dot.wy"
+              :r="GALAXY_DOT_R"
+              :fill="dot.color"
+              filter="url(#softglow)"
+              opacity="0.85"
+            />
+            <!-- Selection ring -->
+            <circle
+              v-if="dot.isSelected"
+              :cx="dot.wx"
+              :cy="dot.wy"
+              :r="GALAXY_DOT_R * 1.8"
+              fill="none"
+              stroke="#4dc2ff"
+              :stroke-width="parsecsPerHex * 10"
+              opacity="0.75"
+            />
+            <!-- Name label -->
+            <text
+              :x="dot.wx"
+              :y="dot.wy + GALAXY_DOT_R * 1.4 + parsecsPerHex * 14"
+              class="galaxy-dot-name"
+              text-anchor="middle"
+              :font-size="parsecsPerHex * 14"
+            >
+              {{ dot.name }}
+            </text>
+          </g>
+        </g>
+
+        <!-- 0 ── Grid click-capture layer (all positions, behind density tiles) -->
+        <g class="layer-grid-clicks">
+          <rect
+            v-for="tile in gridClickTiles"
+            :key="`gclick-${tile.key}`"
+            :x="tile.wx"
+            :y="tile.wy"
+            :width="SECTOR_PX_W"
+            :height="SECTOR_PX_H"
+            fill="transparent"
+            pointer-events="all"
+            @click.stop="onGridCellClick(tile)"
+          />
+        </g>
+
+        <!-- 1 ── Sector density tiles -->
+        <g class="layer-sector-tiles">
+          <g
+            v-for="tile in visibleSectorTiles"
+            :key="`tile-${tile.sectorId}`"
+            @click.stop="onSectorTileClick(tile)"
+            @mouseenter="hoveredSectorId = tile.sectorId"
+            @mouseleave="hoveredSectorId = null"
+          >
+            <rect
+              :x="tile.wx"
+              :y="tile.wy"
+              :width="SECTOR_PX_W - 1"
+              :height="SECTOR_PX_H - 1"
+              :fill="densityFill(tile.densityClass)"
+              :opacity="sectorTileBaseOpacity(tile.sectorId)"
+              class="sector-tile"
+              :class="{
+                hovered: hoveredSectorId === tile.sectorId,
+                'sector-tile--highlighted': sectorHasPoliticalFilter && politicalHeatMatches(tile.sectorId),
+                'sector-tile--dimmed': sectorHasPoliticalFilter && !politicalHeatMatches(tile.sectorId),
+              }"
+            />
+            <rect
+              v-if="layerKnownSpace && tile.isKnownSpace"
+              :x="tile.wx + gridBiasX"
+              :y="tile.wy + gridBiasY"
+              :width="SECTOR_PX_W - 1"
+              :height="SECTOR_PX_H - 1"
+              class="known-space-overlay"
+              :class="{ 'known-space-overlay--frontier': tile.isKnownSpaceFrontier }"
+            />
+            <rect
+              v-if="planningWindowVisible && tile.isInPlanningWindow"
+              :x="tile.wx + planningOverlayBiasX"
+              :y="tile.wy + planningOverlayBiasY"
+              :width="SECTOR_PX_W - 1"
+              :height="SECTOR_PX_H - 1"
+              class="planning-window-overlay"
+              :class="{ 'planning-window-overlay--surveyed': tile.isGeneratedSector }"
+            />
+            <rect
+              v-if="showPoliticalHeat && politicalHeatForSector(tile.sectorId)"
+              :x="tile.wx"
+              :y="tile.wy"
+              :width="SECTOR_PX_W - 1"
+              :height="SECTOR_PX_H - 1"
+              :fill="politicalHeatForSector(tile.sectorId).tint"
+              :opacity="sectorHeatOpacity(tile.sectorId)"
+              class="sector-heat-overlay"
+            />
+            <text
+              v-if="sectorLabelVisible && tile.showLabel"
+              :x="tile.wx + SECTOR_PX_W * 0.5"
+              :y="tile.wy + SECTOR_PX_H * 0.5 + 4"
+              class="sector-label"
+              :transform="`rotate(-27 ${tile.wx + SECTOR_PX_W * 0.5} ${tile.wy + SECTOR_PX_H * 0.5})`"
+              :style="{ fontSize: `${sectorLabelSize}px`, opacity: sectorLabelOpacity(tile.sectorId) }"
+            >
+              {{ tile.name }}
+            </text>
+          </g>
+        </g>
+
+        <!-- 2 ── Sector borders -->
+        <g v-if="showSectorBorders" class="layer-sector-borders">
+          <rect
+            v-for="tile in continuousSectorTiles"
+            :key="`border-${tile.key}`"
+            :x="tile.wx"
+            :y="tile.wy"
+            :width="SECTOR_PX_W"
+            :height="SECTOR_PX_H"
+            fill="none"
+            stroke="#1e2d4a"
+            :stroke-width="sectorBorderWidth"
+            class="sector-border"
+          />
+        </g>
+
+        <!-- 2a ── Region anomaly overlays -->
+        <g v-if="showAnomalyOverlays" class="layer-anomaly-overlays">
+          <g v-for="overlay in anomalyRegionOverlays" :key="overlay.key" class="anomaly-overlay">
+            <ellipse
+              v-for="lobe in overlay.lobes"
+              :key="lobe.key"
+              :cx="lobe.cx"
+              :cy="lobe.cy"
+              :rx="lobe.rx"
+              :ry="lobe.ry"
+              :transform="`rotate(${lobe.rotation} ${lobe.cx} ${lobe.cy})`"
+              :fill="lobe.fill"
+              :opacity="lobe.opacity"
+              class="anomaly-cloud"
+            />
+            <circle
+              v-for="mote in overlay.motes"
+              :key="mote.key"
+              :cx="mote.cx"
+              :cy="mote.cy"
+              :r="mote.r"
+              :fill="mote.fill"
+              :opacity="mote.opacity"
+              class="anomaly-mote"
+            />
+            <circle
+              :cx="overlay.cx"
+              :cy="overlay.cy"
+              :r="overlay.coreR"
+              :fill="overlay.coreFill"
+              :opacity="overlay.coreOpacity"
+              class="anomaly-core"
+            />
+          </g>
+        </g>
+
+        <!-- 2b ── Subsector borders -->
+        <g v-if="showSubsectorBorders" class="layer-subsector-borders">
+          <g v-for="tile in continuousSectorTiles" :key="`sub-${tile.key}`">
+            <line
+              v-for="i in 3"
+              :key="`sub-v-${tile.key}-${i}`"
+              :x1="tile.wx + (SECTOR_PX_W / 4) * i"
+              :y1="tile.wy"
+              :x2="tile.wx + (SECTOR_PX_W / 4) * i"
+              :y2="tile.wy + SECTOR_PX_H"
+              class="subsector-border"
+            />
+            <line
+              v-for="i in 3"
+              :key="`sub-h-${tile.key}-${i}`"
+              :x1="tile.wx"
+              :y1="tile.wy + (SECTOR_PX_H / 4) * i"
+              :x2="tile.wx + SECTOR_PX_W"
+              :y2="tile.wy + (SECTOR_PX_H / 4) * i"
+              class="subsector-border"
+            />
+          </g>
+        </g>
+
+        <!-- 3 ── Hex grid (zoom-gated) -->
+        <g v-if="hexGridVisible" class="layer-hex-grid">
+          <polygon
+            v-for="hex in continuousHexCells"
+            :key="hex.key"
+            :points="hex.points"
+            class="hex-cell hex-cell--guide"
+          />
+          <polygon
+            v-for="hex in visibleHexCells"
+            :key="hex.key"
+            :points="hex.points"
+            class="hex-cell"
+            :class="{
+              occupied: hex.occupied,
+              selected: hex.key === selectedHexKey,
+              hovered: hex.key === hoveredHexKey,
+            }"
+            @click.stop="onHexClick(hex)"
+            @mouseenter="hoveredHexKey = hex.key"
+            @mouseleave="hoveredHexKey = null"
+          />
+        </g>
+
+        <!-- 4 ── Travel zone overlays -->
+        <g v-if="layerZones && hexGridVisible" class="layer-zones">
+          <polygon
+            v-for="hex in travelZoneHexes"
+            :key="`tz-${hex.key}`"
+            :points="hex.points"
+            class="zone-hex"
+            :class="hex.zoneClass"
+          />
+        </g>
+
+        <!-- 5 ── Star markers -->
+        <g v-if="renderStars" class="layer-stars">
+          <g
+            v-for="star in visibleStars"
+            :key="star.key"
+            class="star-group"
+            :class="{
+              'star-group--presence': star.presenceOnly,
+              selected: star.key === selectedHexKey,
+              hovered: star.key === hoveredHexKey,
+            }"
+            @click.stop="onStarClick(star)"
+            @mouseenter="hoveredHexKey = star.key"
+            @mouseleave="hoveredHexKey = null"
+          >
+            <circle
+              v-if="!star.presenceOnly"
+              :cx="star.wx"
+              :cy="star.wy"
+              :r="effectiveStarR * starVisualProfile(star).haloScale"
+              :fill="starHaloFill(star)"
+              class="star-halo"
+            />
+            <line
+              v-for="(spoke, index) in star.presenceOnly
+                ? []
+                : buildStarSpikeSegments(star.wx, star.wy, effectiveStarR, starVisualProfile(star))"
+              :key="`spike-${star.key}-${index}`"
+              :x1="spoke.x1"
+              :y1="spoke.y1"
+              :x2="spoke.x2"
+              :y2="spoke.y2"
+              :stroke="spoke.stroke"
+              :stroke-opacity="spoke.opacity"
+              :stroke-width="spoke.width"
+              class="star-spike"
+            />
+            <circle
+              v-if="!star.presenceOnly && starVisualProfile(star).ring"
+              :cx="star.wx"
+              :cy="star.wy"
+              :r="effectiveStarR * 1.7"
+              class="star-ring"
+            />
+            <!-- Selection ring -->
+            <circle
+              v-if="star.key === selectedHexKey"
+              :cx="star.wx"
+              :cy="star.wy"
+              :r="effectiveStarR + 5"
+              fill="none"
+              stroke="#4dc2ff"
+              stroke-width="1.5"
+              opacity="0.8"
+            />
+            <!-- Primary star -->
+            <circle
+              v-if="!star.presenceOnly"
+              :cx="star.wx"
+              :cy="star.wy"
+              :r="effectiveStarR"
+              :fill="starRenderFill(star)"
+              class="star-dot"
+              filter="url(#softglow)"
+            />
+            <circle
+              v-else
+              :cx="star.wx"
+              :cy="star.wy"
+              :r="Math.max(3, effectiveStarR - 1.5)"
+              fill="none"
+              stroke="#b8c0cc"
+              stroke-width="1.4"
+              class="star-dot star-dot--presence"
+            />
+            <circle v-if="star.presenceOnly" :cx="star.wx" :cy="star.wy" :r="1.5" fill="#8f98a6" opacity="0.9" />
+            <!-- Secondary companion -->
+            <circle
+              v-if="!star.presenceOnly && star.hasSecondary && currentLod === 'detail'"
+              :cx="star.wx + effectiveStarR * 1.9"
+              :cy="star.wy - effectiveStarR"
+              :r="effectiveStarR * 0.55"
+              :fill="star.compColor"
+              class="star-dot companion"
+            />
+            <circle
+              v-if="!star.presenceOnly && star.hasSecondary && currentLod === 'detail'"
+              :cx="star.wx"
+              :cy="star.wy"
+              :r="effectiveStarR * 1.55"
+              class="star-companion-orbit"
+            />
+            <g
+              v-if="showSystemBadges && hasStarBadge(star)"
+              class="star-badge-cluster"
+              :transform="`translate(${star.wx + effectiveStarR + 4} ${star.wy + effectiveStarR - 2})`"
+            >
+              <g v-if="travelZoneBadgeText(star)" class="star-badge" :class="travelZoneBadgeClass(star)">
+                <rect x="0" y="0" width="15" height="9" rx="3" ry="3" />
+                <text x="7.5" y="6.5" text-anchor="middle">{{ travelZoneBadgeText(star) }}</text>
+              </g>
+              <g v-if="baseBadgeText(star)" class="star-badge star-badge--base" transform="translate(17 0)">
+                <rect x="0" y="0" width="15" height="9" rx="3" ry="3" />
+                <text x="7.5" y="6.5" text-anchor="middle">{{ baseBadgeText(star) }}</text>
+              </g>
+              <g
+                v-if="habitabilityBadgeText(star)"
+                class="star-badge star-badge--habitability"
+                transform="translate(34 0)"
+              >
+                <rect x="0" y="0" width="18" height="9" rx="3" ry="3" />
+                <text x="9" y="6.5" text-anchor="middle">{{ habitabilityBadgeText(star) }}</text>
+              </g>
+            </g>
+            <g
+              v-if="showPolityGlyphs && hasPolityGlyph(star)"
+              class="polity-glyph"
+              :transform="`translate(${star.wx + effectiveStarR + 4} ${star.wy - effectiveStarR - 13})`"
+            >
+              <line x1="0" y1="0" x2="0" y2="11" class="polity-staff" />
+              <path d="M0 0 L0 7.5 L9.5 4.8 L0 2.2 Z" class="polity-banner" :fill="polityGlyphFill(star)" />
+              <text v-if="governmentGlyphText(star)" x="3.3" y="5.4" class="polity-banner-text">
+                {{ governmentGlyphText(star) }}
+              </text>
+              <circle
+                v-for="(pip, index) in factionGlyphPips(star)"
+                :key="`polity-pip-${star.key}-${index}`"
+                :cx="11.5 + index * 3.4"
+                cy="2.2"
+                r="1.15"
+                class="polity-faction-pip"
+              />
+            </g>
+            <!-- Hex coord -->
+            <text
+              v-if="showStarCoords"
+              :x="star.wx"
+              :y="star.wy + effectiveStarR + 9"
+              class="hex-coord-label"
+              text-anchor="middle"
+            >
+              {{ star.coord }}
+            </text>
+            <!-- System name -->
+            <text
+              v-if="showStarNames"
+              :x="star.wx + effectiveStarR + 5"
+              :y="star.wy - effectiveStarR - 3"
+              class="star-name-label"
+            >
+              {{ star.name }}
+            </text>
+          </g>
+        </g>
+
+        <!-- 5b ── Trade routes (5 parsecs and closer) -->
+        <g v-if="showTradeRoutes" class="layer-trade-routes">
+          <line
+            v-for="route in visibleTradeRoutes"
+            :key="route.key"
+            :x1="route.x1"
+            :y1="route.y1"
+            :x2="route.x2"
+            :y2="route.y2"
+            class="trade-route"
+            :class="[route.className, route.filterClass]"
+            :stroke="route.stroke"
+            :stroke-width="route.strokeWidth"
+            :stroke-dasharray="route.strokeDasharray"
+            :opacity="route.opacity"
+          />
+        </g>
+
+        <!-- 6 ── Sparse coord labels for empty hexes -->
+        <g v-if="showEmptyCoords" class="layer-empty-coords">
+          <text
+            v-for="hex in sparseCoordHexes"
+            :key="`ec-${hex.key}`"
+            :x="hex.wx"
+            :y="hex.wy + 3"
+            class="hex-coord-label empty"
+            text-anchor="middle"
+          >
+            {{ hex.coord }}
+          </text>
+        </g>
+      </g>
+      <!-- /cameraTransform -->
+    </svg>
+
+    <!-- ── Inspector overlay ──────────────────────────────────────────────── -->
+    <transition name="slide-in">
+      <aside v-if="inspectorVisible" class="atlas-inspector" @click.stop>
+        <button class="inspector-close" @click="clearSelection">✕</button>
+
+        <!-- Sector card -->
+        <div v-if="inspectorMode === 'sector'" class="inspector-content">
+          <h2 class="inspector-title">{{ inspectorData.name }}</h2>
+          <div class="inspector-subtitle">Galaxy {{ inspectorData.galaxyName }}</div>
+          <div class="inspector-badge">Sector {{ inspectorData.coords }}</div>
+          <p v-if="inspectorData.activeHeatFilterSummary" class="inspector-note inspector-note--compact">
+            {{ inspectorData.activeHeatFilterSummary }}
+          </p>
+          <div class="inspector-actions">
+            <button class="btn btn-primary" @click="focusSectorFromInspector">🔍 Zoom to Sector</button>
+            <button class="btn btn-primary" @click="openSectorSurvey">🧭 Sector Survey</button>
+            <button class="btn btn-secondary" @click="openSubsectorSurvey">🧭 Subsector Survey</button>
+          </div>
+          <div class="inspector-generation-panel">
+            <div class="inspector-generation-row">
+              <div class="inspector-field">
+                <label class="inspector-field-label">Area</label>
+                <select v-model="atlasGenerationArea" class="inspector-select">
+                  <option v-for="option in atlasGenerationAreaOptions" :key="option.id" :value="option.id">
+                    {{ option.label }}
+                  </option>
+                </select>
+              </div>
+              <div class="inspector-field">
+                <label class="inspector-field-label">Generate</label>
+                <select v-model="atlasGenerationMode" class="inspector-select">
+                  <option v-for="option in atlasGenerationModeOptions" :key="option.id" :value="option.id">
+                    {{ option.label }}
+                  </option>
+                </select>
+              </div>
+            </div>
+            <div class="inspector-field-help">{{ atlasGenerationAction.description }}</div>
+            <div class="inspector-tier-policy" :class="`inspector-tier-policy--${atlasGenerationPolicyBadge.tier}`">
+              <span class="inspector-tier-policy__tier">{{ atlasGenerationPolicyBadge.tierLabel }}</span>
+              <span class="inspector-tier-policy__rule">{{ atlasGenerationPolicyBadge.rule }}</span>
+              <span class="inspector-tier-policy__mode">{{ atlasGenerationPolicyBadge.modeLabel }}</span>
+            </div>
+            <button
+              class="btn btn-primary"
+              :disabled="isGeneratingInspectorSector"
+              @click="runInspectorGenerationAction"
+            >
+              {{ isGeneratingInspectorSector ? "Generating..." : atlasGenerationAction.label }}
+            </button>
+          </div>
+          <div class="detail-grid">
+            <div class="dr">
+              <span class="dl">Density</span><span class="dv">{{ inspectorData.densityLabel }}</span>
+            </div>
+            <div class="dr">
+              <span class="dl">Systems</span><span class="dv">{{ inspectorData.systemCount }}</span>
+            </div>
+            <div class="dr">
+              <span class="dl">Status</span><span class="dv">{{ inspectorData.status }}</span>
+            </div>
+            <div v-if="inspectorData.legacyReconstructedCount" class="dr">
+              <span class="dl">Legacy Trees</span><span class="dv">{{ inspectorData.legacyReconstructedCount }}</span>
+            </div>
+            <div v-if="inspectorData.legacyHierarchyUnknownCount" class="dr">
+              <span class="dl">Inferred Links</span
+              ><span class="dv">{{ inspectorData.legacyHierarchyUnknownCount }}</span>
+            </div>
+            <div v-if="inspectorData.politicalHeatLabel" class="dr">
+              <span class="dl">Political Heat</span><span class="dv">{{ inspectorData.politicalHeatLabel }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div v-else-if="inspectorMode === 'hierarchy'" class="inspector-content">
+          <h2 class="inspector-title">{{ inspectorData.name }}</h2>
+          <div class="inspector-badge">{{ inspectorData.coords }}</div>
+          <div class="inspector-actions">
+            <button class="btn btn-primary" @click="focusHierarchyInspector">🔍 Zoom to Area</button>
+          </div>
+          <div class="inspector-generation-panel">
+            <div class="inspector-field">
+              <label class="inspector-field-label">Generate</label>
+              <select v-model="atlasGenerationMode" class="inspector-select">
+                <option v-for="option in atlasGenerationModeOptions" :key="option.id" :value="option.id">
+                  {{ option.label }}
+                </option>
+              </select>
+            </div>
+            <div class="inspector-field-help">{{ hierarchyGenerationAction.description }}</div>
+            <div class="inspector-tier-policy" :class="`inspector-tier-policy--${hierarchyGenerationPolicyBadge.tier}`">
+              <span class="inspector-tier-policy__tier">{{ hierarchyGenerationPolicyBadge.tierLabel }}</span>
+              <span class="inspector-tier-policy__rule">{{ hierarchyGenerationPolicyBadge.rule }}</span>
+              <span class="inspector-tier-policy__mode">{{ hierarchyGenerationPolicyBadge.modeLabel }}</span>
+            </div>
+            <button
+              class="btn btn-primary"
+              :disabled="isGeneratingInspectorSector"
+              @click="runHierarchyGenerationAction"
+            >
+              {{ isGeneratingInspectorSector ? "Generating..." : hierarchyGenerationAction.label }}
+            </button>
+          </div>
+          <div class="detail-grid">
+            <div class="dr">
+              <span class="dl">Area Type</span><span class="dv">{{ inspectorData.areaType }}</span>
+            </div>
+            <div class="dr">
+              <span class="dl">Sector Span</span><span class="dv">{{ inspectorData.areaSpan }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Star / system card -->
+        <div v-else-if="inspectorMode === 'star'" class="inspector-content">
+          <h2 class="inspector-title">{{ inspectorData.name }}</h2>
+          <div class="inspector-badge">{{ inspectorData.coord }} · {{ inspectorData.sectorName }}</div>
+
+          <div class="star-inline">
+            <svg width="44" height="44" class="star-swatch" overflow="visible">
+              <circle
+                v-if="!inspectorData.presenceOnly"
+                cx="22"
+                cy="22"
+                :r="inspectorStarSvgR * inspectorStarProfile.haloScale"
+                :fill="starHaloFill(inspectorData)"
+                class="star-halo"
+              />
+              <line
+                v-for="(spoke, index) in inspectorData.presenceOnly
+                  ? []
+                  : buildStarSpikeSegments(22, 22, inspectorStarSvgR, inspectorStarProfile)"
+                :key="`inspector-spike-${index}`"
+                :x1="spoke.x1"
+                :y1="spoke.y1"
+                :x2="spoke.x2"
+                :y2="spoke.y2"
+                :stroke="spoke.stroke"
+                :stroke-opacity="spoke.opacity"
+                :stroke-width="spoke.width"
+                class="star-spike"
+              />
+              <circle
+                v-if="!inspectorData.presenceOnly && inspectorStarProfile.ring"
+                cx="22"
+                cy="22"
+                :r="inspectorStarSvgR * 1.7"
+                class="star-ring"
+              />
+              <circle
+                v-if="!inspectorData.presenceOnly"
+                cx="22"
+                cy="22"
+                :r="inspectorStarSvgR"
+                :fill="inspectorData.color"
+                filter="url(#softglow)"
+              />
+              <circle
+                v-else
+                cx="22"
+                cy="22"
+                :r="Math.max(3, inspectorStarSvgR - 1.5)"
+                fill="none"
+                stroke="#b8c0cc"
+                stroke-width="1.4"
+              />
+              <circle v-if="inspectorData.presenceOnly" cx="22" cy="22" r="1.5" fill="#8f98a6" opacity="0.9" />
+              <circle
+                v-if="!inspectorData.presenceOnly && inspectorData.hasSecondary"
+                :cx="22 + inspectorStarSvgR * 1.9"
+                :cy="22 - inspectorStarSvgR"
+                :r="inspectorStarSvgR * 0.55"
+                :fill="inspectorData.compColor"
+              />
+              <circle
+                v-if="!inspectorData.presenceOnly && inspectorData.hasSecondary"
+                cx="22"
+                cy="22"
+                :r="inspectorStarSvgR * 1.55"
+                class="star-companion-orbit"
+              />
+            </svg>
+            <div>
+              <div class="star-type-big">{{ inspectorData.starType }}</div>
+              <div class="star-class-chip-row">
+                <span class="star-class-chip">{{ inspectorStarProfile.label }}</span>
+                <span v-if="!inspectorData.presenceOnly" class="star-class-chip star-class-chip--accent">
+                  {{ inspectorStarProfile.token }} spectrum
+                </span>
+              </div>
+              <div v-if="inspectorData.hasSecondary" class="star-companion-hint">+ companion</div>
+            </div>
+          </div>
+
+          <div class="detail-grid detail-grid--system">
+            <div class="dr">
+              <span class="dl">Survey</span><span class="dv">{{ inspectorData.surveyStatus }}</span>
+            </div>
+            <div v-if="inspectorData.ecologyBadges?.length" class="dr">
+              <span class="dl">Ecology</span><span class="dv">{{ inspectorData.ecologyBadges.join(" ") }}</span>
+            </div>
+            <div class="dr">
+              <span class="dl">UWP</span><span class="dv dv--mono">{{ inspectorData.uwp }}</span>
+            </div>
+            <div class="dr">
+              <span class="dl">Starport</span><span class="dv">{{ inspectorData.starport }}</span>
+            </div>
+            <div class="dr">
+              <span class="dl">Gas Giants</span><span class="dv">{{ inspectorData.gasGiants }}</span>
+            </div>
+            <div class="dr">
+              <span class="dl">Bases</span
+              ><span class="dv">{{ inspectorData.bases?.length ? inspectorData.bases.join(", ") : "—" }}</span>
+            </div>
+            <div class="dr">
+              <span class="dl">Importance</span><span class="dv">{{ inspectorData.importance }}</span>
+            </div>
+            <div class="dr">
+              <span class="dl">Travel Zone</span><span class="dv">{{ inspectorData.travelZone }}</span>
+            </div>
+            <div class="dr">
+              <span class="dl">Corridor</span><span class="dv">{{ inspectorData.routeCorridorLabel || "—" }}</span>
+            </div>
+            <div class="dr">
+              <span class="dl">Minimum TL</span
+              ><span class="dv">{{ inspectorData.minimumSustainableTechLevel || "—" }}</span>
+            </div>
+            <div class="dr">
+              <span class="dl">Settlement</span
+              ><span class="dv">{{ inspectorData.populationConcentration || "—" }}</span>
+            </div>
+            <div class="dr">
+              <span class="dl">Urbanization</span><span class="dv">{{ inspectorData.urbanization || "—" }}</span>
+            </div>
+            <div class="dr">
+              <span class="dl">Major Cities</span><span class="dv">{{ inspectorData.majorCities || "—" }}</span>
+            </div>
+            <div class="dr">
+              <span class="dl">Government</span><span class="dv">{{ inspectorData.governmentProfile || "—" }}</span>
+            </div>
+            <div class="dr">
+              <span class="dl">Justice</span><span class="dv">{{ inspectorData.justiceProfile || "—" }}</span>
+            </div>
+            <div class="dr">
+              <span class="dl">Law</span><span class="dv">{{ inspectorData.lawProfile || "—" }}</span>
+            </div>
+            <div class="dr">
+              <span class="dl">Appeals</span><span class="dv">{{ inspectorData.appealProfile || "—" }}</span>
+            </div>
+            <div class="dr">
+              <span class="dl">Private Law</span><span class="dv">{{ inspectorData.privateLawProfile || "—" }}</span>
+            </div>
+            <div class="dr">
+              <span class="dl">Personal Rights</span
+              ><span class="dv">{{ inspectorData.personalRightsProfile || "—" }}</span>
+            </div>
+            <div class="dr">
+              <span class="dl">Secondary Worlds</span
+              ><span class="dv">{{ inspectorData.secondaryProfiles || "—" }}</span>
+            </div>
+            <div class="dr">
+              <span class="dl">Factions</span><span class="dv">{{ inspectorData.factionsProfile || "—" }}</span>
+            </div>
+            <div class="dr">
+              <span class="dl">Mainworld</span><span class="dv">{{ inspectorData.mainworldName || "—" }}</span>
+            </div>
+            <div class="dr">
+              <span class="dl">Mainworld Type</span><span class="dv">{{ inspectorData.mainworldType || "—" }}</span>
+            </div>
+            <div class="dr">
+              <span class="dl">Parent World</span><span class="dv">{{ inspectorData.mainworldParent || "—" }}</span>
+            </div>
+            <div class="dr">
+              <span class="dl">Habitability</span><span class="dv">{{ inspectorData.habitability }}</span>
+            </div>
+            <div class="dr">
+              <span class="dl">Resources</span><span class="dv">{{ inspectorData.resourceRating }}</span>
+            </div>
+          </div>
+
+          <div v-if="inspectorData.bases?.length" class="base-code-strip">
+            <span v-for="base in inspectorData.bases" :key="base" class="base-code-chip">{{ base }}</span>
+          </div>
+
+          <p v-if="inspectorData.routeCorridorDetail" class="inspector-note inspector-note--compact">
+            {{ inspectorData.routeCorridorDetail }}
+          </p>
+
+          <div
+            v-if="inspectorData.legacyReconstructed || inspectorData.legacyHierarchyUnknown"
+            class="legacy-code-strip"
+          >
+            <span v-if="inspectorData.legacyReconstructed" class="legacy-code-chip">Legacy Star Tree</span>
+            <span v-if="inspectorData.legacyHierarchyUnknown" class="legacy-code-chip">Hierarchy Inferred</span>
+          </div>
+
+          <div v-if="inspectorData.linkedEcologySignals?.length" class="trade-code-strip">
+            <span
+              v-for="signal in inspectorData.linkedEcologySignals"
+              :key="`${signal.kind}-${signal.scientificName}`"
+              class="trade-code-chip"
+            >
+              {{ signal.icon }} {{ signal.scientificName }}
+            </span>
+          </div>
+
+          <div v-if="inspectorData.tradeCodes?.length" class="trade-code-strip">
+            <span v-for="code in inspectorData.tradeCodes" :key="code" class="trade-code-chip">{{ code }}</span>
+          </div>
+          <p v-else-if="!inspectorData.hasSavedSystem" class="inspector-note">
+            Generate or save a system survey to populate UWP, starport, bases, importance, gas giants, and trade codes
+            here.
+          </p>
+          <p v-if="inspectorData.legacyReconstructed" class="inspector-note">
+            This system’s star hierarchy was reconstructed from older flat-label metadata. Companion ordering is
+            preserved, but original WBH hierarchy detail was not stored.
+          </p>
+          <p v-if="inspectorData.legacyHierarchyUnknown" class="inspector-note">
+            Legacy import data did not retain explicit hierarchy links, so near/far relationships were inferred during
+            normalization.
+          </p>
+          <p v-if="inspectorData.presenceOnly" class="inspector-note">
+            This marker is a detected stellar presence only. Atlas can show it as a known object, but it is not yet a
+            generated system survey.
+          </p>
+
+          <div class="atlas-key-panel">
+            <div class="atlas-key-title">Atlas Key</div>
+            <div class="atlas-key-grid">
+              <div class="atlas-key-row">
+                <span class="legend-route-sample legend-route-sample--major"></span>
+                <span class="atlas-key-copy">Major route</span>
+              </div>
+              <div class="atlas-key-row">
+                <span class="legend-route-sample legend-route-sample--pressure"></span>
+                <span class="atlas-key-copy">Faction pressure route</span>
+              </div>
+              <div class="atlas-key-row">
+                <span class="legend-route-sample legend-route-sample--hazard"></span>
+                <span class="atlas-key-copy">Hazard or interdicted route</span>
+              </div>
+              <div class="atlas-key-row">
+                <span class="legend-chip-sample legend-chip-sample--zone">A</span>
+                <span class="atlas-key-copy">Amber or red zone badge</span>
+              </div>
+              <div class="atlas-key-row">
+                <span class="legend-chip-sample legend-chip-sample--base">B2</span>
+                <span class="atlas-key-copy">Base count badge</span>
+              </div>
+              <div class="atlas-key-row">
+                <span class="legend-chip-sample legend-chip-sample--habitability">H6</span>
+                <span class="atlas-key-copy">Habitability badge</span>
+              </div>
+              <div class="atlas-key-row">
+                <span class="legend-polity-sample">
+                  <span class="legend-polity-staff"></span>
+                  <span class="legend-polity-banner">G</span>
+                  <span class="legend-polity-pips">
+                    <span></span>
+                    <span></span>
+                  </span>
+                </span>
+                <span class="atlas-key-copy">Government pennant with faction pips</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Orbital diagram -->
+          <div class="orbital-section">
+            <div class="orbital-header">
+              <span class="orbital-title">Orbital Map</span>
+            </div>
+            <svg class="orbital-svg" viewBox="-78 -78 156 156" overflow="visible">
+              <!-- Background -->
+              <rect x="-78" y="-78" width="156" height="156" fill="#060a1a" rx="6" />
+              <rect x="-78" y="-78" width="156" height="156" fill="url(#dustfield)" rx="6" opacity="0.35" />
+              <!-- Orbit rings -->
+              <ellipse
+                v-for="(orb, i) in inspectorOrbits"
+                :key="`ring-${i}`"
+                cx="0"
+                cy="0"
+                :rx="orb.rx"
+                :ry="orb.ry"
+                fill="none"
+                :stroke="orb.zoneColor"
+                stroke-width="0.7"
+                opacity="0.60"
+                stroke-dasharray="3 2"
+              />
+              <!-- Star glow + body -->
+              <circle cx="0" cy="0" :r="inspectorStarSvgR * 2.2" :fill="inspectorData.color" opacity="0.10" />
+              <circle cx="0" cy="0" :r="inspectorStarSvgR" :fill="inspectorData.color" filter="url(#orbitglow)" />
+              <!-- Planets -->
+              <g v-for="(orb, i) in inspectorOrbits" :key="`planet-${i}`">
+                <circle :cx="orb.px" :cy="orb.py" :r="orb.pr" :fill="orb.color" class="orbit-planet" />
+                <text :x="orb.px + orb.pr + 2" :y="orb.py + 3" class="orbit-label">{{ orb.label }}</text>
+              </g>
+            </svg>
+          </div>
+
+          <div class="inspector-actions">
+            <button class="btn btn-primary" @click="openSectorSurvey">🧭 Sector Survey</button>
+            <button class="btn btn-secondary" @click="openSubsectorSurvey">🧭 Subsector Survey</button>
+            <button
+              class="btn btn-primary"
+              :disabled="inspectorData.presenceOnly"
+              :title="inspectorData.presenceOnly ? 'Orbital View is only available after system survey generation' : ''"
+              @click="openOrbitalView"
+            >
+              🪐 Orbital View
+            </button>
+            <button class="btn btn-primary" @click="openStarSystem">⭐ System Survey</button>
+          </div>
+          <div class="inspector-generation-panel">
+            <div class="inspector-generation-row">
+              <div class="inspector-field">
+                <label class="inspector-field-label">Area</label>
+                <select v-model="atlasGenerationArea" class="inspector-select">
+                  <option v-for="option in atlasGenerationAreaOptions" :key="option.id" :value="option.id">
+                    {{ option.label }}
+                  </option>
+                </select>
+              </div>
+              <div class="inspector-field">
+                <label class="inspector-field-label">Generate</label>
+                <select v-model="atlasGenerationMode" class="inspector-select">
+                  <option v-for="option in atlasGenerationModeOptions" :key="option.id" :value="option.id">
+                    {{ option.label }}
+                  </option>
+                </select>
+              </div>
+            </div>
+            <div class="inspector-field-help">{{ atlasGenerationAction.description }}</div>
+            <div class="inspector-tier-policy" :class="`inspector-tier-policy--${atlasGenerationPolicyBadge.tier}`">
+              <span class="inspector-tier-policy__tier">{{ atlasGenerationPolicyBadge.tierLabel }}</span>
+              <span class="inspector-tier-policy__rule">{{ atlasGenerationPolicyBadge.rule }}</span>
+              <span class="inspector-tier-policy__mode">{{ atlasGenerationPolicyBadge.modeLabel }}</span>
+            </div>
+            <button
+              class="btn btn-primary"
+              :disabled="isGeneratingInspectorSector"
+              @click="runInspectorGenerationAction"
+            >
+              {{ isGeneratingInspectorSector ? "Generating..." : atlasGenerationAction.label }}
+            </button>
+          </div>
+        </div>
+      </aside>
+    </transition>
+
+    <!-- ── Status bar ─────────────────────────────────────────────────────── -->
+    <footer class="atlas-status">
+      <span class="status-hex">
+        {{
+          hoveredHexKey
+            ? `Hex ${hoveredHexKey.split(":")[1] ?? hoveredHexKey}`
+            : "Pan: drag · Zoom: scroll wheel · Click a star to inspect"
+        }}
+      </span>
+      <div class="status-density" v-if="currentLod === 'galaxy' || currentLod === 'sector'">
+        <span v-for="band in DENSITY_SCALE" :key="band.label" class="density-chip">
+          <span class="density-swatch" :style="{ background: band.color }"></span>
+          {{ band.label }} ({{ band.range }})
+        </span>
+      </div>
+      <div class="status-political-legend" v-if="showPoliticalHeat">
+        <button
+          class="political-legend-chip"
+          :class="{ active: !activePoliticalHeatFilter }"
+          :title="
+            legendDualShareTitle(
+              visiblePoliticalHeatTotal,
+              visiblePoliticalHeatTotal,
+              scopePoliticalHeatTotal,
+              scopePoliticalHeatTotal,
+              'sectors',
+            )
+          "
+          @click="activePoliticalHeatFilter = null"
+        >
+          <span class="political-legend-swatch political-legend-swatch--all"></span>
+          All
+          <span class="legend-count-badge">{{
+            formatLegendDualShare(
+              visiblePoliticalHeatTotal,
+              visiblePoliticalHeatTotal,
+              scopePoliticalHeatTotal,
+              scopePoliticalHeatTotal,
+            )
+          }}</span>
+        </button>
+        <button
+          v-for="entry in POLITICAL_HEAT_LEGEND"
+          :key="entry.level"
+          class="political-legend-chip"
+          :class="{ active: activePoliticalHeatFilter === entry.level }"
+          :title="
+            legendDualShareTitle(
+              politicalHeatCount(entry.level),
+              visiblePoliticalHeatTotal,
+              politicalHeatScopeCount(entry.level),
+              scopePoliticalHeatTotal,
+              `${entry.label} sectors`,
+            )
+          "
+          @click="togglePoliticalHeatFilter(entry.level)"
+        >
+          <span class="political-legend-swatch" :style="{ background: entry.tint }"></span>
+          {{ entry.label }}
+          <span class="legend-count-badge">{{
+            formatLegendDualShare(
+              politicalHeatCount(entry.level),
+              visiblePoliticalHeatTotal,
+              politicalHeatScopeCount(entry.level),
+              scopePoliticalHeatTotal,
+            )
+          }}</span>
+        </button>
+      </div>
+      <div class="status-star-legend" v-if="currentLod === 'hex' || currentLod === 'detail'">
+        <span v-for="entry in STAR_VISUAL_LEGEND" :key="entry.token" class="star-legend-chip">
+          <span class="star-legend-swatch" :style="starLegendSwatchStyle(entry)"></span>
+          {{ entry.label }}
+        </span>
+      </div>
+      <div class="status-route-legend" v-if="showRouteLegend">
+        <button
+          class="route-legend-chip"
+          :class="{ active: !activeRouteFilter }"
+          :title="
+            legendDualShareTitle(
+              visibleTradeRoutes.length,
+              visibleTradeRoutes.length,
+              scopeRouteTotal,
+              scopeRouteTotal,
+              'routes',
+            )
+          "
+          @click="activeRouteFilter = null"
+        >
+          <span class="route-legend-sample route-legend-sample--all"></span>
+          All Routes
+          <span class="legend-count-badge">{{
+            formatLegendDualShare(
+              visibleTradeRoutes.length,
+              visibleTradeRoutes.length,
+              scopeRouteTotal,
+              scopeRouteTotal,
+            )
+          }}</span>
+        </button>
+        <button
+          v-for="entry in ROUTE_VISUAL_LEGEND"
+          :key="entry.id"
+          class="route-legend-chip"
+          :class="{ active: activeRouteFilter === entry.id }"
+          :title="
+            legendDualShareTitle(
+              routeLegendCount(entry.id),
+              visibleTradeRoutes.length,
+              routeScopeCount(entry.id),
+              scopeRouteTotal,
+              `${entry.label} routes`,
+            )
+          "
+          @click="toggleRouteFilter(entry.id)"
+        >
+          <span class="route-legend-sample" :class="entry.sampleClass"></span>
+          {{ entry.label }}
+          <span class="legend-count-badge">{{
+            formatLegendDualShare(
+              routeLegendCount(entry.id),
+              visibleTradeRoutes.length,
+              routeScopeCount(entry.id),
+              scopeRouteTotal,
+            )
+          }}</span>
+        </button>
+      </div>
+      <span
+        v-if="showPoliticalHeat || showRouteLegend"
+        class="status-legend-key"
+        title="Legend badges show in-view totals on the left and loaded-scope totals on the right."
+      >
+        view|scope
+      </span>
+      <div class="status-space-tier" v-if="spaceTierCounts">
+        <span class="space-tier-label">Space Tiers:</span>
+        <span class="space-tier-chip space-tier-surveyed">
+          <span class="tier-badge tier-badge--surveyed">S</span>
+          Surveyed: {{ spaceTierCounts.surveyed }}
+        </span>
+        <span class="space-tier-chip space-tier-frontier">
+          <span class="tier-badge tier-badge--frontier">F</span>
+          Frontier: {{ spaceTierCounts.frontier }}
+        </span>
+        <span class="space-tier-chip space-tier-void">
+          <span class="tier-badge tier-badge--void">∞</span>
+          Void: Beyond
+        </span>
+      </div>
+      <div class="status-policy-legend" title="Generation policy by space tier.">
+        <span class="status-policy-label">Policy:</span>
+        <span class="status-policy-chip status-policy-chip--surveyed">
+          <span class="tier-badge tier-badge--surveyed">S</span>
+          Full systems
+        </span>
+        <span class="status-policy-chip status-policy-chip--frontier">
+          <span class="tier-badge tier-badge--frontier">F</span>
+          Selected mode
+        </span>
+        <span class="status-policy-chip status-policy-chip--void">
+          <span class="tier-badge tier-badge--void">∞</span>
+          Presence-safe
+        </span>
+      </div>
+      <div class="status-planning-window" v-if="planningRegionInfo && planningWindowCenter">
+        <span class="status-planning-window__label">
+          Planning [{{ planningWindowCenter.x }},{{ planningWindowCenter.y }}]
+        </span>
+        <span class="status-planning-window__stats">
+          {{ planningRegionInfo.surveyedInWindow.toLocaleString() }} /
+          {{ planningRegionInfo.totalCapacity.toLocaleString() }}
+          surveyed
+        </span>
+        <span class="status-planning-window__stats">{{ planningRegionInfo.remaining.toLocaleString() }} open</span>
+        <span class="status-planning-window__stats">{{ planningRegionInfo.percentUtilization }}%</span>
+        <span class="status-planning-window__meter" aria-hidden="true">
+          <span
+            class="status-planning-window__meter-fill"
+            :style="{ width: `${planningRegionInfo.percentUtilization}%` }"
+          ></span>
+        </span>
+      </div>
+      <div class="status-layer-controls" v-if="currentLod === 'hex' || currentLod === 'detail'">
+        <button class="status-toggle-chip" :class="{ active: layerRoutes }" @click="layerRoutes = !layerRoutes">
+          Routes
+        </button>
+        <button
+          class="status-toggle-chip"
+          :class="{ active: layerAnomalies }"
+          @click="layerAnomalies = !layerAnomalies"
+        >
+          Anomalies
+        </button>
+        <button class="status-toggle-chip" :class="{ active: layerBadges }" @click="layerBadges = !layerBadges">
+          Badges
+        </button>
+        <button class="status-toggle-chip" :class="{ active: layerPolity }" @click="layerPolity = !layerPolity">
+          Polity
+        </button>
+      </div>
+      <span class="status-right">{{ visibleStars.length }} stellar detections in view · {{ biasReadout }}</span>
+    </footer>
+  </div>
+</template>
+
+<script setup>
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
+import { useRouter } from "vue-router";
+import LoadingSpinner from "../../components/common/LoadingSpinner.vue";
+import * as sectorApi from "../../api/sectorApi.js";
+import { useGalaxyStore } from "../../stores/galaxyStore.js";
+import { PREFERENCE_DEFAULTS, usePreferencesStore } from "../../stores/preferencesStore.js";
+import { useSectorStore } from "../../stores/sectorStore.js";
+import { useSystemStore } from "../../stores/systemStore.js";
+import { generatePrimaryStar } from "../../utils/primaryStarGenerator.js";
+import {
+  resolveStarDescriptorToken,
+  starDescriptorToColor,
+  starDescriptorToCssClass,
+} from "../../utils/starDisplay.js";
+import { serializeReturnRoute } from "../../utils/returnRoute.js";
+import { calculateHexOccupancyProbability } from "../../utils/sectorGeneration.js";
+import { estimateGalaxySectorFootprint, generateGalaxySectorLayoutWindow } from "../../utils/sectorLayoutGenerator.js";
+import { summarizeSystemRecord } from "../../utils/systemSummary.js";
+import {
+  buildGeneratedStars,
+  buildHexStarTypeMetadata,
+  resolveGeneratedStarsFromSystem,
+  summarizeLegacyStarMetadata,
+} from "../../utils/systemStarMetadata.js";
+import { SUBSECTOR_LETTERS, getSubsectorLetterForHex } from "../../utils/subsector.js";
+import * as toastService from "../../utils/toast.js";
+import {
+  toSectorCoordKey,
+  fromSectorCoordKey,
+  calculateSpaceTier,
+  resolveGenerationModeForSpaceTier,
+  buildSurveyedCoordKeySet,
+  buildKnownSpaceCoordKeySet,
+  buildFrontierCoordKeySet,
+  countSpaceTiers,
+  calculatePlanningRegionCapacity,
+} from "../../utils/spaceClassification.js";
+import { resolveTradeRouteLegendKey, resolveTradeRouteSpaceTier } from "../../utils/tradeRoutePolicy.js";
+
+const router = useRouter();
+const galaxyStore = useGalaxyStore();
+const preferencesStore = usePreferencesStore();
+const sectorStore = useSectorStore();
+const systemStore = useSystemStore();
+const ALL_GALAXIES_VALUE = "__ALL_GALAXIES__";
+const PREFERENCES_STORAGE_KEY = "eclipsed-horizons-preferences";
+const STARPORT_LABELS = Object.freeze({
+  A: "Excellent",
+  B: "Good",
+  C: "Routine",
+  D: "Poor",
+  E: "Frontier",
+  X: "No starport",
+});
+const STAR_VISUAL_META = Object.freeze({
+  O: { label: "O Class", haloScale: 2.9, haloOpacity: 0.16, spikeCount: 4, accent: "#d9e4ff", ring: false },
+  B: { label: "B Class", haloScale: 2.7, haloOpacity: 0.15, spikeCount: 4, accent: "#dce6ff", ring: false },
+  A: { label: "A Class", haloScale: 2.5, haloOpacity: 0.14, spikeCount: 4, accent: "#eef2ff", ring: false },
+  F: { label: "F Class", haloScale: 2.3, haloOpacity: 0.13, spikeCount: 3, accent: "#fff8ef", ring: false },
+  G: { label: "G Class", haloScale: 2.15, haloOpacity: 0.12, spikeCount: 3, accent: "#fff4df", ring: false },
+  K: { label: "K Class", haloScale: 2.0, haloOpacity: 0.12, spikeCount: 2, accent: "#ffd8af", ring: false },
+  M: { label: "M Class", haloScale: 1.8, haloOpacity: 0.11, spikeCount: 2, accent: "#ffb199", ring: false },
+  D: { label: "White Dwarf", haloScale: 1.65, haloOpacity: 0.11, spikeCount: 4, accent: "#f5fbff", ring: false },
+  BD: { label: "Brown Dwarf", haloScale: 1.6, haloOpacity: 0.1, spikeCount: 0, accent: "#d88955", ring: false },
+  L: { label: "L Dwarf", haloScale: 1.5, haloOpacity: 0.1, spikeCount: 0, accent: "#b75b2f", ring: false },
+  T: { label: "T Dwarf", haloScale: 1.4, haloOpacity: 0.1, spikeCount: 0, accent: "#7d3820", ring: false },
+  Y: { label: "Y Dwarf", haloScale: 1.3, haloOpacity: 0.1, spikeCount: 0, accent: "#552616", ring: false },
+  BH: { label: "Black Hole", haloScale: 1.95, haloOpacity: 0.14, spikeCount: 0, accent: "#f7b1ff", ring: true },
+  PSR: { label: "Pulsar", haloScale: 2.05, haloOpacity: 0.15, spikeCount: 4, accent: "#ffcbff", ring: true },
+  NS: { label: "Neutron Star", haloScale: 1.95, haloOpacity: 0.14, spikeCount: 4, accent: "#ffd8ff", ring: true },
+  NB: { label: "Nebula", haloScale: 2.6, haloOpacity: 0.12, spikeCount: 0, accent: "#d1bbff", ring: true },
+  PROTO: { label: "Protostar", haloScale: 2.15, haloOpacity: 0.14, spikeCount: 3, accent: "#ffd3a0", ring: false },
+  CLUSTER: { label: "Dense Cluster", haloScale: 2.4, haloOpacity: 0.15, spikeCount: 5, accent: "#f3c4ff", ring: true },
+  ANOMALY: { label: "Anomaly", haloScale: 2.2, haloOpacity: 0.15, spikeCount: 4, accent: "#f3c4ff", ring: true },
+});
+const STAR_VISUAL_LEGEND = Object.freeze([
+  { token: "O", label: "Hot Blue", color: "#9bb0ff" },
+  { token: "G", label: "Yellow", color: "#fff4ea" },
+  { token: "M", label: "Red", color: "#ff8c69" },
+  { token: "D", label: "White Dwarf", color: "#d8e6ff" },
+  { token: "BD", label: "Brown Dwarf", color: "#b85c2e" },
+  { token: "BH", label: "Anomaly", color: "#f7b1ff" },
+]);
+const POLITICAL_HEAT_LEGEND = Object.freeze([
+  { level: "calm", label: "Calm", tint: "#2d6c5f" },
+  { level: "watched", label: "Watched", tint: "#3f86c4" },
+  { level: "contested", label: "Contested", tint: "#8b5ac9" },
+  { level: "volatile", label: "Volatile", tint: "#a93f64" },
+]);
+const ROUTE_VISUAL_LEGEND = Object.freeze([
+  { id: "major", label: "Major", sampleClass: "route-legend-sample--major" },
+  { id: "frontier", label: "Frontier", sampleClass: "route-legend-sample--frontier" },
+  { id: "pressure", label: "Pressure", sampleClass: "route-legend-sample--pressure" },
+  { id: "hazard", label: "Hazard", sampleClass: "route-legend-sample--hazard" },
+  { id: "standard", label: "Standard", sampleClass: "route-legend-sample--standard" },
+]);
+const ANOMALY_DESCRIPTOR_TOKENS = new Set(["BH", "PSR", "NS", "NB", "PROTO", "CLUSTER", "ANOMALY"]);
+
+// ── Hex geometry constants (flat-top) ──────────────────────────────────────
+const HEX_R = 22;
+const HEX_STEP_X = HEX_R * 1.5; // 33
+const HEX_STEP_Y = HEX_R * Math.sqrt(3); // ≈38.1
+const SECTOR_COLS = 32;
+const SECTOR_ROWS = 40;
+const ROUTE_MAX_DISTANCE = HEX_STEP_X * 8;
+const ROUTE_NEIGHBOR_LIMIT = 2;
+const SELECTED_GALAXY_WINDOW_DEFAULT_RADIUS = 12;
+const SELECTED_GALAXY_WINDOW_MIN_RADIUS = 32;
+const SELECTED_GALAXY_WINDOW_MAX_RADIUS = 64;
+const REGION_SECTORS = 4;
+const QUADRANT_REGIONS = 4;
+const QUADRANT_SECTORS = REGION_SECTORS * QUADRANT_REGIONS;
+// Total world-space size of one sector tile
+const SECTOR_PX_W = SECTOR_COLS * HEX_STEP_X;
+const SECTOR_PX_H = SECTOR_ROWS * HEX_STEP_Y;
+// Manual alignment bias for sector/subsector overlays against hex lattice (from preferences).
+const gridBiasX = computed(() => Number(preferencesStore.atlasGridBiasX) || 0);
+const gridBiasY = computed(() => Number(preferencesStore.atlasGridBiasY) || 0);
+const planningBiasX = computed(() => Number(preferencesStore.atlasPlanningBiasX) || 0);
+const planningBiasY = computed(() => Number(preferencesStore.atlasPlanningBiasY) || 0);
+const planningOverlayBiasX = computed(() => gridBiasX.value + planningBiasX.value);
+const planningOverlayBiasY = computed(() => gridBiasY.value + planningBiasY.value);
+
+// ── LOD zoom thresholds ────────────────────────────────────────────────────
+const LOD_GALAXY = 0.055; // below: sector tiles only
+const LOD_SECTOR = 0.38; // below: dots but no hex grid
+const LOD_HEX = 1.2; // above: high-detail markers + labels
+// ── Discrete hierarchy zoom levels ──────────────────────────────────────────
+// The Atlas zoom ladder maps directly to the requested hierarchy:
+// Galaxy -> Quadrant -> Region -> Sector -> Subsector -> Orbital context.
+const HIERARCHY_LEVELS = Object.freeze([
+  {
+    id: "galaxy",
+    label: "Galaxy",
+    description: "Galaxy level overview",
+    parsecsPerHex: 1000,
+  },
+  {
+    id: "quadrant-4x4",
+    label: "Quadrant 4x4",
+    description: "Quadrant level (4x4 Regions)",
+    parsecsPerHex: 500,
+  },
+  {
+    id: "quadrant-2x2",
+    label: "Quadrant 2x2",
+    description: "Quadrant sublevel (2x2 Regions)",
+    parsecsPerHex: 250,
+  },
+  {
+    id: "region-4x4",
+    label: "Region 4x4",
+    description: "Region level (4x4 Sectors)",
+    parsecsPerHex: 120,
+  },
+  {
+    id: "region-2x2",
+    label: "Region 2x2",
+    description: "Region sublevel (2x2 Sectors)",
+    parsecsPerHex: 60,
+  },
+  {
+    id: "sector",
+    label: "Sector",
+    description: "Sector level",
+    parsecsPerHex: 20,
+  },
+  {
+    id: "sector-2x2-subsector",
+    label: "Sector 2x2",
+    description: "Sector sublevel (2x2 Subsectors)",
+    parsecsPerHex: 8,
+  },
+  {
+    id: "subsector",
+    label: "Subsector",
+    description: "Subsector level",
+    parsecsPerHex: 2,
+  },
+  {
+    id: "orbital",
+    label: "Orbital",
+    description: "Orbital context (opens System Survey for full orbital simulation)",
+    parsecsPerHex: 1,
+  },
+  {
+    id: "deep-detail",
+    label: "Deep Detail",
+    description: "Deep detail zoom for local system context",
+    parsecsPerHex: 0.1,
+  },
+]);
+
+const ALL_ZOOM_LEVELS = HIERARCHY_LEVELS.map((level) => 1 / level.parsecsPerHex).sort((a, b) => a - b);
+const DEFAULT_PARSECS_PER_HEX = 60;
+const DEFAULT_ZOOM = 1 / DEFAULT_PARSECS_PER_HEX;
+const MIN_ZOOM = ALL_ZOOM_LEVELS[0];
+const MAX_ZOOM = ALL_ZOOM_LEVELS[ALL_ZOOM_LEVELS.length - 1];
+const UNIVERSE_SCALE_PX = 10000; // world px per universe coordinate unit
+const GALAXY_DOT_R = 300000; // galaxy blob radius in world space px
+
+// ── Camera ─────────────────────────────────────────────────────────────────
+const svgRef = ref(null);
+const atlasRootRef = ref(null);
+const svgW = ref(window.innerWidth);
+const svgH = ref(window.innerHeight);
+const zoom = ref(DEFAULT_ZOOM);
+const panX = ref(100);
+const panY = ref(60);
+const dragging = ref(false);
+let dragStart = null;
+let cameraFrame = 0;
+let pendingCamera = null;
+const hexPointCache = new Map();
+
+// ── State ──────────────────────────────────────────────────────────────────
+const selectedGalaxyId = ref("");
+const isLoading = ref(false);
+const atlasSectors = ref([]);
+
+const layerHexGrid = ref(Boolean(preferencesStore.atlasLayerHexGrid));
+const layerNames = ref(Boolean(preferencesStore.atlasLayerNames));
+const layerSectorNames = ref(Boolean(preferencesStore.atlasLayerSectorNames));
+const layerCoords = ref(Boolean(preferencesStore.atlasLayerCoords));
+const layerZones = ref(Boolean(preferencesStore.atlasLayerZones));
+const layerRoutes = ref(Boolean(preferencesStore.atlasLayerRoutes));
+const layerAnomalies = ref(Boolean(preferencesStore.atlasLayerAnomalies));
+const layerBadges = ref(Boolean(preferencesStore.atlasLayerBadges));
+const layerPolity = ref(Boolean(preferencesStore.atlasLayerPolity));
+const layerKnownSpace = ref(true);
+const layerPlanningWindow = ref(true);
+const activeKnownSpaceOnly = ref(false);
+const activePoliticalHeatFilter = ref(null);
+const activeRouteFilter = ref(null);
+
+const hoveredHexKey = ref(null);
+const hoveredSectorId = ref(null);
+const selectedHexKey = ref(null);
+const inspectorMode = ref(null); // 'sector' | 'hierarchy' | 'star' | null
+const inspectorSector = ref(null);
+const inspectorHierarchy = ref(null);
+const inspectorStar = ref(null);
+const atlasGenerationArea = ref("sector");
+const atlasGenerationMode = ref("name-presence");
+const isGeneratingInspectorSector = ref(false);
+const atlasGenerationProgress = ref({
+  active: false,
+  label: "",
+  current: 0,
+  total: 0,
+  legacyReconstructedCount: 0,
+  legacyHierarchyUnknownCount: 0,
+});
+const hydratedAtlasSectorSystemKeys = new Set();
+
+const atlasGenerationProgressPercent = computed(() => {
+  if (!atlasGenerationProgress.value.active || atlasGenerationProgress.value.total <= 0) return 0;
+  const pct = Math.round((atlasGenerationProgress.value.current / atlasGenerationProgress.value.total) * 100);
+  return Math.max(0, Math.min(100, pct));
+});
+
+const atlasGenerationDiagnostics = computed(() => {
+  const progress = atlasGenerationProgress.value;
+  const diagnostics = [
+    { label: "Stage", value: progress.label || "Queued" },
+    { label: "Coverage", value: `${progress.current.toLocaleString()} / ${progress.total.toLocaleString()}` },
+    { label: "Completion", value: `${atlasGenerationProgressPercent.value}%` },
+  ];
+  if (progress.legacyReconstructedCount) {
+    diagnostics.push({ label: "Legacy Trees Seen", value: progress.legacyReconstructedCount.toLocaleString() });
+  }
+  if (progress.legacyHierarchyUnknownCount) {
+    diagnostics.push({
+      label: "Inferred Links Seen",
+      value: progress.legacyHierarchyUnknownCount.toLocaleString(),
+    });
+  }
+  return diagnostics;
+});
+
+const atlasGenerationLedger = computed(() => {
+  const progress = atlasGenerationProgress.value;
+  const ledger = [
+    "Traveller Atlas",
+    `${progress.current.toLocaleString()} sectors processed`,
+    progress.label || "Awaiting atlas directive",
+  ];
+  if (progress.legacyReconstructedCount || progress.legacyHierarchyUnknownCount) {
+    ledger.push(
+      `${progress.legacyReconstructedCount.toLocaleString()} legacy trees, ${progress.legacyHierarchyUnknownCount.toLocaleString()} inferred links encountered`,
+    );
+  }
+  return ledger;
+});
+
+function summarizeSectorLegacyProgress(sector) {
+  return summarizeLegacyStarMetadata({
+    hexStarTypes: sector?.metadata?.hexStarTypes,
+  });
+}
+
+const SECTOR_HEX_PRESENCE_RATE = Object.freeze([0.03, 0.03, 0.15, 0.3, 0.5, 0.7]);
+const HEX_PRESENCE_COLS = 32;
+const HEX_PRESENCE_ROWS = 40;
+const HEX_PRESENCE_MORPHOLOGY_SCALE = 0.15;
+const ATLAS_GENERATION_AREA_OPTIONS = Object.freeze([
+  { id: "sector", label: "Sector" },
+  { id: "surrounding", label: "Sector + Surrounding" },
+  { id: "region", label: "Region" },
+  { id: "quadrant", label: "Quadrant" },
+]);
+const ATLAS_GENERATION_MODE_OPTIONS = Object.freeze([
+  { id: "name", label: "Name" },
+  { id: "name-presence", label: "Name + Presence" },
+  { id: "presence", label: "Presence Only" },
+  { id: "name-systems", label: "Name + Systems" },
+]);
+const ATLAS_SEEDED_NAME_ONSETS = Object.freeze([
+  "Al",
+  "Bel",
+  "Cor",
+  "Dor",
+  "El",
+  "Fen",
+  "Gal",
+  "Hal",
+  "Ir",
+  "Kel",
+  "Lor",
+  "Mor",
+  "Nor",
+  "Or",
+  "Pra",
+  "Qua",
+  "Ryn",
+  "Sol",
+  "Tal",
+  "Vor",
+]);
+const ATLAS_SEEDED_NAME_VOWELS = Object.freeze(["a", "e", "i", "o", "u", "ae", "ia", "oa", "ei"]);
+const ATLAS_SEEDED_NAME_CODAS = Object.freeze([
+  "n",
+  "r",
+  "s",
+  "th",
+  "l",
+  "m",
+  "x",
+  "dr",
+  "v",
+  "nd",
+  "ria",
+  "tor",
+  "lon",
+  "vek",
+  "mere",
+]);
+const ATLAS_SEEDED_NAME_MEDIALS = Object.freeze(["", "", "n", "r", "l", "s", "th", "v", "dr"]);
+const ATLAS_SEEDED_NAME_SUFFIXES = Object.freeze([
+  "Reach",
+  "March",
+  "Span",
+  "Expanse",
+  "Drift",
+  "Crown",
+  "Basin",
+  "Gate",
+]);
+// ── Store data ─────────────────────────────────────────────────────────────
+const galaxies = computed(() => galaxyStore.getAllGalaxies || []);
+const currentGalaxy = computed(
+  () => galaxies.value.find((galaxy) => String(galaxy?.galaxyId) === String(selectedGalaxyId.value)) || null,
+);
+const sectors = computed(() => atlasSectors.value);
+
+function toAtlasSectorRecord(sector) {
+  const metadata = sector?.metadata && typeof sector.metadata === "object" ? sector.metadata : {};
+  const x = Number(sector?.coordinates?.x ?? metadata.gridX ?? sector?.x ?? sector?.sectorX ?? 0);
+  const y = Number(sector?.coordinates?.y ?? metadata.gridY ?? sector?.y ?? sector?.sectorY ?? 0);
+  const normalizedSector = {
+    ...sector,
+    galaxyId: String(sector?.galaxyId ?? metadata.galaxyId ?? ""),
+    sectorId: String(sector?.sectorId || `${sector?.galaxyId || metadata.galaxyId || "galaxy"}:${x},${y}`),
+    coordinates: { x, y },
+    densityClass: Number(sector?.densityClass ?? 0),
+    densityVariation: Number(sector?.densityVariation ?? 0),
+  };
+  return {
+    ...normalizedSector,
+    metadata: {
+      ...ensureAtlasSectorNamingMetadata(normalizedSector, metadata),
+      gridX: x,
+      gridY: y,
+    },
+  };
+}
+
+function mergeAtlasSectorsWithGalaxyLayout(galaxy, persistedSectors = [], bounds = {}) {
+  const normalizedPersisted = (Array.isArray(persistedSectors) ? persistedSectors : []).map(toAtlasSectorRecord);
+  if (!galaxy) {
+    return normalizedPersisted;
+  }
+
+  const layoutSectors = generateGalaxySectorLayoutWindow(galaxy, {
+    scale: "true",
+    xMin: bounds.xMin ?? -SELECTED_GALAXY_WINDOW_DEFAULT_RADIUS,
+    xMax: bounds.xMax ?? SELECTED_GALAXY_WINDOW_DEFAULT_RADIUS,
+    yMin: bounds.yMin ?? -SELECTED_GALAXY_WINDOW_DEFAULT_RADIUS,
+    yMax: bounds.yMax ?? SELECTED_GALAXY_WINDOW_DEFAULT_RADIUS,
+  }).map(toAtlasSectorRecord);
+  const merged = new Map(layoutSectors.map((sector) => [sector.sectorId, sector]));
+
+  for (const sector of normalizedPersisted) {
+    const existing = merged.get(sector.sectorId);
+    if (!existing) {
+      merged.set(sector.sectorId, sector);
+      continue;
+    }
+
+    merged.set(sector.sectorId, {
+      ...existing,
+      ...sector,
+      coordinates: sector.coordinates ?? existing.coordinates,
+      densityClass: Number.isFinite(Number(existing.densityClass))
+        ? Number(existing.densityClass)
+        : Number(sector.densityClass ?? 0),
+      densityVariation: Number.isFinite(Number(sector.densityVariation))
+        ? Number(sector.densityVariation)
+        : Number(existing.densityVariation ?? 0),
+      metadata: {
+        ...(existing.metadata ?? {}),
+        ...(sector.metadata ?? {}),
+        gridX: Number(
+          sector?.metadata?.gridX ??
+            sector?.coordinates?.x ??
+            existing?.metadata?.gridX ??
+            existing?.coordinates?.x ??
+            0,
+        ),
+        gridY: Number(
+          sector?.metadata?.gridY ??
+            sector?.coordinates?.y ??
+            existing?.metadata?.gridY ??
+            existing?.coordinates?.y ??
+            0,
+        ),
+        densityScore: existing?.metadata?.densityScore ?? sector?.metadata?.densityScore,
+      },
+    });
+  }
+
+  return Array.from(merged.values());
+}
+
+function resolveSelectedGalaxyLayoutBounds(galaxy) {
+  if (!galaxy) {
+    return {
+      xMin: -SELECTED_GALAXY_WINDOW_DEFAULT_RADIUS,
+      xMax: SELECTED_GALAXY_WINDOW_DEFAULT_RADIUS,
+      yMin: -SELECTED_GALAXY_WINDOW_DEFAULT_RADIUS,
+      yMax: SELECTED_GALAXY_WINDOW_DEFAULT_RADIUS,
+    };
+  }
+
+  const footprint = estimateGalaxySectorFootprint(galaxy);
+  const radius = Math.max(
+    SELECTED_GALAXY_WINDOW_MIN_RADIUS,
+    Math.min(SELECTED_GALAXY_WINDOW_MAX_RADIUS, Number(footprint?.gridRadius) || SELECTED_GALAXY_WINDOW_DEFAULT_RADIUS),
+  );
+
+  return {
+    xMin: -radius,
+    xMax: radius,
+    yMin: -radius,
+    yMax: radius,
+  };
+}
+
+function resolveSelectedGalaxyWindowLimit(bounds) {
+  const width = Math.max(1, Number(bounds?.xMax) - Number(bounds?.xMin) + 1);
+  const height = Math.max(1, Number(bounds?.yMax) - Number(bounds?.yMin) + 1);
+  const estimatedWindowCells = width * height;
+  return Math.min(10000, Math.max(2500, estimatedWindowCells));
+}
+
+const sectorByCoord = computed(() => {
+  const map = new Map();
+  for (const s of atlasSectors.value) {
+    const sx = Number(s?.coordinates?.x);
+    const sy = Number(s?.coordinates?.y);
+    if (Number.isFinite(sx) && Number.isFinite(sy)) map.set(`${sx}:${sy}`, s);
+  }
+  return map;
+});
+
+function resolveGalaxyLabel(galaxy) {
+  const directName = String(galaxy?.name || "").trim();
+  if (directName) return directName;
+
+  const structuredName = galaxy?.galaxyName;
+  if (Array.isArray(structuredName) && structuredName.length > 0) {
+    const firstName = String(structuredName[0]?.name || structuredName[0] || "").trim();
+    if (firstName) return firstName;
+  }
+
+  const displayName = String(galaxy?.metadata?.displayName || "").trim();
+  if (displayName) return displayName;
+
+  return "Unnamed Galaxy";
+}
+
+const galaxyOptions = computed(() =>
+  galaxies.value.map((g) => ({
+    galaxyId: g.galaxyId,
+    label: resolveGalaxyLabel(g),
+  })),
+);
+
+// ── Grid bounds ────────────────────────────────────────────────────────────
+const gridBounds = computed(() => {
+  if (!sectors.value.length) return { minX: 0, maxX: 0, minY: 0, maxY: 0 };
+  let minX = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+
+  for (const sector of sectors.value) {
+    const sx = Number(sector?.coordinates?.x);
+    const sy = Number(sector?.coordinates?.y);
+    if (!Number.isFinite(sx) || !Number.isFinite(sy)) continue;
+    if (sx < minX) minX = sx;
+    if (sx > maxX) maxX = sx;
+    if (sy < minY) minY = sy;
+    if (sy > maxY) maxY = sy;
+  }
+
+  if (!Number.isFinite(minX) || !Number.isFinite(minY)) {
+    return { minX: 0, maxX: 0, minY: 0, maxY: 0 };
+  }
+
+  return { minX, maxX, minY, maxY };
+});
+
+const minSX = computed(() => gridBounds.value.minX);
+const minSY = computed(() => gridBounds.value.minY);
+
+// ── Coordinate helpers ─────────────────────────────────────────────────────
+function sectorOrigin(sx, sy) {
+  return {
+    ox: (sx - minSX.value) * SECTOR_PX_W,
+    oy: (sy - minSY.value) * SECTOR_PX_H,
+  };
+}
+
+function hexWorldCenter(sx, sy, hcol, hrow) {
+  const { ox, oy } = sectorOrigin(sx, sy);
+  const lcx = HEX_R + (hcol - 1) * HEX_STEP_X;
+  const lcy = HEX_STEP_Y * 0.65 + (hrow - 1) * HEX_STEP_Y + (hcol % 2 !== 0 ? HEX_STEP_Y / 2 : 0);
+  return { wx: ox + lcx, wy: oy + lcy };
+}
+
+function hexPointsAt(wx, wy) {
+  const pts = [];
+  for (let i = 0; i < 6; i++) {
+    const a = (Math.PI / 180) * (60 * i);
+    pts.push(`${(wx + HEX_R * Math.cos(a)).toFixed(1)},${(wy + HEX_R * Math.sin(a)).toFixed(1)}`);
+  }
+  return pts.join(" ");
+}
+
+function getCachedHexPoints(key, wx, wy) {
+  const cached = hexPointCache.get(key);
+  if (cached) return cached;
+  const points = hexPointsAt(wx, wy);
+  hexPointCache.set(key, points);
+  return points;
+}
+
+function queueCameraUpdate(nextPanX, nextPanY, nextZoom) {
+  pendingCamera = { panX: nextPanX, panY: nextPanY, zoom: nextZoom };
+  if (cameraFrame) return;
+  cameraFrame = window.requestAnimationFrame(() => {
+    if (pendingCamera) {
+      panX.value = pendingCamera.panX;
+      panY.value = pendingCamera.panY;
+      zoom.value = pendingCamera.zoom;
+    }
+    pendingCamera = null;
+    cameraFrame = 0;
+  });
+}
+
+// ── Camera transform ───────────────────────────────────────────────────────
+const cameraTransform = computed(
+  () => `translate(${panX.value.toFixed(2)},${panY.value.toFixed(2)}) scale(${zoom.value})`,
+);
+
+// ── Viewport bounds in world space ─────────────────────────────────────────
+const viewBounds = computed(() => {
+  const pad = HEX_R * 4;
+  return {
+    x0: -panX.value / zoom.value - pad,
+    y0: -panY.value / zoom.value - pad,
+    x1: (svgW.value - panX.value) / zoom.value + pad,
+    y1: (svgH.value - panY.value) / zoom.value + pad,
+  };
+});
+
+// ── LOD helpers ────────────────────────────────────────────────────────────
+const currentLod = computed(() => {
+  if (parsecsPerHex.value > 1000) return "universe";
+  if (parsecsPerHex.value > 100) return "galaxy";
+  if (parsecsPerHex.value > 20) return "sector";
+  if (parsecsPerHex.value > 5) return "hex";
+  return "detail";
+});
+
+const zoomPct = computed(() => Math.round(zoom.value * 100));
+const parsecsPerHex = computed(() => Math.max(1 / MAX_ZOOM, 1 / Math.max(zoom.value, MIN_ZOOM)));
+const currentHierarchyLevelIndex = computed(() => {
+  const target = parsecsPerHex.value;
+  let bestIndex = 0;
+  let bestDelta = Number.POSITIVE_INFINITY;
+  for (let i = 0; i < HIERARCHY_LEVELS.length; i++) {
+    const delta = Math.abs(HIERARCHY_LEVELS[i].parsecsPerHex - target);
+    if (delta < bestDelta) {
+      bestDelta = delta;
+      bestIndex = i;
+    }
+  }
+  return bestIndex;
+});
+const currentHierarchyLevel = computed(() => HIERARCHY_LEVELS[currentHierarchyLevelIndex.value]);
+const lodLabel = computed(() => currentHierarchyLevel.value?.label || "—");
+const currentHierarchyId = computed(() => currentHierarchyLevel.value?.id || "galaxy");
+const parsecBadge = computed(() => {
+  const p = parsecsPerHex.value;
+  if (p >= 1000) return `${(p / 1000).toFixed(1)} kpc`;
+  if (p >= 100) return `${Math.round(p)} pc`;
+  if (p >= 10) return `${p.toFixed(1)} pc`;
+  return `${p.toFixed(2)} pc`;
+});
+const biasReadout = computed(
+  () =>
+    `Grid X ${Math.round(gridBiasX.value)} Y ${Math.round(gridBiasY.value)} · Planning X ${Math.round(planningBiasX.value)} Y ${Math.round(planningBiasY.value)}`,
+);
+const sectorTilesEnabled = computed(() => parsecsPerHex.value <= 250);
+const showStars = computed(() => parsecsPerHex.value <= 40);
+const renderStars = computed(() => showStars.value && (!dragging.value || parsecsPerHex.value <= 10));
+const showStarNames = computed(() => layerNames.value && !dragging.value && parsecsPerHex.value <= 5);
+const showStarCoords = computed(() => layerCoords.value && !dragging.value && parsecsPerHex.value <= 10);
+const showEmptyCoords = computed(() => layerCoords.value && hexGridVisible.value && parsecsPerHex.value <= 10);
+const showTradeRoutes = computed(
+  () => layerRoutes.value && !dragging.value && parsecsPerHex.value <= 5 && visibleStars.value.length <= 320,
+);
+const showRouteLegend = computed(
+  () => layerRoutes.value && (currentLod.value === "hex" || currentLod.value === "detail"),
+);
+const showSystemBadges = computed(
+  () => layerBadges.value && !dragging.value && parsecsPerHex.value <= 5 && visibleStars.value.length <= 180,
+);
+const showPolityGlyphs = computed(
+  () =>
+    layerPolity.value &&
+    layerNames.value &&
+    !dragging.value &&
+    parsecsPerHex.value <= 5 &&
+    visibleStars.value.length <= 200,
+);
+const showAnomalyOverlays = computed(
+  () => layerAnomalies.value && !dragging.value && parsecsPerHex.value <= 60 && visibleSectorTiles.value.length <= 240,
+);
+const showPoliticalHeat = computed(
+  () => layerPolity.value && !dragging.value && parsecsPerHex.value <= 100 && parsecsPerHex.value > 5,
+);
+const sectorHasPoliticalFilter = computed(() => Boolean(activePoliticalHeatFilter.value));
+
+const sectorTileOpacity = computed(() => {
+  if (parsecsPerHex.value > 100) return 0.88;
+  if (parsecsPerHex.value > 40) return 0.5;
+  if (parsecsPerHex.value > 20) return 0.26;
+  if (parsecsPerHex.value <= 5) return 0;
+  return 0.1;
+});
+
+// ── Universe LOD: galaxy blobs ───────────────────────────────────────────
+const showUniverseLayer = computed(() => !sectorTilesEnabled.value);
+
+const galaxyDots = computed(() =>
+  galaxies.value.map((g, i) => {
+    const uc = g?.metadata?.universeCoordinates;
+    const ux = Number.isFinite(Number(uc?.x)) ? Number(uc.x) : ((i % 5) - 2) * 100;
+    const uy = Number.isFinite(Number(uc?.y)) ? Number(uc.y) : (Math.floor(i / 5) - 1) * 100;
+    return {
+      galaxyId: g.galaxyId,
+      name: resolveGalaxyLabel(g),
+      wx: ux * UNIVERSE_SCALE_PX,
+      wy: -uy * UNIVERSE_SCALE_PX, // flip Y (positive=up in universe map)
+      color: galaxyIndexToColor(i),
+      isSelected: g.galaxyId === selectedGalaxyId.value,
+    };
+  }),
+);
+
+const sectorLabelVisible = computed(
+  () =>
+    layerSectorNames.value &&
+    !dragging.value &&
+    parsecsPerHex.value <= 10 &&
+    parsecsPerHex.value > 1 &&
+    visibleSectorTiles.value.length <= 80,
+);
+const sectorLabelSize = computed(() => Math.min(SECTOR_PX_H * (parsecsPerHex.value > 40 ? 0.12 : 0.07), 180));
+const showSectorBorders = computed(() => parsecsPerHex.value <= 100);
+const showSubsectorBorders = computed(() => !dragging.value && parsecsPerHex.value <= 60);
+const sectorBorderWidth = computed(() => Math.max(1, 3 / zoom.value));
+const hexGridVisible = computed(() => !dragging.value && layerHexGrid.value && parsecsPerHex.value <= 2);
+
+const continuousSectorTiles = computed(() => {
+  if (!showSectorBorders.value && !showSubsectorBorders.value) return [];
+  const b = viewBounds.value;
+  const padX = SECTOR_PX_W;
+  const padY = SECTOR_PX_H;
+  const xStart = Math.floor((b.x0 - padX - gridBiasX.value) / SECTOR_PX_W);
+  const xEnd = Math.ceil((b.x1 + padX - gridBiasX.value) / SECTOR_PX_W);
+  const yStart = Math.floor((b.y0 - padY - gridBiasY.value) / SECTOR_PX_H);
+  const yEnd = Math.ceil((b.y1 + padY - gridBiasY.value) / SECTOR_PX_H);
+
+  const tiles = [];
+  for (let gx = xStart; gx <= xEnd; gx++) {
+    for (let gy = yStart; gy <= yEnd; gy++) {
+      tiles.push({
+        key: `${gx}:${gy}`,
+        wx: gx * SECTOR_PX_W + gridBiasX.value,
+        wy: gy * SECTOR_PX_H + gridBiasY.value,
+      });
+    }
+  }
+  return tiles;
+});
+
+const gridClickTiles = computed(() => {
+  if (!sectorTilesEnabled.value) return [];
+  const b = viewBounds.value;
+  const padX = SECTOR_PX_W;
+  const padY = SECTOR_PX_H;
+  const xStart = Math.floor((b.x0 - padX - gridBiasX.value) / SECTOR_PX_W);
+  const xEnd = Math.ceil((b.x1 + padX - gridBiasX.value) / SECTOR_PX_W);
+  const yStart = Math.floor((b.y0 - padY - gridBiasY.value) / SECTOR_PX_H);
+  const yEnd = Math.ceil((b.y1 + padY - gridBiasY.value) / SECTOR_PX_H);
+  const tiles = [];
+  for (let gx = xStart; gx <= xEnd; gx++) {
+    for (let gy = yStart; gy <= yEnd; gy++) {
+      tiles.push({
+        key: `${gx}:${gy}`,
+        gx,
+        gy,
+        wx: gx * SECTOR_PX_W + gridBiasX.value,
+        wy: gy * SECTOR_PX_H + gridBiasY.value,
+      });
+    }
+  }
+
+  return tiles;
+});
+
+const continuousHexSectorTiles = computed(() => {
+  if (!hexGridVisible.value) return [];
+  const b = viewBounds.value;
+  const padX = SECTOR_PX_W;
+  const padY = SECTOR_PX_H;
+  const xStart = Math.floor((b.x0 - padX) / SECTOR_PX_W);
+  const xEnd = Math.ceil((b.x1 + padX) / SECTOR_PX_W);
+  const yStart = Math.floor((b.y0 - padY) / SECTOR_PX_H);
+  const yEnd = Math.ceil((b.y1 + padY) / SECTOR_PX_H);
+
+  const tiles = [];
+  for (let gx = xStart; gx <= xEnd; gx++) {
+    for (let gy = yStart; gy <= yEnd; gy++) {
+      tiles.push({
+        key: `${gx}:${gy}`,
+        wx: gx * SECTOR_PX_W,
+        wy: gy * SECTOR_PX_H,
+      });
+    }
+  }
+
+  return tiles;
+});
+
+function isAtlasGeneratedSectorRecord(sector) {
+  const metadata = sector?.metadata && typeof sector.metadata === "object" ? sector.metadata : {};
+  const typedHexCount =
+    metadata?.hexStarTypes && typeof metadata.hexStarTypes === "object" ? Object.keys(metadata.hexStarTypes).length : 0;
+  return Boolean(metadata?.hexPresenceGenerated) || Number(metadata?.systemCount || 0) > 0 || typedHexCount > 0;
+}
+
+// ── Space Classification System ────────────────────────────────────────
+// Dynamic three-tier space model: Surveyed (generated), Frontier (adjacent), Void (beyond)
+const surveyedCoordKeySet = computed(() => {
+  return buildSurveyedCoordKeySet(sectors.value);
+});
+
+const generatedSectorCoordKeySet = computed(() => {
+  // Backward compat alias
+  return surveyedCoordKeySet.value;
+});
+
+const frontierCoordKeySet = computed(() => {
+  return buildFrontierCoordKeySet(surveyedCoordKeySet.value);
+});
+
+const knownSpaceCoordKeySet = computed(() => {
+  return buildKnownSpaceCoordKeySet(surveyedCoordKeySet.value);
+});
+
+const spaceTierCounts = computed(() => {
+  return countSpaceTiers(surveyedCoordKeySet.value);
+});
+
+const PLANNING_WINDOW_RADIUS = 5;
+
+const planningWindowCenter = computed(() => {
+  const inspectorX = Number(inspectorSector.value?.coordinates?.x);
+  const inspectorY = Number(inspectorSector.value?.coordinates?.y);
+  if (Number.isFinite(inspectorX) && Number.isFinite(inspectorY)) {
+    return { x: Math.trunc(inspectorX), y: Math.trunc(inspectorY) };
+  }
+
+  const currentSectorId = String(sectorStore.currentSectorId || "").trim();
+  if (currentSectorId) {
+    const currentSector = sectors.value.find((entry) => String(entry?.sectorId) === currentSectorId);
+    const sx = Number(currentSector?.coordinates?.x);
+    const sy = Number(currentSector?.coordinates?.y);
+    if (Number.isFinite(sx) && Number.isFinite(sy)) {
+      return { x: Math.trunc(sx), y: Math.trunc(sy) };
+    }
+  }
+
+  return { x: 0, y: 0 };
+});
+
+const planningWindowVisible = computed(() => layerPlanningWindow.value && sectorTilesEnabled.value);
+
+const planningWindowBounds = computed(() => {
+  const center = planningWindowCenter.value;
+  if (!center) return null;
+
+  return {
+    xMin: center.x - PLANNING_WINDOW_RADIUS,
+    xMax: center.x + PLANNING_WINDOW_RADIUS,
+    yMin: center.y - PLANNING_WINDOW_RADIUS,
+    yMax: center.y + PLANNING_WINDOW_RADIUS,
+  };
+});
+
+function isInPlanningWindowByCoord(sx, sy) {
+  if (!Number.isFinite(sx) || !Number.isFinite(sy)) return false;
+  const bounds = planningWindowBounds.value;
+  if (!bounds) return false;
+  return sx >= bounds.xMin && sx <= bounds.xMax && sy >= bounds.yMin && sy <= bounds.yMax;
+}
+
+const planningRegionInfo = computed(() => {
+  const center = planningWindowCenter.value;
+  if (!center) return null;
+
+  const base = calculatePlanningRegionCapacity({
+    centerX: center.x,
+    centerY: center.y,
+    planningRadius: PLANNING_WINDOW_RADIUS,
+  });
+
+  let surveyedInWindow = 0;
+  for (const coordKey of surveyedCoordKeySet.value) {
+    const parsed = fromSectorCoordKey(coordKey);
+    if (!parsed) continue;
+    const [sx, sy] = parsed;
+    if (isInPlanningWindowByCoord(sx, sy)) {
+      surveyedInWindow += 1;
+    }
+  }
+
+  const totalCapacity = Number(base.totalCapacity || 0);
+  const remaining = Math.max(0, totalCapacity - surveyedInWindow);
+  const percentUtilization = totalCapacity > 0 ? Math.round((surveyedInWindow / totalCapacity) * 100) : 0;
+
+  return {
+    ...base,
+    surveyedInWindow,
+    remaining,
+    percentUtilization,
+  };
+});
+
+const starDataEnabled = computed(() => renderStars.value || hexGridVisible.value || inspectorMode.value === "star");
+
+const effectiveStarR = computed(() => {
+  if (parsecsPerHex.value > 20) return 4.5;
+  if (parsecsPerHex.value > 5) return 5.5;
+  return 7;
+});
+
+// ── Sector tiles ───────────────────────────────────────────────────────────
+const visibleSectorTiles = computed(() => {
+  if (!sectorTilesEnabled.value || !sectors.value.length) return [];
+  const b = viewBounds.value;
+
+  const decorateKnownSpaceTile = (tile) => {
+    const coordKey = toSectorCoordKey(tile?.sx, tile?.sy);
+    const isGenerated = generatedSectorCoordKeySet.value.has(coordKey);
+    const isKnownSpace = knownSpaceCoordKeySet.value.has(coordKey);
+    const isInPlanningWindow = isInPlanningWindowByCoord(Number(tile?.sx), Number(tile?.sy));
+    return {
+      ...tile,
+      isGeneratedSector: isGenerated,
+      isKnownSpace,
+      isKnownSpaceFrontier: isKnownSpace && !isGenerated,
+      isInPlanningWindow,
+    };
+  };
+
+  const finalizeTiles = (tiles) => {
+    const decorated = tiles.map(decorateKnownSpaceTile);
+    if (!activeKnownSpaceOnly.value) {
+      return decorated;
+    }
+    return decorated.filter((tile) => tile.isKnownSpace);
+  };
+
+  if (sectors.value.length <= 5000) {
+    const inView = sectors.value
+      .map(toSectorTile)
+      .filter(
+        (tile) =>
+          tile && tile.wx + SECTOR_PX_W >= b.x0 && tile.wx <= b.x1 && tile.wy + SECTOR_PX_H >= b.y0 && tile.wy <= b.y1,
+      );
+    return finalizeTiles(inView);
+  }
+
+  const xStart = Math.max(gridBounds.value.minX, Math.floor(b.x0 / SECTOR_PX_W) + minSX.value);
+  const xEnd = Math.min(gridBounds.value.maxX, Math.ceil(b.x1 / SECTOR_PX_W) + minSX.value);
+  const yStart = Math.max(gridBounds.value.minY, Math.floor(b.y0 / SECTOR_PX_H) + minSY.value);
+  const yEnd = Math.min(gridBounds.value.maxY, Math.ceil(b.y1 / SECTOR_PX_H) + minSY.value);
+  const tiles = [];
+
+  for (let sx = xStart; sx <= xEnd; sx++) {
+    for (let sy = yStart; sy <= yEnd; sy++) {
+      const sector = sectorByCoord.value.get(`${sx}:${sy}`);
+      if (!sector) continue;
+
+      const tile = toSectorTile(sector);
+      if (tile) tiles.push(tile);
+    }
+  }
+
+  return finalizeTiles(tiles);
+});
+
+const loadedSectorTiles = computed(() => sectors.value.map(toSectorTile).filter(Boolean));
+
+function buildStarMarkersForTiles(tiles) {
+  const markers = [];
+  const markerByKey = new Map();
+  const tileBySectorId = new Map(tiles.map((tile) => [String(tile.sectorId), tile]));
+
+  for (const system of atlasSystemRecords.value) {
+    const sectorId = String(system?.sectorId || "");
+    const tile = tileBySectorId.get(sectorId);
+    if (!tile) continue;
+
+    const x = Number(system?.hexCoordinates?.x);
+    const y = Number(system?.hexCoordinates?.y);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+
+    const coord = `${String(Math.trunc(x)).padStart(2, "0")}${String(Math.trunc(y)).padStart(2, "0")}`;
+    const key = `${tile.sectorId}:${coord}`;
+    const { wx, wy } = hexWorldCenter(tile.sx, tile.sy, Math.trunc(x), Math.trunc(y));
+    const generatedStars = resolveGeneratedStarsFromSystem(system);
+    const starMetadata = buildHexStarTypeMetadata({
+      generatedStars,
+      primary: system?.primaryStar,
+      secondaryStars: system?.companionStars,
+      anomalyType:
+        system?.metadata?.anomalyType ||
+        system?.metadata?.generatedSurvey?.anomalyType ||
+        tile.sector?.metadata?.hexStarTypes?.[coord]?.anomalyType ||
+        null,
+      fallbackStarType: tile.sector?.metadata?.hexStarTypes?.[coord]?.starType || "G2V",
+      legacyReconstructed:
+        system?.metadata?.generatedSurvey?.legacyReconstructed ??
+        system?.metadata?.legacyReconstructed ??
+        tile.sector?.metadata?.hexStarTypes?.[coord]?.legacyReconstructed ??
+        false,
+      legacyHierarchyUnknown:
+        system?.metadata?.generatedSurvey?.legacyHierarchyUnknown ??
+        system?.metadata?.legacyHierarchyUnknown ??
+        tile.sector?.metadata?.hexStarTypes?.[coord]?.legacyHierarchyUnknown ??
+        false,
+    });
+    const starType = normalizeGeneratedStarType(starMetadata.starType);
+    const secondaryStars = starMetadata.secondaryStars.map((star) => normalizeGeneratedStarType(star)).filter(Boolean);
+    const starClass =
+      String(tile.sector?.metadata?.hexStarTypes?.[coord]?.starClass || "").trim() || starTypeToCssClass(starType);
+    const systemSummary = summarizeSystemRecord(system);
+
+    const marker = {
+      key,
+      galaxyId: tile.sector?.galaxyId,
+      sectorId: tile.sectorId,
+      sectorName: tile.name,
+      sectorX: Number(tile?.sx),
+      sectorY: Number(tile?.sy),
+      coord,
+      wx,
+      wy,
+      starType,
+      starClass,
+      color: starTypeToColor(starType, starClass),
+      compColor: starTypeToColor(secondaryStars[0] || "M", ""),
+      hasSecondary: secondaryStars.length > 0,
+      anomalyType: starMetadata.anomalyType || null,
+      anomalyToken: resolveStarDescriptorToken(starMetadata.anomalyType || starType, "G"),
+      travelZone: systemSummary.travelZone,
+      bases: systemSummary.bases,
+      habitability: systemSummary.habitability,
+      resourceRating: systemSummary.resourceRating,
+      importance: systemSummary.importance,
+      governmentProfile: systemSummary.governmentProfile,
+      factionsProfile: systemSummary.factionsProfile,
+      hasSavedSystem: systemSummary.hasSavedSystem,
+      legacyReconstructed: Boolean(starMetadata.legacyReconstructed),
+      legacyHierarchyUnknown: Boolean(starMetadata.legacyHierarchyUnknown),
+      presenceOnly: false,
+      name: "",
+    };
+    markerByKey.set(key, marker);
+    markers.push(marker);
+  }
+
+  for (const tile of tiles) {
+    const hexStarTypes = tile.sector?.metadata?.hexStarTypes ?? {};
+    const occupiedHexes = tile.sector?.metadata?.occupiedHexes ?? [];
+    const compactedHexStarTypeCount = Number(tile.sector?.metadata?.hexStarTypeCount);
+    const inferredTypedCoverage =
+      Number.isFinite(compactedHexStarTypeCount) &&
+      occupiedHexes.length > 0 &&
+      compactedHexStarTypeCount >= occupiedHexes.length;
+    const typedCoords = new Set();
+
+    for (const [coord, info] of Object.entries(hexStarTypes)) {
+      const key = `${tile.sectorId}:${coord}`;
+      if (markerByKey.has(key)) {
+        typedCoords.add(coord);
+        continue;
+      }
+      const hcol = parseInt(coord.slice(0, 2), 10);
+      const hrow = parseInt(coord.slice(2, 4), 10);
+      if (!Number.isFinite(hcol) || !Number.isFinite(hrow)) continue;
+      const { wx, wy } = hexWorldCenter(tile.sx, tile.sy, hcol, hrow);
+      const starMetadata = buildHexStarTypeMetadata({
+        generatedStars: info?.generatedStars,
+        primary: info?.starType,
+        secondaryStars: info?.secondaryStars,
+        anomalyType: info?.anomalyType ?? null,
+        fallbackStarType: String(info?.starType || "G2"),
+        legacyReconstructed: info?.legacyReconstructed ?? false,
+        legacyHierarchyUnknown: info?.legacyHierarchyUnknown ?? false,
+      });
+      const starType = normalizeGeneratedStarType(starMetadata.starType);
+      typedCoords.add(coord);
+      const marker = {
+        key,
+        galaxyId: tile.sector?.galaxyId,
+        sectorId: tile.sectorId,
+        sectorName: tile.name,
+        sectorX: Number(tile?.sx),
+        sectorY: Number(tile?.sy),
+        coord,
+        wx,
+        wy,
+        starType,
+        starClass: info.starClass || "",
+        color: starTypeToColor(starType, info.starClass || ""),
+        compColor: starTypeToColor(starMetadata.secondaryStars?.[0] || "M", ""),
+        hasSecondary: starMetadata.secondaryStars.length > 0,
+        anomalyType: starMetadata.anomalyType || null,
+        anomalyToken: resolveStarDescriptorToken(starMetadata.anomalyType || starType, "G"),
+        travelZone: "—",
+        bases: [],
+        habitability: "—",
+        resourceRating: "—",
+        importance: "—",
+        governmentProfile: "—",
+        factionsProfile: "—",
+        hasSavedSystem: false,
+        legacyReconstructed: Boolean(starMetadata.legacyReconstructed),
+        legacyHierarchyUnknown: Boolean(starMetadata.legacyHierarchyUnknown),
+        presenceOnly: false,
+        name: "",
+      };
+      markerByKey.set(key, marker);
+      markers.push(marker);
+    }
+
+    // Presence-only hexes (from "Generate All Sectors" without star types)
+    for (const coord of occupiedHexes) {
+      if (typedCoords.has(coord)) continue;
+      const key = `${tile.sectorId}:${coord}`;
+      if (markerByKey.has(key)) continue;
+      const hcol = parseInt(coord.slice(0, 2), 10);
+      const hrow = parseInt(coord.slice(2, 4), 10);
+      if (!Number.isFinite(hcol) || !Number.isFinite(hrow)) continue;
+      const { wx, wy } = hexWorldCenter(tile.sx, tile.sy, hcol, hrow);
+      const inferredPresenceOnly = !inferredTypedCoverage;
+      const marker = {
+        key,
+        galaxyId: tile.sector?.galaxyId,
+        sectorId: tile.sectorId,
+        sectorName: tile.name,
+        sectorX: Number(tile?.sx),
+        sectorY: Number(tile?.sy),
+        coord,
+        wx,
+        wy,
+        starType: inferredPresenceOnly ? "?" : "G2V",
+        starClass: "",
+        color: "#909090",
+        compColor: "#707070",
+        hasSecondary: false,
+        anomalyType: null,
+        anomalyToken: "",
+        travelZone: "—",
+        bases: [],
+        habitability: "—",
+        resourceRating: "—",
+        importance: "—",
+        governmentProfile: "—",
+        factionsProfile: "—",
+        hasSavedSystem: !inferredPresenceOnly,
+        presenceOnly: inferredPresenceOnly,
+        name: "",
+      };
+      markerByKey.set(key, marker);
+      markers.push(marker);
+    }
+  }
+  return markers;
+}
+
+// ── Star markers (prefer persisted system records, fall back to sector metadata) ──
+const allStarMarkers = computed(() => {
+  if (!starDataEnabled.value) return [];
+  return buildStarMarkersForTiles(visibleSectorTiles.value);
+});
+
+const loadedRouteStarMarkers = computed(() => buildStarMarkersForTiles(loadedSectorTiles.value));
+
+const visibleStars = computed(() => {
+  if (!renderStars.value) return [];
+  const b = viewBounds.value;
+  const stars = allStarMarkers.value.filter((s) => s.wx >= b.x0 && s.wx <= b.x1 && s.wy >= b.y0 && s.wy <= b.y1);
+  if (!dragging.value) return stars;
+  const stride = parsecsPerHex.value > 20 ? 4 : 2;
+  return stars.filter((_, index) => index % stride === 0);
+});
+
+const starMarkerByKey = computed(() => new Map(allStarMarkers.value.map((star) => [star.key, star])));
+
+function buildTradeRoutesForStars(stars) {
+  const bySector = new Map();
+  for (const star of stars) {
+    if (!bySector.has(star.sectorId)) bySector.set(star.sectorId, []);
+    bySector.get(star.sectorId).push(star);
+  }
+
+  const routes = [];
+  for (const [sectorId, sectorStars] of bySector.entries()) {
+    const candidateByKey = new Map();
+    const rankedNeighborsByStar = new Map(sectorStars.map((star) => [star.key, []]));
+
+    for (let i = 0; i < sectorStars.length; i++) {
+      for (let j = i + 1; j < sectorStars.length; j++) {
+        const left = sectorStars[i];
+        const right = sectorStars[j];
+        const dist = Math.hypot(left.wx - right.wx, left.wy - right.wy);
+        if (dist > ROUTE_MAX_DISTANCE) continue;
+
+        const key = [left.key, right.key].sort().join("|");
+        const candidate = {
+          key,
+          left,
+          right,
+          dist,
+          score: scoreRouteCandidate(left, right, dist),
+        };
+        candidateByKey.set(key, candidate);
+        rankedNeighborsByStar.get(left.key)?.push(candidate);
+        rankedNeighborsByStar.get(right.key)?.push(candidate);
+      }
+    }
+
+    const selectedKeys = new Set();
+    for (const star of sectorStars) {
+      const ranked = (rankedNeighborsByStar.get(star.key) || [])
+        .sort((left, right) => right.score - left.score || left.dist - right.dist)
+        .slice(0, ROUTE_NEIGHBOR_LIMIT);
+      for (const candidate of ranked) {
+        selectedKeys.add(candidate.key);
+      }
+    }
+
+    for (const candidateKey of selectedKeys) {
+      const candidate = candidateByKey.get(candidateKey);
+      if (!candidate) continue;
+
+      const routeTier = resolveTradeRouteSpaceTier(candidate.left, candidate.right, surveyedCoordKeySet.value);
+      if (!routeTier) {
+        continue;
+      }
+
+      const routeStyle = deriveRouteStyle(candidate.left, candidate.right, routeTier);
+      const [from, to] = [candidate.left, candidate.right].sort((left, right) => left.coord.localeCompare(right.coord));
+      routes.push({
+        key: `${sectorId}:${from.coord}-${to.coord}`,
+        fromKey: from.key,
+        toKey: to.key,
+        x1: from.wx,
+        y1: from.wy,
+        x2: to.wx,
+        y2: to.wy,
+        spaceTier: routeTier,
+        legendKey: routeStyle.legendKey,
+        className: routeStyle.className,
+        stroke: routeStyle.stroke,
+        strokeWidth: routeStyle.strokeWidth,
+        strokeDasharray: routeStyle.strokeDasharray,
+        opacity: routeStyle.opacity,
+      });
+    }
+  }
+
+  return routes;
+}
+
+const visibleTradeRoutes = computed(() => {
+  if (!showTradeRoutes.value) return [];
+  return buildTradeRoutesForStars(visibleStars.value).map((route) => ({
+    ...route,
+    filterClass: activeRouteFilter.value
+      ? activeRouteFilter.value === route.legendKey
+        ? "trade-route--highlighted"
+        : "trade-route--dimmed"
+      : "",
+    opacity: activeRouteFilter.value
+      ? activeRouteFilter.value === route.legendKey
+        ? Math.min(1, route.opacity)
+        : Math.max(0.12, route.opacity * 0.16)
+      : route.opacity,
+  }));
+});
+
+const loadedTradeRoutes = computed(() => buildTradeRoutesForStars(loadedRouteStarMarkers.value));
+
+const visiblePoliticalHeatCounts = computed(() => {
+  const counts = new Map(POLITICAL_HEAT_LEGEND.map((entry) => [entry.level, 0]));
+  for (const tile of visibleSectorTiles.value) {
+    const level = politicalHeatForSector(tile.sectorId)?.level;
+    if (!level || !counts.has(level)) continue;
+    counts.set(level, (counts.get(level) || 0) + 1);
+  }
+  return counts;
+});
+
+const visiblePoliticalHeatTotal = computed(() => visibleSectorTiles.value.length);
+
+const scopePoliticalHeatCounts = computed(() => {
+  const counts = new Map(POLITICAL_HEAT_LEGEND.map((entry) => [entry.level, 0]));
+  for (const tile of loadedSectorTiles.value) {
+    const level = politicalHeatForSector(tile.sectorId)?.level;
+    if (!level || !counts.has(level)) continue;
+    counts.set(level, (counts.get(level) || 0) + 1);
+  }
+  return counts;
+});
+
+const scopePoliticalHeatTotal = computed(() => loadedSectorTiles.value.length);
+
+const visibleRouteCounts = computed(() => {
+  const counts = new Map(ROUTE_VISUAL_LEGEND.map((entry) => [entry.id, 0]));
+  for (const route of visibleTradeRoutes.value) {
+    if (!route?.legendKey || !counts.has(route.legendKey)) continue;
+    counts.set(route.legendKey, (counts.get(route.legendKey) || 0) + 1);
+  }
+  return counts;
+});
+
+const scopeRouteCounts = computed(() => {
+  const counts = new Map(ROUTE_VISUAL_LEGEND.map((entry) => [entry.id, 0]));
+  for (const route of loadedTradeRoutes.value) {
+    if (!route?.legendKey || !counts.has(route.legendKey)) continue;
+    counts.set(route.legendKey, (counts.get(route.legendKey) || 0) + 1);
+  }
+  return counts;
+});
+
+const scopeRouteTotal = computed(() => loadedTradeRoutes.value.length);
+
+const inspectorStarRouteSummary = computed(() => {
+  if (inspectorMode.value !== "star" || !inspectorStar.value?.key) return null;
+  const key = inspectorStar.value.key;
+  const routes = loadedTradeRoutes.value.filter((route) => route.fromKey === key || route.toKey === key);
+  if (!routes.length) {
+    return {
+      label: "Local only",
+      detail: "No corridor links were found in the current atlas scope.",
+    };
+  }
+
+  const counts = new Map(ROUTE_VISUAL_LEGEND.map((entry) => [entry.id, 0]));
+  for (const route of routes) {
+    counts.set(route.legendKey, (counts.get(route.legendKey) || 0) + 1);
+  }
+
+  const dominant =
+    ["hazard", "major", "pressure", "standard"].find((entry) => (counts.get(entry) || 0) > 0) || "standard";
+  const dominantLabel = ROUTE_VISUAL_LEGEND.find((entry) => entry.id === dominant)?.label || "Standard";
+  const detail = ROUTE_VISUAL_LEGEND.map((entry) => {
+    const count = counts.get(entry.id) || 0;
+    return count ? `${count} ${entry.label.toLowerCase()}` : null;
+  })
+    .filter(Boolean)
+    .join(" · ");
+
+  return {
+    label: `${dominantLabel} corridor`,
+    detail: `${routes.length} scoped link${routes.length === 1 ? "" : "s"}${detail ? ` · ${detail}` : ""}`,
+  };
+});
+
+function starRenderFill(star) {
+  return star.color;
+}
+
+function hexToRgba(hex, alpha = 1) {
+  const normalized = String(hex || "")
+    .trim()
+    .replace("#", "");
+  if (!/^[0-9a-fA-F]{6}$/.test(normalized)) {
+    return `rgba(255, 255, 255, ${alpha})`;
+  }
+
+  const red = Number.parseInt(normalized.slice(0, 2), 16);
+  const green = Number.parseInt(normalized.slice(2, 4), 16);
+  const blue = Number.parseInt(normalized.slice(4, 6), 16);
+  return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
+}
+
+function getStarVisualProfile(starType = "", starClass = "") {
+  const token = resolveStarDescriptorToken(starClass || starType, "G");
+  const profile = STAR_VISUAL_META[token] || STAR_VISUAL_META.G;
+  return {
+    token,
+    ...profile,
+  };
+}
+
+function starVisualProfile(star) {
+  return getStarVisualProfile(star?.starType, star?.starClass);
+}
+
+function starHaloFill(star) {
+  const color = star?.color || "#fff4ea";
+  const profile = getStarVisualProfile(star?.starType, star?.starClass);
+  return hexToRgba(color, profile.haloOpacity);
+}
+
+function buildStarSpikeSegments(cx, cy, radius, profile) {
+  const spikeCount = Number(profile?.spikeCount) || 0;
+  if (!spikeCount) {
+    return [];
+  }
+
+  const accent = profile?.accent || "#ffffff";
+  const innerRadius = radius * 0.85;
+  const outerRadius = radius * Math.max(1.55, Number(profile?.haloScale) || 1.8);
+  const segments = [];
+
+  for (let index = 0; index < spikeCount; index += 1) {
+    const angle = (Math.PI / spikeCount) * index;
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    segments.push({
+      x1: cx - cos * innerRadius,
+      y1: cy - sin * innerRadius,
+      x2: cx + cos * outerRadius,
+      y2: cy + sin * outerRadius,
+      stroke: accent,
+      opacity: 0.38,
+      width: Math.max(0.7, radius * 0.09),
+    });
+  }
+
+  return segments;
+}
+
+function starLegendSwatchStyle(entry) {
+  const color = entry?.color || "#ffffff";
+  return {
+    background: `radial-gradient(circle at 35% 35%, #ffffff 0%, ${color} 50%, ${hexToRgba(color, 0.12)} 100%)`,
+    boxShadow: `0 0 10px ${hexToRgba(color, 0.45)}`,
+  };
+}
+
+function normalizeAnomalyToken(value) {
+  const token = resolveStarDescriptorToken(value, "");
+  return ANOMALY_DESCRIPTOR_TOKENS.has(token) ? token : "";
+}
+
+function resolveTravelZoneClass(value) {
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase();
+  if (!normalized || normalized === "—") return "";
+  if (normalized.startsWith("red")) return "zone-red";
+  if (normalized.startsWith("amber")) return "zone-amber";
+  return "";
+}
+
+function getAnomalyOverlayVisual(token, scope = "hex") {
+  const scale = scope === "sector" ? 1.35 : 1;
+  switch (token) {
+    case "NB":
+      return {
+        fill: hexToRgba("#7f58ff", 0.12),
+        coreFill: hexToRgba("#cab8ff", 0.22),
+        rotation: -18,
+        rx: 62 * scale,
+        ry: 38 * scale,
+        coreR: 10 * scale,
+        opacity: 1,
+        coreOpacity: 1,
+      };
+    case "BH":
+      return {
+        fill: hexToRgba("#e45cff", 0.12),
+        coreFill: hexToRgba("#251133", 0.88),
+        rotation: 0,
+        rx: 30 * scale,
+        ry: 30 * scale,
+        coreR: 8 * scale,
+        opacity: 1,
+        coreOpacity: 1,
+      };
+    case "PSR":
+      return {
+        fill: hexToRgba("#ff91f9", 0.11),
+        coreFill: hexToRgba("#ffd6fd", 0.34),
+        rotation: 26,
+        rx: 36 * scale,
+        ry: 16 * scale,
+        coreR: 5 * scale,
+        opacity: 1,
+        coreOpacity: 1,
+      };
+    case "NS":
+      return {
+        fill: hexToRgba("#f5a7ff", 0.1),
+        coreFill: hexToRgba("#ffe4ff", 0.28),
+        rotation: -20,
+        rx: 28 * scale,
+        ry: 14 * scale,
+        coreR: 4.5 * scale,
+        opacity: 1,
+        coreOpacity: 1,
+      };
+    case "PROTO":
+      return {
+        fill: hexToRgba("#ffbb78", 0.11),
+        coreFill: hexToRgba("#ffe0b3", 0.25),
+        rotation: 14,
+        rx: 34 * scale,
+        ry: 22 * scale,
+        coreR: 7 * scale,
+        opacity: 1,
+        coreOpacity: 1,
+      };
+    case "CLUSTER":
+      return {
+        fill: hexToRgba("#d68cff", 0.1),
+        coreFill: hexToRgba("#ffe1ff", 0.2),
+        rotation: 0,
+        rx: 44 * scale,
+        ry: 30 * scale,
+        coreR: 6 * scale,
+        opacity: 1,
+        coreOpacity: 1,
+      };
+    case "ANOMALY":
+      return {
+        fill: hexToRgba("#f2a0ff", 0.1),
+        coreFill: hexToRgba("#ffd1ff", 0.24),
+        rotation: 11,
+        rx: 34 * scale,
+        ry: 22 * scale,
+        coreR: 6 * scale,
+        opacity: 1,
+        coreOpacity: 1,
+      };
+    default:
+      return {
+        fill: hexToRgba("#d68cff", 0.1),
+        coreFill: hexToRgba("#ffe1ff", 0.2),
+        rotation: 0,
+        rx: 30 * scale,
+        ry: 20 * scale,
+        coreR: 5 * scale,
+        opacity: 1,
+        coreOpacity: 1,
+      };
+  }
+}
+
+function buildAnomalyOverlay({ key, cx, cy, token, scale = 1, scope = "hex" }) {
+  const visual = getAnomalyOverlayVisual(token, scope);
+  const lobes = buildAnomalyCloudLobes({ key, cx, cy, token, visual, scale });
+  const motes = buildAnomalyCloudMotes({ key, cx, cy, token, visual, scale });
+  return {
+    key,
+    cx,
+    cy,
+    token,
+    rotation: visual.rotation,
+    rx: visual.rx * scale,
+    ry: visual.ry * scale,
+    coreR: visual.coreR * scale,
+    fill: visual.fill,
+    coreFill: visual.coreFill,
+    opacity: visual.opacity,
+    coreOpacity: visual.coreOpacity,
+    lobes,
+    motes,
+  };
+}
+
+function buildAnomalyCloudLobes({ key, cx, cy, token, visual, scale = 1 }) {
+  const seed = hashString(`${key}:${token}`);
+  const lobeCount = token === "NB" || token === "CLUSTER" ? 4 : 3;
+  const lobes = [];
+
+  for (let index = 0; index < lobeCount; index += 1) {
+    const angle = ((seed % 360) + index * (360 / lobeCount)) * (Math.PI / 180);
+    const distance = index === 0 ? 0 : (visual.rx * 0.28 + ((seed >> (index * 2)) % 9)) * scale;
+    const sizeBias = 0.78 + ((seed >> (index * 3)) % 7) / 10;
+    lobes.push({
+      key: `${key}:lobe:${index}`,
+      cx: cx + Math.cos(angle) * distance,
+      cy: cy + Math.sin(angle) * distance * 0.7,
+      rx: visual.rx * sizeBias,
+      ry: visual.ry * (0.72 + ((seed >> (index * 4)) % 6) / 10),
+      rotation: visual.rotation + index * 17 - 12,
+      fill: visual.fill,
+      opacity: Math.max(0.12, visual.opacity * (index === 0 ? 1 : 0.7)),
+    });
+  }
+
+  return lobes;
+}
+
+function buildAnomalyCloudMotes({ key, cx, cy, token, visual, scale = 1 }) {
+  const seed = hashString(`${key}:${token}:motes`);
+  const moteCount = token === "NB" || token === "PROTO" ? 6 : token === "CLUSTER" ? 8 : 4;
+  const motes = [];
+
+  for (let index = 0; index < moteCount; index += 1) {
+    const angle = ((seed % 360) + index * (360 / moteCount)) * (Math.PI / 180);
+    const orbit = (visual.rx * 0.34 + ((seed >> (index + 1)) % 12)) * scale;
+    motes.push({
+      key: `${key}:mote:${index}`,
+      cx: cx + Math.cos(angle) * orbit,
+      cy: cy + Math.sin(angle) * orbit * 0.68,
+      r: Math.max(1.4, visual.coreR * 0.18 + ((seed >> (index + 2)) % 4) * 0.25),
+      fill: visual.coreFill,
+      opacity: 0.18 + ((seed >> (index + 3)) % 4) * 0.05,
+    });
+  }
+
+  return motes;
+}
+
+function travelZoneBadgeText(star) {
+  const zoneClass = resolveTravelZoneClass(star?.travelZone);
+  if (zoneClass === "zone-red") return "R";
+  if (zoneClass === "zone-amber") return "A";
+  return "";
+}
+
+function travelZoneBadgeClass(star) {
+  const zoneClass = resolveTravelZoneClass(star?.travelZone);
+  return zoneClass === "zone-red" ? "star-badge--zone-red" : zoneClass === "zone-amber" ? "star-badge--zone-amber" : "";
+}
+
+function baseBadgeText(star) {
+  const baseCount = Array.isArray(star?.bases) ? star.bases.filter(Boolean).length : 0;
+  return baseCount > 0 ? `B${Math.min(baseCount, 9)}` : "";
+}
+
+function habitabilityBadgeText(star) {
+  const value = String(star?.habitability || "").trim();
+  if (!value || value === "—") return "";
+  const numericMatch = value.match(/-?\d+(?:\.\d+)?/);
+  return numericMatch ? `H${numericMatch[0]}` : "H";
+}
+
+function hasStarBadge(star) {
+  return Boolean(travelZoneBadgeText(star) || baseBadgeText(star) || habitabilityBadgeText(star));
+}
+
+function governmentGlyphText(star) {
+  const profile = String(star?.governmentProfile || "").trim();
+  if (!profile || profile === "—") return "";
+  const firstToken = profile.split(/[^A-Za-z0-9]+/).find(Boolean) || "";
+  return firstToken.charAt(0).toUpperCase();
+}
+
+function factionGlyphCount(star) {
+  const summary = String(star?.factionsProfile || "").trim();
+  if (!summary || summary === "—") return 0;
+  const explicitCount = summary.match(/(\d+)\s+significant/i);
+  if (explicitCount) {
+    return Math.min(3, Number(explicitCount[1]) || 0);
+  }
+  return 1;
+}
+
+function factionGlyphPips(star) {
+  return Array.from({ length: factionGlyphCount(star) }, (_, index) => index);
+}
+
+function hasPolityGlyph(star) {
+  return Boolean(governmentGlyphText(star) || factionGlyphCount(star));
+}
+
+function polityGlyphFill(star) {
+  const seedSource = `${star?.governmentProfile || ""}:${star?.factionsProfile || ""}:${star?.key || ""}`;
+  const palette = ["#5f8dff", "#3ab7a1", "#d6a64f", "#d36d8d", "#8f74ff", "#4faad6"];
+  return palette[hashString(seedSource) % palette.length];
+}
+
+function parseImportanceValue(value) {
+  const match = String(value || "")
+    .trim()
+    .match(/-?\d+/);
+  return match ? Number.parseInt(match[0], 10) : null;
+}
+
+function parseHabitabilityValue(value) {
+  const match = String(value || "")
+    .trim()
+    .match(/-?\d+/);
+  return match ? Number.parseInt(match[0], 10) : null;
+}
+
+function routeBaseWeight(star) {
+  return Array.isArray(star?.bases) ? star.bases.length : 0;
+}
+
+function routeHabitabilityWeight(star) {
+  const habitability = parseHabitabilityValue(star?.habitability);
+  if (!Number.isFinite(habitability)) return 0;
+  return Math.max(0, Math.min(habitability, 10));
+}
+
+function scoreRouteCandidate(left, right, dist) {
+  const importanceScore =
+    (parseImportanceValue(left?.importance) ?? 0) + (parseImportanceValue(right?.importance) ?? 0);
+  const habitabilityScore = routeHabitabilityWeight(left) + routeHabitabilityWeight(right);
+  const baseScore = routeBaseWeight(left) + routeBaseWeight(right);
+  const savedSystemScore = (left?.hasSavedSystem ? 1 : 0) + (right?.hasSavedSystem ? 1 : 0);
+  const travelZonePenalty = travelZoneBadgeText(left) || travelZoneBadgeText(right) ? 1.35 : 0;
+  const distanceScore = Math.max(0, 1 - dist / ROUTE_MAX_DISTANCE) * 3.25;
+
+  return (
+    importanceScore * 2.25 +
+    habitabilityScore * 0.35 +
+    baseScore * 1.3 +
+    savedSystemScore * 0.9 +
+    distanceScore -
+    travelZonePenalty
+  );
+}
+
+function hasFactionPressureSummary(value) {
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase();
+  if (!normalized || normalized === "—") return false;
+  return /pressure|riot|riots|conflict|opposition|insurgent|unrest/.test(normalized);
+}
+
+function hasFragmentedGovernmentSummary(value) {
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase();
+  if (!normalized || normalized === "—") return false;
+  return /fragment|balkan|feudal|decentral|diffuse|coalition|confeder|splinter|federated/.test(normalized);
+}
+
+function parseSignificantFactionCount(value) {
+  const normalized = String(value || "").trim();
+  if (!normalized || normalized === "—") return 0;
+  const explicit = normalized.match(/(\d+)\s+significant/i);
+  if (explicit) {
+    return Number.parseInt(explicit[1], 10) || 0;
+  }
+  return /faction/i.test(normalized) ? 1 : 0;
+}
+
+function buildSectorPoliticalHeat({
+  systemCount = 0,
+  pressureCount = 0,
+  fragmentedCount = 0,
+  factionSignals = 0,
+  importanceTotal = 0,
+} = {}) {
+  if (!systemCount) return null;
+
+  const pressureRatio = pressureCount / systemCount;
+  const fragmentationRatio = fragmentedCount / systemCount;
+  const factionRatio = factionSignals / systemCount;
+  const importanceAverage = importanceTotal / systemCount;
+  const score =
+    pressureRatio * 1.25 + fragmentationRatio * 0.95 + Math.min(factionRatio / 2.5, 1) * 0.7 + importanceAverage * 0.08;
+
+  if (score >= 1.55) {
+    return {
+      level: "volatile",
+      label: "Volatile",
+      tint: "#a93f64",
+      opacity: 0.28,
+    };
+  }
+
+  if (score >= 0.95) {
+    return {
+      level: "contested",
+      label: "Contested",
+      tint: "#8b5ac9",
+      opacity: 0.22,
+    };
+  }
+
+  if (score >= 0.45) {
+    return {
+      level: "watched",
+      label: "Watched",
+      tint: "#3f86c4",
+      opacity: 0.16,
+    };
+  }
+
+  return {
+    level: "calm",
+    label: "Calm",
+    tint: "#2d6c5f",
+    opacity: 0.1,
+  };
+}
+
+function deriveRouteStyle(left, right, routeTier = "surveyed") {
+  const highestImportance = Math.max(
+    parseImportanceValue(left?.importance) ?? -99,
+    parseImportanceValue(right?.importance) ?? -99,
+  );
+  const hazardous = Boolean(travelZoneBadgeText(left) || travelZoneBadgeText(right));
+  const pressured =
+    hasFactionPressureSummary(left?.factionsProfile) || hasFactionPressureSummary(right?.factionsProfile);
+  const legendKey = resolveTradeRouteLegendKey({ routeTier, hazardous, highestImportance, pressured });
+
+  if (legendKey === "frontier") {
+    return {
+      legendKey,
+      className: "trade-route--frontier",
+      stroke: "rgba(144, 228, 190, 0.72)",
+      strokeWidth: 1.25,
+      strokeDasharray: "5 3",
+      opacity: 0.9,
+    };
+  }
+
+  if (legendKey === "hazard") {
+    return {
+      legendKey,
+      className: "trade-route--hazard",
+      stroke: "rgba(255, 178, 92, 0.62)",
+      strokeWidth: 1.5,
+      strokeDasharray: "3 3",
+      opacity: 0.95,
+    };
+  }
+
+  if (legendKey === "major") {
+    return {
+      legendKey,
+      className: "trade-route--major",
+      stroke: "rgba(134, 229, 255, 0.82)",
+      strokeWidth: 1.7,
+      strokeDasharray: "",
+      opacity: 0.95,
+    };
+  }
+
+  if (legendKey === "pressure") {
+    return {
+      legendKey,
+      className: "trade-route--pressure",
+      stroke: "rgba(232, 154, 255, 0.7)",
+      strokeWidth: 1.2,
+      strokeDasharray: "6 3 1 3",
+      opacity: 0.9,
+    };
+  }
+
+  return {
+    legendKey,
+    className: "trade-route--standard",
+    stroke: "rgba(120, 220, 255, 0.45)",
+    strokeWidth: 1.1,
+    strokeDasharray: "4 3",
+    opacity: 1,
+  };
+}
+
+// ── Hex grid cells──────────────────────────────────────────────────────────
+const occupiedKeySet = computed(() =>
+  hexGridVisible.value ? new Set(allStarMarkers.value.map((s) => s.key)) : new Set(),
+);
+
+const visibleHexCells = computed(() => {
+  if (!hexGridVisible.value) return [];
+  const b = viewBounds.value;
+  const cells = [];
+  for (const tile of visibleSectorTiles.value) {
+    const { ox, oy } = sectorOrigin(tile.sx, tile.sy);
+    const cStart = Math.max(1, Math.floor((b.x0 - ox - HEX_R) / HEX_STEP_X) + 1);
+    const cEnd = Math.min(SECTOR_COLS, Math.ceil((b.x1 - ox - HEX_R) / HEX_STEP_X) + 1);
+
+    for (let c = cStart; c <= cEnd; c++) {
+      const colYOffset = HEX_STEP_Y * 0.65 + (c % 2 !== 0 ? HEX_STEP_Y / 2 : 0);
+      const rowBase = oy + colYOffset;
+      const rStart = Math.max(1, Math.floor((b.y0 - rowBase) / HEX_STEP_Y) + 1);
+      const rEnd = Math.min(SECTOR_ROWS, Math.ceil((b.y1 - rowBase) / HEX_STEP_Y) + 1);
+
+      for (let r = rStart; r <= rEnd; r++) {
+        const lcx = HEX_R + (c - 1) * HEX_STEP_X;
+        const lcy = HEX_STEP_Y * 0.65 + (r - 1) * HEX_STEP_Y + (c % 2 !== 0 ? HEX_STEP_Y / 2 : 0);
+        const wx = ox + lcx;
+        const wy = oy + lcy;
+        const coord = `${String(c).padStart(2, "0")}${String(r).padStart(2, "0")}`;
+        const key = `${tile.sectorId}:${coord}`;
+        cells.push({
+          key,
+          coord,
+          wx,
+          wy,
+          occupied: occupiedKeySet.value.has(key),
+          points: getCachedHexPoints(key, wx, wy),
+        });
+      }
+    }
+  }
+  return cells;
+});
+
+const continuousHexCells = computed(() => {
+  if (!hexGridVisible.value) return [];
+  const b = viewBounds.value;
+  const cells = [];
+
+  // Build guide hexes from an un-biased virtual sector lattice so the hex overlay stays continuous.
+  // Sector/subsector overlay bias is intentionally not applied here.
+  for (const tile of continuousHexSectorTiles.value) {
+    const ox = tile.wx;
+    const oy = tile.wy;
+    const cStart = Math.max(1, Math.floor((b.x0 - ox - HEX_R) / HEX_STEP_X) + 1);
+    const cEnd = Math.min(SECTOR_COLS, Math.ceil((b.x1 - ox - HEX_R) / HEX_STEP_X) + 1);
+
+    for (let c = cStart; c <= cEnd; c++) {
+      const colYOffset = HEX_STEP_Y * 0.65 + (c % 2 !== 0 ? HEX_STEP_Y / 2 : 0);
+      const rowBase = oy + colYOffset;
+      const rStart = Math.max(1, Math.floor((b.y0 - rowBase) / HEX_STEP_Y) + 1);
+      const rEnd = Math.min(SECTOR_ROWS, Math.ceil((b.y1 - rowBase) / HEX_STEP_Y) + 1);
+
+      for (let r = rStart; r <= rEnd; r++) {
+        const lcx = HEX_R + (c - 1) * HEX_STEP_X;
+        const lcy = HEX_STEP_Y * 0.65 + (r - 1) * HEX_STEP_Y + (c % 2 !== 0 ? HEX_STEP_Y / 2 : 0);
+        const wx = ox + lcx;
+        const wy = oy + lcy;
+        const coord = `${String(c).padStart(2, "0")}${String(r).padStart(2, "0")}`;
+        cells.push({
+          key: `gh:${tile.key}:${coord}`,
+          points: getCachedHexPoints(`gh:${tile.key}:${coord}`, wx, wy),
+        });
+      }
+    }
+  }
+
+  return cells;
+});
+
+const sparseCoordHexes = computed(() => {
+  const step = zoom.value >= LOD_HEX ? 4 : 8;
+  return visibleHexCells.value.filter((h, i) => !h.occupied && i % step === 0);
+});
+
+const travelZoneHexes = computed(() => {
+  if (!layerZones.value || !hexGridVisible.value) return [];
+  return visibleStars.value
+    .map((star) => {
+      const zoneClass = resolveTravelZoneClass(star.travelZone);
+      if (!zoneClass) return null;
+      return {
+        key: star.key,
+        points: getCachedHexPoints(`tz:${star.key}`, star.wx, star.wy),
+        zoneClass,
+      };
+    })
+    .filter(Boolean);
+});
+
+function parseAtlasHexCoord(value) {
+  if (value && typeof value === "object") {
+    if ("coord" in value) {
+      return parseAtlasHexCoord(value.coord);
+    }
+    if ("hex" in value) {
+      return parseAtlasHexCoord(value.hex);
+    }
+
+    const hcol = Number(value.hcol ?? value.col ?? value.x ?? NaN);
+    const hrow = Number(value.hrow ?? value.row ?? value.y ?? NaN);
+    if (Number.isFinite(hcol) && Number.isFinite(hrow)) {
+      const normalizedCol = Math.trunc(hcol);
+      const normalizedRow = Math.trunc(hrow);
+      if (normalizedCol >= 1 && normalizedCol <= 32 && normalizedRow >= 1 && normalizedRow <= 40) {
+        return {
+          coord: `${String(normalizedCol).padStart(2, "0")}${String(normalizedRow).padStart(2, "0")}`,
+          hcol: normalizedCol,
+          hrow: normalizedRow,
+        };
+      }
+    }
+
+    return null;
+  }
+
+  const coord = String(value || "").trim();
+  if (!coord) return null;
+
+  const groupedMatch = coord.match(/(\d{1,2})\D+(\d{1,2})/);
+  const compact = groupedMatch
+    ? `${groupedMatch[1].padStart(2, "0")}${groupedMatch[2].padStart(2, "0")}`
+    : coord.replace(/\D/g, "");
+  if (!/^\d{4}$/.test(compact)) return null;
+
+  const hcol = Number.parseInt(compact.slice(0, 2), 10);
+  const hrow = Number.parseInt(compact.slice(2, 4), 10);
+  if (!Number.isFinite(hcol) || !Number.isFinite(hrow) || hcol < 1 || hcol > 32 || hrow < 1 || hrow > 40) {
+    return null;
+  }
+
+  return { coord: compact, hcol, hrow };
+}
+
+function resolveSectorAnomalyAnchor(tile, token = "") {
+  const metadata = tile?.sector?.metadata ?? {};
+  const hexStarTypes = metadata.hexStarTypes ?? {};
+  const explicitCandidates = [
+    metadata.centralAnomalyHex,
+    metadata.centralAnomaly?.coord,
+    metadata.centralAnomaly?.hex,
+    metadata.centralAnomaly?.hexCoordinates,
+  ]
+    .map((entry) => parseAtlasHexCoord(entry))
+    .filter(Boolean);
+
+  for (const explicit of explicitCandidates) {
+    const entryInfo = hexStarTypes?.[explicit.coord];
+    const entryToken = normalizeAnomalyToken(entryInfo?.anomalyType || entryInfo?.starType || "");
+    if (!entryInfo || !token || !entryToken || entryToken === token) {
+      return explicit;
+    }
+  }
+
+  const candidates = [];
+  for (const [coord, info] of Object.entries(hexStarTypes)) {
+    const entryToken = normalizeAnomalyToken(info?.anomalyType || info?.starType || "");
+    if (!entryToken) continue;
+    if (token && entryToken !== token) continue;
+    const parsed = parseAtlasHexCoord(coord);
+    if (parsed) {
+      candidates.push(parsed);
+    }
+  }
+
+  if (!candidates.length) {
+    return explicitCandidates[0] ?? null;
+  }
+
+  const sectorCenterCol = 16.5;
+  const sectorCenterRow = 20.5;
+  candidates.sort((left, right) => {
+    const leftDistance = Math.abs(left.hcol - sectorCenterCol) + Math.abs(left.hrow - sectorCenterRow);
+    const rightDistance = Math.abs(right.hcol - sectorCenterCol) + Math.abs(right.hrow - sectorCenterRow);
+    if (leftDistance !== rightDistance) {
+      return leftDistance - rightDistance;
+    }
+    if (left.hrow !== right.hrow) {
+      return left.hrow - right.hrow;
+    }
+    return left.hcol - right.hcol;
+  });
+
+  return candidates[0];
+}
+
+function resolveSectorAnomalyMarkerAnchor(tile, token = "") {
+  const anchor = resolveSectorAnomalyAnchor(tile, token);
+  const sectorMarkers = loadedRouteStarMarkers.value.filter((marker) => {
+    if (marker?.sectorId !== tile?.sectorId) {
+      return false;
+    }
+    const markerToken = normalizeAnomalyToken(marker?.anomalyType || marker?.starType || marker?.anomalyToken || "");
+    return Boolean(markerToken) && (!token || markerToken === token);
+  });
+
+  if (!sectorMarkers.length) {
+    return null;
+  }
+
+  if (anchor) {
+    const anchoredMarker = sectorMarkers.find((marker) => String(marker?.coord || "") === anchor.coord);
+    if (anchoredMarker) {
+      return anchoredMarker;
+    }
+  }
+
+  const targetCol = anchor?.hcol ?? 16.5;
+  const targetRow = anchor?.hrow ?? 20.5;
+  return [...sectorMarkers].sort((left, right) => {
+    const leftDistance =
+      Math.abs(Number(left?.coord?.slice(0, 2) || 0) - targetCol) +
+      Math.abs(Number(left?.coord?.slice(2, 4) || 0) - targetRow);
+    const rightDistance =
+      Math.abs(Number(right?.coord?.slice(0, 2) || 0) - targetCol) +
+      Math.abs(Number(right?.coord?.slice(2, 4) || 0) - targetRow);
+    if (leftDistance !== rightDistance) {
+      return leftDistance - rightDistance;
+    }
+    return String(left?.coord || "").localeCompare(String(right?.coord || ""));
+  })[0];
+}
+
+const anomalyRegionOverlays = computed(() => {
+  if (!showAnomalyOverlays.value) return [];
+
+  const overlays = [];
+  const seen = new Set();
+
+  for (const tile of visibleSectorTiles.value) {
+    const inferredCentralMarker = resolveSectorAnomalyMarkerAnchor(tile);
+    const centralToken =
+      normalizeAnomalyToken(tile.sector?.metadata?.centralAnomalyType || "") ||
+      normalizeAnomalyToken(
+        inferredCentralMarker?.anomalyType ||
+          inferredCentralMarker?.starType ||
+          inferredCentralMarker?.anomalyToken ||
+          "",
+      );
+    if (centralToken) {
+      const key = `sector:${tile.sectorId}:${centralToken}`;
+      const anchor = resolveSectorAnomalyAnchor(tile, centralToken);
+      const anchorMarker = resolveSectorAnomalyMarkerAnchor(tile, centralToken);
+      const center = anchorMarker
+        ? { wx: anchorMarker.wx, wy: anchorMarker.wy }
+        : anchor
+          ? hexWorldCenter(tile.sx, tile.sy, anchor.hcol, anchor.hrow)
+          : { wx: tile.wx + SECTOR_PX_W / 2, wy: tile.wy + SECTOR_PX_H / 2 };
+      seen.add(key);
+      if (anchorMarker?.coord) {
+        seen.add(`hex:${tile.sectorId}:${anchorMarker.coord}:${centralToken}`);
+      } else if (anchor) {
+        seen.add(`hex:${tile.sectorId}:${anchor.coord}:${centralToken}`);
+      }
+      overlays.push(
+        buildAnomalyOverlay({
+          key,
+          cx: center.wx,
+          cy: center.wy,
+          token: centralToken,
+          scale: 1.45,
+          scope: "sector",
+        }),
+      );
+    }
+
+    const hexStarTypes = tile.sector?.metadata?.hexStarTypes ?? {};
+    for (const [coord, info] of Object.entries(hexStarTypes)) {
+      const token = normalizeAnomalyToken(info?.anomalyType || info?.starType || "");
+      if (!token) continue;
+      const hcol = Number.parseInt(coord.slice(0, 2), 10);
+      const hrow = Number.parseInt(coord.slice(2, 4), 10);
+      if (!Number.isFinite(hcol) || !Number.isFinite(hrow)) continue;
+      const key = `hex:${tile.sectorId}:${coord}:${token}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const { wx, wy } = hexWorldCenter(tile.sx, tile.sy, hcol, hrow);
+      overlays.push(
+        buildAnomalyOverlay({
+          key,
+          cx: wx,
+          cy: wy,
+          token,
+          scale: 0.68,
+          scope: "hex",
+        }),
+      );
+    }
+  }
+
+  return overlays;
+});
+
+// ── Inspector computed ─────────────────────────────────────────────────────
+const inspectorVisible = computed(() => inspectorMode.value !== null);
+
+function firstNonEmptyString(...values) {
+  for (const value of values) {
+    const text = String(value ?? "").trim();
+    if (text) return text;
+  }
+  return "";
+}
+
+function normalizeTradeCodes(value) {
+  if (Array.isArray(value)) {
+    return value.map((entry) => String(entry ?? "").trim()).filter(Boolean);
+  }
+  const text = String(value ?? "").trim();
+  if (!text) return [];
+  return text
+    .split(/[\s,;/]+/)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+function toFiniteNumber(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function isTruthySurveyValue(value) {
+  const text = String(value ?? "")
+    .trim()
+    .toLowerCase();
+  return Boolean(text) && !["none", "no", "false", "0", "n", "na", "n/a"].includes(text);
+}
+
+function splitSurveyList(value) {
+  if (Array.isArray(value)) {
+    return value.map((entry) => String(entry ?? "").trim()).filter(Boolean);
+  }
+  const text = String(value ?? "").trim();
+  if (!text) return [];
+  return text
+    .split(/[;,/|]+/)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+function extractStarportCode(...sources) {
+  for (const source of sources) {
+    if (!source) continue;
+    if (typeof source === "string") {
+      const code = source.trim().charAt(0).toUpperCase();
+      if (/^[A-EX]$/.test(code)) {
+        return code;
+      }
+      continue;
+    }
+    if (typeof source === "object") {
+      const code = String(source.class ?? source.code ?? "")
+        .trim()
+        .charAt(0)
+        .toUpperCase();
+      if (/^[A-EX]$/.test(code)) {
+        return code;
+      }
+    }
+  }
+  return "";
+}
+
+function extractBaseSummary(...sources) {
+  const bases = [];
+  for (const source of sources) {
+    if (!source) continue;
+    if (Array.isArray(source)) {
+      bases.push(...source.map((entry) => String(entry ?? "").trim()).filter(Boolean));
+      continue;
+    }
+    if (typeof source === "string") {
+      bases.push(...splitSurveyList(source));
+      continue;
+    }
+    if (typeof source === "object") {
+      if (isTruthySurveyValue(source.navy)) bases.push("Navy");
+      if (isTruthySurveyValue(source.scout)) bases.push("Scout");
+      if (isTruthySurveyValue(source.military)) bases.push("Military");
+      if (isTruthySurveyValue(source.corsair)) bases.push("Corsair");
+      if (isTruthySurveyValue(source.pirate)) bases.push("Pirate");
+      if (isTruthySurveyValue(source.research)) bases.push("Research");
+      if (isTruthySurveyValue(source.highport)) bases.push("Highport");
+      if (isTruthySurveyValue(source.other)) bases.push(...splitSurveyList(source.other));
+      if (Array.isArray(source.bases)) bases.push(...source.bases.map((entry) => String(entry ?? "").trim()));
+    }
+  }
+  return Array.from(new Set(bases.filter(Boolean)));
+}
+
+function inferStarportCode(uwp) {
+  const code = String(uwp ?? "")
+    .trim()
+    .charAt(0)
+    .toUpperCase();
+  return /^[A-EX]$/.test(code) ? code : "";
+}
+
+function formatStarport(code) {
+  const normalized = String(code ?? "")
+    .trim()
+    .charAt(0)
+    .toUpperCase();
+  if (!normalized) return "—";
+  return STARPORT_LABELS[normalized] ? `${normalized} — ${STARPORT_LABELS[normalized]}` : normalized;
+}
+
+function countGasGiantsFromBodies(bodies) {
+  if (!Array.isArray(bodies)) return null;
+  const matches = bodies.filter((body) => {
+    const type = String(body?.type ?? body?.designation ?? "").toLowerCase();
+    return type.includes("gas giant") || type === "gg";
+  }).length;
+  return matches > 0 ? matches : null;
+}
+
+const atlasSystemRecords = computed(() => {
+  const merged = new Map();
+  for (const system of Array.isArray(systemStore.systems) ? systemStore.systems : []) {
+    if (system?.systemId) {
+      merged.set(String(system.systemId), system);
+    }
+  }
+  return Array.from(merged.values());
+});
+
+const sectorPoliticalHeatById = computed(() => {
+  const grouped = new Map();
+
+  for (const system of atlasSystemRecords.value) {
+    const sectorId = String(system?.sectorId || "").trim();
+    if (!sectorId) continue;
+    const summary = summarizeSystemRecord(system);
+    const entry = grouped.get(sectorId) || {
+      systemCount: 0,
+      pressureCount: 0,
+      fragmentedCount: 0,
+      factionSignals: 0,
+      importanceTotal: 0,
+    };
+    entry.systemCount += 1;
+    if (hasFactionPressureSummary(summary.factionsProfile)) entry.pressureCount += 1;
+    if (hasFragmentedGovernmentSummary(summary.governmentProfile)) entry.fragmentedCount += 1;
+    entry.factionSignals += parseSignificantFactionCount(summary.factionsProfile);
+    entry.importanceTotal += Math.max(0, parseImportanceValue(summary.importance) ?? 0);
+    grouped.set(sectorId, entry);
+  }
+
+  return new Map(Array.from(grouped.entries()).map(([sectorId, entry]) => [sectorId, buildSectorPoliticalHeat(entry)]));
+});
+
+function findSystemRecordForStar(star) {
+  if (!star) return null;
+  const hexX = Number(String(star.coord ?? "").slice(0, 2));
+  const hexY = Number(String(star.coord ?? "").slice(2, 4));
+  if (!Number.isFinite(hexX) || !Number.isFinite(hexY)) return null;
+
+  return (
+    atlasSystemRecords.value.find(
+      (system) =>
+        String(system?.galaxyId ?? "") === String(star.galaxyId ?? "") &&
+        String(system?.sectorId ?? "") === String(star.sectorId ?? "") &&
+        Number(system?.hexCoordinates?.x) === hexX &&
+        Number(system?.hexCoordinates?.y) === hexY,
+    ) ?? null
+  );
+}
+
+const inspectorSystemSummary = computed(() => summarizeSystemRecord(findSystemRecordForStar(inspectorStar.value)));
+
+function politicalHeatForSector(sectorId) {
+  return sectorPoliticalHeatById.value.get(String(sectorId || "").trim()) || null;
+}
+
+function politicalHeatMatches(sectorId) {
+  if (!activePoliticalHeatFilter.value) return true;
+  return politicalHeatForSector(sectorId)?.level === activePoliticalHeatFilter.value;
+}
+
+function sectorTileBaseOpacity(sectorId) {
+  if (!sectorHasPoliticalFilter.value) return sectorTileOpacity.value;
+  return politicalHeatMatches(sectorId)
+    ? Math.min(0.95, sectorTileOpacity.value + 0.18)
+    : Math.max(0.04, sectorTileOpacity.value * 0.28);
+}
+
+function sectorHeatOpacity(sectorId) {
+  const heat = politicalHeatForSector(sectorId);
+  if (!heat) return 0;
+  if (!sectorHasPoliticalFilter.value) return heat.opacity;
+  return politicalHeatMatches(sectorId) ? Math.min(0.42, heat.opacity + 0.14) : Math.max(0.03, heat.opacity * 0.2);
+}
+
+function sectorLabelOpacity(sectorId) {
+  if (!sectorHasPoliticalFilter.value) return 1;
+  return politicalHeatMatches(sectorId) ? 1 : 0.26;
+}
+
+function togglePoliticalHeatFilter(level) {
+  activePoliticalHeatFilter.value = activePoliticalHeatFilter.value === level ? null : level;
+}
+
+function politicalHeatCount(level) {
+  return visiblePoliticalHeatCounts.value.get(level) || 0;
+}
+
+function politicalHeatScopeCount(level) {
+  return scopePoliticalHeatCounts.value.get(level) || 0;
+}
+
+function formatLegendShare(count, total) {
+  if (!total) return String(count || 0);
+  return `${count}/${total}`;
+}
+
+function formatLegendDualShare(visibleCount, visibleTotal, scopeCount, scopeTotal) {
+  return `${formatLegendShare(visibleCount, visibleTotal)}|${formatLegendShare(scopeCount, scopeTotal)}`;
+}
+
+function legendShareTitle(count, total, label) {
+  if (!total) return `No ${label} in view`;
+  const percent = Math.round((count / total) * 100);
+  return `${count} of ${total} ${label} in view (${percent}%)`;
+}
+
+function legendDualShareTitle(visibleCount, visibleTotal, scopeCount, scopeTotal, label) {
+  const visibleText = visibleTotal
+    ? `${visibleCount} of ${visibleTotal} ${label} in view (${Math.round((visibleCount / visibleTotal) * 100)}%)`
+    : `No ${label} in view`;
+  const scopeText = scopeTotal
+    ? `${scopeCount} of ${scopeTotal} ${label} in scope (${Math.round((scopeCount / scopeTotal) * 100)}%)`
+    : `No ${label} in scope`;
+  return `${visibleText} · ${scopeText}`;
+}
+
+function toggleRouteFilter(level) {
+  activeRouteFilter.value = activeRouteFilter.value === level ? null : level;
+}
+
+function routeLegendCount(level) {
+  return visibleRouteCounts.value.get(level) || 0;
+}
+
+function routeScopeCount(level) {
+  return scopeRouteCounts.value.get(level) || 0;
+}
+
+function resetAtlasLayers() {
+  layerHexGrid.value = Boolean(PREFERENCE_DEFAULTS.atlasLayerHexGrid);
+  layerNames.value = Boolean(PREFERENCE_DEFAULTS.atlasLayerNames);
+  layerSectorNames.value = Boolean(PREFERENCE_DEFAULTS.atlasLayerSectorNames);
+  layerCoords.value = Boolean(PREFERENCE_DEFAULTS.atlasLayerCoords);
+  layerZones.value = Boolean(PREFERENCE_DEFAULTS.atlasLayerZones);
+  layerRoutes.value = Boolean(PREFERENCE_DEFAULTS.atlasLayerRoutes);
+  layerAnomalies.value = Boolean(PREFERENCE_DEFAULTS.atlasLayerAnomalies);
+  layerBadges.value = Boolean(PREFERENCE_DEFAULTS.atlasLayerBadges);
+  layerPolity.value = Boolean(PREFERENCE_DEFAULTS.atlasLayerPolity);
+  layerKnownSpace.value = true;
+  layerPlanningWindow.value = true;
+  activeKnownSpaceOnly.value = false;
+  activePoliticalHeatFilter.value = null;
+  activeRouteFilter.value = null;
+}
+
+const inspectorData = computed(() => {
+  if (inspectorMode.value === "sector" && inspectorSector.value) {
+    const s = inspectorSector.value;
+    const sx = Number(s?.coordinates?.x);
+    const sy = Number(s?.coordinates?.y);
+    const sectorGalaxy = galaxies.value.find((galaxy) => String(galaxy?.galaxyId) === String(s?.galaxyId)) || null;
+    const legacySummary = summarizeLegacyStarMetadata({ hexStarTypes: s?.metadata?.hexStarTypes ?? {} });
+    const politicalHeat = politicalHeatForSector(s?.sectorId);
+    const activeHeatFilterLabel = activePoliticalHeatFilter.value
+      ? POLITICAL_HEAT_LEGEND.find((entry) => entry.level === activePoliticalHeatFilter.value)?.label ||
+        activePoliticalHeatFilter.value
+      : "";
+    return {
+      name: String(
+        s?.metadata?.displayName || `Sector ${Number.isFinite(sx) ? sx : "?"},${Number.isFinite(sy) ? sy : "?"}`,
+      ),
+      galaxyName: resolveGalaxyLabel(sectorGalaxy),
+      coords: `${Number.isFinite(sx) ? sx : "?"},${Number.isFinite(sy) ? sy : "?"}`,
+      densityLabel: DENSITY_SCALE[Math.min(5, Math.max(0, Number(s.densityClass) || 0))].label,
+      systemCount: s?.metadata?.systemCount ?? "—",
+      status: String(s?.metadata?.explorationStatus || "Unexplored"),
+      legacyReconstructedCount: legacySummary.legacyReconstructedCount,
+      legacyHierarchyUnknownCount: legacySummary.legacyHierarchyUnknownCount,
+      politicalHeatLabel: politicalHeat?.label || "",
+      activeHeatFilterSummary: activeHeatFilterLabel
+        ? `Atlas filter: ${activeHeatFilterLabel} sectors only${politicalHeat?.level === activePoliticalHeatFilter.value ? " · current sector matches" : " · current sector is outside the active band"}`
+        : "",
+    };
+  }
+  if (inspectorMode.value === "hierarchy" && inspectorHierarchy.value) {
+    const tile = inspectorHierarchy.value;
+    const areaType = inferHierarchyAreaScope(tile) === "quadrant" ? "Quadrant" : "Region";
+    return {
+      name: tile.label,
+      coords: `${tile.minSectorX},${tile.minSectorY}`,
+      areaType,
+      areaSpan: `${tile.tileSizeInSectors}×${tile.tileSizeInSectors} sectors`,
+    };
+  }
+  if (inspectorMode.value === "star" && inspectorStar.value) {
+    const star = inspectorStar.value;
+    const systemSummary = inspectorSystemSummary.value;
+    return {
+      name: systemSummary.systemName || (star.starType !== "?" ? `${star.starType} Star` : `System ${star.coord}`),
+      coord: star.coord,
+      sectorName: star.sectorName,
+      starType: star.starType,
+      color: star.color,
+      compColor: star.compColor,
+      hasSecondary: star.hasSecondary,
+      uwp: systemSummary.uwp,
+      starport: systemSummary.starport,
+      bases: systemSummary.bases,
+      gasGiants: systemSummary.gasGiants,
+      importance: systemSummary.importance,
+      travelZone: systemSummary.travelZone,
+      minimumSustainableTechLevel: systemSummary.minimumSustainableTechLevel,
+      populationConcentration: systemSummary.populationConcentration,
+      urbanization: systemSummary.urbanization,
+      majorCities: systemSummary.majorCities,
+      governmentProfile: systemSummary.governmentProfile,
+      justiceProfile: systemSummary.justiceProfile,
+      lawProfile: systemSummary.lawProfile,
+      appealProfile: systemSummary.appealProfile,
+      privateLawProfile: systemSummary.privateLawProfile,
+      personalRightsProfile: systemSummary.personalRightsProfile,
+      secondaryProfiles: systemSummary.secondaryProfiles,
+      factionsProfile: systemSummary.factionsProfile,
+      mainworldName: systemSummary.mainworldName,
+      mainworldType: systemSummary.mainworldType,
+      mainworldParent: systemSummary.mainworldParent,
+      habitability: systemSummary.habitability,
+      resourceRating: systemSummary.resourceRating,
+      ecologyBadges: systemSummary.ecologyBadges,
+      linkedEcologySignals: systemSummary.linkedEcologySignals,
+      routeCorridorLabel: inspectorStarRouteSummary.value?.label || "",
+      routeCorridorDetail: inspectorStarRouteSummary.value?.detail || "",
+      tradeCodes: systemSummary.tradeCodes,
+      surveyStatus: systemSummary.surveyStatus,
+      hasSavedSystem: systemSummary.hasSavedSystem,
+      legacyReconstructed: Boolean(star.legacyReconstructed),
+      legacyHierarchyUnknown: Boolean(star.legacyHierarchyUnknown),
+      presenceOnly: Boolean(star.presenceOnly),
+    };
+  }
+  return {};
+});
+
+const inspectorStarSvgR = computed(() => {
+  const t = String(inspectorData.value?.starType || "G")
+    .charAt(0)
+    .toUpperCase();
+  return { O: 13, B: 11, A: 10, F: 9, G: 8, K: 7, M: 5, D: 4, L: 4, T: 3, Y: 3 }[t] ?? 7;
+});
+const inspectorStarProfile = computed(() => getStarVisualProfile(inspectorData.value?.starType, ""));
+
+const atlasGenerationAreaOptions = computed(() => ATLAS_GENERATION_AREA_OPTIONS);
+const atlasGenerationModeOptions = computed(() => ATLAS_GENERATION_MODE_OPTIONS);
+
+const atlasGenerationAction = computed(() => {
+  const areaLabel = getAtlasGenerationAreaLabel(atlasGenerationArea.value);
+  const modeMeta = getAtlasGenerationModeMeta(atlasGenerationMode.value);
+  return {
+    label: `${modeMeta.icon} ${modeMeta.shortLabel} · ${areaLabel}`,
+    description: `${modeMeta.description} Applies to the selected ${areaLabel.toLowerCase()}.`,
+  };
+});
+
+function buildGenerationPolicyBadge(requestedMode, spaceTier) {
+  const requested = String(requestedMode || "name-presence");
+  const tier = String(spaceTier || "void");
+  const effective = resolveGenerationModeForSpaceTier(requested, tier);
+  const adjusted = effective !== requested;
+
+  const rule =
+    tier === "surveyed"
+      ? "Surveyed targets always run full Name + Systems generation."
+      : tier === "frontier"
+        ? "Frontier targets use the selected generation mode."
+        : "Void targets are limited to presence-safe generation until surveyed.";
+
+  return {
+    tier,
+    tierLabel: `Tier: ${tier.charAt(0).toUpperCase()}${tier.slice(1)}`,
+    rule,
+    modeLabel: adjusted ? `Mode adjusted: ${requested} -> ${effective}` : `Mode: ${effective}`,
+  };
+}
+
+const atlasGenerationPolicyBadge = computed(() => {
+  const target = resolveInspectorSector();
+  const sx = Number(target?.coordinates?.x);
+  const sy = Number(target?.coordinates?.y);
+  const tier =
+    Number.isFinite(sx) && Number.isFinite(sy) ? calculateSpaceTier(sx, sy, surveyedCoordKeySet.value) : "void";
+  return buildGenerationPolicyBadge(atlasGenerationMode.value, tier);
+});
+
+const hierarchyGenerationAction = computed(() => {
+  const areaScope = inferHierarchyAreaScope(inspectorHierarchy.value);
+  const areaLabel = getAtlasGenerationAreaLabel(areaScope);
+  const modeMeta = getAtlasGenerationModeMeta(atlasGenerationMode.value);
+  return {
+    label: `${modeMeta.icon} ${modeMeta.shortLabel} · ${areaLabel}`,
+    description: `${modeMeta.description} Applies to the selected ${areaLabel.toLowerCase()}.`,
+  };
+});
+
+const hierarchyGenerationPolicyBadge = computed(() => {
+  return {
+    tier: "mixed",
+    tierLabel: "Tier: Mixed",
+    rule: "Targets are evaluated individually as Surveyed, Frontier, or Void.",
+    modeLabel: "Mode is auto-adjusted per target by tier policy.",
+  };
+});
+
+const inspectorOrbits = computed(() => {
+  if (inspectorMode.value !== "star") return [];
+  return buildPlaceholderOrbits(inspectorData.value?.starType || "G", inspectorStarSvgR.value);
+});
+
+function buildPlaceholderOrbits(starType, starR) {
+  const t = String(starType).charAt(0).toUpperCase();
+  const count = { O: 6, B: 6, A: 5, F: 5, G: 4, K: 4, M: 3, D: 2, L: 1, T: 0, Y: 0 }[t] ?? 3;
+  const baseRx = starR + 9;
+  const gap = Math.max(7, (72 - baseRx) / Math.max(count, 1));
+  const names = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII"];
+
+  return Array.from({ length: count }, (_, i) => {
+    const rx = baseRx + i * gap;
+    const ry = rx * 0.78;
+    const angle = (i * 61 * Math.PI) / 180;
+    const frac = i / Math.max(count - 1, 1);
+    return {
+      rx,
+      ry,
+      px: Math.cos(angle) * rx,
+      py: Math.sin(angle) * ry,
+      pr: frac > 0.55 ? 3.8 : frac > 0.3 ? 2.5 : 1.8,
+      color: frac < 0.25 ? "#c4855a" : frac < 0.55 ? "#5aac6e" : "#7a9dc8",
+      zoneColor: frac < 0.25 ? "#5a3020" : frac < 0.55 ? "#1a4a2a" : "#1a2a4a",
+      label: names[i] ?? String(i + 1),
+    };
+  });
+}
+
+// ── Color tables ───────────────────────────────────────────────────────────
+const DENSITY_SCALE = [
+  { color: "#000000", label: "True Void", range: "1-5%" },
+  { color: "#1f1f1f", label: "Outer Ring", range: "5-10%" },
+  { color: "#3b3b3b", label: "Mid Ring", range: "10-20%" },
+  { color: "#575757", label: "Inner Ring", range: "20-40%" },
+  { color: "#7a7a7a", label: "Disk", range: "40-60%" },
+  { color: "#a3a3a3", label: "Core", range: "60-80%" },
+];
+
+function densityFill(v) {
+  return DENSITY_SCALE[Math.min(5, Math.max(0, Number(v) || 0))].color;
+}
+
+function hashString(value) {
+  const input = String(value || "");
+  let hash = 0;
+  for (let index = 0; index < input.length; index += 1) {
+    hash = (hash * 31 + input.charCodeAt(index)) >>> 0;
+  }
+  return hash;
+}
+
+function buildAtlasSeededSectorName(seed) {
+  const hash = hashString(seed);
+  const mode = String(preferencesStore.sectorNameMode || "list");
+  if (mode === "list") {
+    const base = [
+      "Spinward Reaches",
+      "Coreward Expanse",
+      "Trailing Void",
+      "Rimward Depths",
+      "Starfall Sector",
+      "Irongate Sector",
+    ][hash % 6];
+    const suffix = ATLAS_SEEDED_NAME_SUFFIXES[Math.floor(hash / 7) % ATLAS_SEEDED_NAME_SUFFIXES.length];
+    return `${base} ${suffix}`;
+  }
+
+  const onset = ATLAS_SEEDED_NAME_ONSETS[hash % ATLAS_SEEDED_NAME_ONSETS.length].toLowerCase();
+  const vowelA = ATLAS_SEEDED_NAME_VOWELS[Math.floor(hash / 7) % ATLAS_SEEDED_NAME_VOWELS.length];
+  const medial = ATLAS_SEEDED_NAME_MEDIALS[Math.floor(hash / 17) % ATLAS_SEEDED_NAME_MEDIALS.length];
+  const vowelB = ATLAS_SEEDED_NAME_VOWELS[Math.floor(hash / 37) % ATLAS_SEEDED_NAME_VOWELS.length];
+  const coda = ATLAS_SEEDED_NAME_CODAS[Math.floor(hash / 71) % ATLAS_SEEDED_NAME_CODAS.length];
+  const includeSecondVowel = (hash & 1) === 1 || coda.length <= 2;
+
+  let name = `${onset}${vowelA}`;
+  if (includeSecondVowel) {
+    name += `${medial}${vowelB}`;
+  } else if (medial) {
+    name += medial;
+  }
+  name += coda;
+
+  return name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
+}
+
+function isAtlasPlaceholderSectorName(value) {
+  const name = String(value || "").trim();
+  if (!name) return true;
+  return /^sector\s+-?\d+\s*,\s*-?\d+$/i.test(name);
+}
+
+function isAtlasLegacySeededSectorName(value) {
+  const name = String(value || "").trim();
+  if (!name || /\s/.test(name)) return false;
+  return /^[A-Z][a-z]+(?:[A-Z][a-z]+)+$/.test(name);
+}
+
+function ensureAtlasSectorNamingMetadata(sector, metadata = {}) {
+  const baseMetadata = metadata && typeof metadata === "object" ? { ...metadata } : {};
+  const currentDisplayName = String(baseMetadata.displayName || "").trim();
+  const displayName =
+    !currentDisplayName ||
+    isAtlasPlaceholderSectorName(currentDisplayName) ||
+    isAtlasLegacySeededSectorName(currentDisplayName)
+      ? buildAtlasSeededSectorName(`${sector.sectorId}:sector`)
+      : currentDisplayName;
+  const existingSubsectorNames =
+    baseMetadata.subsectorNames && typeof baseMetadata.subsectorNames === "object"
+      ? { ...baseMetadata.subsectorNames }
+      : {};
+  const subsectorNames = Object.fromEntries(
+    SUBSECTOR_LETTERS.map((letter) => [
+      letter,
+      (() => {
+        const existingName = String(existingSubsectorNames[letter] || "").trim();
+        if (!existingName || isAtlasLegacySeededSectorName(existingName)) {
+          return buildAtlasSeededSectorName(`${sector.sectorId}:subsector:${letter}`);
+        }
+        return existingName;
+      })(),
+    ]),
+  );
+
+  return {
+    ...baseMetadata,
+    displayName,
+    subsectorNames,
+  };
+}
+
+function toSectorTile(sector) {
+  const sx = Number(sector?.coordinates?.x);
+  const sy = Number(sector?.coordinates?.y);
+  if (!Number.isFinite(sx) || !Number.isFinite(sy)) return null;
+
+  const { ox, oy } = sectorOrigin(sx, sy);
+  const densityClass = Math.min(5, Math.max(0, Number(sector.densityClass) || 0));
+  const explorationStatus = String(sector?.metadata?.explorationStatus || "").toLowerCase();
+  const displayName = String(sector?.metadata?.displayName || "").trim();
+  const hasGeneratedName = displayName && !isAtlasPlaceholderSectorName(displayName);
+  const isExplored = /explored|mapped|charted|surveyed|known/.test(explorationStatus);
+  const isVoid = densityClass === 0;
+
+  return {
+    sectorId: sector.sectorId,
+    sector,
+    sx,
+    sy,
+    wx: ox,
+    wy: oy,
+    densityClass,
+    isVoid,
+    showLabel: hasGeneratedName || !isVoid || isExplored,
+    name: hasGeneratedName ? displayName : "",
+  };
+}
+
+function starTypeToColor(starType, starClass) {
+  return starDescriptorToColor(starType || starClass, "#ffd575");
+}
+
+function starTypeToCssClass(starType, starClass) {
+  return starDescriptorToCssClass(starClass || starType, "spectral-g");
+}
+
+// ── Universe helpers ───────────────────────────────────────────────────────
+function galaxyIndexToColor(index) {
+  const PALETTE = ["#4d90ff", "#a050e0", "#e050a0", "#e07030", "#30c070", "#20b0b0", "#d0b020", "#e04040"];
+  return PALETTE[index % PALETTE.length];
+}
+
+async function onGalaxyDotClick(dot) {
+  if (dragging.value) return;
+  if (dot.galaxyId !== selectedGalaxyId.value || !sectors.value.length) {
+    selectedGalaxyId.value = dot.galaxyId;
+    await handleGalaxyChange();
+  } else {
+    resetView();
+  }
+}
+
+// ── Interaction ────────────────────────────────────────────────────────────
+function onWheel(event) {
+  const factor = event.deltaY < 0 ? 1.15 : 1 / 1.15;
+  const currentZoom = pendingCamera?.zoom ?? zoom.value;
+  const currentPanX = pendingCamera?.panX ?? panX.value;
+  const currentPanY = pendingCamera?.panY ?? panY.value;
+  const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, currentZoom * factor));
+  const rect = svgRef.value?.getBoundingClientRect();
+  if (!rect) {
+    queueCameraUpdate(currentPanX, currentPanY, newZoom);
+    return;
+  }
+  // Zoom to cursor position
+  const cx = event.clientX - rect.left;
+  const cy = event.clientY - rect.top;
+  const nextPanX = cx - (cx - currentPanX) * (newZoom / currentZoom);
+  const nextPanY = cy - (cy - currentPanY) * (newZoom / currentZoom);
+  queueCameraUpdate(nextPanX, nextPanY, newZoom);
+}
+
+function onPointerDown(event) {
+  if (event.button !== 0) return;
+  dragStart = {
+    pointerId: event.pointerId,
+    cx: event.clientX,
+    cy: event.clientY,
+    bpx: panX.value,
+    bpy: panY.value,
+    moved: false,
+  };
+  svgRef.value?.setPointerCapture?.(event.pointerId);
+}
+
+function onPointerMove(event) {
+  if (!dragStart || dragStart.pointerId !== event.pointerId) return;
+  const dx = event.clientX - dragStart.cx;
+  const dy = event.clientY - dragStart.cy;
+  if (!dragStart.moved && Math.hypot(dx, dy) < 4) return;
+  dragStart.moved = true;
+  dragging.value = true;
+  queueCameraUpdate(dragStart.bpx + dx, dragStart.bpy + dy, pendingCamera?.zoom ?? zoom.value);
+}
+
+function onPointerUp(event) {
+  if (!dragStart || dragStart.pointerId !== event.pointerId) return;
+  svgRef.value?.releasePointerCapture?.(event.pointerId);
+  const wasDragged = dragStart.moved;
+  const downX = dragStart.cx;
+  const downY = dragStart.cy;
+  if (pendingCamera) {
+    panX.value = pendingCamera.panX;
+    panY.value = pendingCamera.panY;
+    zoom.value = pendingCamera.zoom;
+    pendingCamera = null;
+  }
+  dragStart = null;
+  dragging.value = false;
+  if (!wasDragged) {
+    handleMapPointerClick(downX, downY);
+  }
+}
+
+function handleMapPointerClick(clientX, clientY) {
+  const svgRect = svgRef.value?.getBoundingClientRect();
+  if (!svgRect) return;
+
+  // Convert client → SVG screen → world coords (inverse camera transform)
+  const svgX = clientX - svgRect.left;
+  const svgY = clientY - svgRect.top;
+  const wx = (svgX - panX.value) / zoom.value;
+  const wy = (svgY - panY.value) / zoom.value;
+
+  // Star proximity check when star layer is rendered
+  if (renderStars.value && visibleStars.value.length > 0) {
+    const hitR = 14 / zoom.value;
+    const nearest = visibleStars.value.find((s) => Math.hypot(s.wx - wx, s.wy - wy) <= hitR);
+    if (nearest) {
+      onStarClick(nearest);
+      return;
+    }
+  }
+
+  // Map world position → sector grid index → DB coordinates
+  const gx = Math.floor(wx / SECTOR_PX_W);
+  const gy = Math.floor(wy / SECTOR_PX_H);
+  const sxCoord = gx + minSX.value;
+  const syCoord = gy + minSY.value;
+
+  const existing = sectorByCoord.value.get(`${sxCoord}:${syCoord}`);
+  if (existing) {
+    inspectorSector.value = existing;
+    inspectorMode.value = "sector";
+    selectedHexKey.value = null;
+    inspectorHierarchy.value = null;
+    inspectorStar.value = null;
+    if (zoom.value < LOD_SECTOR * 0.7) focusSector(existing);
+  } else {
+    // Unmapped grid cell – show stub so the user can generate it
+    inspectorSector.value = {
+      sectorId: `grid:${sxCoord}:${syCoord}`,
+      coordinates: { x: sxCoord, y: syCoord },
+      densityClass: 0,
+      metadata: { displayName: `Sector ${sxCoord},${syCoord}`, explorationStatus: "Unknown", systemCount: 0 },
+    };
+    inspectorMode.value = "sector";
+    selectedHexKey.value = null;
+    inspectorHierarchy.value = null;
+    inspectorStar.value = null;
+  }
+}
+
+function clearSelection() {
+  if (dragging.value) return;
+  selectedHexKey.value = null;
+  inspectorMode.value = null;
+  inspectorSector.value = null;
+  inspectorHierarchy.value = null;
+  inspectorStar.value = null;
+}
+
+function setAtlasGenerationDefaultsForScope(areaScope) {
+  atlasGenerationArea.value = String(areaScope || "sector");
+}
+
+function getAtlasGenerationAreaLabel(area) {
+  return (
+    {
+      sector: "Sector",
+      surrounding: "Sector + Surrounding",
+      region: "Region",
+      quadrant: "Quadrant",
+    }[String(area || "sector")] || "Sector"
+  );
+}
+
+function getAtlasGenerationModeMeta(mode) {
+  const normalized = String(mode || "name-presence");
+  switch (normalized) {
+    case "name":
+      return {
+        icon: "✍",
+        shortLabel: "Name",
+        progressLabel: "Generating names",
+        description: "Generate sector names only. No presence or full system data is rolled.",
+      };
+    case "presence":
+      return {
+        icon: "🗺",
+        shortLabel: "Presence Only",
+        progressLabel: "Generating presence",
+        description: "Roll occupied hexes only and preserve any existing sector name.",
+      };
+    case "name-systems":
+      return {
+        icon: "⭐",
+        shortLabel: "Name + Systems",
+        progressLabel: "Generating names and systems",
+        description: "Generate sector names and full stellar system data.",
+      };
+    default:
+      return {
+        icon: "⚡",
+        shortLabel: "Name + Presence",
+        progressLabel: "Generating names and presence",
+        description: "Generate sector names and roll occupied hexes without full system data.",
+      };
+  }
+}
+
+function inferHierarchyAreaScope(tile) {
+  return Number(tile?.tileSizeInSectors) >= QUADRANT_SECTORS / 2 ? "quadrant" : "region";
+}
+
+function onSectorTileClick(tile) {
+  if (dragging.value) return;
+
+  setAtlasGenerationDefaultsForScope("sector");
+  inspectorSector.value = tile.sector;
+  void hydrateAtlasSectorSystems(tile.sector);
+  syncAtlasSelectionState(tile.sector);
+  inspectorMode.value = "sector";
+  selectedHexKey.value = null;
+  inspectorHierarchy.value = null;
+  inspectorStar.value = null;
+
+  // Also zoom into the clicked sector when far out.
+  if (zoom.value < LOD_SECTOR * 0.7) {
+    focusSector(tile.sector);
+  }
+}
+
+function onGridCellClick(tile) {
+  if (dragging.value) return;
+  setAtlasGenerationDefaultsForScope("sector");
+  const sx = Math.round(tile.gx + minSX.value + gridBiasX.value / SECTOR_PX_W);
+  const sy = Math.round(tile.gy + minSY.value + gridBiasY.value / SECTOR_PX_H);
+  const existing = sectorByCoord.value.get(`${sx}:${sy}`);
+  if (existing) {
+    inspectorSector.value = existing;
+    void hydrateAtlasSectorSystems(existing);
+  } else {
+    inspectorSector.value = {
+      sectorId: `grid:${sx}:${sy}`,
+      coordinates: { x: sx, y: sy },
+      densityClass: 0,
+      metadata: { displayName: `Sector ${sx},${sy}`, explorationStatus: "Unknown", systemCount: 0 },
+    };
+  }
+  syncAtlasSelectionState(inspectorSector.value);
+  inspectorMode.value = "sector";
+  selectedHexKey.value = null;
+  inspectorHierarchy.value = null;
+  inspectorStar.value = null;
+  if (zoom.value < LOD_SECTOR * 0.7) {
+    focusSector(inspectorSector.value);
+  }
+}
+
+function onHexClick(hex) {
+  if (dragging.value) return;
+  if (!hex.occupied) {
+    clearSelection();
+    return;
+  }
+  const star = starMarkerByKey.value.get(hex.key);
+  if (star) onStarClick(star);
+}
+
+function onStarClick(star) {
+  if (dragging.value) return;
+  setAtlasGenerationDefaultsForScope("sector");
+  selectedHexKey.value = star.key;
+  void hydrateAtlasSectorSystems({ sectorId: star.sectorId, galaxyId: star.galaxyId });
+  inspectorStar.value = { ...star };
+  syncAtlasSelectionState({
+    sectorId: star.sectorId,
+    galaxyId: star.galaxyId,
+    coordinates:
+      Number.isFinite(Number(star.sectorX)) && Number.isFinite(Number(star.sectorY))
+        ? { x: Number(star.sectorX), y: Number(star.sectorY) }
+        : null,
+    metadata: {
+      displayName: star.sectorName,
+      gridX: Number(star.sectorX),
+      gridY: Number(star.sectorY),
+    },
+  });
+  inspectorMode.value = "star";
+  inspectorSector.value = null;
+  inspectorHierarchy.value = null;
+}
+
+function focusSector(sector) {
+  const sx = Number(sector?.coordinates?.x);
+  const sy = Number(sector?.coordinates?.y);
+  if (!Number.isFinite(sx) || !Number.isFinite(sy)) return;
+  const { ox, oy } = sectorOrigin(sx, sy);
+  const targetZoom = Math.min(MAX_ZOOM, LOD_SECTOR * 1.4);
+  panX.value = svgW.value / 2 - (ox + SECTOR_PX_W / 2) * targetZoom;
+  panY.value = svgH.value / 2 - (oy + SECTOR_PX_H / 2) * targetZoom;
+  zoom.value = targetZoom;
+}
+
+function focusSectorFromInspector() {
+  const sector = resolveInspectorSector();
+  if (sector) focusSector(sector);
+}
+
+function resolveInspectorSector() {
+  if (inspectorSector.value) {
+    return inspectorSector.value;
+  }
+
+  const star = inspectorStar.value;
+  if (!star?.sectorId) {
+    return null;
+  }
+
+  return (
+    atlasSectors.value.find((sector) => String(sector?.sectorId) === String(star.sectorId)) ||
+    sectorStore.sectors.find((sector) => String(sector?.sectorId) === String(star.sectorId)) || {
+      sectorId: star.sectorId,
+      galaxyId: star.galaxyId,
+      coordinates: null,
+      metadata: {
+        displayName: star.sectorName || String(star.sectorId),
+      },
+    }
+  );
+}
+
+function openSectorSurvey() {
+  const sector = resolveInspectorSector();
+  if (!sector) return;
+
+  const targetGalaxyId =
+    selectedGalaxyId.value === ALL_GALAXIES_VALUE
+      ? sector.galaxyId || inspectorStar.value?.galaxyId
+      : selectedGalaxyId.value || sector.galaxyId || inspectorStar.value?.galaxyId;
+  if (!targetGalaxyId) return;
+
+  const gridX = Number(sector?.coordinates?.x ?? sector?.metadata?.gridX);
+  const gridY = Number(sector?.coordinates?.y ?? sector?.metadata?.gridY);
+  const currentDisplayName = String(sector?.metadata?.displayName || "").trim();
+  const fallbackSeed =
+    Number.isFinite(gridX) && Number.isFinite(gridY)
+      ? `atlas:${targetGalaxyId}:${gridX}:${gridY}:sector`
+      : `${String(sector?.sectorId || "sector")}:sector`;
+  const sectorName =
+    currentDisplayName && !isAtlasPlaceholderSectorName(currentDisplayName)
+      ? currentDisplayName
+      : buildAtlasSeededSectorName(fallbackSeed);
+  const sectorId = String(sector?.sectorId || "").startsWith("grid:") ? "" : String(sector?.sectorId || "");
+  const returnTo = serializeReturnRoute({
+    name: "TravellerAtlas",
+    query: selectedGalaxyId.value ? { galaxyId: String(selectedGalaxyId.value) } : {},
+  });
+
+  router.push({
+    name: "SectorSurvey",
+    params: { galaxyId: targetGalaxyId },
+    query: {
+      ...(sectorId ? { sectorId } : {}),
+      ...(Number.isFinite(gridX) ? { gridX: String(gridX) } : {}),
+      ...(Number.isFinite(gridY) ? { gridY: String(gridY) } : {}),
+      ...(sectorName ? { sectorName } : {}),
+      from: "atlas",
+      atlasGalaxyId: String(selectedGalaxyId.value || ""),
+      ...(returnTo ? { returnTo } : {}),
+    },
+  });
+}
+
+function openSubsectorSurvey() {
+  const sector = resolveInspectorSector();
+  if (!sector) return;
+
+  const targetGalaxyId =
+    selectedGalaxyId.value === ALL_GALAXIES_VALUE
+      ? sector.galaxyId || inspectorStar.value?.galaxyId
+      : selectedGalaxyId.value || sector.galaxyId || inspectorStar.value?.galaxyId;
+  if (!targetGalaxyId) return;
+
+  const gridX = Number(sector?.coordinates?.x ?? sector?.metadata?.gridX);
+  const gridY = Number(sector?.coordinates?.y ?? sector?.metadata?.gridY);
+  const currentDisplayName = String(sector?.metadata?.displayName || "").trim();
+  const fallbackSeed =
+    Number.isFinite(gridX) && Number.isFinite(gridY)
+      ? `atlas:${targetGalaxyId}:${gridX}:${gridY}:sector`
+      : `${String(sector?.sectorId || "sector")}:sector`;
+  const sectorName =
+    currentDisplayName && !isAtlasPlaceholderSectorName(currentDisplayName)
+      ? currentDisplayName
+      : buildAtlasSeededSectorName(fallbackSeed);
+  const sectorId = String(sector?.sectorId || "").startsWith("grid:") ? "" : String(sector?.sectorId || "");
+  const returnTo = serializeReturnRoute({
+    name: "TravellerAtlas",
+    query: selectedGalaxyId.value ? { galaxyId: String(selectedGalaxyId.value) } : {},
+  });
+  const starX = inspectorStar.value?.hexCoordinates?.x ?? inspectorStar.value?.x;
+  const starY = inspectorStar.value?.hexCoordinates?.y ?? inspectorStar.value?.y;
+  const subsectorLetter = inspectorMode.value === "star" ? getSubsectorLetterForHex(starX, starY) : undefined;
+  const subsectorName = subsectorLetter
+    ? String(sector?.metadata?.subsectorNames?.[subsectorLetter] || "").trim() || undefined
+    : undefined;
+
+  router.push({
+    name: "SubsectorSurvey",
+    params: { galaxyId: targetGalaxyId },
+    query: {
+      ...(sectorId ? { sectorId } : {}),
+      ...(Number.isFinite(gridX) ? { gridX: String(gridX) } : {}),
+      ...(Number.isFinite(gridY) ? { gridY: String(gridY) } : {}),
+      ...(sectorName ? { sectorName } : {}),
+      ...(subsectorLetter ? { subsector: subsectorLetter } : {}),
+      ...(subsectorName ? { subsectorName } : {}),
+      viewScope: "subsector",
+      from: "atlas",
+      atlasGalaxyId: String(selectedGalaxyId.value || ""),
+      ...(returnTo ? { returnTo } : {}),
+    },
+  });
+}
+
+function sectorHexCoord(col, row) {
+  return `${String(col).padStart(2, "0")}${String(row).padStart(2, "0")}`;
+}
+
+function getSectorGenerationContext(sector) {
+  if (!sector) return { galaxy: null, densityClass: 3 };
+  const galaxy = galaxies.value.find((g) => g.galaxyId === sector.galaxyId) ?? null;
+  const densityClass = Math.min(5, Math.max(0, Number(sector.densityClass ?? 3)));
+  return { galaxy, densityClass };
+}
+
+function isGalacticCenterSector(sector) {
+  const gx = Number(sector?.metadata?.gridX);
+  const gy = Number(sector?.metadata?.gridY);
+  return Number.isFinite(gx) && Number.isFinite(gy) && gx === 0 && gy === 0;
+}
+
+function centerAnomalyTypeForGalaxy(galaxy) {
+  const raw = String(galaxy?.morphology?.centralAnomaly?.type || "").trim();
+  return raw || "Black Hole";
+}
+
+function rollOccupiedHexesForSector(galaxy, densityClass) {
+  const baseRate = SECTOR_HEX_PRESENCE_RATE[densityClass];
+  const occupiedHexes = [];
+  for (let c = 1; c <= HEX_PRESENCE_COLS; c++) {
+    for (let r = 1; r <= HEX_PRESENCE_ROWS; r++) {
+      const prob = calculateHexOccupancyProbability({
+        baseRate,
+        col: c,
+        row: r,
+        cols: HEX_PRESENCE_COLS,
+        rows: HEX_PRESENCE_ROWS,
+        galaxyType: galaxy?.type,
+        morphology: galaxy?.morphology,
+        realismScale: 1,
+        morphologyScale: HEX_PRESENCE_MORPHOLOGY_SCALE,
+      });
+      if (Math.random() < prob) {
+        occupiedHexes.push(sectorHexCoord(c, r));
+      }
+    }
+  }
+  return occupiedHexes;
+}
+
+function applySectorUpdate(updatedSector) {
+  if (!updatedSector?.sectorId) return;
+  const idx = atlasSectors.value.findIndex((entry) => entry.sectorId === updatedSector.sectorId);
+  if (idx >= 0) {
+    atlasSectors.value[idx] = updatedSector;
+  } else {
+    atlasSectors.value.unshift(updatedSector);
+  }
+  inspectorSector.value = updatedSector;
+  syncAtlasSelectionState(updatedSector);
+}
+
+async function hydrateAtlasSectorSystems(sectorLike) {
+  const sectorId = String(sectorLike?.sectorId || "").trim();
+  const galaxyId = String(sectorLike?.galaxyId || selectedGalaxyId.value || "").trim();
+
+  if (!sectorId || !galaxyId || sectorId.startsWith("grid:")) {
+    return;
+  }
+
+  const cacheKey = `${galaxyId}:${sectorId}`;
+  if (hydratedAtlasSectorSystemKeys.has(cacheKey)) {
+    return;
+  }
+  hydratedAtlasSectorSystemKeys.add(cacheKey);
+
+  try {
+    await systemStore.loadSystems(galaxyId, sectorId);
+  } catch {
+    hydratedAtlasSectorSystemKeys.delete(cacheKey);
+  }
+}
+
+function syncAtlasSelectionState(sector) {
+  const targetGalaxyId = String(sector?.galaxyId || "").trim();
+  if (targetGalaxyId && targetGalaxyId !== ALL_GALAXIES_VALUE) {
+    galaxyStore.setCurrentGalaxy(targetGalaxyId);
+  }
+
+  const sectorId = String(sector?.sectorId || "").trim();
+  if (!sectorId || sectorId.startsWith("grid:")) {
+    sectorStore.setCurrentSector(null);
+    return;
+  }
+
+  sectorStore.setCurrentSector(sectorId);
+}
+
+function startAtlasGenerationProgress(label, total) {
+  atlasGenerationProgress.value = {
+    active: true,
+    label,
+    current: 0,
+    total: Math.max(1, Number(total) || 1),
+    legacyReconstructedCount: 0,
+    legacyHierarchyUnknownCount: 0,
+  };
+}
+
+function updateAtlasGenerationProgress(
+  current,
+  label = atlasGenerationProgress.value.label,
+  total = atlasGenerationProgress.value.total,
+  legacySummary = atlasGenerationProgress.value,
+) {
+  atlasGenerationProgress.value = {
+    active: true,
+    label,
+    current: Math.max(0, Number(current) || 0),
+    total: Math.max(1, Number(total) || 1),
+    legacyReconstructedCount: Math.max(0, Number(legacySummary?.legacyReconstructedCount) || 0),
+    legacyHierarchyUnknownCount: Math.max(0, Number(legacySummary?.legacyHierarchyUnknownCount) || 0),
+  };
+}
+
+function resetAtlasGenerationProgress() {
+  atlasGenerationProgress.value = {
+    active: false,
+    label: "",
+    current: 0,
+    total: 0,
+    legacyReconstructedCount: 0,
+    legacyHierarchyUnknownCount: 0,
+  };
+}
+
+function buildPersistableSector(sector) {
+  if (!sector) return null;
+  const sx = Number(sector?.coordinates?.x ?? sector?.metadata?.gridX ?? 0);
+  const sy = Number(sector?.coordinates?.y ?? sector?.metadata?.gridY ?? 0);
+  const targetGalaxyId =
+    selectedGalaxyId.value === ALL_GALAXIES_VALUE ? sector?.galaxyId : selectedGalaxyId.value || sector?.galaxyId;
+  if (!targetGalaxyId) return null;
+  const galaxyId = String(targetGalaxyId);
+  return {
+    ...sector,
+    sectorId: String(sector?.sectorId || `${galaxyId}:${sx},${sy}`).replace(/^grid:/, `${galaxyId}:`),
+    galaxyId,
+    coordinates: { x: sx, y: sy },
+    densityClass: Number(sector?.densityClass ?? 0),
+    metadata: {
+      ...(sector?.metadata ?? {}),
+      galaxyId,
+      gridX: sx,
+      gridY: sy,
+      explorationStatus: sector?.metadata?.explorationStatus || "unexplored",
+    },
+  };
+}
+
+function parseHexCoordinates(coord) {
+  const raw = String(coord || "0000")
+    .replace(/\D/g, "")
+    .padStart(4, "0")
+    .slice(-4);
+  return {
+    x: Number(raw.slice(0, 2)) || 0,
+    y: Number(raw.slice(2, 4)) || 0,
+  };
+}
+
+function normalizeGeneratedStarType(star) {
+  const rawValue =
+    typeof star === "string"
+      ? star
+      : star && typeof star === "object"
+        ? star.spectralClass ||
+          star.spectralType ||
+          star.typeSubtype ||
+          star.starType ||
+          star.anomalyType ||
+          star.designation ||
+          ""
+        : "";
+  const normalized = String(rawValue || "").trim();
+  if (!normalized) {
+    return "G2V";
+  }
+
+  const lowered = normalized.toLowerCase();
+  return lowered === "undefined" || lowered === "null" || lowered === "nan" ? "G2V" : normalized;
+}
+
+function buildAtlasGeneratedSystem(sector, coord, primaryStar, secondaryStars = [], anomalyType = null) {
+  const starMetadata = buildHexStarTypeMetadata({
+    generatedStars: buildGeneratedStars({
+      primary: primaryStar,
+      secondaryStars,
+      anomalyType,
+      fallbackStarType: normalizeGeneratedStarType(primaryStar),
+    }),
+    anomalyType,
+    fallbackStarType: anomalyType ? String(anomalyType).trim() : normalizeGeneratedStarType(primaryStar),
+  });
+  const generatedStars = starMetadata.generatedStars;
+  const primaryType = normalizeGeneratedStarType(starMetadata.starType);
+
+  return {
+    systemId: `${sector.sectorId}:${coord}`,
+    galaxyId: sector.galaxyId,
+    sectorId: sector.sectorId,
+    hexCoordinates: parseHexCoordinates(coord),
+    starCount: Math.max(1, Math.min(4, generatedStars.length || 1)),
+    primaryStar: {
+      spectralClass: primaryType,
+    },
+    companionStars: generatedStars.slice(1).map((star) => ({ spectralClass: star.spectralClass })),
+    metadata: {
+      generatedSurvey: {
+        stars: generatedStars,
+        anomalyType: anomalyType || null,
+      },
+      lastModified: new Date().toISOString(),
+      source: "atlas",
+      anomalyType: anomalyType || null,
+    },
+  };
+}
+
+function getNeighborSectors(sector, radius = 1) {
+  const sx = Number(sector?.coordinates?.x);
+  const sy = Number(sector?.coordinates?.y);
+  if (!Number.isFinite(sx) || !Number.isFinite(sy)) return [];
+
+  const neighbors = [];
+  for (let dx = -radius; dx <= radius; dx += 1) {
+    for (let dy = -radius; dy <= radius; dy += 1) {
+      const nx = sx + dx;
+      const ny = sy + dy;
+      neighbors.push(
+        sectorByCoord.value.get(`${nx}:${ny}`) || {
+          sectorId: `${selectedGalaxyId.value}:${nx},${ny}`,
+          galaxyId: selectedGalaxyId.value,
+          coordinates: { x: nx, y: ny },
+          densityClass: Number(sector?.densityClass ?? 0),
+          metadata: { gridX: nx, gridY: ny, displayName: `Sector ${nx},${ny}`, explorationStatus: "unexplored" },
+        },
+      );
+    }
+  }
+  return neighbors;
+}
+
+function getHierarchyTileSectors(tile) {
+  const tileGalaxyId = String(tile?.galaxyId || selectedGalaxyId.value || "").trim();
+  if (!tile || !tileGalaxyId || tileGalaxyId === ALL_GALAXIES_VALUE) return [];
+  const tileSize = Math.max(1, Math.round(Number(tile.tileSizeInSectors) || 1));
+  const targets = [];
+  for (let sx = tile.minSectorX; sx < tile.minSectorX + tileSize; sx += 1) {
+    for (let sy = tile.minSectorY; sy < tile.minSectorY + tileSize; sy += 1) {
+      targets.push(
+        sectorByCoord.value.get(`${sx}:${sy}`) || {
+          sectorId: `${tileGalaxyId}:${sx},${sy}`,
+          galaxyId: tileGalaxyId,
+          coordinates: { x: sx, y: sy },
+          densityClass: 0,
+          metadata: { gridX: sx, gridY: sy, displayName: `Sector ${sx},${sy}`, explorationStatus: "unexplored" },
+        },
+      );
+    }
+  }
+  return targets;
+}
+
+async function generateSectorNameOnlyInternal(sector) {
+  const targetSector = buildPersistableSector(sector);
+  if (!targetSector) return null;
+  const updated = await sectorApi.upsertSector({
+    ...targetSector,
+    metadata: ensureAtlasSectorNamingMetadata(targetSector, targetSector.metadata ?? {}),
+  });
+  applySectorUpdate(updated);
+  return updated;
+}
+
+async function generateInspectorSectorName() {
+  const sector = resolveInspectorSector();
+  if (!sector || isGeneratingInspectorSector.value) return;
+
+  isGeneratingInspectorSector.value = true;
+  startAtlasGenerationProgress("Generating sector name", 1);
+  try {
+    const legacySummary = summarizeSectorLegacyProgress(sector);
+    const updated = await generateSectorNameOnlyInternal(sector);
+    updateAtlasGenerationProgress(1, undefined, undefined, legacySummary);
+    toastService.success(
+      `Generated a sector name for ${String(updated?.metadata?.displayName || updated?.sectorId || "sector")}.`,
+    );
+  } catch (err) {
+    toastService.error(`Failed to generate sector name: ${err.message}`);
+  } finally {
+    isGeneratingInspectorSector.value = false;
+    resetAtlasGenerationProgress();
+  }
+}
+
+async function generateInspectorSectorPresenceInternal(sector) {
+  return generateInspectorSectorPresenceInternalWithOptions(sector, { includeNames: true });
+}
+
+async function generateInspectorSectorPresenceInternalWithOptions(sector, { includeNames = true } = {}) {
+  const targetSector = buildPersistableSector(sector);
+  const { galaxy, densityClass } = getSectorGenerationContext(targetSector);
+  const occupiedHexes = rollOccupiedHexesForSector(galaxy, densityClass);
+  if (isGalacticCenterSector(targetSector)) {
+    const centerCoord = sectorHexCoord(Math.ceil(HEX_PRESENCE_COLS / 2), Math.ceil(HEX_PRESENCE_ROWS / 2));
+    if (!occupiedHexes.includes(centerCoord)) {
+      occupiedHexes.push(centerCoord);
+    }
+  }
+  const galacticCenter = isGalacticCenterSector(targetSector);
+  const anomalyType = galacticCenter ? centerAnomalyTypeForGalaxy(galaxy) : null;
+
+  const payload = {
+    ...targetSector,
+    metadata: (includeNames ? ensureAtlasSectorNamingMetadata : (_sector, metadata) => metadata)(targetSector, {
+      ...(targetSector.metadata ?? {}),
+      systemCount: occupiedHexes.length,
+      explorationStatus: occupiedHexes.length > 0 ? "mapped" : "unexplored",
+      hexPresenceGenerated: true,
+      hexPresenceGeneratedAt: new Date().toISOString(),
+      occupiedHexes,
+      hexStarTypes: {},
+      isGalacticCenterSector: galacticCenter,
+      centralAnomalyType: anomalyType,
+    }),
+  };
+
+  const updated = await sectorApi.upsertSector(payload);
+  applySectorUpdate(updated);
+  return { updated, occupiedHexes };
+}
+
+async function generateInspectorSector() {
+  const sector = resolveInspectorSector();
+  if (!sector || isGeneratingInspectorSector.value) return;
+
+  isGeneratingInspectorSector.value = true;
+  startAtlasGenerationProgress("Generating sector presence", 1);
+  try {
+    const legacySummary = summarizeSectorLegacyProgress(sector);
+    const { updated, occupiedHexes } = await generateInspectorSectorPresenceInternal(sector);
+    updateAtlasGenerationProgress(1, undefined, undefined, legacySummary);
+    toastService.success(
+      `Generated sector presence for ${occupiedHexes.length.toLocaleString()} occupied hexes in ${String(updated.metadata?.displayName || updated.sectorId)}.`,
+    );
+  } catch (err) {
+    toastService.error(`Failed to generate sector: ${err.message}`);
+  } finally {
+    isGeneratingInspectorSector.value = false;
+    resetAtlasGenerationProgress();
+  }
+}
+
+async function generateInspectorSectorSystemsInternal(sector) {
+  return generateInspectorSectorSystemsInternalWithOptions(sector, { includeNames: true });
+}
+
+async function generateInspectorSectorSystemsInternalWithOptions(sector, { includeNames = true } = {}) {
+  const targetSector = buildPersistableSector(sector);
+  const { galaxy, densityClass } = getSectorGenerationContext(targetSector);
+  const existingStarTypes =
+    targetSector?.metadata?.hexStarTypes && typeof targetSector.metadata.hexStarTypes === "object"
+      ? targetSector.metadata.hexStarTypes
+      : {};
+  const existingOccupiedHexes = Array.isArray(targetSector?.metadata?.occupiedHexes)
+    ? targetSector.metadata.occupiedHexes.filter((coord) => typeof coord === "string")
+    : [];
+  const hasSurveyedSystems = Object.keys(existingStarTypes).length > 0;
+  const occupiedHexes =
+    !hasSurveyedSystems && existingOccupiedHexes.length > 0
+      ? [...existingOccupiedHexes]
+      : rollOccupiedHexesForSector(galaxy, densityClass);
+  const galacticCenter = isGalacticCenterSector(targetSector);
+  const centerCoord = sectorHexCoord(Math.ceil(HEX_PRESENCE_COLS / 2), Math.ceil(HEX_PRESENCE_ROWS / 2));
+  const anomalyType = galacticCenter ? centerAnomalyTypeForGalaxy(galaxy) : null;
+  if (galacticCenter && !occupiedHexes.includes(centerCoord)) {
+    occupiedHexes.push(centerCoord);
+  }
+
+  const hexStarTypes = {};
+  const generatedSystems = [];
+  for (const coord of occupiedHexes) {
+    if (galacticCenter && coord === centerCoord) {
+      const starMetadata = buildHexStarTypeMetadata({
+        anomalyType,
+        generatedStars: buildGeneratedStars({ anomalyType, fallbackStarType: anomalyType || "G2V" }),
+        fallbackStarType: anomalyType || "G2V",
+      });
+      hexStarTypes[coord] = {
+        starType: starMetadata.starType,
+        starClass: "anomaly-core",
+        secondaryStars: starMetadata.secondaryStars,
+        generatedStars: starMetadata.generatedStars.map((star) => ({ ...star })),
+        anomalyType: starMetadata.anomalyType,
+      };
+      generatedSystems.push(buildAtlasGeneratedSystem(targetSector, coord, null, [], anomalyType));
+    } else {
+      const primary = generatePrimaryStar();
+      const starMetadata = buildHexStarTypeMetadata({
+        generatedStars: buildGeneratedStars({ primary, fallbackStarType: normalizeGeneratedStarType(primary) }),
+        primary,
+        fallbackStarType: normalizeGeneratedStarType(primary),
+      });
+      const primaryType = normalizeGeneratedStarType(starMetadata.starType);
+      hexStarTypes[coord] = {
+        starType: primaryType,
+        starClass: starTypeToCssClass(primaryType),
+        secondaryStars: starMetadata.secondaryStars,
+        generatedStars: starMetadata.generatedStars.map((star) => ({ ...star })),
+        anomalyType: starMetadata.anomalyType,
+      };
+      generatedSystems.push(buildAtlasGeneratedSystem(targetSector, coord, primary, [], null));
+    }
+  }
+
+  const payload = {
+    ...targetSector,
+    metadata: (includeNames ? ensureAtlasSectorNamingMetadata : (_sector, metadata) => metadata)(targetSector, {
+      ...(targetSector.metadata ?? {}),
+      systemCount: occupiedHexes.length,
+      explorationStatus: occupiedHexes.length > 0 ? "surveyed" : "unexplored",
+      hexPresenceGenerated: true,
+      hexPresenceGeneratedAt: new Date().toISOString(),
+      occupiedHexes,
+      hexStarTypes,
+      isGalacticCenterSector: galacticCenter,
+      centralAnomalyType: anomalyType,
+    }),
+  };
+
+  const updated = await sectorApi.upsertSector(payload);
+  await systemStore.replaceSectorSystems(
+    updated.sectorId,
+    generatedSystems.map((system) => ({
+      ...system,
+      galaxyId: updated.galaxyId,
+      sectorId: updated.sectorId,
+      systemId: `${updated.sectorId}:${String(system?.systemId || "")
+        .split(":")
+        .pop()}`,
+    })),
+  );
+  applySectorUpdate(updated);
+  return { updated, occupiedHexes };
+}
+
+async function generateInspectorSectorSystems() {
+  const sector = resolveInspectorSector();
+  if (!sector || isGeneratingInspectorSector.value) return;
+
+  isGeneratingInspectorSector.value = true;
+  startAtlasGenerationProgress("Generating sector systems", 1);
+  try {
+    const legacySummary = summarizeSectorLegacyProgress(sector);
+    const { updated, occupiedHexes } = await generateInspectorSectorSystemsInternal(sector);
+    updateAtlasGenerationProgress(1, undefined, undefined, legacySummary);
+    toastService.success(
+      `Generated systems for ${occupiedHexes.length.toLocaleString()} hexes in ${String(updated.metadata?.displayName || updated.sectorId)}.`,
+    );
+  } catch (err) {
+    toastService.error(`Failed to generate systems: ${err.message}`);
+  } finally {
+    isGeneratingInspectorSector.value = false;
+    resetAtlasGenerationProgress();
+  }
+}
+
+async function generateInspectorSectorAndSurroundingSystems() {
+  const sector = resolveInspectorSector();
+  if (!sector || isGeneratingInspectorSector.value) return;
+
+  isGeneratingInspectorSector.value = true;
+  try {
+    const targets = getNeighborSectors(sector, 1);
+    startAtlasGenerationProgress("Generating sector and surrounding sectors", targets.length);
+    let generatedCount = 0;
+    let legacyReconstructedCount = 0;
+    let legacyHierarchyUnknownCount = 0;
+    for (const target of targets) {
+      const legacySummary = summarizeSectorLegacyProgress(target);
+      legacyReconstructedCount += legacySummary.legacyReconstructedCount;
+      legacyHierarchyUnknownCount += legacySummary.legacyHierarchyUnknownCount;
+      await generateInspectorSectorSystemsInternal(target);
+      generatedCount += 1;
+      updateAtlasGenerationProgress(generatedCount, undefined, undefined, {
+        legacyReconstructedCount,
+        legacyHierarchyUnknownCount,
+      });
+    }
+    toastService.success(
+      `Generated names and systems for ${generatedCount.toLocaleString()} sectors in the selected area.`,
+    );
+  } finally {
+    isGeneratingInspectorSector.value = false;
+    resetAtlasGenerationProgress();
+  }
+}
+
+function getGenerationTargetsForSector(sector, areaScope) {
+  const targetSector = buildPersistableSector(sector);
+  if (!targetSector) return [];
+
+  if (areaScope === "sector") {
+    return [targetSector];
+  }
+
+  if (areaScope === "surrounding") {
+    return getNeighborSectors(targetSector, 1)
+      .map((entry) => buildPersistableSector(entry))
+      .filter(Boolean);
+  }
+
+  const size = areaScope === "quadrant" ? QUADRANT_SECTORS : REGION_SECTORS;
+  const sx = Number(targetSector?.coordinates?.x);
+  const sy = Number(targetSector?.coordinates?.y);
+  if (!Number.isFinite(sx) || !Number.isFinite(sy)) return [targetSector];
+
+  const tile = {
+    galaxyId: targetSector.galaxyId,
+    minSectorX: Math.floor(sx / size) * size,
+    minSectorY: Math.floor(sy / size) * size,
+    tileSizeInSectors: size,
+  };
+
+  return getHierarchyTileSectors(tile)
+    .map((entry) => buildPersistableSector(entry))
+    .filter(Boolean);
+}
+
+async function applyAtlasGenerationModeToSector(target, generationMode) {
+  const sx = Number(target?.coordinates?.x);
+  const sy = Number(target?.coordinates?.y);
+  const spaceTier =
+    Number.isFinite(sx) && Number.isFinite(sy) ? calculateSpaceTier(sx, sy, surveyedCoordKeySet.value) : "void";
+  const effectiveMode = resolveGenerationModeForSpaceTier(generationMode, spaceTier);
+
+  switch (effectiveMode) {
+    case "name":
+      await generateSectorNameOnlyInternal(target);
+      return { requestedMode: generationMode, effectiveMode, spaceTier };
+    case "presence":
+      await generateInspectorSectorPresenceInternalWithOptions(target, { includeNames: false });
+      return { requestedMode: generationMode, effectiveMode, spaceTier };
+    case "name-systems":
+      await generateInspectorSectorSystemsInternalWithOptions(target, { includeNames: true });
+      return { requestedMode: generationMode, effectiveMode, spaceTier };
+    default:
+      await generateInspectorSectorPresenceInternalWithOptions(target, { includeNames: true });
+      return { requestedMode: generationMode, effectiveMode, spaceTier };
+  }
+}
+
+async function runInspectorGenerationAction() {
+  const sector = resolveInspectorSector();
+  if (!sector || isGeneratingInspectorSector.value) return;
+
+  const targets = getGenerationTargetsForSector(sector, atlasGenerationArea.value);
+  const modeMeta = getAtlasGenerationModeMeta(atlasGenerationMode.value);
+  const areaLabel = getAtlasGenerationAreaLabel(atlasGenerationArea.value).toLowerCase();
+
+  isGeneratingInspectorSector.value = true;
+  try {
+    startAtlasGenerationProgress(modeMeta.progressLabel, Math.max(1, targets.length));
+    let generatedCount = 0;
+    let legacyReconstructedCount = 0;
+    let legacyHierarchyUnknownCount = 0;
+    let adjustedByTierCount = 0;
+    for (const target of targets) {
+      const legacySummary = summarizeSectorLegacyProgress(target);
+      legacyReconstructedCount += legacySummary.legacyReconstructedCount;
+      legacyHierarchyUnknownCount += legacySummary.legacyHierarchyUnknownCount;
+      const generationResult = await applyAtlasGenerationModeToSector(target, atlasGenerationMode.value);
+      if (generationResult?.effectiveMode !== generationResult?.requestedMode) {
+        adjustedByTierCount += 1;
+      }
+      generatedCount += 1;
+      updateAtlasGenerationProgress(generatedCount, modeMeta.progressLabel, Math.max(1, targets.length), {
+        legacyReconstructedCount,
+        legacyHierarchyUnknownCount,
+      });
+    }
+    const adjustedSummary =
+      adjustedByTierCount > 0
+        ? ` Tier policy adjusted ${adjustedByTierCount.toLocaleString()} target${adjustedByTierCount !== 1 ? "s" : ""}.`
+        : "";
+    toastService.success(
+      `${modeMeta.shortLabel} completed for ${generatedCount.toLocaleString()} sector${generatedCount !== 1 ? "s" : ""} in the selected ${areaLabel}.${adjustedSummary}`,
+    );
+  } catch (err) {
+    toastService.error(`Failed to generate selected ${areaLabel}: ${err.message}`);
+  } finally {
+    isGeneratingInspectorSector.value = false;
+    resetAtlasGenerationProgress();
+  }
+}
+
+function focusHierarchyInspector() {
+  if (inspectorHierarchy.value) {
+    focusHierarchyTile(inspectorHierarchy.value);
+  }
+}
+
+async function generateHierarchyAreaSystems() {
+  await runHierarchyGenerationAction();
+}
+
+async function runHierarchyGenerationAction() {
+  const tile = inspectorHierarchy.value;
+  if (!tile || isGeneratingInspectorSector.value) return;
+
+  const targets = getHierarchyTileSectors(tile)
+    .map((entry) => buildPersistableSector(entry))
+    .filter(Boolean);
+  const modeMeta = getAtlasGenerationModeMeta(atlasGenerationMode.value);
+  const areaType = inferHierarchyAreaScope(tile);
+
+  isGeneratingInspectorSector.value = true;
+  try {
+    startAtlasGenerationProgress(modeMeta.progressLabel, Math.max(1, targets.length));
+    let generatedCount = 0;
+    let legacyReconstructedCount = 0;
+    let legacyHierarchyUnknownCount = 0;
+    let adjustedByTierCount = 0;
+    for (const target of targets) {
+      const legacySummary = summarizeSectorLegacyProgress(target);
+      legacyReconstructedCount += legacySummary.legacyReconstructedCount;
+      legacyHierarchyUnknownCount += legacySummary.legacyHierarchyUnknownCount;
+      const generationResult = await applyAtlasGenerationModeToSector(target, atlasGenerationMode.value);
+      if (generationResult?.effectiveMode !== generationResult?.requestedMode) {
+        adjustedByTierCount += 1;
+      }
+      generatedCount += 1;
+      updateAtlasGenerationProgress(generatedCount, modeMeta.progressLabel, Math.max(1, targets.length), {
+        legacyReconstructedCount,
+        legacyHierarchyUnknownCount,
+      });
+    }
+    const adjustedSummary =
+      adjustedByTierCount > 0
+        ? ` Tier policy adjusted ${adjustedByTierCount.toLocaleString()} target${adjustedByTierCount !== 1 ? "s" : ""}.`
+        : "";
+    toastService.success(
+      `${modeMeta.shortLabel} completed for ${generatedCount.toLocaleString()} sectors in the selected ${areaType}.${adjustedSummary}`,
+    );
+  } catch (err) {
+    toastService.error(`Failed to generate selected ${areaType}: ${err.message}`);
+  } finally {
+    isGeneratingInspectorSector.value = false;
+    resetAtlasGenerationProgress();
+  }
+}
+
+function zoomToHierarchyLevel(index) {
+  const clampedIndex = Math.max(0, Math.min(HIERARCHY_LEVELS.length - 1, index));
+  const parsecs = HIERARCHY_LEVELS[clampedIndex].parsecsPerHex;
+  applyZoomCentered(1 / parsecs);
+}
+
+function zoomToHierarchyLevelId(levelId) {
+  const idx = HIERARCHY_LEVELS.findIndex((level) => level.id === levelId);
+  if (idx < 0) return;
+  zoomToHierarchyLevel(idx);
+}
+
+function focusHierarchyTile(tile) {
+  setAtlasGenerationDefaultsForScope(inferHierarchyAreaScope(tile));
+  inspectorHierarchy.value = tile;
+  inspectorMode.value = "hierarchy";
+  inspectorSector.value = null;
+  inspectorStar.value = null;
+  selectedHexKey.value = null;
+  const cx = tile.wx + tile.ww / 2;
+  const cy = tile.wy + tile.wh / 2;
+  const id = currentHierarchyId.value;
+  const nextByLevel = {
+    "quadrant-4x4": "quadrant-2x2",
+    "quadrant-2x2": "region-4x4",
+    "region-4x4": "region-2x2",
+    "region-2x2": "sector",
+    sector: "sector-2x2-subsector",
+    "sector-2x2-subsector": "subsector",
+  };
+  const nextLevelId = nextByLevel[id] || id;
+  const nextLevel = HIERARCHY_LEVELS.find((level) => level.id === nextLevelId) || currentHierarchyLevel.value;
+  const targetZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, 1 / nextLevel.parsecsPerHex));
+  panX.value = svgW.value / 2 - cx * targetZoom;
+  panY.value = svgH.value / 2 - cy * targetZoom;
+  zoom.value = targetZoom;
+}
+
+function zoomToNextHierarchyLevel() {
+  if (currentHierarchyId.value === "subsector" && inspectorMode.value === "star") {
+    zoomToHierarchyLevelId("orbital");
+    openOrbitalView();
+    return;
+  }
+  zoomToHierarchyLevel(currentHierarchyLevelIndex.value + 1);
+}
+
+function zoomToPreviousHierarchyLevel() {
+  zoomToHierarchyLevel(currentHierarchyLevelIndex.value - 1);
+}
+
+function zoomIn() {
+  zoomToNextHierarchyLevel();
+}
+
+function zoomOut() {
+  zoomToPreviousHierarchyLevel();
+}
+
+function applyZoomCentered(newZoom) {
+  const clamped = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, newZoom));
+  const cx = svgW.value / 2;
+  const cy = svgH.value / 2;
+  panX.value = cx - (cx - panX.value) * (clamped / zoom.value);
+  panY.value = cy - (cy - panY.value) * (clamped / zoom.value);
+  zoom.value = clamped;
+}
+
+function resetView() {
+  if (!sectors.value.length) {
+    // No sectors loaded — show universe overview, fit galaxy blobs
+    if (!galaxyDots.value.length) {
+      zoom.value = DEFAULT_ZOOM;
+      panX.value = svgW.value / 2;
+      panY.value = svgH.value / 2;
+      return;
+    }
+    const wxs = galaxyDots.value.map((d) => d.wx);
+    const wys = galaxyDots.value.map((d) => d.wy);
+    const pad = GALAXY_DOT_R * 5;
+    const minWX = Math.min(...wxs) - pad;
+    const maxWX = Math.max(...wxs) + pad;
+    const minWY = Math.min(...wys) - pad;
+    const maxWY = Math.max(...wys) + pad;
+    const worldW = Math.max(maxWX - minWX, GALAXY_DOT_R * 10);
+    const worldH = Math.max(maxWY - minWY, GALAXY_DOT_R * 10);
+    const fitZoom = Math.max(MIN_ZOOM, Math.min((svgW.value * 0.85) / worldW, (svgH.value * 0.85) / worldH));
+    zoom.value = fitZoom;
+    panX.value = svgW.value / 2 - ((minWX + maxWX) / 2) * fitZoom;
+    panY.value = svgH.value / 2 - ((minWY + maxWY) / 2) * fitZoom;
+    return;
+  }
+  const { minX, maxX, minY, maxY } = gridBounds.value;
+  const worldW = (maxX - minX + 1) * SECTOR_PX_W;
+  const worldH = (maxY - minY + 1) * SECTOR_PX_H;
+  const fitZoom = Math.min((svgW.value * 0.88) / worldW, (svgH.value * 0.88) / worldH, 0.45);
+  const closestHierarchy = HIERARCHY_LEVELS.reduce(
+    (best, level) => {
+      const levelZoom = 1 / level.parsecsPerHex;
+      const delta = Math.abs(levelZoom - fitZoom);
+      return delta < best.delta ? { zoom: levelZoom, delta } : best;
+    },
+    { zoom: 1 / HIERARCHY_LEVELS[0].parsecsPerHex, delta: Number.POSITIVE_INFINITY },
+  );
+  zoom.value = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, closestHierarchy.zoom));
+  panX.value = (svgW.value - worldW * zoom.value) / 2;
+  panY.value = (svgH.value - worldH * zoom.value) / 2;
+}
+
+function openStarSystem() {
+  const star = inspectorStar.value;
+  if (!star || !selectedGalaxyId.value) return;
+  const targetGalaxyId = selectedGalaxyId.value === ALL_GALAXIES_VALUE ? star.galaxyId : selectedGalaxyId.value;
+  if (!targetGalaxyId) return;
+  const systemRecord = findSystemRecordForStar(star);
+  const returnTo = serializeReturnRoute({
+    name: "TravellerAtlas",
+    query: selectedGalaxyId.value ? { galaxyId: String(selectedGalaxyId.value) } : {},
+  });
+
+  if (systemRecord?.systemId) {
+    systemStore.setCurrentSystem(systemRecord.systemId);
+    router.push({
+      name: "SystemSurvey",
+      params: {
+        galaxyId: targetGalaxyId,
+        sectorId: star.sectorId,
+        systemId: systemRecord.systemId,
+      },
+      query: {
+        systemId: systemRecord.systemId,
+        systemRecordId: systemRecord.systemId,
+        hex: star.coord,
+        star: star.starType,
+        ...(returnTo ? { returnTo } : {}),
+      },
+    });
+    return;
+  }
+
+  router.push({
+    name: "StarSystemBuilder",
+    params: { galaxyId: targetGalaxyId, sectorId: star.sectorId },
+    query: { hex: star.coord, star: star.starType, ...(returnTo ? { returnTo } : {}) },
+  });
+}
+
+function openOrbitalView() {
+  const star = inspectorStar.value;
+  if (!star || !selectedGalaxyId.value) return;
+  const targetGalaxyId = selectedGalaxyId.value === ALL_GALAXIES_VALUE ? star.galaxyId : selectedGalaxyId.value;
+  if (!targetGalaxyId) return;
+  const returnTo = serializeReturnRoute({
+    name: "TravellerAtlas",
+    query: selectedGalaxyId.value ? { galaxyId: String(selectedGalaxyId.value) } : {},
+  });
+
+  router.push({
+    name: "OrbitalView",
+    params: { galaxyId: targetGalaxyId, sectorId: star.sectorId },
+    query: {
+      hex: star.coord,
+      star: star.starType,
+      from: "atlas",
+      ...(returnTo ? { returnTo } : {}),
+    },
+  });
+}
+
+// ── Data loading ───────────────────────────────────────────────────────────
+async function handleGalaxyChange() {
+  clearSelection();
+  hydratedAtlasSectorSystemKeys.clear();
+  if (!selectedGalaxyId.value) {
+    atlasSectors.value = [];
+    return;
+  }
+
+  if (selectedGalaxyId.value !== ALL_GALAXIES_VALUE) {
+    galaxyStore.setCurrentGalaxy(selectedGalaxyId.value);
+  }
+
+  isLoading.value = true;
+  try {
+    if (selectedGalaxyId.value === ALL_GALAXIES_VALUE) {
+      const galaxyIds = galaxyOptions.value.map((g) => g.galaxyId);
+      const sectorsByGalaxy = await Promise.all(galaxyIds.map((galaxyId) => sectorApi.getSectors(galaxyId)));
+      atlasSectors.value = sectorsByGalaxy.flat();
+      await nextTick();
+      resetView();
+    } else {
+      const layoutBounds = resolveSelectedGalaxyLayoutBounds(currentGalaxy.value);
+      const loadedSectors = await sectorApi.getSectorsWindow(selectedGalaxyId.value, {
+        xMin: layoutBounds.xMin,
+        xMax: layoutBounds.xMax,
+        yMin: layoutBounds.yMin,
+        yMax: layoutBounds.yMax,
+        limit: resolveSelectedGalaxyWindowLimit(layoutBounds),
+      });
+      sectorStore.sectors = Array.isArray(loadedSectors) ? [...loadedSectors] : [];
+
+      let nextSectors = mergeAtlasSectorsWithGalaxyLayout(currentGalaxy.value, loadedSectors, layoutBounds);
+      const centerSectorId = `${selectedGalaxyId.value}:0,0`;
+      let focusTarget = nextSectors.find((sector) => sector?.sectorId === centerSectorId) ?? null;
+
+      if (!focusTarget) {
+        try {
+          const centerSector = await sectorApi.getSector(centerSectorId);
+          if (centerSector?.galaxyId === selectedGalaxyId.value) {
+            nextSectors = mergeAtlasSectorsWithGalaxyLayout(
+              currentGalaxy.value,
+              [centerSector, ...nextSectors],
+              layoutBounds,
+            );
+            focusTarget = nextSectors.find((sector) => sector?.sectorId === centerSectorId) ?? centerSector;
+          }
+        } catch {
+          // Ignore missing center-sector fetches and fall back to loaded slice.
+        }
+      }
+
+      atlasSectors.value = nextSectors;
+      await nextTick();
+
+      if (focusTarget) {
+        focusSector(focusTarget);
+      } else {
+        resetView();
+      }
+    }
+  } catch (err) {
+    toastService.error(`Failed to load sectors: ${err.message}`);
+    atlasSectors.value = [];
+  } finally {
+    isLoading.value = false;
+  }
+}
+
+// ── Resize handler ─────────────────────────────────────────────────────────
+function onResize() {
+  const root = atlasRootRef.value;
+  if (root) {
+    const top = root.getBoundingClientRect().top;
+    const availableHeight = Math.max(360, Math.floor(window.innerHeight - top));
+    root.style.height = `${availableHeight}px`;
+    svgW.value = root.clientWidth;
+    svgH.value = root.clientHeight;
+    return;
+  }
+  svgW.value = window.innerWidth;
+  svgH.value = window.innerHeight;
+}
+
+function coerceBooleanPreference(value, fallback) {
+  if (typeof value === "boolean") return value;
+  if (value === "true") return true;
+  if (value === "false") return false;
+  return fallback;
+}
+
+function syncAtlasPreferencesFromStorage() {
+  try {
+    const raw = localStorage.getItem(PREFERENCES_STORAGE_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    const x = Number(parsed?.atlasGridBiasX);
+    const y = Number(parsed?.atlasGridBiasY);
+    const planningX = Number(parsed?.atlasPlanningBiasX);
+    const planningY = Number(parsed?.atlasPlanningBiasY);
+    if (Number.isFinite(x)) preferencesStore.set("atlasGridBiasX", x);
+    if (Number.isFinite(y)) preferencesStore.set("atlasGridBiasY", y);
+    if (Number.isFinite(planningX)) preferencesStore.set("atlasPlanningBiasX", planningX);
+    if (Number.isFinite(planningY)) preferencesStore.set("atlasPlanningBiasY", planningY);
+    layerHexGrid.value = coerceBooleanPreference(parsed?.atlasLayerHexGrid, layerHexGrid.value);
+    layerNames.value = coerceBooleanPreference(parsed?.atlasLayerNames, layerNames.value);
+    layerSectorNames.value = coerceBooleanPreference(parsed?.atlasLayerSectorNames, layerSectorNames.value);
+    layerCoords.value = coerceBooleanPreference(parsed?.atlasLayerCoords, layerCoords.value);
+    layerZones.value = coerceBooleanPreference(parsed?.atlasLayerZones, layerZones.value);
+    layerRoutes.value = coerceBooleanPreference(parsed?.atlasLayerRoutes, layerRoutes.value);
+    layerAnomalies.value = coerceBooleanPreference(parsed?.atlasLayerAnomalies, layerAnomalies.value);
+    layerBadges.value = coerceBooleanPreference(parsed?.atlasLayerBadges, layerBadges.value);
+    layerPolity.value = coerceBooleanPreference(parsed?.atlasLayerPolity, layerPolity.value);
+  } catch {
+    // Ignore malformed storage payloads.
+  }
+}
+
+watch(
+  () => [
+    layerHexGrid.value,
+    layerNames.value,
+    layerSectorNames.value,
+    layerCoords.value,
+    layerZones.value,
+    layerRoutes.value,
+    layerAnomalies.value,
+    layerBadges.value,
+    layerPolity.value,
+  ],
+  ([
+    atlasLayerHexGrid,
+    atlasLayerNames,
+    atlasLayerSectorNames,
+    atlasLayerCoords,
+    atlasLayerZones,
+    atlasLayerRoutes,
+    atlasLayerAnomalies,
+    atlasLayerBadges,
+    atlasLayerPolity,
+  ]) => {
+    preferencesStore.replace({
+      ...preferencesStore.$state,
+      atlasLayerHexGrid,
+      atlasLayerNames,
+      atlasLayerSectorNames,
+      atlasLayerCoords,
+      atlasLayerZones,
+      atlasLayerRoutes,
+      atlasLayerAnomalies,
+      atlasLayerBadges,
+      atlasLayerPolity,
+    });
+  },
+);
+
+watch(
+  () => showPoliticalHeat.value,
+  (visible) => {
+    if (!visible) activePoliticalHeatFilter.value = null;
+  },
+);
+
+watch(
+  () => showRouteLegend.value,
+  (visible) => {
+    if (!visible) activeRouteFilter.value = null;
+  },
+);
+
+function onPreferencesStorageChanged(event) {
+  if (event.key !== PREFERENCES_STORAGE_KEY) return;
+  syncAtlasPreferencesFromStorage();
+}
+
+onMounted(async () => {
+  window.addEventListener("resize", onResize);
+  window.addEventListener("storage", onPreferencesStorageChanged);
+  syncAtlasPreferencesFromStorage();
+  onResize();
+  isLoading.value = true;
+  try {
+    await galaxyStore.loadGalaxies();
+    if (galaxyStore.currentGalaxyId) {
+      selectedGalaxyId.value = galaxyStore.currentGalaxyId;
+      await handleGalaxyChange();
+    } else {
+      // No current galaxy — start at universe overview showing galaxy blobs
+      selectedGalaxyId.value = "";
+      atlasSectors.value = [];
+      resetView();
+    }
+  } finally {
+    isLoading.value = false;
+  }
+});
+
+watch(
+  () => [sectors.value.length, minSX.value, minSY.value],
+  () => {
+    hexPointCache.clear();
+  },
+);
+
+onUnmounted(() => {
+  if (cameraFrame) window.cancelAnimationFrame(cameraFrame);
+  window.removeEventListener("resize", onResize);
+  window.removeEventListener("storage", onPreferencesStorageChanged);
+});
+
+// Auto-reset view once sector data arrives
+watch(
+  () => sectors.value.length,
+  (len, prev) => {
+    if (len > 0 && (!prev || prev === 0)) resetView();
+  },
+);
+</script>
+
+<style scoped>
+/* ── Root ─────────────────────────────────────────────────────────────────── */
+.atlas-root {
+  position: relative;
+  width: 100%;
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+  background: #070b1c;
+}
+
+/* ── Toolbar ──────────────────────────────────────────────────────────────── */
+.atlas-toolbar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.4rem 1rem;
+  background: rgba(6, 10, 28, 0.9);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid #1e3460;
+  flex-wrap: wrap;
+}
+
+.toolbar-brand {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #4dc2ff;
+  white-space: nowrap;
+  letter-spacing: 0.05em;
+}
+
+.toolbar-center {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.atlas-select {
+  background: #0d1830;
+  color: #c8e8ff;
+  border: 1px solid #2b4a78;
+  border-radius: 0.35rem;
+  padding: 0.26rem 0.55rem;
+  font-size: 0.8rem;
+  min-width: 150px;
+}
+
+.zoom-cluster {
+  display: flex;
+  border: 1px solid #2b4a78;
+  border-radius: 0.35rem;
+  overflow: hidden;
+}
+
+.level-cluster {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.tb-btn {
+  background: #0f1e38;
+  color: #c0d8f0;
+  border: none;
+  padding: 0.26rem 0.55rem;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.tb-btn:hover {
+  background: #1a3060;
+}
+
+.zoom-badge {
+  background: #0d1830;
+  color: #7ec9f3;
+  border: none;
+  padding: 0.26rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  min-width: 44px;
+  text-align: center;
+}
+
+.zoom-badge:hover {
+  color: #b0e0ff;
+}
+
+.lod-pill {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.16rem 0.52rem;
+  border-radius: 999px;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+.lod-galaxy {
+  background: #1a2a50;
+  color: #7ab8ff;
+}
+.lod-sector {
+  background: #1c3440;
+  color: #5dd4b8;
+}
+.lod-hex {
+  background: #2a3020;
+  color: #a8d870;
+}
+.lod-detail {
+  background: #3a2810;
+  color: #f0aa60;
+}
+.lod-universe {
+  background: #080e28;
+  color: #a0d0ff;
+}
+
+.toolbar-layers {
+  display: flex;
+  gap: 0.28rem;
+}
+
+.tb-toggle {
+  background: #0f1e38;
+  color: #6888a8;
+  border: 1px solid #2b4a78;
+  border-radius: 0.28rem;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.73rem;
+  cursor: pointer;
+}
+
+.tb-toggle:hover {
+  color: #9ab8d8;
+  background: #162840;
+}
+.tb-toggle.active {
+  background: #1a4474;
+  color: #7ec9f3;
+  border-color: #3a84c8;
+}
+
+.tb-toggle--utility {
+  color: #d2c29a;
+}
+
+/* ── SVG ──────────────────────────────────────────────────────────────────── */
+.atlas-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  touch-action: none;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.atlas-svg.dragging {
+  cursor: grabbing;
+}
+
+/* ── Sector tiles ─────────────────────────────────────────────────────────── */
+.sector-tile {
+  stroke: none;
+  cursor: pointer;
+}
+.sector-tile.hovered {
+  filter: brightness(1.55);
+}
+
+.sector-tile--highlighted {
+  stroke: rgba(220, 241, 255, 0.42);
+  stroke-width: 1.1;
+}
+
+.sector-tile--dimmed {
+  filter: saturate(0.72);
+}
+
+.sector-heat-overlay {
+  pointer-events: none;
+  mix-blend-mode: screen;
+}
+
+.known-space-overlay {
+  fill: rgba(84, 168, 255, 0.08);
+  stroke: rgba(130, 204, 255, 0.46);
+  stroke-width: 0.95;
+  pointer-events: none;
+}
+
+.known-space-overlay--frontier {
+  fill: rgba(116, 206, 160, 0.08);
+  stroke: rgba(144, 228, 190, 0.72);
+  stroke-width: 1.05;
+  stroke-dasharray: 5 2;
+}
+
+.planning-window-overlay {
+  fill: rgba(236, 193, 88, 0.09);
+  stroke: rgba(239, 209, 123, 0.65);
+  stroke-width: 0.85;
+  pointer-events: none;
+}
+
+.planning-window-overlay--surveyed {
+  fill: rgba(236, 193, 88, 0.14);
+}
+
+.sector-border {
+  stroke: rgba(70, 120, 190, 0.55);
+  stroke-width: 1;
+  pointer-events: none;
+}
+
+.subsector-border {
+  stroke: rgba(120, 170, 220, 0.4);
+  stroke-width: 1;
+  stroke-dasharray: 5 3;
+  pointer-events: none;
+}
+
+.hierarchy-tile {
+  fill: transparent;
+  cursor: pointer;
+}
+
+.hierarchy-tile-quadrant {
+  stroke: rgba(94, 170, 255, 0.75);
+  stroke-width: 2.3;
+}
+
+.hierarchy-tile-region {
+  stroke: rgba(96, 220, 186, 0.72);
+  stroke-width: 1.8;
+}
+
+.hierarchy-tile-sub {
+  stroke: rgba(176, 214, 255, 0.45);
+  stroke-width: 1.2;
+  stroke-dasharray: 7 4;
+}
+
+.hierarchy-tile:hover {
+  fill: rgba(120, 185, 255, 0.08);
+}
+
+.hierarchy-label {
+  fill: rgba(190, 230, 255, 0.92);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  pointer-events: none;
+}
+
+.sector-label {
+  fill: rgba(180, 220, 255, 0.8);
+  text-anchor: middle;
+  pointer-events: none;
+  font-weight: 600;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* ── Hex grid ─────────────────────────────────────────────────────────────── */
+.hex-cell {
+  fill: transparent;
+  stroke: transparent;
+  stroke-width: 1;
+  cursor: default;
+}
+
+.hex-cell--guide {
+  fill: transparent;
+  stroke: rgba(110, 170, 240, 0.18);
+  stroke-width: 0.9;
+  pointer-events: none;
+}
+
+.hex-cell.occupied {
+  fill: rgba(40, 100, 180, 0.14);
+  stroke: rgba(140, 200, 255, 0.32);
+  cursor: pointer;
+}
+
+.hex-cell.occupied:hover,
+.hex-cell.hovered {
+  fill: rgba(60, 130, 220, 0.28);
+  stroke: rgba(180, 230, 255, 0.58);
+}
+
+.hex-cell.selected {
+  fill: rgba(80, 180, 255, 0.22);
+  stroke: rgba(100, 220, 255, 0.88);
+  stroke-width: 1.5;
+}
+
+/* ── Travel zones ─────────────────────────────────────────────────────────── */
+.zone-hex {
+  pointer-events: none;
+  opacity: 0.35;
+}
+.zone-hex.zone-red {
+  fill: #ff0000;
+}
+.zone-hex.zone-amber {
+  fill: #ffaa00;
+}
+
+.layer-anomaly-overlays {
+  pointer-events: none;
+}
+
+.anomaly-cloud {
+  mix-blend-mode: screen;
+}
+
+.anomaly-mote {
+  mix-blend-mode: screen;
+}
+
+.anomaly-core {
+  mix-blend-mode: screen;
+}
+
+/* ── Stars ────────────────────────────────────────────────────────────────── */
+.star-dot {
+  stroke: rgba(255, 255, 255, 0.2);
+  stroke-width: 0.8;
+  cursor: pointer;
+}
+
+.star-halo {
+  pointer-events: none;
+}
+
+.star-spike {
+  pointer-events: none;
+  stroke-linecap: round;
+}
+
+.star-ring {
+  fill: none;
+  stroke: rgba(247, 177, 255, 0.55);
+  stroke-width: 0.8;
+  stroke-dasharray: 2 2;
+  pointer-events: none;
+}
+
+.star-dot.companion {
+  stroke: none;
+  opacity: 0.82;
+}
+
+.star-companion-orbit {
+  fill: none;
+  stroke: rgba(180, 210, 255, 0.32);
+  stroke-width: 0.65;
+  stroke-dasharray: 2 2;
+  pointer-events: none;
+}
+
+.star-group.hovered .star-dot {
+  filter: brightness(1.3);
+}
+.star-group.selected .star-dot {
+  stroke: rgba(180, 240, 255, 0.5);
+  stroke-width: 1.2;
+}
+
+.star-group.hovered .star-halo,
+.star-group.selected .star-halo {
+  opacity: 1;
+}
+
+.star-badge-cluster {
+  pointer-events: none;
+}
+
+.star-badge rect {
+  fill: rgba(10, 18, 34, 0.88);
+  stroke: rgba(184, 214, 255, 0.28);
+  stroke-width: 0.6;
+}
+
+.star-badge text {
+  fill: #e3f1ff;
+  font-size: 6px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.star-badge--zone-red rect {
+  fill: rgba(120, 26, 26, 0.9);
+  stroke: rgba(255, 144, 144, 0.45);
+}
+
+.star-badge--zone-amber rect {
+  fill: rgba(120, 78, 20, 0.9);
+  stroke: rgba(255, 212, 122, 0.45);
+}
+
+.star-badge--base rect {
+  fill: rgba(72, 56, 18, 0.9);
+  stroke: rgba(244, 210, 124, 0.42);
+}
+
+.star-badge--habitability rect {
+  fill: rgba(18, 74, 44, 0.9);
+  stroke: rgba(122, 232, 168, 0.42);
+}
+
+.polity-glyph {
+  pointer-events: none;
+}
+
+.polity-staff {
+  stroke: rgba(206, 225, 248, 0.6);
+  stroke-width: 0.7;
+}
+
+.polity-banner {
+  stroke: rgba(240, 248, 255, 0.34);
+  stroke-width: 0.55;
+}
+
+.polity-banner-text {
+  fill: rgba(248, 252, 255, 0.9);
+  font-size: 4.6px;
+  font-weight: 700;
+  text-anchor: middle;
+}
+
+.polity-faction-pip {
+  fill: rgba(255, 213, 132, 0.9);
+  stroke: rgba(26, 16, 8, 0.45);
+  stroke-width: 0.35;
+}
+
+.trade-route {
+  stroke: rgba(120, 220, 255, 0.45);
+  stroke-width: 1.1;
+  stroke-dasharray: 4 3;
+  pointer-events: none;
+}
+
+.trade-route--major {
+  filter: drop-shadow(0 0 4px rgba(140, 238, 255, 0.32));
+}
+
+.trade-route--pressure {
+  filter: drop-shadow(0 0 4px rgba(232, 154, 255, 0.24));
+}
+
+.trade-route--frontier {
+  filter: drop-shadow(0 0 4px rgba(144, 228, 190, 0.24));
+}
+
+.trade-route--hazard {
+  filter: drop-shadow(0 0 5px rgba(255, 178, 92, 0.28));
+}
+
+/* ── Universe galaxy dots ─────────────────────────────────────────── */
+.galaxy-dot-name {
+  fill: rgba(200, 230, 255, 0.85);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.star-name-label {
+  fill: rgba(240, 230, 200, 0.82);
+  font-size: 10px;
+  font-weight: 600;
+  paint-order: stroke;
+  stroke: rgba(4, 7, 16, 0.92);
+  stroke-width: 2.5;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.hex-coord-label {
+  fill: rgba(160, 200, 240, 0.52);
+  font-size: 8px;
+  font-family: monospace;
+  pointer-events: none;
+}
+
+.hex-coord-label.empty {
+  fill: rgba(100, 140, 180, 0.28);
+  font-size: 7.5px;
+}
+
+/* ── Inspector ────────────────────────────────────────────────────────────── */
+.atlas-inspector {
+  position: absolute;
+  top: 48px;
+  right: 10px;
+  width: 276px;
+  max-height: calc(100% - 76px);
+  overflow-y: auto;
+  background: rgba(8, 14, 32, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid #2c4a78;
+  border-radius: 0.6rem;
+  z-index: 60;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.65);
+  font-family: "Circular Std", Circular, "Lineto Circular", "Segoe UI", sans-serif;
+}
+
+.atlas-inspector button,
+.atlas-inspector .inspector-title,
+.atlas-inspector .inspector-badge,
+.atlas-inspector .detail-grid,
+.atlas-inspector .star-type-big,
+.atlas-inspector .star-companion-hint,
+.atlas-inspector .orbital-title,
+.atlas-inspector .orbit-label {
+  font-family: inherit;
+}
+
+.inspector-close {
+  position: absolute;
+  top: 0.45rem;
+  right: 0.55rem;
+  background: transparent;
+  border: none;
+  color: #4c6888;
+  font-size: 0.88rem;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.inspector-close:hover {
+  color: #c0d8f0;
+}
+
+.inspector-content {
+  padding: 0.9rem;
+}
+
+.inspector-title {
+  margin: 0 1.5rem 0.4rem 0;
+  color: #8fe3ff;
+  font-size: 1rem;
+  line-height: 1.3;
+}
+
+.inspector-subtitle {
+  margin-bottom: 0.45rem;
+  color: #b8c0cc;
+  font-size: 0.82rem;
+}
+
+.inspector-badge {
+  display: inline-block;
+  font-size: 0.67rem;
+  color: #010c12;
+  background: #6ec9f3;
+  border-radius: 999px;
+  padding: 0.14rem 0.48rem;
+  font-weight: 700;
+  margin-bottom: 0.75rem;
+}
+
+.detail-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.42rem;
+  margin-bottom: 0.9rem;
+}
+
+.dr {
+  display: flex;
+  justify-content: space-between;
+  border-bottom: 1px dashed rgba(100, 160, 210, 0.22);
+  padding-bottom: 0.32rem;
+  font-size: 0.8rem;
+}
+
+.dl {
+  color: #7aa8cc;
+  font-weight: 600;
+}
+.dv {
+  color: #d0e8ff;
+}
+
+.dv--mono {
+  font-family: "Consolas", "SFMono-Regular", "Liberation Mono", monospace;
+  letter-spacing: 0.04em;
+}
+
+.inspector-actions {
+  margin-top: 0.75rem;
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.inspector-generation-panel {
+  margin-top: 0.75rem;
+  margin-bottom: 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.inspector-generation-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.inspector-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.inspector-field-label {
+  color: #7aa8cc;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.inspector-select {
+  width: 100%;
+  padding: 0.45rem 0.55rem;
+  background: rgba(13, 22, 45, 0.95);
+  border: 1px solid rgba(110, 201, 243, 0.35);
+  border-radius: 0.35rem;
+  color: #d0e8ff;
+  font-size: 0.82rem;
+}
+
+.inspector-field-help {
+  color: #b8c0cc;
+  font-size: 0.76rem;
+  line-height: 1.35;
+}
+
+.inspector-tier-policy {
+  display: grid;
+  gap: 0.16rem;
+  padding: 0.42rem 0.5rem;
+  border-radius: 0.45rem;
+  border: 1px solid rgba(123, 205, 245, 0.34);
+  background: rgba(8, 19, 38, 0.9);
+}
+
+.inspector-tier-policy--surveyed {
+  border-color: rgba(91, 194, 255, 0.45);
+  background: rgba(10, 36, 55, 0.9);
+}
+
+.inspector-tier-policy--frontier {
+  border-color: rgba(115, 214, 145, 0.45);
+  background: rgba(11, 36, 27, 0.9);
+}
+
+.inspector-tier-policy--void {
+  border-color: rgba(171, 150, 255, 0.44);
+  background: rgba(28, 22, 45, 0.9);
+}
+
+.inspector-tier-policy--mixed {
+  border-color: rgba(228, 188, 96, 0.45);
+  background: rgba(45, 35, 18, 0.9);
+}
+
+.inspector-tier-policy__tier {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #ddf1ff;
+}
+
+.inspector-tier-policy__rule,
+.inspector-tier-policy__mode {
+  font-size: 0.72rem;
+  line-height: 1.3;
+  color: #b7c5d6;
+}
+
+/* ── Star swatch ──────────────────────────────────────────────────────────── */
+.star-inline {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.star-swatch {
+  flex-shrink: 0;
+}
+
+.star-type-big {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #e0d0a8;
+}
+
+.star-class-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.25rem;
+}
+
+.star-class-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.3rem;
+  padding: 0.08rem 0.42rem;
+  border-radius: 999px;
+  background: rgba(82, 128, 196, 0.18);
+  border: 1px solid rgba(134, 190, 255, 0.22);
+  color: #cfe6ff;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.star-class-chip--accent {
+  background: rgba(255, 214, 148, 0.14);
+  border-color: rgba(255, 214, 148, 0.26);
+  color: #ffe1ad;
+}
+
+.star-companion-hint {
+  font-size: 0.73rem;
+  color: #a08860;
+  margin-top: 0.12rem;
+}
+
+.detail-grid--system {
+  margin-bottom: 0.7rem;
+}
+
+.trade-code-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.75rem;
+}
+
+.base-code-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.5rem;
+}
+
+.legacy-code-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.5rem;
+}
+
+.trade-code-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.45rem;
+  padding: 0.08rem 0.45rem;
+  border-radius: 999px;
+  background: rgba(70, 130, 210, 0.2);
+  border: 1px solid rgba(120, 190, 255, 0.24);
+  color: #bfe3ff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.base-code-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.45rem;
+  padding: 0.08rem 0.45rem;
+  border-radius: 999px;
+  background: rgba(214, 155, 66, 0.18);
+  border: 1px solid rgba(237, 190, 108, 0.24);
+  color: #f0d49a;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.legacy-code-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.45rem;
+  padding: 0.08rem 0.45rem;
+  border-radius: 999px;
+  background: rgba(210, 124, 70, 0.18);
+  border: 1px solid rgba(255, 178, 118, 0.28);
+  color: #ffd4ab;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.inspector-note {
+  margin: 0 0 0.75rem;
+  color: #88a7c9;
+  font-size: 0.73rem;
+  line-height: 1.45;
+}
+
+.atlas-key-panel {
+  margin: 0 0 0.85rem;
+  padding: 0.65rem 0.7rem;
+  border: 1px solid rgba(74, 112, 164, 0.3);
+  border-radius: 0.45rem;
+  background: rgba(10, 18, 34, 0.68);
+}
+
+.atlas-key-title {
+  margin-bottom: 0.45rem;
+  color: #7aa8cc;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.atlas-key-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.32rem;
+}
+
+.atlas-key-row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.atlas-key-copy {
+  color: #c6dbf0;
+  font-size: 0.7rem;
+  line-height: 1.3;
+}
+
+.legend-route-sample {
+  display: inline-block;
+  width: 22px;
+  height: 0;
+  border-top-width: 2px;
+  border-top-style: solid;
+  flex-shrink: 0;
+}
+
+.legend-route-sample--major {
+  border-top-color: rgba(134, 229, 255, 0.92);
+}
+
+.legend-route-sample--pressure {
+  border-top-color: rgba(232, 154, 255, 0.82);
+  border-top-style: dashed;
+}
+
+.legend-route-sample--hazard {
+  border-top-color: rgba(255, 178, 92, 0.82);
+  border-top-style: dashed;
+}
+
+.legend-chip-sample {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 19px;
+  height: 12px;
+  padding: 0 0.25rem;
+  border-radius: 999px;
+  border: 1px solid rgba(184, 214, 255, 0.28);
+  color: #eef7ff;
+  font-size: 0.58rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.legend-chip-sample--zone {
+  background: rgba(120, 78, 20, 0.9);
+}
+
+.legend-chip-sample--base {
+  background: rgba(72, 56, 18, 0.9);
+}
+
+.legend-chip-sample--habitability {
+  background: rgba(18, 74, 44, 0.9);
+}
+
+.legend-polity-sample {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 0.18rem;
+  min-width: 24px;
+  flex-shrink: 0;
+}
+
+.legend-polity-staff {
+  width: 1px;
+  height: 12px;
+  background: rgba(206, 225, 248, 0.65);
+}
+
+.legend-polity-banner {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 11px;
+  height: 8px;
+  margin-top: 0.5px;
+  background: #5f8dff;
+  clip-path: polygon(0 0, 100% 32%, 0 100%);
+  color: rgba(248, 252, 255, 0.95);
+  font-size: 0.46rem;
+  font-weight: 700;
+}
+
+.legend-polity-pips {
+  display: inline-flex;
+  gap: 0.12rem;
+  margin-top: 0.9px;
+}
+
+.legend-polity-pips span {
+  width: 3px;
+  height: 3px;
+  border-radius: 999px;
+  background: rgba(255, 213, 132, 0.95);
+}
+
+/* ── Orbital diagram ──────────────────────────────────────────────────────── */
+.orbital-section {
+  margin-top: 0.55rem;
+}
+
+.orbital-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.orbital-title {
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: #7aa8cc;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.orbital-svg {
+  width: 100%;
+  height: 175px;
+  display: block;
+  border-radius: 0.4rem;
+  overflow: hidden;
+}
+
+.orbit-planet {
+  stroke: rgba(255, 255, 255, 0.18);
+  stroke-width: 0.5;
+}
+
+.orbit-label {
+  fill: rgba(200, 220, 255, 0.58);
+  font-size: 5.5px;
+  pointer-events: none;
+}
+
+/* ── Status bar ───────────────────────────────────────────────────────────── */
+.atlas-status {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.22rem 1rem;
+  background: rgba(6, 10, 28, 0.82);
+  border-top: 1px solid #1e3460;
+  font-size: 0.7rem;
+  color: #5070a0;
+  pointer-events: none;
+  z-index: 50;
+}
+
+.status-hex {
+  color: #8ab8d8;
+  font-family: monospace;
+}
+
+.status-star-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  color: #a7bfd7;
+  font-size: 0.66rem;
+}
+
+.status-political-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  pointer-events: auto;
+}
+
+.political-legend-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.32rem;
+  background: rgba(14, 25, 46, 0.92);
+  color: #8eb4d6;
+  border: 1px solid rgba(52, 84, 126, 0.8);
+  border-radius: 999px;
+  padding: 0.12rem 0.46rem;
+  font-size: 0.64rem;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.political-legend-chip:hover {
+  color: #d4ebff;
+  border-color: rgba(100, 156, 220, 0.95);
+}
+
+.political-legend-chip.active {
+  background: rgba(30, 72, 122, 0.95);
+  color: #d8efff;
+  border-color: rgba(116, 190, 255, 0.95);
+}
+
+.political-legend-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+}
+
+.political-legend-swatch--all {
+  background: linear-gradient(135deg, #2d6c5f 0%, #3f86c4 35%, #8b5ac9 68%, #a93f64 100%);
+}
+
+.status-route-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  pointer-events: auto;
+}
+
+.route-legend-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.32rem;
+  background: rgba(14, 25, 46, 0.92);
+  color: #98b6d6;
+  border: 1px solid rgba(52, 84, 126, 0.8);
+  border-radius: 999px;
+  padding: 0.12rem 0.46rem;
+  font-size: 0.64rem;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.route-legend-chip:hover {
+  color: #d4ebff;
+  border-color: rgba(100, 156, 220, 0.95);
+}
+
+.route-legend-chip.active {
+  background: rgba(30, 72, 122, 0.95);
+  color: #d8efff;
+  border-color: rgba(116, 190, 255, 0.95);
+}
+
+.legend-count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 5.1rem;
+  height: 1rem;
+  padding: 0 0.24rem;
+  border-radius: 999px;
+  background: rgba(8, 14, 28, 0.72);
+  color: #dcecff;
+  font-size: 0.58rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+
+.route-legend-sample {
+  width: 16px;
+  height: 0;
+  border-top-width: 2px;
+  border-top-style: solid;
+  border-top-color: rgba(120, 220, 255, 0.72);
+}
+
+.route-legend-sample--all {
+  border-top-color: rgba(120, 220, 255, 0.72);
+}
+
+.route-legend-sample--standard {
+  border-top-color: rgba(120, 220, 255, 0.72);
+  border-top-style: dashed;
+}
+
+.route-legend-sample--major {
+  border-top-color: rgba(134, 229, 255, 0.92);
+}
+
+.route-legend-sample--frontier {
+  border-top-color: rgba(144, 228, 190, 0.86);
+  border-top-style: dashed;
+}
+
+.route-legend-sample--pressure {
+  border-top-color: rgba(232, 154, 255, 0.82);
+  border-top-style: dashed;
+}
+
+.route-legend-sample--hazard {
+  border-top-color: rgba(255, 178, 92, 0.82);
+  border-top-style: dashed;
+}
+
+.status-space-tier {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #7da7cb;
+  font-size: 0.66rem;
+}
+
+.status-policy-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: #7da7cb;
+  font-size: 0.66rem;
+}
+
+.space-tier-label {
+  font-weight: 700;
+  color: #99b4d0;
+  letter-spacing: 0.02em;
+}
+
+.status-policy-label {
+  font-weight: 700;
+  color: #99b4d0;
+  letter-spacing: 0.02em;
+}
+
+.space-tier-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  background: rgba(14, 25, 46, 0.88);
+  color: #8ab8d8;
+  border: 1px solid rgba(52, 84, 126, 0.7);
+  border-radius: 999px;
+  padding: 0.12rem 0.42rem;
+  font-size: 0.64rem;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.status-policy-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  background: rgba(14, 25, 46, 0.88);
+  color: #8ab8d8;
+  border: 1px solid rgba(52, 84, 126, 0.7);
+  border-radius: 999px;
+  padding: 0.12rem 0.42rem;
+  font-size: 0.64rem;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.space-tier-surveyed {
+  border-color: rgba(84, 200, 255, 0.6);
+}
+
+.space-tier-frontier {
+  border-color: rgba(116, 206, 160, 0.6);
+}
+
+.space-tier-void {
+  border-color: rgba(180, 120, 200, 0.6);
+}
+
+.status-policy-chip--surveyed {
+  border-color: rgba(84, 200, 255, 0.6);
+}
+
+.status-policy-chip--frontier {
+  border-color: rgba(116, 206, 160, 0.6);
+}
+
+.status-policy-chip--void {
+  border-color: rgba(180, 120, 200, 0.6);
+}
+
+.status-planning-window {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: #d0c29a;
+  font-size: 0.64rem;
+}
+
+.status-planning-window__label {
+  color: #f1dea1;
+  font-weight: 700;
+}
+
+.status-planning-window__stats {
+  color: #cdbf96;
+}
+
+.status-planning-window__meter {
+  display: inline-flex;
+  width: 68px;
+  height: 7px;
+  border-radius: 999px;
+  background: rgba(78, 63, 29, 0.72);
+  border: 1px solid rgba(194, 163, 90, 0.38);
+  overflow: hidden;
+}
+
+.status-planning-window__meter-fill {
+  height: 100%;
+  background: linear-gradient(90deg, rgba(233, 185, 74, 0.92) 0%, rgba(245, 222, 158, 0.96) 100%);
+}
+
+.tier-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.2rem;
+  height: 1rem;
+  border-radius: 3px;
+  font-weight: 700;
+  font-size: 0.58rem;
+  letter-spacing: 0.05em;
+}
+
+.tier-badge--surveyed {
+  background: rgba(84, 200, 255, 0.25);
+  color: #54c8ff;
+}
+
+.tier-badge--frontier {
+  background: rgba(116, 206, 160, 0.25);
+  color: #74cea0;
+}
+
+.tier-badge--void {
+  background: rgba(180, 120, 200, 0.25);
+  color: #b478c8;
+}
+
+.status-legend-key {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.12rem 0.42rem;
+  border-radius: 999px;
+  border: 1px solid rgba(82, 112, 152, 0.62);
+  background: rgba(10, 18, 34, 0.84);
+  color: #88a7c9;
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.status-layer-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  pointer-events: auto;
+}
+
+.status-toggle-chip {
+  background: rgba(14, 25, 46, 0.92);
+  color: #7da7cb;
+  border: 1px solid rgba(52, 84, 126, 0.8);
+  border-radius: 999px;
+  padding: 0.12rem 0.46rem;
+  font-size: 0.64rem;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.status-toggle-chip:hover {
+  color: #c1dcf4;
+  border-color: rgba(100, 156, 220, 0.95);
+}
+
+.status-toggle-chip.active {
+  background: rgba(30, 72, 122, 0.95);
+  color: #d8efff;
+  border-color: rgba(116, 190, 255, 0.95);
+}
+
+.trade-route--highlighted {
+  filter: drop-shadow(0 0 6px rgba(214, 244, 255, 0.38));
+}
+
+.trade-route--dimmed {
+  filter: none;
+}
+
+.star-legend-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.32rem;
+  white-space: nowrap;
+}
+
+.star-legend-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+}
+
+.status-density {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  color: #89a9c4;
+  font-size: 0.66rem;
+}
+
+.density-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  white-space: nowrap;
+}
+
+.density-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  border: 1px solid rgba(180, 220, 255, 0.28);
+}
+
+.status-right {
+  color: #405070;
+  font-family: monospace;
+}
+
+/* ── Slide-in transition ──────────────────────────────────────────────────── */
+.slide-in-enter-active {
+  transition:
+    transform 0.2s ease,
+    opacity 0.2s ease;
+}
+.slide-in-leave-active {
+  transition:
+    transform 0.15s ease,
+    opacity 0.15s ease;
+}
+.slide-in-enter-from {
+  transform: translateX(18px);
+  opacity: 0;
+}
+.slide-in-leave-to {
+  transform: translateX(18px);
+  opacity: 0;
+}
+
+/* ── Buttons ──────────────────────────────────────────────────────────────── */
+.btn {
+  padding: 0.38rem 0.8rem;
+  border: none;
+  border-radius: 0.32rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.btn-primary {
+  background: #1a5fba;
+  color: #dff0ff;
+}
+.btn-primary:hover {
+  background: #2070d0;
+}
+</style>
