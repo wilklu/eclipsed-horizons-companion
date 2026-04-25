@@ -113,12 +113,13 @@
             </div>
           </div>
           <button class="btn btn-secondary world-header-survey-btn" @click="openWorldPhysicalSurvey">
-            📝 Open World Survey
+            📝 {{ worldPhysicalSurveyButtonLabel }}
           </button>
         </div>
 
         <div class="world-grid">
-          <section class="world-section">
+          <!-- TERRESTRIAL/PLANETARY PROPERTIES -->
+          <section class="world-section" v-if="!isGasGiantSurvey">
             <div class="section-header">
               <h3>🔬 Physical Properties</h3>
               <button
@@ -176,6 +177,67 @@
             </div>
           </section>
 
+          <!-- GAS GIANT PROPERTIES -->
+          <section class="world-section" v-else>
+            <div class="section-header">
+              <h3>⭐ Gas Giant Properties</h3>
+              <button
+                class="btn btn-secondary section-reroll"
+                type="button"
+                data-test="reroll-physical"
+                @click="rerollWorldSection('physical')"
+              >
+                🎲 Reroll
+              </button>
+            </div>
+            <div class="prop-list">
+              <div class="prop-row">
+                <span class="prop-label">Size Code:</span>
+                <span class="prop-value">{{ world.size ?? "—" }} ({{ formatDistanceKm(world.diameterKm) }})</span>
+              </div>
+              <div class="prop-row">
+                <span class="prop-label">Mass:</span>
+                <span class="prop-value">{{ world.mass ?? "—" }} M⊕</span>
+              </div>
+              <div class="prop-row">
+                <span class="prop-label">Composition:</span>
+                <span class="prop-value">{{ world.composition ?? "—" }}</span>
+              </div>
+              <div class="prop-row">
+                <span class="prop-label">Gravity (cloud-top):</span>
+                <span class="prop-value">{{ world.gravity ?? "—" }} G</span>
+              </div>
+              <div class="prop-row">
+                <span class="prop-label">Cloud-top Temp:</span>
+                <span class="prop-value">{{
+                  (formatTemperatureFromCelsius(world.cloudTopTempC) ?? world.avgTempC)
+                    ? formatTemperatureFromCelsius(world.avgTempC)
+                    : "—"
+                }}</span>
+              </div>
+              <div class="prop-row">
+                <span class="prop-label">Magnetosphere:</span>
+                <span class="prop-value">{{ world.magnetosphereTesla ?? "—" }}</span>
+              </div>
+              <div class="prop-row">
+                <span class="prop-label">Moon Count:</span>
+                <span class="prop-value">{{ world.moonCount ?? 0 }}</span>
+              </div>
+              <div class="prop-row">
+                <span class="prop-label">Fuel Skimming:</span>
+                <span class="prop-value">{{ world.fuelSkimmingRating ?? "—" }}</span>
+              </div>
+              <div class="prop-row">
+                <span class="prop-label">Resource Rating:</span>
+                <span class="prop-value">{{ world.resourceRating }}</span>
+              </div>
+              <div class="prop-row">
+                <span class="prop-label">Radiation Hazard:</span>
+                <span class="prop-value">{{ world.radiationHazard ?? "Low" }}</span>
+              </div>
+            </div>
+          </section>
+
           <section class="world-section world-section--compact">
             <div class="section-header">
               <h3>📡 Orbital Properties</h3>
@@ -212,7 +274,7 @@
             </div>
           </section>
 
-          <section class="world-section">
+          <section v-if="showBiosocialSurveySections" class="world-section">
             <div class="section-header">
               <h3>🧬 Life Survey</h3>
               <button
@@ -274,7 +336,7 @@
             </div>
           </section>
 
-          <section class="world-section">
+          <section v-if="showBiosocialSurveySections" class="world-section">
             <div class="section-header">
               <h3>🌐 Linked Ecology & Society</h3>
             </div>
@@ -396,7 +458,7 @@
             </div>
           </section>
 
-          <section class="world-section">
+          <section v-if="showBiosocialSurveySections" class="world-section">
             <div class="section-header">
               <h3>👥 World Census</h3>
               <button
@@ -433,7 +495,7 @@
           </section>
         </div>
 
-        <div class="action-buttons">
+        <div v-if="showBiosocialSurveySections" class="action-buttons">
           <button class="btn btn-primary" @click="goToCreatureGenerator">🐾 Fauna Generator →</button>
           <button class="btn btn-primary" @click="goToFloraGenerator">🌱 Flora Generator →</button>
           <button
@@ -782,6 +844,36 @@ const selectedCatalogWorldNumber = computed(() => {
 
 const canNavigateCatalogWorlds = computed(() => {
   return catalogWorldCount.value > 1 && selectedCatalogWorldNumber.value !== null;
+});
+
+function isGasGiantWorldType(type) {
+  return (
+    String(type || "")
+      .trim()
+      .toLowerCase() === "gas giant"
+  );
+}
+
+function isBiosocialSurveyExcludedWorldType(type) {
+  const normalizedType = String(type || "")
+    .trim()
+    .toLowerCase();
+  return normalizedType === "gas giant" || normalizedType === "planetoid belt";
+}
+
+const activeWorldType = computed(() => {
+  const selectedPlanet = getSelectedPlanetRecord();
+  return String(sourceWorldType.value || selectedPlanet?.type || world.value?.type || "").trim();
+});
+
+const isGasGiantSurvey = computed(() => isGasGiantWorldType(activeWorldType.value));
+
+const showBiosocialSurveySections = computed(() => {
+  return !isBiosocialSurveyExcludedWorldType(activeWorldType.value);
+});
+
+const worldPhysicalSurveyButtonLabel = computed(() => {
+  return isGasGiantSurvey.value ? "Open Gas Giant Survey" : "Open World Survey";
 });
 
 const linkedWorldCriteria = computed(() => {
@@ -1585,7 +1677,7 @@ function openWorldPhysicalSurvey() {
   });
 
   router.push({
-    name: "WorldPhysicalSurvey",
+    name: isGasGiantSurvey.value ? "GasGiantPhysicalSurvey" : "WorldPhysicalSurvey",
     params: {
       systemId: String(route.params.systemId || ""),
       worldIndex: String(getSelectedWorldIndex() ?? route.query.worldIndex ?? ""),

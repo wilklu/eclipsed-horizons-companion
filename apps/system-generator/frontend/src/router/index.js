@@ -69,6 +69,13 @@ const routes = [
     meta: { title: "World Physical Survey" },
   },
   {
+    path: "/gas-giant-physical-survey/:systemId?/:worldIndex?",
+    name: "GasGiantPhysicalSurvey",
+    component: () => import("../pages/surveys/GasGiantPhysicalSurvey.vue"),
+    props: true,
+    meta: { title: "Gas Giant Physical Survey" },
+  },
+  {
     path: "/sophont-generator",
     name: "SophontGenerator",
     component: () => import("../pages/surveys/SophontGenerator.vue"),

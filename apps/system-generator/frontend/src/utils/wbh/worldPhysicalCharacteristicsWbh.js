@@ -422,6 +422,7 @@ function normalizeWorldSubtypeToken(value = "") {
 function resolveWorldSubtypeEnvironmentalBias(world = {}) {
   const subtype = normalizeWorldSubtypeToken(world?.worldSubtype || world?.worldClass || world?.worldDescriptor);
   const orbitBandKey = normalizeWorldSubtypeToken(world?.orbitBandKey);
+  const zoneToken = normalizeWorldSubtypeToken(world?.zone);
   const type = normalizeWorldSubtypeToken(world?.type || world?.worldType);
   const bias = {
     atmosphereDm: 0,
@@ -435,6 +436,22 @@ function resolveWorldSubtypeEnvironmentalBias(world = {}) {
     minHydrographics: null,
     maxHydrographics: null,
   };
+
+  // Orbit band and type DMs apply regardless of world subtype classification
+  const isOuterZone = orbitBandKey === "outer" || zoneToken.includes("outer");
+  const isEpistellar = orbitBandKey === "epistellar" || zoneToken.includes("epistellar");
+  if (isEpistellar) {
+    bias.tempDm += 8;
+    bias.biomassDm -= 1;
+  } else if (isOuterZone) {
+    bias.tempDm -= 8;
+    bias.biomassDm -= 3;
+    bias.biocomplexityDm -= 1;
+  }
+
+  if (type.includes("gas giant") || type.includes("jovian")) {
+    bias.biomassDm = Math.min(bias.biomassDm, -6);
+  }
 
   if (!subtype) {
     return bias;
@@ -630,17 +647,6 @@ function resolveWorldSubtypeEnvironmentalBias(world = {}) {
     bias.tempDm += 18;
     bias.biomassDm -= 6;
     bias.habitabilityDm -= 4;
-  }
-
-  if (orbitBandKey === "epistellar") {
-    bias.tempDm += 8;
-    bias.biomassDm -= 1;
-  } else if (orbitBandKey === "outer") {
-    bias.tempDm -= 8;
-  }
-
-  if (type.includes("gas giant") || type.includes("jovian")) {
-    bias.biomassDm = Math.min(bias.biomassDm, -6);
   }
 
   return bias;

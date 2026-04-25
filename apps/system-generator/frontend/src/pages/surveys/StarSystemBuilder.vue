@@ -931,7 +931,14 @@ function buildStar(requestedType, role) {
 }
 
 function isWorldBuilderCandidate(planet) {
-  return Boolean(planet) && String(planet?.type || "") !== "Gas Giant" && String(planet?.sizeCode || "") !== "R";
+  if (!planet) {
+    return false;
+  }
+
+  const planetType = String(planet?.type || "")
+    .trim()
+    .toLowerCase();
+  return planetType !== "ring";
 }
 
 function describePlanetType(planet) {
