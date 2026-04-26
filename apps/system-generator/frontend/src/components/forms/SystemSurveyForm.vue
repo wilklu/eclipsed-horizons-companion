@@ -684,26 +684,28 @@ watch(
 );
 
 // Also flush on navigate-away in case the debounce hasn't fired yet
-onBeforeRouteLeave(() => {
-  if (_nameSaveTimer) {
-    clearTimeout(_nameSaveTimer);
-    _nameSaveTimer = null;
-  }
-  const systemRecord = resolvedSystemRecord.value;
-  const nextName = String(surveyData.value.systemDesignation || "").trim();
-  if (!nextName) return;
-  const stored = String(
-    systemRecord?.name ||
-      systemRecord?.systemName ||
-      systemRecord?.systemDesignation ||
-      systemRecord?.metadata?.systemRecord?.name ||
-      systemRecord?.metadata?.displayName ||
-      "",
-  ).trim();
-  if (nextName !== stored) {
-    saveSystemName(nextName, systemRecord);
-  }
-});
+if (typeof onBeforeRouteLeave === "function") {
+  onBeforeRouteLeave(() => {
+    if (_nameSaveTimer) {
+      clearTimeout(_nameSaveTimer);
+      _nameSaveTimer = null;
+    }
+    const systemRecord = resolvedSystemRecord.value;
+    const nextName = String(surveyData.value.systemDesignation || "").trim();
+    if (!nextName) return;
+    const stored = String(
+      systemRecord?.name ||
+        systemRecord?.systemName ||
+        systemRecord?.systemDesignation ||
+        systemRecord?.metadata?.systemRecord?.name ||
+        systemRecord?.metadata?.displayName ||
+        "",
+    ).trim();
+    if (nextName !== stored) {
+      saveSystemName(nextName, systemRecord);
+    }
+  });
+}
 
 // Save survey
 const saveSurvey = async () => {

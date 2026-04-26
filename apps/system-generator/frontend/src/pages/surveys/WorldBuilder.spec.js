@@ -81,6 +81,7 @@ const sophontStoreState = reactive({
 vi.mock("vue-router", () => ({
   useRouter: () => ({ push: hoisted.routerPush, replace: hoisted.routerReplace }),
   useRoute: () => routeState,
+  onBeforeRouteLeave: () => {},
 }));
 
 vi.mock("../../stores/systemStore.js", () => ({

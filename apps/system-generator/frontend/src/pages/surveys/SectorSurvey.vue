@@ -273,6 +273,9 @@
               <div class="control-help control-help--multiline">
                 {{ generationAction?.description }}
               </div>
+              <div class="control-inline-row control-inline-row--generation">
+                <div class="survey-action-label">{{ surveyActionLabel }}</div>
+              </div>
               <div class="tier-policy-badge" :class="`tier-policy-badge--${generationPolicyBadge.tier}`">
                 <span class="tier-policy-badge__tier">{{ generationPolicyBadge.tierLabel }}</span>
                 <span class="tier-policy-badge__rule">{{ generationPolicyBadge.rule }}</span>
@@ -335,6 +338,26 @@
                       <span class="survey-checklist-item__detail">{{ item.detail }}</span>
                     </span>
                   </div>
+                </div>
+              </div>
+            </div>
+            <div v-if="generatedSector" class="control-group control-group--span-2">
+              <label>Guided Review Queue</label>
+              <div class="review-queue-card">
+                <div class="review-queue-copy">Jump to the next queued follow-up item in this viewport.</div>
+                <div class="review-queue-grid" role="group" aria-label="Guided review queue">
+                  <button
+                    v-for="option in reviewQueueOptions"
+                    :key="option.id"
+                    type="button"
+                    class="review-queue-btn btn btn-secondary"
+                    :class="{ active: activeReviewQueue === option.id }"
+                    :aria-pressed="activeReviewQueue === option.id"
+                    @click="jumpToReviewQueue(option.id)"
+                  >
+                    <span>{{ option.label }}</span>
+                    <span class="review-queue-badge">{{ option.count }}</span>
+                  </button>
                 </div>
               </div>
             </div>
@@ -1695,10 +1718,10 @@ const tierAwareGenerationMode = computed(() =>
 const fullGenerationBlockedByTier = computed(() => false);
 const fullGenerationBlockedReason = computed(() => "");
 const generationModeOptions = computed(() => [
-  { id: "name", label: "Generate Name" },
-  { id: "name-presence", label: "Generate Presence" },
-  { id: "name-systems", label: "Generate System" },
-  { id: "full", label: "Generate All" },
+  { id: "name", label: "Name Only" },
+  { id: "name-presence", label: "Presence Only" },
+  { id: "name-systems", label: "Name + Systems" },
+  { id: "full", label: "Systems + Worlds" },
 ]);
 const generationAction = computed(() => {
   const requestedMode = effectiveGenerationMode.value;
@@ -1778,6 +1801,17 @@ const generationPolicyBadge = computed(() => {
     wasAdjusted,
     modeLabel: wasAdjusted ? `Mode adjusted: ${requestedMode} -> ${modeForTier}` : `Mode: ${modeForTier}`,
   };
+});
+const surveyActionLabel = computed(() => {
+  const tierMode = String(tierAwareGenerationMode.value || "").trim();
+  const requested = String(effectiveGenerationMode.value || "").trim();
+  if (tierMode === "name") return "Save Sector Name";
+  if (tierMode === "name-presence" || tierMode === "presence") return "Save Sector Name + Presence";
+  if (tierMode === "name-systems") {
+    return requested === "full" ? "Name + Systems + Worlds" : "Name + Systems";
+  }
+  if (tierMode === "full") return "Name + Systems + Worlds";
+  return String(generationAction?.label || "").trim();
 });
 
 watch(
@@ -3900,7 +3934,11 @@ async function loadPersistedSector(sectorId, showToast = false) {
     const renderScope = currentViewMode.value === "sector" ? "sector" : loadedScope;
     const cols = renderScope === "sector" ? 32 : inferredCols;
     const rows = renderScope === "sector" ? 40 : inferredRows;
-    const sectorSystems = systemStore.systems.filter((s) => String(s?.sectorId) === String(sectorId));
+    const sectorSystems = (Array.isArray(systemStore.systems) ? systemStore.systems : []).filter((s) => {
+      const systemSectorId = String(s?.sectorId || "").trim();
+      const systemId = String(s?.systemId || "").trim();
+      return systemSectorId === String(sectorId) || (systemId && systemId.startsWith(`${String(sectorId)}:`));
+    });
     const { hexes: baseHexes } = buildHexGridFromSystems(sectorSystems, cols, rows);
 
     // Merge in any presence-only markers from a previous "Generate All Sectors" pass.

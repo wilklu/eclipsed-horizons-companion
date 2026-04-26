@@ -216,12 +216,28 @@ export function useGalaxySurveyGenerationController({
     const pendingKey = mode === "systems" ? "systemsPendingCount" : "presencePendingCount";
     const ringSummary = ringSummaries.find((summary) => Number(summary?.[pendingKey]) > 0) || null;
 
+    // Debug: surface guidance/ringSummary to test logs when running under test harness.
+    if (typeof console !== "undefined" && typeof console.debug === "function") {
+      try {
+        console.debug("runGuidedGenerationStep: guidance rings", ringSummaries.length, "pendingKey", pendingKey);
+        console.debug("runGuidedGenerationStep: selected ringSummary", ringSummary && ringSummary.ring);
+      } catch (e) {
+        // no-op
+      }
+    }
+
     if (!ringSummary) {
       toastService?.info?.(`No ${mode} frontier is pending right now.`);
       return false;
     }
 
     if (typeof generateRing !== "function") {
+      // Debug: note missing generator function
+      if (typeof console !== "undefined" && typeof console.warn === "function") {
+        try {
+          console.warn("runGuidedGenerationStep: generateRing is not a function");
+        } catch (e) {}
+      }
       return false;
     }
 

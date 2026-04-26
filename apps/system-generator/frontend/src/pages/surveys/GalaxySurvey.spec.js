@@ -116,6 +116,7 @@ const preferencesStoreState = reactive({
 vi.mock("vue-router", () => ({
   useRouter: () => ({ push: routerPush, replace: routerReplace }),
   useRoute: () => ({ query: { galaxyId: "gal-1" } }),
+  onBeforeRouteLeave: () => {},
 }));
 
 vi.mock("../../stores/galaxyStore.js", () => ({

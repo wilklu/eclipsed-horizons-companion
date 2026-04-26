@@ -54,6 +54,7 @@ const systemStoreState = reactive(hoisted.systemStoreState);
 vi.mock("vue-router", () => ({
   useRoute: () => routeState,
   useRouter: () => ({ push: hoisted.routerPush, replace: hoisted.routerReplace }),
+  onBeforeRouteLeave: () => {},
 }));
 
 vi.mock("../../stores/preferencesStore.js", () => ({

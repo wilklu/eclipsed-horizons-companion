@@ -2,7 +2,13 @@
   <div class="composition-editor">
     <div class="editor-header">
       <input v-model="local.description" placeholder="Description" class="desc-input" />
-      <input v-model.number="local.metallicity" type="number" step="0.01" placeholder="Metallicity" class="small-input" />
+      <input
+        v-model.number="local.metallicity"
+        type="number"
+        step="0.01"
+        placeholder="Metallicity"
+        class="small-input"
+      />
       <input v-model="local.oxidationState" placeholder="Oxidation" class="small-input" />
       <button type="button" class="btn btn-small" @click="normalizeBulk">Normalize</button>
     </div>
@@ -79,7 +85,10 @@ const emitChange = () => {
     metallicity: typeof local.metallicity === "number" ? local.metallicity : null,
     oxidationState: local.oxidationState ?? null,
     bulkElementAbundances: Array.isArray(local.bulkElementAbundances)
-      ? local.bulkElementAbundances.map((e) => ({ element: String(e.element || ""), weightPercent: Number(e.weightPercent || 0) }))
+      ? local.bulkElementAbundances.map((e) => ({
+          element: String(e.element || ""),
+          weightPercent: Number(e.weightPercent || 0),
+        }))
       : [],
     atomicComposition: Array.isArray(local.atomicComposition) ? local.atomicComposition.slice() : [],
     majorReservoirs: {
@@ -87,7 +96,9 @@ const emitChange = () => {
       mantle: Array.isArray(local.majorReservoirs?.mantle) ? local.majorReservoirs.mantle.slice() : [],
       crust: Array.isArray(local.majorReservoirs?.crust) ? local.majorReservoirs.crust.slice() : [],
     },
-    volatiles: Array.isArray(local.volatiles) ? local.volatiles.map((v) => ({ species: String(v.species || ""), weightPercent: Number(v.weightPercent || 0) })) : [],
+    volatiles: Array.isArray(local.volatiles)
+      ? local.volatiles.map((v) => ({ species: String(v.species || ""), weightPercent: Number(v.weightPercent || 0) }))
+      : [],
     provenance: local.provenance ?? null,
   };
   emit("update:modelValue", payload);
@@ -143,15 +154,26 @@ const crustText = computed({
 });
 
 function updateReservoir(name, text) {
-  if (!local.majorReservoirs || typeof local.majorReservoirs !== "object") local.majorReservoirs = { core: [], mantle: [], crust: [] };
-  const arr = String(text || "").split(",").map((s) => String(s || "").trim()).filter(Boolean);
+  if (!local.majorReservoirs || typeof local.majorReservoirs !== "object")
+    local.majorReservoirs = { core: [], mantle: [], crust: [] };
+  const arr = String(text || "")
+    .split(",")
+    .map((s) => String(s || "").trim())
+    .filter(Boolean);
   local.majorReservoirs[name] = arr;
   emitChange();
 }
 
 // watch for local changes (simple deep watcher) and emit
 watch(
-  () => [local.bulkElementAbundances, local.volatiles, local.description, local.metallicity, local.oxidationState, local.majorReservoirs],
+  () => [
+    local.bulkElementAbundances,
+    local.volatiles,
+    local.description,
+    local.metallicity,
+    local.oxidationState,
+    local.majorReservoirs,
+  ],
   () => {
     emitChange();
   },
@@ -171,14 +193,50 @@ watch(
   align-items: center;
   margin-bottom: 8px;
 }
-.desc-input { flex: 1; padding: 6px; }
-.small-input { width: 100px; padding: 6px; }
-.section { margin-top: 8px; }
-.section-title { font-size: 11px; font-weight: bold; margin-bottom: 6px; }
-.rows .row { display:flex; gap:6px; align-items:center; margin-bottom:6px }
-.elem-input { flex: 1; padding:6px }
-.pct-input { width:110px; padding:6px }
-.reservoir-input { width:100%; padding:6px; margin-bottom:6px }
-.row-actions { display:flex; gap:8px; align-items:center }
-.btn-remove { background:transparent; border:none; color:#900; font-weight:bold }
+.desc-input {
+  flex: 1;
+  padding: 6px;
+}
+.small-input {
+  width: 100px;
+  padding: 6px;
+}
+.section {
+  margin-top: 8px;
+}
+.section-title {
+  font-size: 11px;
+  font-weight: bold;
+  margin-bottom: 6px;
+}
+.rows .row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.elem-input {
+  flex: 1;
+  padding: 6px;
+}
+.pct-input {
+  width: 110px;
+  padding: 6px;
+}
+.reservoir-input {
+  width: 100%;
+  padding: 6px;
+  margin-bottom: 6px;
+}
+.row-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.btn-remove {
+  background: transparent;
+  border: none;
+  color: #900;
+  font-weight: bold;
+}
 </style>

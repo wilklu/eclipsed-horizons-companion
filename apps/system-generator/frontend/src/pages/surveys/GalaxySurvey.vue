@@ -4525,6 +4525,13 @@ async function confirmResetGeneratedContent() {
 async function generateRingByNumber({ ring, mode = "systems", reason = "manual" } = {}) {
   const galaxy = currentGalaxy.value;
   const targetRing = Number(ring);
+  if (typeof console !== "undefined" && typeof console.debug === "function") {
+    try {
+      console.debug("generateRingByNumber: start", { galaxyId: galaxy?.galaxyId, targetRing, mode, reason });
+    } catch (e) {
+      // no-op
+    }
+  }
   if (!galaxy?.galaxyId || !Number.isFinite(targetRing)) {
     toastService.error("Select a ring tile first.");
     errorMessage.value = "Select a valid ring tile before running generation.";
@@ -4551,6 +4558,11 @@ async function generateRingByNumber({ ring, mode = "systems", reason = "manual" 
         progressLabel: `Generating ring ${targetRing} presence`,
         totalCount: ringSectors.length,
       });
+      if (typeof console !== "undefined" && typeof console.debug === "function") {
+        try {
+          console.debug("generateRingByNumber: presence result", result);
+        } catch (e) {}
+      }
       await sectorStore.loadSectors(galaxy.galaxyId);
       await syncGenerationFrontierSelection({ preferMode: "systems", announce: true });
       recordGalaxySurveyHistory({
@@ -4579,6 +4591,11 @@ async function generateRingByNumber({ ring, mode = "systems", reason = "manual" 
         progressLabel: `Generating ring ${targetRing} systems`,
         totalCount: ringSectors.length,
       });
+      if (typeof console !== "undefined" && typeof console.debug === "function") {
+        try {
+          console.debug("generateRingByNumber: systems result", result);
+        } catch (e) {}
+      }
       await sectorStore.loadSectors(galaxy.galaxyId);
       await syncGenerationFrontierSelection({ preferMode: "systems", announce: true });
       recordGalaxySurveyHistory({
@@ -4610,10 +4627,20 @@ async function generateRingByNumber({ ring, mode = "systems", reason = "manual" 
         mode,
         galaxyId: galaxy?.galaxyId || null,
       };
+      if (typeof console !== "undefined" && typeof console.debug === "function") {
+        try {
+          console.debug("generateRingByNumber: cancelled", err?.message || err);
+        } catch (e) {}
+      }
       return false;
     }
     errorMessage.value = `Run ${mode === "presence" ? "Presence" : "Systems"} failed for ring ${targetRing}: ${err.message}`;
     toastService.error(`Failed to generate selected ring: ${err.message}`);
+    if (typeof console !== "undefined" && typeof console.error === "function") {
+      try {
+        console.error("generateRingByNumber: error", err);
+      } catch (e) {}
+    }
     return false;
   } finally {
     isGeneratingSectors.value = false;
@@ -5007,9 +5034,17 @@ function createGalaxyGenerationWorker() {
     return null;
   }
 
-  stopActiveGalaxyGenerationWorker();
-  activeGalaxyGenerationWorker = new Worker(GALAXY_GENERATION_WORKER_URL, { type: "module" });
-  return activeGalaxyGenerationWorker;
+  try {
+    stopActiveGalaxyGenerationWorker();
+    activeGalaxyGenerationWorker = new Worker(GALAXY_GENERATION_WORKER_URL, { type: "module" });
+    return activeGalaxyGenerationWorker;
+  } catch (err) {
+    // Worker creation may fail in test or restricted environments — fall back to synchronous path.
+    activeGalaxyGenerationWorker = null;
+    // eslint-disable-next-line no-console
+    console.warn("Galaxy generation worker unavailable; falling back to synchronous generation.", err?.message || err);
+    return null;
+  }
 }
 
 function toWorkerCloneable(value) {
@@ -5652,7 +5687,13 @@ async function generateSectorPresenceForSectors(
 
   await persistCachedSectorStats(galaxy, stats);
   currentGalaxySectorStats.value = stats;
-  await systemStore.loadSystems(galaxy.galaxyId);
+  if (typeof systemStore.loadSystems === "function") {
+    await systemStore.loadSystems(galaxy.galaxyId);
+  } else if (typeof console !== "undefined" && typeof console.warn === "function") {
+    try {
+      console.warn("systemStore.loadSystems not available; skipping load.");
+    } catch (e) {}
+  }
   clearGenerationRingCheckpoint();
 
   return {
@@ -5909,7 +5950,13 @@ async function generateSectorSystemsForSectors(
 
   await persistCachedSectorStats(galaxy, stats);
   currentGalaxySectorStats.value = stats;
-  await systemStore.loadSystems(galaxy.galaxyId);
+  if (typeof systemStore.loadSystems === "function") {
+    await systemStore.loadSystems(galaxy.galaxyId);
+  } else if (typeof console !== "undefined" && typeof console.warn === "function") {
+    try {
+      console.warn("systemStore.loadSystems not available; skipping load.");
+    } catch (e) {}
+  }
   clearGenerationRingCheckpoint();
 
   return {

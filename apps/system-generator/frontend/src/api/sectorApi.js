@@ -3,7 +3,7 @@ import { normalizeHexStarTypesMap } from "../utils/systemStarMetadata.js";
 const STORAGE_KEY = "eclipsed-horizons-sectors-cache";
 const API_BASE_URL = String(import.meta.env.VITE_API_BASE_URL || "http://localhost:3100/api").replace(/\/$/, "");
 const CACHE_HEX_STAR_TYPE_DETAIL_LIMIT = 128;
-const CACHE_OCCUPIED_HEX_LIMIT = 1280;
+const CACHE_OCCUPIED_HEX_LIMIT = 128;
 const CACHE_SECTOR_RETRY_LIMIT = 250;
 
 function isAbortError(error) {

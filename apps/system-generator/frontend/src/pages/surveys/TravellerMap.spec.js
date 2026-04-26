@@ -113,6 +113,7 @@ const preferencesStoreState = reactive({
 
 vi.mock("vue-router", () => ({
   useRouter: () => ({ push: hoisted.routerPush }),
+  onBeforeRouteLeave: () => {},
 }));
 
 vi.mock("../../stores/galaxyStore.js", () => ({

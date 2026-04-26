@@ -96,9 +96,9 @@ export function calculateSpaceTier(sx, sy, surveyedCoordKeySet) {
 /**
  * Resolves generation mode based on phase-3 space tier policy.
  * Policy:
- * - surveyed -> full systems
+ * - surveyed -> Name + Systems (enforced)
  * - frontier -> user-selected mode
- * - void -> user-selected mode
+ * - void -> user-selected mode (note: `full` is normalized to `name-systems`)
  * @param {string} requestedMode - One of: name | presence | name-presence | name-systems
  * @param {string} spaceTier - One of: surveyed | frontier | void
  * @returns {string} Effective generation mode after policy enforcement
@@ -111,19 +111,22 @@ export function resolveGenerationModeForSpaceTier(requestedMode, spaceTier) {
     .trim()
     .toLowerCase();
 
+  // Normalize legacy 'full' mode id to the canonical 'name-systems'.
+  const normalizedMode = mode === "full" ? "name-systems" : mode;
+
   if (tier === "surveyed") {
     return "name-systems";
   }
 
   if (tier === "frontier") {
-    return mode;
+    return normalizedMode;
   }
 
   if (tier === "void") {
-    return mode;
+    return normalizedMode;
   }
 
-  return mode;
+  return normalizedMode;
 }
 
 /**

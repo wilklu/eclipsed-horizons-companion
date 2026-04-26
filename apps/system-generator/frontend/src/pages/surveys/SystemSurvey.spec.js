@@ -40,6 +40,7 @@ const systemStoreState = reactive({
 vi.mock("vue-router", () => ({
   useRoute: () => routeState,
   useRouter: () => ({ push: vi.fn() }),
+  onBeforeRouteLeave: () => {},
 }));
 
 vi.mock("../../stores/systemStore", () => ({
