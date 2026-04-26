@@ -1229,6 +1229,9 @@ export function determineWbhSystemBodyPlan({ stars = [], rollDie = createRandomR
   const beltCandidateIndexes = nonEmptyIndexes.filter((index) => !gasIndexes.has(index));
   const beltIndexes = new Set(chooseUniqueIndexes(beltCandidateIndexes, planetoidBelts, chooseIndex));
 
+  // Track claimed orbit AUs so duplicate placements can be nudged to the next free orbit.
+  const usedOrbitAUs = new Set();
+
   const planets = allSlots.map((slot, index) => {
     let type = "Terrestrial Planet";
     if (emptyIndexes.has(index)) type = "Empty Orbit";
@@ -1244,12 +1247,24 @@ export function determineWbhSystemBodyPlan({ stars = [], rollDie = createRandomR
       Number.isFinite(Number(hzco)) && Number(hzco) > 0
         ? (() => {
             const deviation = calculateEffectiveHzcoDeviation({ orbitNumber: slot.orbitNumber, hzco });
-            return deviation < -1 ? "hot" : deviation <= 1 ? "habitable" : deviation <= 2 ? "warm" : "cold";
+            // Correct ordering inner→outer: hot (< -2) → warm (-2 to -1) → habitable (-1 to 1) → cold (> 1)
+            return deviation < -2 ? "hot" : deviation < -1 ? "warm" : deviation <= 1 ? "habitable" : "cold";
           })()
         : "cold";
 
+    // Deduplicate orbit AU: if another body already occupies this AU, nudge outward.
+    let orbitAU = slot.orbitAU;
+    if (type !== "Empty Orbit") {
+      const step = orbitAU < 1 ? 0.05 : 0.1;
+      while (usedOrbitAUs.has(orbitAU)) {
+        orbitAU = roundOrbit(orbitAU + step);
+      }
+      usedOrbitAUs.add(orbitAU);
+    }
+
     return {
       ...slot,
+      orbitAU,
       type,
       orbitalPeriodDays: Math.round(orbitalPeriod.days),
       zone,

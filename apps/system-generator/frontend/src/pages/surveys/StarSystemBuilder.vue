@@ -177,10 +177,8 @@
 
         <!-- Quick actions for selected world -->
         <div v-if="selectedWorldCandidate" class="selected-world-actions">
-          <div class="selected-world-summary">Selected world: {{ summarizeSelectedWorld(selectedWorldCandidate) }}</div>
           <div class="selected-world-controls control-action">
             <button class="btn btn-primary" @click="proceedToWorldBuilder">Build Selected World</button>
-            <button class="btn btn-secondary" @click="openSystemSurvey">Open System Survey</button>
           </div>
         </div>
 

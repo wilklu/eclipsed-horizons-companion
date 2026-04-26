@@ -220,6 +220,35 @@
               </div>
             </div>
 
+            <div v-if="currentViewMode !== 'subsector'" class="control-group control-group--span-2">
+              <label>Survey Generation</label>
+              <div class="survey-option-grid" role="radiogroup" aria-label="Sector survey options">
+                <button
+                  v-for="option in generationModeOptions"
+                  :key="option.id"
+                  type="button"
+                  class="survey-option-btn"
+                  :class="{ active: effectiveGenerationMode === option.id }"
+                  :aria-pressed="effectiveGenerationMode === option.id"
+                  :disabled="isLoading"
+                  @click="selectAndRunSurveyMode(option.id)"
+                >
+                  {{ option.label }}
+                </button>
+              </div>
+              <div class="control-help control-help--multiline">
+                {{ generationAction?.description }}
+              </div>
+              <div class="control-inline-row control-inline-row--generation">
+                <div class="survey-action-label">{{ surveyActionLabel }}</div>
+              </div>
+              <div class="tier-policy-badge" :class="`tier-policy-badge--${generationPolicyBadge.tier}`">
+                <span class="tier-policy-badge__tier">{{ generationPolicyBadge.tierLabel }}</span>
+                <span class="tier-policy-badge__rule">{{ generationPolicyBadge.rule }}</span>
+                <span class="tier-policy-badge__mode">{{ generationPolicyBadge.modeLabel }}</span>
+              </div>
+            </div>
+
             <div v-if="generatedSector" class="control-group control-group--span-2">
               <label>Survey Progress</label>
               <div class="survey-progress-card">
@@ -251,35 +280,6 @@
                     >{{ surveyProgress.completedPercent }}% mapped</span
                   >
                 </div>
-              </div>
-            </div>
-
-            <div v-if="currentViewMode !== 'subsector'" class="control-group control-group--span-2">
-              <label>Survey Options</label>
-              <div class="survey-option-grid" role="radiogroup" aria-label="Sector survey options">
-                <button
-                  v-for="option in generationModeOptions"
-                  :key="option.id"
-                  type="button"
-                  class="survey-option-btn"
-                  :class="{ active: effectiveGenerationMode === option.id }"
-                  :aria-pressed="effectiveGenerationMode === option.id"
-                  :disabled="isLoading"
-                  @click="selectAndRunSurveyMode(option.id)"
-                >
-                  {{ option.label }}
-                </button>
-              </div>
-              <div class="control-help control-help--multiline">
-                {{ generationAction?.description }}
-              </div>
-              <div class="control-inline-row control-inline-row--generation">
-                <div class="survey-action-label">{{ surveyActionLabel }}</div>
-              </div>
-              <div class="tier-policy-badge" :class="`tier-policy-badge--${generationPolicyBadge.tier}`">
-                <span class="tier-policy-badge__tier">{{ generationPolicyBadge.tierLabel }}</span>
-                <span class="tier-policy-badge__rule">{{ generationPolicyBadge.rule }}</span>
-                <span class="tier-policy-badge__mode">{{ generationPolicyBadge.modeLabel }}</span>
               </div>
             </div>
 
@@ -903,6 +903,7 @@ const STANDARD_SOPHONTS_PER_SECTOR = 16;
 let gridWrapperResizeObserver = null;
 let applyingWorkspaceState = false;
 let workspaceStateHydrated = false;
+let _initializationToken = 0;
 const { currentViewMode, currentSurveyRouteName, surveyPageLabel, switchSurveyPage } = useSectorSurveyViewMode({
   props,
   route,
@@ -1718,10 +1719,9 @@ const tierAwareGenerationMode = computed(() =>
 const fullGenerationBlockedByTier = computed(() => false);
 const fullGenerationBlockedReason = computed(() => "");
 const generationModeOptions = computed(() => [
-  { id: "name", label: "Name Only" },
-  { id: "name-presence", label: "Presence Only" },
-  { id: "name-systems", label: "Name + Systems" },
-  { id: "full", label: "Systems + Worlds" },
+  { id: "name-presence", label: "Presence" },
+  { id: "name-systems", label: "Primary Stars" },
+  { id: "full", label: "Systems" },
 ]);
 const generationAction = computed(() => {
   const requestedMode = effectiveGenerationMode.value;
@@ -3789,6 +3789,14 @@ async function runSurveyAction() {
   const requestedMode = effectiveGenerationMode.value;
   const modeForTier = tierAwareGenerationMode.value;
 
+  // Preserve explicit full-generation intent even when tier policy normalizes
+  // labels/modes for UI state. "Systems + Worlds" must always execute the
+  // end-to-end sector generation path that rolls multi-star systems and worlds.
+  if (requestedMode === "full") {
+    await generateSector();
+    return;
+  }
+
   if (modeForTier !== requestedMode) {
     toastService.info(
       `Space tier policy (${currentSectorSpaceTier.value}) adjusted generation mode from ${requestedMode} to ${modeForTier}.`,
@@ -4102,9 +4110,13 @@ async function persistSectorName({ showToast = false } = {}) {
 }
 
 async function initializeSectorSelectionSafely(galaxyId) {
+  const token = ++_initializationToken;
   try {
-    await initializeSectorSelection(galaxyId);
+    await initializeSectorSelection(galaxyId, token);
   } catch (err) {
+    if (token !== _initializationToken) {
+      return;
+    }
     generatedSector.value = null;
     selectedHex.value = null;
     isLoading.value = false;
@@ -4114,7 +4126,7 @@ async function initializeSectorSelectionSafely(galaxyId) {
   }
 }
 
-async function initializeSectorSelection(galaxyId) {
+async function initializeSectorSelection(galaxyId, token) {
   workspaceStateHydrated = false;
   generatedSector.value = null;
   selectedHex.value = null;
@@ -4135,6 +4147,8 @@ async function initializeSectorSelection(galaxyId) {
     galaxyProfile.value = null;
   }
 
+  if (token !== _initializationToken) return;
+
   if (!galaxyProfile.value) {
     sectorStore.clearSectors();
     systemStore.clearSystems();
@@ -4148,6 +4162,8 @@ async function initializeSectorSelection(galaxyId) {
     toastService.error(`Failed to load sectors: ${message}`);
     return;
   }
+
+  if (token !== _initializationToken) return;
 
   if (sectorStore.error) {
     toastService.error(`Failed to load sectors: ${sectorStore.error}`);
@@ -4172,6 +4188,7 @@ async function initializeSectorSelection(galaxyId) {
   if (initialSelection.mode === "load" && initialSelection.sectorId) {
     selectedSectorId.value = initialSelection.sectorId;
     await loadPersistedSector(initialSelection.sectorId, false);
+    if (token !== _initializationToken) return;
     if (initialSelection.viewport?.scope) {
       scope.value = initialSelection.viewport.scope;
     }
@@ -4818,8 +4835,8 @@ async function generateSystemForSelectedHex({ openAfter = false } = {}) {
 
 .survey-option-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.5rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.3rem;
 }
 
 .grid-size-toggle {
@@ -4834,7 +4851,8 @@ async function generateSystemForSelectedHex({ openAfter = false } = {}) {
 
 .survey-option-btn {
   min-width: 0;
-  padding: 0.72rem 0.85rem;
+  padding: 0.52rem 0.5rem;
+  font-size: 0.8rem;
   border-radius: 0.8rem;
   border: 1px solid rgba(0, 217, 255, 0.2);
   background: rgba(6, 18, 28, 0.92);

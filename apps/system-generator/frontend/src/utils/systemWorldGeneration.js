@@ -128,7 +128,13 @@ export function buildProfiledWbhSystemPlanets({
     const type = body.type;
     const orbitNumber = body.orbitNumber;
     const orbitAU = Number(body.orbitAU ?? fractionalOrbitToAu(orbitNumber).toFixed(2));
-    const zone = body.zone || determineSystemPlanetZone(orbitAU, habitableZone);
+    // Always derive zone from the system-level AU-based habitable zone for luminous stars.
+    // Per-group HZCO zones in the plan can produce non-monotonic sequences (e.g. Hot/Habitable/Hot)
+    // in multi-star systems where different orbit groups carry different HZCO reference values.
+    // For non-radiant objects (black holes etc.) fall back to the plan zone which is always "cold".
+    const zone = habitableZone.hasRadiantHabitableZone
+      ? determineSystemPlanetZone(orbitAU, habitableZone)
+      : body.zone || "cold";
     const generatedName =
       typeof createPlanetName === "function"
         ? createPlanetName({ body, index, type, zone, usedNames })
@@ -173,7 +179,9 @@ export function buildProfiledWbhSystemPlanets({
             baseWorld: baseProfile,
             worldName: planet.name,
             starClass: primaryWorldStarClass,
+            type: planet.type,
             sizeCode: planet.type === "Planetoid Belt" ? "0" : baseProfile.size,
+            size: planet.type === "Planetoid Belt" ? 0 : baseProfile.size,
             orbitNumber: planet.orbitNumber,
             hzco: planet.hzco ?? habitableZone.centerOrbit,
             systemAgeGyr,

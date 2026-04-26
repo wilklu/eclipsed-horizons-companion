@@ -626,18 +626,12 @@ describe("SectorSurvey page regressions", () => {
     await flushPromises();
     await flushPromises();
 
-    const optionButtons = wrapper.findAll(".survey-option-btn");
-    const nameOnlyButton = optionButtons.find((entry) => entry.text().includes("Name Only"));
-    const fullSurveyButton = optionButtons.find((entry) => entry.text().includes("Systems + Worlds"));
+    const optionButtons = wrapper.findAll(".survey-option-grid .survey-option-btn");
+    const presenceButton = optionButtons.find((entry) => entry.text().trim() === "Presence");
+    const fullSurveyButton = optionButtons.find((entry) => entry.text().trim() === "Systems");
 
-    expect(nameOnlyButton).toBeTruthy();
+    expect(presenceButton).toBeTruthy();
     expect(fullSurveyButton).toBeTruthy();
-
-    await nameOnlyButton.trigger("click");
-    await flushPromises();
-
-    expect(wrapper.find(".survey-action-label").text()).toContain("Save Sector Name");
-    expect(wrapper.find(".survey-action-label").text()).not.toContain("Presence Only");
 
     await fullSurveyButton.trigger("click");
     await flushPromises();
