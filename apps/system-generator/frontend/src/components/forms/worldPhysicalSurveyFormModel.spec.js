@@ -259,4 +259,80 @@ describe("worldPhysicalSurveyFormModel", () => {
     });
     expect(updatedPlanet.physicalSurvey).toBe(payload);
   });
+
+  it("maps atmosphereCompositionDetailed from worldRecord into survey data", () => {
+    const worldRecord = {
+      atmosphereCompositionDetailed: {
+        code: 7,
+        description: "Test mix",
+        dominantGas: "N2",
+        gases: [
+          { gas: "N2", fraction: 0.78 },
+          { gas: "O2", fraction: 0.21 },
+        ],
+        taints: ["pollutants"],
+        provenance: "generated",
+      },
+    };
+
+    const survey = buildSurveyDataFromWorld({}, worldRecord);
+    expect(survey.atmosphere).toBeDefined();
+    expect(survey.atmosphere.compositionDetailed).toBeDefined();
+    expect(survey.atmosphere.compositionDetailed.code).toBe(7);
+    expect(survey.atmosphere.compositionDetailed.dominantGas).toBe("N2");
+    expect(Array.isArray(survey.atmosphere.compositionDetailed.gases)).toBe(true);
+    expect(survey.atmosphere.compositionDetailed.gases[0].gas).toBe("N2");
+  });
+
+  it("persists atmosphere.compositionDetailed from survey payload to updated planet", () => {
+    const payload = createEmptySurveyData();
+    payload.atmosphere.compositionDetailed = {
+      code: 42,
+      description: "Desc",
+      dominantGas: "H2",
+      gases: [{ gas: "H2", fraction: 0.9 }],
+      taints: [],
+      provenance: "user",
+    };
+
+    const updatedPlanet = buildUpdatedPlanetFromSurvey({}, payload);
+    expect(updatedPlanet.atmosphereCompositionDetailed).toEqual(payload.atmosphere.compositionDetailed);
+    expect(updatedPlanet.physicalSurvey).toBe(payload);
+  });
+
+  it("maps size.compositionDetailed from worldRecord into survey data", () => {
+    const worldRecord = {
+      compositionDetailed: {
+        description: "Bulk test",
+        bulkElementAbundances: [
+          { element: "Fe", weightPercent: 30 },
+          { element: "O", weightPercent: 30 },
+        ],
+        majorReservoirs: { core: [], mantle: [], crust: [] },
+        volatiles: [],
+        provenance: "generated",
+      },
+    };
+
+    const survey = buildSurveyDataFromWorld({}, worldRecord);
+    expect(survey.size).toBeDefined();
+    expect(survey.size.compositionDetailed).toBeDefined();
+    expect(survey.size.compositionDetailed.description).toBe("Bulk test");
+    expect(Array.isArray(survey.size.compositionDetailed.bulkElementAbundances)).toBe(true);
+  });
+
+  it("persists size.compositionDetailed from survey payload to updated planet", () => {
+    const payload = createEmptySurveyData();
+    payload.size.compositionDetailed = {
+      description: "User bulk",
+      bulkElementAbundances: [{ element: "Si", weightPercent: 20 }],
+      majorReservoirs: { core: [], mantle: [], crust: [] },
+      volatiles: [],
+      provenance: "user",
+    };
+
+    const updatedPlanet = buildUpdatedPlanetFromSurvey({}, payload);
+    expect(updatedPlanet.compositionDetailed).toEqual(payload.size.compositionDetailed);
+    expect(updatedPlanet.physicalSurvey).toBe(payload);
+  });
 });

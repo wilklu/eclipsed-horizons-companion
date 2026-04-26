@@ -37,13 +37,42 @@ export function createEmptySurveyData() {
     size: {
       diameter: null,
       composition: "",
+      compositionDetailed: {
+        code: null,
+        description: "",
+        metallicity: null,
+        oxidationState: "",
+        bulkElementAbundances: [],
+        majorReservoirs: { core: [], mantle: [], crust: [] },
+        volatiles: [],
+        provenance: null,
+      },
       density: null,
       gravity: null,
       mass: null,
       escapeVelocity: null,
       notes: "",
     },
-    atmosphere: { pressure: null, composition: "", o2Partial: null, taints: "", scaleHeight: null, notes: "" },
+    atmosphere: {
+      pressure: null,
+      composition: "",
+      o2Partial: null,
+      taints: "",
+      scaleHeight: null,
+      notes: "",
+      compositionDetailed: {
+        code: null,
+        description: "",
+        dominantGas: "",
+        gases: [
+          { gas: "", fraction: null },
+          { gas: "", fraction: null },
+          { gas: "", fraction: null },
+        ],
+        taints: [],
+        provenance: null,
+      },
+    },
     hydrographics: {
       coverage: null,
       composition: "",
@@ -495,6 +524,7 @@ export function buildSurveyDataFromWorld(systemRecord, worldRecord) {
     size: {
       diameter: worldRecord?.diameterKm ?? null,
       composition: String(worldRecord?.composition || ""),
+      compositionDetailed: worldRecord?.compositionDetailed || base.size.compositionDetailed,
       density: worldRecord?.density ?? null,
       gravity: worldRecord?.gravity ?? null,
       mass: worldRecord?.mass ?? null,
@@ -524,6 +554,7 @@ export function buildSurveyDataFromWorld(systemRecord, worldRecord) {
       ]
         .filter(Boolean)
         .join(" · "),
+      compositionDetailed: worldRecord?.atmosphereCompositionDetailed || base.atmosphere.compositionDetailed,
     },
     hydrographics: {
       coverage: hydrographicsPercent,
@@ -531,7 +562,7 @@ export function buildSurveyDataFromWorld(systemRecord, worldRecord) {
         worldRecord?.hydrosphereLiquid ||
           (Number(worldRecord?.hydrographics ?? 0) > 0 ? "Water-based surface volatiles" : "Dry world"),
       ),
-      compositionDetailed: worldRecord?.hydrographicsCompositionDetailed || null,
+      compositionDetailed: worldRecord?.hydrographicsCompositionDetailed || base.hydrographics.compositionDetailed,
       distribution: String(
         worldRecord?.surfaceDistribution ||
           (String(worldRecord?.hydrographics ?? 0) > "0"
@@ -623,6 +654,8 @@ export function buildUpdatedPlanetFromSurvey(currentPlanet, surveyPayload) {
     hydrographicsComposition: payload?.hydrographics?.composition ?? planet.hydrographicsComposition,
     hydrographicsCompositionDetailed:
       payload?.hydrographics?.compositionDetailed ?? planet.hydrographicsCompositionDetailed,
+    atmosphereCompositionDetailed: payload?.atmosphere?.compositionDetailed ?? planet.atmosphereCompositionDetailed,
+    compositionDetailed: payload?.size?.compositionDetailed ?? planet.compositionDetailed,
     runawayGreenhouse: parseGreenhouseLabel(payload?.temperature?.greenhouse, planet.runawayGreenhouse),
     greenhouseAtmosphereCode: parseGreenhouseAtmosphereCode(
       payload?.temperature?.greenhouse,

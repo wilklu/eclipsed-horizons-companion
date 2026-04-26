@@ -174,6 +174,25 @@
                   {{ Math.round((world.hydrographicsCompositionDetailed.iceFraction || 0) * 100) }}%
                 </span>
               </div>
+              <div class="prop-row" v-if="world.compositionDetailed?.bulkElementAbundances?.length">
+                <span class="prop-label">Bulk Composition:</span>
+                <span class="prop-value">
+                  {{
+                    world.compositionDetailed.bulkElementAbundances
+                      .slice(0, 6)
+                      .map((e) => `${e.element} ${Number(e.weightPercent).toFixed(2)}%`)
+                      .join(", ")
+                  }}
+                </span>
+              </div>
+              <div class="prop-row" v-if="world.compositionDetailed?.volatiles?.length">
+                <span class="prop-label">Volatiles:</span>
+                <span class="prop-value">{{
+                  world.compositionDetailed.volatiles
+                    .map((v) => `${v.species} ${Number(v.weightPercent).toFixed(3)}%`)
+                    .join(", ")
+                }}</span>
+              </div>
               <div class="prop-row">
                 <span class="prop-label">Gravity:</span>
                 <span class="prop-value">{{ world.gravity }} G</span>

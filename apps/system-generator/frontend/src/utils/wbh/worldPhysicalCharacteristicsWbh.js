@@ -14,6 +14,7 @@ import {
   generateHydrographicsComposition,
   generateHydrographicsCompositionDetailed,
 } from "./hydrographicsCompositionWbh.js";
+import { generatePlanetComposition, generatePlanetCompositionDetailed } from "./planetaryCompositionWbh.js";
 
 export {
   calculateBiomassRating,
@@ -2279,6 +2280,28 @@ export function buildWbhEnvironmentalProfile(params = {}) {
     surfaceDistribution: surfaceDistribution.distribution,
     isGasGiant: params.isGasGiant,
   });
+  const generatedPlanetCompositionDetailed = generatePlanetCompositionDetailed({
+    sizeCode,
+    size,
+    density: params.density,
+    avgTempC,
+    hydrographics,
+    hydrographicsPercent,
+    baseComposition: params.composition ?? params.baseWorld?.composition ?? null,
+    atmosphereCode,
+    starMetallicity: params.starMetallicity,
+  });
+  const generatedPlanetComposition = generatePlanetComposition({
+    sizeCode,
+    size,
+    density: params.density,
+    avgTempC,
+    hydrographics,
+    hydrographicsPercent,
+    baseComposition: params.composition ?? params.baseWorld?.composition ?? null,
+    atmosphereCode,
+    starMetallicity: params.starMetallicity,
+  });
   const moonsData = determineWorldMoons({
     sizeCode,
     atmosphereCode,
@@ -2345,6 +2368,8 @@ export function buildWbhEnvironmentalProfile(params = {}) {
     hydrographicsPercent,
     hydrographicsComposition: generatedHydrographicsComposition,
     hydrographicsCompositionDetailed: generatedHydrographicsCompositionDetailed,
+    compositionDetailed: generatedPlanetCompositionDetailed,
+    planetComposition: generatedPlanetComposition,
     hydrosphereLiquid: hydrosphere.liquid,
     hydrosphereDescription: hydrosphere.description,
     surfaceDistribution: surfaceDistribution.distribution,

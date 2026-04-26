@@ -122,6 +122,37 @@ function isTidalWorld(planet = {}) {
 }
 
 function resolveChemistrySummary(planet = {}) {
+  try {
+    const detailed = planet?.atmosphereCompositionDetailed;
+    if (detailed && typeof detailed === "object") {
+      const gasNames = Array.isArray(detailed.gases)
+        ? detailed.gases
+            .map((g) => String(g?.gas || ""))
+            .filter(Boolean)
+            .join(" ")
+        : "";
+      const taints = Array.isArray(detailed.taints)
+        ? detailed.taints.join(" ")
+        : typeof detailed.taints === "string"
+          ? detailed.taints
+          : "";
+      return [
+        detailed.description,
+        gasNames,
+        taints,
+        planet.composition,
+        planet.atmosphereComposition,
+        planet.atmosphereDesc,
+        planet.worldDescriptor,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+    }
+  } catch (e) {
+    /* ignore and fallback */
+  }
+
   return [
     planet.composition,
     planet.hydrosphereLiquid,

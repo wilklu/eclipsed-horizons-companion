@@ -275,6 +275,21 @@
             </div>
           </div>
 
+          <div class="form-row">
+            <div class="form-cell grow-2">
+              <label class="cell-label">Bulk Composition</label>
+              <div style="display: flex; gap: 8px; align-items: center">
+                <button type="button" class="btn btn-small btn-add" @click="generateCompositionFromSurvey">
+                  Generate Composition
+                </button>
+                <small class="muted">Auto-fill structured bulk composition from survey inputs</small>
+              </div>
+            </div>
+            <div class="form-cell grow-6" style="padding: 6px">
+              <CompositionEditor v-model="surveyData.size.compositionDetailed" />
+            </div>
+          </div>
+
           <!-- ATMOSPHERE SECTION -->
           <div
             class="section-block"
@@ -332,6 +347,71 @@
                   step="0.1"
                   class="cell-input"
                   placeholder="8.5"
+                />
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-cell grow-2">
+                <label class="cell-label">Dominant Gas</label>
+                <input
+                  v-model="surveyData.atmosphere.compositionDetailed.dominantGas"
+                  type="text"
+                  class="cell-input"
+                  placeholder="N₂, H₂, CO₂"
+                />
+              </div>
+              <div class="form-cell grow-4">
+                <label class="cell-label">Gases (name + fraction)</label>
+                <div class="gas-list">
+                  <div
+                    class="gas-row"
+                    v-for="(g, gi) in surveyData.atmosphere.compositionDetailed.gases"
+                    :key="gi"
+                    style="display: flex; gap: 6px; align-items: center"
+                  >
+                    <input v-model="g.gas" type="text" class="cell-input" placeholder="Gas name" style="flex: 2" />
+                    <input
+                      v-model.number="g.fraction"
+                      type="number"
+                      step="0.001"
+                      min="0"
+                      max="1"
+                      class="cell-input"
+                      placeholder="fraction"
+                      style="width: 110px"
+                    />
+                    <button
+                      type="button"
+                      class="btn-remove"
+                      @click="removeAtmosphereGas(gi)"
+                      v-if="surveyData.atmosphere.compositionDetailed.gases.length > 1"
+                      title="Remove gas"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <div style="margin-top: 6px">
+                    <button type="button" class="btn btn-small btn-add" @click="addAtmosphereGas">+ Add Gas</button>
+                  </div>
+                </div>
+              </div>
+              <div class="form-cell grow-3">
+                <label class="cell-label">Structured Notes</label>
+                <input
+                  v-model="surveyData.atmosphere.compositionDetailed.description"
+                  type="text"
+                  class="cell-input"
+                  placeholder="Optional description of detailed composition"
+                />
+              </div>
+              <div class="form-cell grow-2">
+                <label class="cell-label">Taints (CSV)</label>
+                <input
+                  v-model="surveyData.atmosphere.taints"
+                  type="text"
+                  class="cell-input"
+                  placeholder="Pollutants, Toxic, etc."
                 />
               </div>
             </div>
@@ -1028,6 +1108,11 @@ import {
   createEmptySurveyData,
 } from "./worldPhysicalSurveyFormModel.js";
 import { formatTemperatureFromKelvin } from "../../utils/temperatureFormatting.js";
+import {
+  generatePlanetComposition,
+  generatePlanetCompositionDetailed,
+} from "../../utils/wbh/planetaryCompositionWbh.js";
+import CompositionEditor from "../common/CompositionEditor.vue";
 
 const props = defineProps({
   systemRecord: {
@@ -1295,6 +1380,49 @@ const addSubordinate = () => {
 
 const removeSubordinate = (index) => {
   surveyData.value.subordinates.splice(index, 1);
+};
+
+const addAtmosphereGas = () => {
+  if (!surveyData.value.atmosphere) surveyData.value.atmosphere = {};
+  if (!surveyData.value.atmosphere.compositionDetailed)
+    surveyData.value.atmosphere.compositionDetailed = {
+      code: null,
+      description: "",
+      dominantGas: "",
+      gases: [],
+      taints: [],
+      provenance: null,
+    };
+  surveyData.value.atmosphere.compositionDetailed.gases.push({ gas: "", fraction: null });
+};
+
+const removeAtmosphereGas = (index) => {
+  const g = surveyData.value.atmosphere?.compositionDetailed?.gases;
+  if (Array.isArray(g) && g.length > 1) g.splice(index, 1);
+};
+
+const generateCompositionFromSurvey = () => {
+  const density = parseNumericString(surveyData.value.size?.density) ?? null;
+  const avgTempK = Number(surveyData.value.temperature?.mean);
+  const avgTempC = Number.isFinite(avgTempK) ? avgTempK - 273.15 : null;
+  const hydroPercent = parseNumericString(surveyData.value.hydrographics?.coverage) ?? 0;
+  const baseComposition = surveyData.value.size?.composition || "";
+  const opts = {
+    size: surveyData.value.size?.diameter ?? null,
+    density,
+    avgTempC,
+    hydrographicsPercent: hydroPercent,
+    baseComposition,
+    provenance: "survey",
+  };
+  try {
+    const detailed = generatePlanetCompositionDetailed(opts);
+    surveyData.value.size.compositionDetailed = detailed;
+  } catch (e) {
+    // fail silently but log for debugging
+    // eslint-disable-next-line no-console
+    console.error("generateCompositionFromSurvey failed", e);
+  }
 };
 
 function updateMoonData(existingMoons = [], subordinates = []) {

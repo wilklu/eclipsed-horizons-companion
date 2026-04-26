@@ -328,6 +328,17 @@
                 rows="2"
               ></textarea>
             </div>
+            <div class="form-row">
+              <div class="form-cell grow-2">
+                <label class="cell-label">Bulk Composition</label>
+                <div style="display: flex; gap: 8px; align-items: center">
+                  <small class="muted">Edit detailed bulk composition for interior/ices</small>
+                </div>
+              </div>
+              <div class="form-cell grow-6" style="padding: 6px">
+                <CompositionEditor v-model="surveyData.size.compositionDetailed" />
+              </div>
+            </div>
           </div>
 
           <!-- INTERIOR STRUCTURE -->
@@ -564,6 +575,66 @@
                 placeholder="Atmospheric dynamics, seasonal variation, anomalous features..."
                 rows="2"
               ></textarea>
+            </div>
+            <div class="form-row">
+              <div class="form-cell grow-3">
+                <label class="cell-label">Atmosphere Composition (detailed)</label>
+                <div>
+                  <div
+                    v-for="(g, gi) in surveyData.atmosphere.compositionDetailed.gases"
+                    :key="gi"
+                    style="display: flex; gap: 6px; align-items: center; margin-bottom: 6px"
+                  >
+                    <input
+                      v-model="g.gas"
+                      type="text"
+                      class="cell-input"
+                      placeholder="Gas name (H₂, He, CH₄)"
+                      style="flex: 2"
+                    />
+                    <input
+                      v-model.number="g.fraction"
+                      type="number"
+                      step="0.001"
+                      min="0"
+                      max="1"
+                      class="cell-input"
+                      placeholder="fraction"
+                      style="width: 110px"
+                    />
+                    <button
+                      type="button"
+                      class="btn-remove"
+                      @click="removeAtmosphereGas(gi)"
+                      v-if="surveyData.atmosphere.compositionDetailed.gases.length > 1"
+                      title="Remove gas"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <div>
+                    <button type="button" class="btn btn-small btn-add" @click="addAtmosphereGas">+ Add Gas</button>
+                  </div>
+                </div>
+              </div>
+              <div class="form-cell grow-3">
+                <label class="cell-label">Structured Notes</label>
+                <input
+                  v-model="surveyData.atmosphere.compositionDetailed.description"
+                  type="text"
+                  class="cell-input"
+                  placeholder="Notes"
+                />
+              </div>
+              <div class="form-cell grow-2">
+                <label class="cell-label">Dominant Gas</label>
+                <input
+                  v-model="surveyData.atmosphere.compositionDetailed.dominantGas"
+                  type="text"
+                  class="cell-input"
+                  placeholder="H₂/He"
+                />
+              </div>
             </div>
           </div>
 
@@ -1083,6 +1154,7 @@ import { ref, computed, watch, onMounted } from "vue";
 import { useRoute } from "vue-router";
 import { useSystemStore } from "../../stores/systemStore.js";
 import { formatTemperatureFromKelvin } from "../../utils/temperatureFormatting.js";
+import CompositionEditor from "../common/CompositionEditor.vue";
 
 const props = defineProps({
   systemRecord: { type: Object, default: null },
@@ -1205,6 +1277,18 @@ function createEmptySurveyData() {
       lowerCloudLayer: "",
       deepCloudLayer: "",
       notes: "",
+      compositionDetailed: {
+        code: null,
+        description: "",
+        dominantGas: "",
+        gases: [
+          { gas: "", fraction: null },
+          { gas: "", fraction: null },
+          { gas: "", fraction: null },
+        ],
+        taints: [],
+        provenance: null,
+      },
     },
 
     thermal: {
@@ -1317,6 +1401,8 @@ function buildSurveyDataFromGasGiant(systemRecord, worldRecord) {
   base.atmosphere.upperCloudLayer = worldRecord?.upperCloudLayer ?? "";
   base.atmosphere.lowerCloudLayer = worldRecord?.lowerCloudLayer ?? "";
   base.atmosphere.deepCloudLayer = worldRecord?.deepCloudLayer ?? "";
+  base.atmosphere.compositionDetailed =
+    worldRecord?.atmosphereCompositionDetailed || base.atmosphere.compositionDetailed;
 
   base.thermal.cloudTopK = worldRecord?.cloudTopTempK ?? null;
   base.thermal.deepAtmoK = worldRecord?.deepAtmoTempK ?? null;
@@ -1470,6 +1556,25 @@ const removeSatellite = (index) => {
   surveyData.value.satellites.splice(index, 1);
 };
 
+const addAtmosphereGas = () => {
+  if (!surveyData.value.atmosphere) surveyData.value.atmosphere = {};
+  if (!surveyData.value.atmosphere.compositionDetailed)
+    surveyData.value.atmosphere.compositionDetailed = {
+      code: null,
+      description: "",
+      dominantGas: "",
+      gases: [],
+      taints: [],
+      provenance: null,
+    };
+  surveyData.value.atmosphere.compositionDetailed.gases.push({ gas: "", fraction: null });
+};
+
+const removeAtmosphereGas = (index) => {
+  const g = surveyData.value.atmosphere?.compositionDetailed?.gases;
+  if (Array.isArray(g) && g.length > 1) g.splice(index, 1);
+};
+
 function updateMoonData(existingMoons = [], subordinates = []) {
   let subordinateIndex = 0;
   return (Array.isArray(existingMoons) ? existingMoons : []).map((moon) => {
@@ -1535,6 +1640,8 @@ const saveSurvey = async () => {
         rings: payload.rings && payload.rings.length ? payload.rings : currentPlanet.rings,
         moonsData: updateMoonData(currentPlanet?.moonsData ?? [], payload.subordinates ?? payload.satellites ?? []),
         physicalSurvey: payload,
+        atmosphereCompositionDetailed:
+          payload?.atmosphere?.compositionDetailed ?? currentPlanet.atmosphereCompositionDetailed,
       };
 
       const nextPlanets = currentSystem.planets.map((planet, index) => (index === worldIndex ? nextPlanet : planet));

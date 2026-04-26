@@ -1,0 +1,67 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Planet Composition Detailed",
+  "type": "object",
+  "properties": {
+    "code": { "type": ["string", "null"] },
+    "description": { "type": "string" },
+    "metallicity": { "type": ["number", "null"] },
+    "oxidationState": { "type": ["string", "null"] },
+    "bulkElementAbundances": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": { "element": { "type": "string" }, "weightPercent": { "type": "number" } },
+        "required": ["element", "weightPercent"]
+      }
+    },
+    "atomicComposition": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": { "element": { "type": "string" }, "atomicPercent": { "type": "number" } },
+        "required": ["element", "atomicPercent"]
+      }
+    },
+    "majorReservoirs": {
+      "type": "object",
+      "properties": {
+        "core": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": { "element": { "type": "string" }, "pct": { "type": "number" } },
+            "required": ["element", "pct"]
+          }
+        },
+        "mantle": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": { "element": { "type": "string" }, "pct": { "type": "number" } },
+            "required": ["element", "pct"]
+          }
+        },
+        "crust": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": { "element": { "type": "string" }, "pct": { "type": "number" } },
+            "required": ["element", "pct"]
+          }
+        }
+      },
+      "required": ["core", "mantle", "crust"]
+    },
+    "volatiles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": { "species": { "type": "string" }, "weightPercent": { "type": "number" } },
+        "required": ["species", "weightPercent"]
+      }
+    },
+    "provenance": { "type": ["string", "null"] }
+  },
+  "required": ["description", "bulkElementAbundances", "majorReservoirs"]
+}

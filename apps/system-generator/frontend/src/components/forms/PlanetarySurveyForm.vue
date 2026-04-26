@@ -261,6 +261,115 @@
       </div>
     </div>
 
+    <!-- ATMOSPHERE SECTION -->
+    <div class="section-block">
+      <div class="section-label">Atmosphere</div>
+      <div class="form-row">
+        <div class="form-cell grow-2">
+          <label class="cell-label">Pressure (bar)</label>
+          <input
+            v-model.number="surveyData.atmosphere.pressure"
+            type="number"
+            step="0.01"
+            class="cell-input"
+            placeholder="1.0"
+          />
+        </div>
+        <div class="form-cell grow-3">
+          <label class="cell-label">Composition</label>
+          <input
+            v-model="surveyData.atmosphere.composition"
+            type="text"
+            class="cell-input"
+            placeholder="N₂/O₂, CO₂, etc."
+          />
+        </div>
+        <div class="form-cell">
+          <label class="cell-label">O₂ (bar)</label>
+          <input
+            v-model.number="surveyData.atmosphere.o2Partial"
+            type="number"
+            step="0.01"
+            class="cell-input"
+            placeholder="0.21"
+          />
+        </div>
+        <div class="form-cell grow-2">
+          <label class="cell-label">Taints</label>
+          <input
+            v-model="surveyData.atmosphere.taints"
+            type="text"
+            class="cell-input"
+            placeholder="None, Pollutants, etc."
+          />
+        </div>
+        <div class="form-cell">
+          <label class="cell-label">Scale Height</label>
+          <input
+            v-model.number="surveyData.atmosphere.scaleHeight"
+            type="number"
+            step="0.1"
+            class="cell-input"
+            placeholder="8.5"
+          />
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-cell grow-2">
+          <label class="cell-label">Dominant Gas</label>
+          <input
+            v-model="surveyData.atmosphere.compositionDetailed.dominantGas"
+            type="text"
+            class="cell-input"
+            placeholder="N₂, H₂, CO₂"
+          />
+        </div>
+        <div class="form-cell grow-4">
+          <label class="cell-label">Gases (name + fraction)</label>
+          <div>
+            <div
+              v-for="(g, gi) in surveyData.atmosphere.compositionDetailed.gases"
+              :key="gi"
+              style="display: flex; gap: 6px; align-items: center"
+            >
+              <input v-model="g.gas" type="text" class="cell-input" placeholder="Gas name" style="flex: 2" />
+              <input
+                v-model.number="g.fraction"
+                type="number"
+                step="0.001"
+                min="0"
+                max="1"
+                class="cell-input"
+                placeholder="fraction"
+                style="width: 110px"
+              />
+              <button
+                type="button"
+                class="btn-remove"
+                @click="removeAtmosphereGas(gi)"
+                v-if="surveyData.atmosphere.compositionDetailed.gases.length > 1"
+              >
+                ✕
+              </button>
+            </div>
+            <div style="margin-top: 6px">
+              <button type="button" class="btn btn-small btn-add" @click="addAtmosphereGas">+ Add Gas</button>
+            </div>
+          </div>
+        </div>
+        <div class="form-cell grow-3">
+          <label class="cell-label">Structured Notes</label>
+          <input
+            v-model="surveyData.atmosphere.compositionDetailed.description"
+            type="text"
+            class="cell-input"
+            placeholder="Optional description"
+          />
+        </div>
+      </div>
+    </div>
+
     <!-- COMMENTS SECTION -->
     <div class="comments-block">
       <label class="comments-label">Comments:</label>
@@ -332,6 +441,27 @@ const surveyData = ref({
     notes: "",
   })),
 
+  atmosphere: {
+    pressure: null,
+    composition: "",
+    o2Partial: null,
+    taints: "",
+    scaleHeight: null,
+    notes: "",
+    compositionDetailed: {
+      code: null,
+      description: "",
+      dominantGas: "",
+      gases: [
+        { gas: "", fraction: null },
+        { gas: "", fraction: null },
+        { gas: "", fraction: null },
+      ],
+      taints: [],
+      provenance: null,
+    },
+  },
+
   comments: "",
 });
 
@@ -382,6 +512,25 @@ const removeObject = (index) => {
   surveyData.value.objects.splice(index, 1);
 };
 
+const addAtmosphereGas = () => {
+  if (!surveyData.value.atmosphere) surveyData.value.atmosphere = {};
+  if (!surveyData.value.atmosphere.compositionDetailed)
+    surveyData.value.atmosphere.compositionDetailed = {
+      code: null,
+      description: "",
+      dominantGas: "",
+      gases: [],
+      taints: [],
+      provenance: null,
+    };
+  surveyData.value.atmosphere.compositionDetailed.gases.push({ gas: "", fraction: null });
+};
+
+const removeAtmosphereGas = (index) => {
+  const g = surveyData.value.atmosphere?.compositionDetailed?.gases;
+  if (Array.isArray(g) && g.length > 1) g.splice(index, 1);
+};
+
 // Save survey
 const saveSurvey = async () => {
   if (!surveyData.value.starDesignation) {
@@ -411,6 +560,7 @@ const saveSurvey = async () => {
       stars: surveyData.value.stars,
       starsNotes: surveyData.value.starsNotes,
       objects: surveyData.value.objects.filter((o) => o.objectName),
+      atmosphere: surveyData.value.atmosphere,
       comments: surveyData.value.comments,
     };
 
@@ -464,6 +614,26 @@ const resetForm = () => {
       sub: "",
       notes: "",
     })),
+    atmosphere: {
+      pressure: null,
+      composition: "",
+      o2Partial: null,
+      taints: "",
+      scaleHeight: null,
+      notes: "",
+      compositionDetailed: {
+        code: null,
+        description: "",
+        dominantGas: "",
+        gases: [
+          { gas: "", fraction: null },
+          { gas: "", fraction: null },
+          { gas: "", fraction: null },
+        ],
+        taints: [],
+        provenance: null,
+      },
+    },
     comments: "",
   };
 };
