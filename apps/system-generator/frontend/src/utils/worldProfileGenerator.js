@@ -857,7 +857,7 @@ function resolveGovernmentCodeToken(governmentCode) {
   return Number.isFinite(numericGovernmentCode) ? toHex(Math.max(0, numericGovernmentCode)) : "0";
 }
 
-function toRomanNumeral(value) {
+export function toRomanNumeral(value) {
   const numerals = [
     [1000, "M"],
     [900, "CM"],

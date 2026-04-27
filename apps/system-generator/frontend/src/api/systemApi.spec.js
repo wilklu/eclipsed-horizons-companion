@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { getSystemsBySector, replaceSystemsForSector } from "./systemApi.js";
+import { getSystemsBySector, replaceSystemsForSector, upsertSystem } from "./systemApi.js";
 
 function quotaExceededError() {
   return Object.assign(new Error("Setting the value exceeded the quota."), {
@@ -190,5 +190,52 @@ describe("systemApi", () => {
     expect(systems).toHaveLength(1);
     expect(systems[0].systemId).toBe("sec-1:0101");
     expect(globalThis.localStorage.removeItem).toHaveBeenCalledWith("eclipsed-horizons-systems");
+  });
+
+  it("preserves generated planets from metadata snapshot when upsert responses omit top-level planets", async () => {
+    globalThis.fetch.mockImplementation(async (_url, options = {}) => {
+      const payload = JSON.parse(options.body || "{}");
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          systemId: payload.systemId,
+          sectorId: payload.sectorId,
+          galaxyId: payload.galaxyId,
+          hexCoordinates: payload.hexCoordinates,
+          primaryStar: payload.primaryStar,
+          metadata: {
+            ...(payload.metadata && typeof payload.metadata === "object" ? payload.metadata : {}),
+          },
+        }),
+      };
+    });
+
+    const persisted = await upsertSystem({
+      systemId: "sec-1:0404",
+      sectorId: "sec-1",
+      galaxyId: "gal-1",
+      hexCoordinates: { x: 4, y: 4 },
+      primaryStar: { spectralClass: "G2 V" },
+      planets: [
+        {
+          name: "Aster I",
+          type: "Terrestrial Planet",
+          orbitNumber: 2,
+          orbitAU: 0.8,
+        },
+      ],
+      mainworld: {
+        name: "Aster I",
+        type: "Terrestrial Planet",
+      },
+      metadata: {},
+    });
+
+    expect(persisted.planets).toHaveLength(1);
+    expect(persisted.planets[0].name).toBe("Aster I");
+    expect(persisted.mainworld?.name).toBe("Aster I");
+    expect(persisted.metadata?.systemRecord?.planets).toHaveLength(1);
+    expect(persisted.metadata?.systemRecord?.mainworld?.name).toBe("Aster I");
   });
 });

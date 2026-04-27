@@ -117,6 +117,17 @@ function normalizeSystem(system) {
       : snapshot?.mainworld && typeof snapshot.mainworld === "object"
         ? applyPlanetaryBodyClassification(snapshot.mainworld)
         : null;
+  const normalizedSystemId = String(system?.systemId ?? snapshot?.systemId ?? "");
+  const normalizedSectorId = String(system?.sectorId ?? snapshot?.sectorId ?? metadata?.sectorId ?? "");
+  const normalizedGalaxyId = String(system?.galaxyId ?? snapshot?.galaxyId ?? metadata?.galaxyId ?? "");
+  const normalizedHexCoordinates = normalizeHexCoordinates(system?.hexCoordinates ?? snapshot?.hexCoordinates);
+  const normalizedPrimaryStar =
+    system?.primaryStar && typeof system.primaryStar === "object" ? system.primaryStar : (snapshot?.primaryStar ?? {});
+  const normalizedCompanionStars = Array.isArray(system?.companionStars)
+    ? system.companionStars
+    : Array.isArray(snapshot?.companionStars)
+      ? snapshot.companionStars
+      : [];
 
   return {
     ...snapshot,
@@ -128,19 +139,12 @@ function normalizeSystem(system) {
         }
       : {}),
     ...(resolvedSystemDesignation ? { systemDesignation: resolvedSystemDesignation } : {}),
-    systemId: String(system?.systemId ?? snapshot?.systemId ?? ""),
-    sectorId: String(system?.sectorId ?? snapshot?.sectorId ?? metadata?.sectorId ?? ""),
-    galaxyId: String(system?.galaxyId ?? snapshot?.galaxyId ?? metadata?.galaxyId ?? ""),
-    hexCoordinates: normalizeHexCoordinates(system?.hexCoordinates ?? snapshot?.hexCoordinates),
-    primaryStar:
-      system?.primaryStar && typeof system.primaryStar === "object"
-        ? system.primaryStar
-        : (snapshot?.primaryStar ?? {}),
-    companionStars: Array.isArray(system?.companionStars)
-      ? system.companionStars
-      : Array.isArray(snapshot?.companionStars)
-        ? snapshot.companionStars
-        : [],
+    systemId: normalizedSystemId,
+    sectorId: normalizedSectorId,
+    galaxyId: normalizedGalaxyId,
+    hexCoordinates: normalizedHexCoordinates,
+    primaryStar: normalizedPrimaryStar,
+    companionStars: normalizedCompanionStars,
     planets: normalizedPlanets,
     mainworld: normalizedMainworld,
     metadata: {
@@ -155,6 +159,32 @@ function normalizeSystem(system) {
             }
           : {}),
         ...(resolvedSystemDesignation ? { systemDesignation: resolvedSystemDesignation } : {}),
+        systemId: normalizedSystemId,
+        sectorId: normalizedSectorId,
+        galaxyId: normalizedGalaxyId,
+        hexCoordinates: normalizedHexCoordinates,
+        primaryStar: normalizedPrimaryStar,
+        companionStars: normalizedCompanionStars,
+        planets: normalizedPlanets,
+        mainworld: normalizedMainworld,
+        ...(resolvedName
+          ? {
+              name: resolvedName,
+              systemName: resolvedName,
+            }
+          : {}),
+        starCount:
+          Number(
+            system?.starCount ??
+              snapshot?.starCount ??
+              normalizedCompanionStars.length + (normalizedPrimaryStar ? 1 : 0),
+          ) || 0,
+        habitableZone:
+          system?.habitableZone && typeof system.habitableZone === "object"
+            ? system.habitableZone
+            : snapshot?.habitableZone && typeof snapshot.habitableZone === "object"
+              ? snapshot.habitableZone
+              : null,
       },
     },
   };

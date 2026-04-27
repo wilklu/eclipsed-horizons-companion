@@ -1,5 +1,4 @@
-import { generateObjectName } from "./nameGenerator.js";
-import { generateAutomaticWorldName } from "./worldProfileGenerator.js";
+import { generateAutomaticWorldName, toRomanNumeral } from "./worldProfileGenerator.js";
 import { buildProfiledWbhSystemPlanets, calculateSystemHabitableZone } from "./systemWorldGeneration.js";
 import { resolveGeneratedStarsFromHex, resolveStarRecord } from "./systemStarMetadata.js";
 
@@ -84,31 +83,21 @@ export function buildPersistedSurveySystemFromHex({ galaxyId, sectorId, hex, nam
   let mainworld = null;
   let generationError = null;
 
+  const systemDesignation =
+    String(hex?.name || hex?.systemName || hex?.systemDesignation || "").trim() ||
+    generateAutomaticWorldName({
+      mode: namingOptions.worldNameMode,
+      usedNames: new Set(),
+      systemName: String(hex?.coord || "").trim(),
+      seed: `${lineageSeed}:system`,
+    });
+
   try {
     habitableZone = calculateSystemHabitableZone(stars);
     planets = buildProfiledWbhSystemPlanets({
       stars,
       habitableZone,
-      createPlanetName: ({ type, usedNames, index }) =>
-        type === "Planetoid Belt"
-          ? generateObjectName({
-              mode: String(namingOptions.asteroidBeltNameMode || "phonotactic")
-                .trim()
-                .toLowerCase(),
-              objectType: "asteroid-belt",
-              mythicTheme: String(namingOptions.galaxyMythicTheme || "all")
-                .trim()
-                .toLowerCase(),
-              lineageSeed,
-              seed: `${lineageSeed}:belt:${index}`,
-              parentName: String(hex?.coord || "").trim(),
-            })
-          : generateAutomaticWorldName({
-              mode: namingOptions.worldNameMode,
-              usedNames,
-              systemName: String(hex?.coord || "").trim(),
-              seed: `${lineageSeed}:world:${index}`,
-            }),
+      createPlanetName: ({ index }) => `${systemDesignation} ${toRomanNumeral(index + 1)}`,
     });
     mainworld = planets.find((world) => world?.isMainworld) ?? null;
   } catch (error) {
@@ -129,9 +118,7 @@ export function buildPersistedSurveySystemFromHex({ galaxyId, sectorId, hex, nam
   }
 
   const nowIso = new Date().toISOString();
-  const resolvedSystemName = String(
-    hex?.name || hex?.systemName || hex?.systemDesignation || mainworld?.name || "",
-  ).trim();
+  const resolvedSystemName = systemDesignation;
 
   return {
     systemId: `${sectorId}:${String(hex?.coord || "0000").trim()}`,

@@ -257,6 +257,11 @@ import {
   randomFloraName,
 } from "../../utils/beasts/floraGenerator.js";
 import { generateGuidSeed } from "../../utils/beasts/beastGenerator.js";
+import {
+  buildPropagationOriginNote,
+  cloneSpeciesTemplate,
+  pickNearbySpeciesTemplate,
+} from "../../utils/beasts/speciesPropagation.js";
 import { deserializeReturnRoute } from "../../utils/returnRoute.js";
 import {
   isSpeechSynthesisSupported,
@@ -312,6 +317,7 @@ const activeWorldCriteria = computed(() => ({
   worldName: selectedWorldOption.value?.worldName || String(route.query.worldName || ""),
 }));
 const savedFlora = computed(() => floraStore.floraByWorld(activeWorldCriteria.value));
+let floraSpeciesPoolHydrated = false;
 
 watch(
   activeWorldCriteria,
@@ -508,11 +514,22 @@ async function copyPromptText(text) {
   }
 }
 
-function generateFlora() {
+async function ensureFloraSpeciesPool() {
+  if (floraSpeciesPoolHydrated) {
+    return;
+  }
+
+  await floraStore.hydrateFlora({}, {});
+  floraSpeciesPoolHydrated = true;
+}
+
+async function generateFlora() {
   const seed = ensureSeed();
   if (!String(floraName.value || "").trim()) {
     randomizeName();
   }
+
+  await ensureFloraSpeciesPool();
 
   const linked = selectedWorldRecord.value
     ? buildWorldLinkedFloraOptions(selectedWorldRecord.value)
@@ -521,6 +538,50 @@ function generateFlora() {
         climate: climate.value,
         growthForm: growthForm.value,
       };
+
+  const propagated = pickNearbySpeciesTemplate({
+    records: floraStore.getAllFlora,
+    systems: systemStore.getAllSystems,
+    currentSystemId:
+      selectedWorldOption.value?.systemId || String(route.query.systemId || route.query.systemRecordId || ""),
+    currentWorldKey: selectedWorldKey.value,
+  });
+
+  if (propagated?.record) {
+    const template = cloneSpeciesTemplate(propagated.record);
+    const originNote = buildPropagationOriginNote(propagated);
+    const visuals = buildFloraImagePrompt({
+      name: String(template?.name || floraName.value.trim() || "Generated Flora"),
+      biology: template?.biology || {},
+      ecology: template?.ecology || {},
+      adaptations: Array.isArray(template?.adaptations) ? template.adaptations : [],
+      uses: template?.uses || {},
+      sourceWorld: linked.sourceWorld,
+    });
+
+    flora.value = {
+      ...template,
+      ...visuals,
+      id: flora.value?.id || null,
+      seed,
+      sourceWorld: linked.sourceWorld,
+      systemId: selectedWorldOption.value?.systemId || String(route.query.systemId || route.query.systemRecordId || ""),
+      worldKey: selectedWorldKey.value,
+      worldName: selectedWorldOption.value?.worldName || linked.sourceWorld?.name || "",
+      savedAt: flora.value?.savedAt || null,
+      updatedAt: null,
+      origin: originNote,
+      lineage:
+        template?.lineage && typeof template.lineage === "object"
+          ? {
+              ...template.lineage,
+              originModel: originNote,
+              uniquenessStatement: originNote,
+            }
+          : template?.lineage,
+    };
+    return;
+  }
 
   const next = generateFloraProfile({
     seed,

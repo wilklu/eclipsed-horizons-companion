@@ -713,6 +713,9 @@
                 <span v-if="orbitalPreview.secondaryLabel" class="orbital-preview-detail">{{
                   orbitalPreview.secondaryLabel
                 }}</span>
+                <div v-if="inspectedSystemGenerationWarning" class="orbital-preview-warning">
+                  {{ inspectedSystemGenerationWarning }}
+                </div>
               </div>
               <div v-if="hasLockedHexSelection" class="orbital-preview-actions">
                 <button
@@ -1433,6 +1436,61 @@ const selectedHexData = computed(
 const hoveredHexData = computed(() => displayedSector.value?.hexes?.find((h) => h.coord === hoveredHex.value) ?? null);
 const inspectedHexData = computed(() => selectedHexData.value ?? hoveredHexData.value ?? null);
 const hasLockedHexSelection = computed(() => Boolean(selectedHexData.value?.coord));
+const inspectedSystemRecord = computed(() => {
+  const hex = inspectedHexData.value;
+  if (!hex?.hasSystem || hex?.presenceOnly) {
+    return null;
+  }
+
+  const systems = Array.isArray(systemStore.systems) ? systemStore.systems : [];
+  const directSystemId = String(hex?.systemId || "").trim();
+  if (directSystemId) {
+    const match = systems.find((system) => String(system?.systemId || "").trim() === directSystemId);
+    if (match) {
+      return match;
+    }
+  }
+
+  const normalizedHex = normalizeHexToSectorCoord(hex);
+  const coord = String(normalizedHex?.coord || "").trim();
+  if (!coord) {
+    return null;
+  }
+
+  const sectorId = String(selectedSectorId.value || generatedSector.value?.sectorId || "").trim();
+  return (
+    systems.find(
+      (system) =>
+        String(system?.sectorId || "").trim() === sectorId &&
+        String(systemCoordFromRecord(system) || "").trim() === coord,
+    ) ?? null
+  );
+});
+const inspectedSystemGenerationWarning = computed(() => {
+  const system = inspectedSystemRecord.value;
+  if (!system) {
+    return "";
+  }
+
+  const generationError = String(system?.metadata?.generationError || "").trim();
+  if (generationError) {
+    return `World profile generation issue detected: ${generationError}`;
+  }
+
+  const planetCount = Array.isArray(system?.planets) ? system.planets.length : 0;
+  const starCount = Array.isArray(system?.stars)
+    ? system.stars.length
+    : system?.primaryStar && typeof system.primaryStar === "object"
+      ? 1
+      : 0;
+  const generatedAt = String(system?.metadata?.generatedWorldProfilesAt || "").trim();
+
+  if (starCount > 0 && planetCount === 0 && generatedAt) {
+    return "Warning: this saved system currently has stellar data only. Use Generate System to rebuild world profiles for this hex.";
+  }
+
+  return "";
+});
 const inspectedHexSourceLabel = computed(() => {
   if (selectedHexData.value?.coord) {
     return "Selected";
@@ -5608,6 +5666,17 @@ async function generateSystemForSelectedHex({ openAfter = false } = {}) {
   font-size: 0.8rem;
   line-height: 1.35;
   text-align: center;
+}
+
+.orbital-preview-warning {
+  margin-top: 0.35rem;
+  padding: 0.38rem 0.5rem;
+  border-radius: 0.4rem;
+  border: 1px solid rgba(255, 166, 90, 0.45);
+  background: rgba(120, 62, 11, 0.35);
+  color: #ffd2a6;
+  font-size: 0.76rem;
+  line-height: 1.35;
 }
 
 .stellar-inline-flag {

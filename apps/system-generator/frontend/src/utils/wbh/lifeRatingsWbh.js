@@ -10,6 +10,7 @@ export function calculateBiomassRating({
   avgTempC = 0,
   highTempC = null,
   systemAgeGyr = 5,
+  zone = "",
   rollDie = null,
 } = {}) {
   const numericAtmosphere = Number(atmosphereCode || 0);
@@ -50,6 +51,12 @@ export function calculateBiomassRating({
   if (numericAge < 0.2) biomassDm -= 6;
   else if (numericAge < 1) biomassDm -= 2;
   else if (numericAge > 4) biomassDm += 1;
+
+  const zoneToken = String(zone || "")
+    .trim()
+    .toLowerCase();
+  if (zoneToken === "hot" || zoneToken === "frozen") biomassDm -= 6;
+  else if (zoneToken === "warm" || zoneToken === "cold") biomassDm -= 2;
 
   biomassDm = clamp(biomassDm, -12, 4);
   const rollTotal = typeof rollDie === "function" ? roll2d(rollDie) : 7;

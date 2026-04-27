@@ -362,6 +362,11 @@ import {
   randomSophontName,
 } from "../../utils/beasts/sophontGenerator.js";
 import { generateGuidSeed } from "../../utils/beasts/beastGenerator.js";
+import {
+  buildPropagationOriginNote,
+  cloneSpeciesTemplate,
+  pickNearbySpeciesTemplate,
+} from "../../utils/beasts/speciesPropagation.js";
 import { deserializeReturnRoute, serializeReturnRoute } from "../../utils/returnRoute.js";
 import {
   isSpeechSynthesisSupported,
@@ -418,6 +423,7 @@ const activeWorldCriteria = computed(() => ({
   worldName: selectedWorldOption.value?.worldName || String(route.query.worldName || ""),
 }));
 const savedSophonts = computed(() => sophontStore.sophontsByWorld(activeWorldCriteria.value));
+let sophontSpeciesPoolHydrated = false;
 
 watch(
   activeWorldCriteria,
@@ -675,11 +681,22 @@ function goToHistoryGenerator() {
   });
 }
 
-function generateSophont() {
+async function ensureSophontSpeciesPool() {
+  if (sophontSpeciesPoolHydrated) {
+    return;
+  }
+
+  await sophontStore.hydrateSophonts({}, {});
+  sophontSpeciesPoolHydrated = true;
+}
+
+async function generateSophont() {
   const seed = ensureSeed();
   if (!String(speciesName.value || "").trim()) {
     randomizeName();
   }
+
+  await ensureSophontSpeciesPool();
 
   const linked = selectedWorldRecord.value
     ? buildWorldLinkedSophontOptions(selectedWorldRecord.value)
@@ -688,6 +705,46 @@ function generateSophont() {
         homeEnvironment: homeEnvironment.value,
         bodyPlan: bodyPlan.value,
       };
+
+  const propagated = pickNearbySpeciesTemplate({
+    records: sophontStore.getAllSophonts,
+    systems: systemStore.getAllSystems,
+    currentSystemId:
+      selectedWorldOption.value?.systemId || String(route.query.systemId || route.query.systemRecordId || ""),
+    currentWorldKey: selectedWorldKey.value,
+  });
+
+  if (propagated?.record) {
+    const template = cloneSpeciesTemplate(propagated.record);
+    const originNote = buildPropagationOriginNote(propagated);
+    const withWorld = {
+      ...template,
+      sourceWorld: linked.sourceWorld,
+      seed,
+    };
+    const visuals = buildSophontImagePrompt(withWorld);
+
+    sophont.value = {
+      ...withWorld,
+      ...visuals,
+      id: sophont.value?.id || null,
+      savedAt: sophont.value?.savedAt || null,
+      updatedAt: null,
+      systemId: selectedWorldOption.value?.systemId || String(route.query.systemId || route.query.systemRecordId || ""),
+      worldKey: selectedWorldKey.value,
+      worldName: selectedWorldOption.value?.worldName || linked.sourceWorld?.name || "",
+      origin: originNote,
+      lineage:
+        template?.lineage && typeof template.lineage === "object"
+          ? {
+              ...template.lineage,
+              originModel: originNote,
+              uniquenessStatement: originNote,
+            }
+          : template?.lineage,
+    };
+    return;
+  }
 
   const next = generateSophontProfile({
     seed,

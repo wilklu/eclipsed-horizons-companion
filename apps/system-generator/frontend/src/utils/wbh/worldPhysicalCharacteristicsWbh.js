@@ -1615,6 +1615,7 @@ function buildNativeLifeRatings({
   isMoon = false,
   systemAgeGyr = 5,
   rollDie = null,
+  zone = "",
   ...world
 } = {}) {
   if (Number(size) <= 0 || isRestrictedNativeLifeCandidate({ type, isMoon })) {
@@ -1628,6 +1629,7 @@ function buildNativeLifeRatings({
       hydrographics,
       avgTempC,
       systemAgeGyr,
+      zone,
       rollDie,
     }) + Number(subtypeBias.biomassDm || 0),
     0,

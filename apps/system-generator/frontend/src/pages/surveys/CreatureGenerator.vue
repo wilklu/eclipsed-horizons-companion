@@ -435,7 +435,13 @@ import {
   generateEncounterTable,
   randomBeastName,
   generateWorldFaunaBundle,
+  summarizeEcosystemBalance,
 } from "../../utils/beasts/beastGenerator.js";
+import {
+  buildPropagationOriginNote,
+  cloneSpeciesTemplate,
+  pickNearbySpeciesTemplate,
+} from "../../utils/beasts/speciesPropagation.js";
 import { formatBeastSummary, formatReactionValue } from "../../utils/beasts/beastFormatting.js";
 import { deserializeReturnRoute } from "../../utils/returnRoute.js";
 import {
@@ -503,6 +509,7 @@ const activeWorldCriteria = computed(() => ({
 }));
 const savedCreatures = computed(() => creatureStore.creaturesByWorld(activeWorldCriteria.value));
 const savedFaunaBundles = computed(() => creatureStore.faunaBundlesByWorld(activeWorldCriteria.value));
+let faunaSpeciesPoolHydrated = false;
 
 watch(
   activeWorldCriteria,
@@ -828,11 +835,22 @@ function buildCreatureViewModel(profile, existingRecord = {}) {
   };
 }
 
-function generateCreature() {
+async function ensureFaunaSpeciesPool() {
+  if (faunaSpeciesPoolHydrated) {
+    return;
+  }
+
+  await creatureStore.hydrateCreatures({}, {});
+  faunaSpeciesPoolHydrated = true;
+}
+
+async function generateCreature() {
   const seed = ensureSeed();
   if (!String(creatureName.value || "").trim()) {
     randomizeName();
   }
+
+  await ensureFaunaSpeciesPool();
 
   const linkedWorld = selectedWorldRecord.value
     ? buildWorldLinkedCreatureOptions(selectedWorldRecord.value)
@@ -845,6 +863,14 @@ function generateCreature() {
         })
       : { sourceWorld: null, terrain: terrain.value, worldSize: worldSize.value };
 
+  const propagated = pickNearbySpeciesTemplate({
+    records: creatureStore.getAllCreatures,
+    systems: systemStore.getAllSystems,
+    currentSystemId:
+      selectedWorldOption.value?.systemId || String(route.query.systemId || route.query.systemRecordId || ""),
+    currentWorldKey: selectedWorldKey.value,
+  });
+
   if (generationMode.value === "bundle") {
     const bundle = generateWorldFaunaBundle({
       seed,
@@ -856,6 +882,38 @@ function generateCreature() {
       systemId: selectedWorldOption.value?.systemId || String(route.query.systemId || route.query.systemRecordId || ""),
     });
 
+    if (propagated?.record && Array.isArray(bundle.entries) && bundle.entries.length) {
+      const template = cloneSpeciesTemplate(propagated.record);
+      const originNote = buildPropagationOriginNote(propagated);
+      const replacementIndex = bundle.entries.findIndex((entry) => entry?.ecologicalNiche?.niche === "Carnivore");
+      const targetIndex = replacementIndex >= 0 ? replacementIndex : 0;
+      const replacedRole = String(bundle.entries[targetIndex]?.role || `Imported Lineage ${targetIndex + 1}`);
+      const importedProfile = {
+        ...template,
+        seed: `${seed}-imported-${targetIndex + 1}`,
+        sourceWorld: linkedWorld.sourceWorld,
+        worldName: linkedWorld.sourceWorld?.name || linkedWorldName.value.trim() || template?.worldName || "",
+        systemId:
+          selectedWorldOption.value?.systemId || String(route.query.systemId || route.query.systemRecordId || ""),
+        worldKey: selectedWorldKey.value,
+        origin: originNote,
+        lineage:
+          template?.lineage && typeof template.lineage === "object"
+            ? {
+                ...template.lineage,
+                originModel: originNote,
+                uniquenessStatement: originNote,
+              }
+            : template?.lineage,
+        role: replacedRole,
+      };
+
+      bundle.entries[targetIndex] = importedProfile;
+      bundle.focus = importedProfile;
+      bundle.balance = summarizeEcosystemBalance(bundle.entries, linkedWorld.sourceWorld);
+      bundle.notes = Array.isArray(bundle.balance?.notes) ? bundle.balance.notes : [];
+    }
+
     faunaBundle.value = bundle;
     encounterTable.value = [...bundle.entries];
     const focusProfile = bundle.focus || bundle.entries[0];
@@ -864,6 +922,32 @@ function generateCreature() {
   }
 
   faunaBundle.value = null;
+  if (propagated?.record) {
+    const template = cloneSpeciesTemplate(propagated.record);
+    const originNote = buildPropagationOriginNote(propagated);
+    const importedProfile = {
+      ...template,
+      seed,
+      sourceWorld: linkedWorld.sourceWorld,
+      worldName: linkedWorld.sourceWorld?.name || linkedWorldName.value.trim() || template?.worldName || "",
+      systemId: selectedWorldOption.value?.systemId || String(route.query.systemId || route.query.systemRecordId || ""),
+      worldKey: selectedWorldKey.value,
+      origin: originNote,
+      lineage:
+        template?.lineage && typeof template.lineage === "object"
+          ? {
+              ...template.lineage,
+              originModel: originNote,
+              uniquenessStatement: originNote,
+            }
+          : template?.lineage,
+    };
+
+    encounterTable.value = [];
+    creature.value = buildCreatureViewModel(importedProfile, creature.value);
+    return;
+  }
+
   const profile = generateBeastProfile({
     seed,
     name: creatureName.value.trim() || "Generated Beast",
