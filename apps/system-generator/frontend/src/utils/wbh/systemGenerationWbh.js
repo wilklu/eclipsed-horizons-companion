@@ -583,7 +583,7 @@ export function calculateBaselineOrbitWbh({ rollTotal, hzco, baselineNumber, tot
   }
 
   if (numericBaseline < 1) {
-    if (numericMinimumOrbit >= 1) {
+    if (numericHzco >= 1) {
       return roundOrbit(numericHzco - numericBaseline + numericTotalWorlds + (Number(rollTotal) - 2) / 10);
     }
 

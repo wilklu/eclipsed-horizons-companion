@@ -39,7 +39,9 @@
           <label>Seed</label>
           <div class="name-row">
             <input v-model="seedValue" placeholder="guid-seed" class="text-input" />
-            <button class="btn btn-secondary" @click="generateNewSeed">🧬</button>
+            <button class="btn btn-secondary" type="button" title="Generate new seed" @click="generateNewSeed">
+              🧬 New
+            </button>
           </div>
         </div>
 
@@ -206,7 +208,7 @@
         </div>
       </div>
 
-      <section v-if="savedFlora.length" class="flora-display flora-archive">
+      <section class="flora-display flora-archive">
         <div class="flora-header">
           <div class="flora-icon">📚</div>
           <div>
@@ -214,7 +216,7 @@
             <p class="flora-tagline">Reload or refine persistent plant dossiers linked to this world.</p>
           </div>
         </div>
-        <div class="saved-record-list">
+        <div v-if="savedFlora.length" class="saved-record-list">
           <article v-for="entry in savedFlora" :key="entry.id" class="saved-record-card">
             <div class="saved-record-copy">
               <strong>{{ entry.name }}</strong>
@@ -228,9 +230,10 @@
             </div>
           </article>
         </div>
+        <p v-else class="empty-archive-note">No saved flora yet. Generate and save a plant to see it here.</p>
       </section>
 
-      <div v-if="!flora && !savedFlora.length" class="empty-placeholder">
+      <div v-if="!flora" class="empty-placeholder">
         <h2>Procedural Flora Generator</h2>
         <p>Generate world-linked plants with ecology, trade value, hazards, and field hooks.</p>
       </div>
@@ -525,6 +528,8 @@ async function ensureFloraSpeciesPool() {
 
 async function generateFlora() {
   const seed = ensureSeed();
+  const resolvedClimate =
+    climate.value === "random" ? FLORA_CLIMATES[Math.floor(Math.random() * FLORA_CLIMATES.length)] : climate.value;
   if (!String(floraName.value || "").trim()) {
     randomizeName();
   }
@@ -586,8 +591,8 @@ async function generateFlora() {
   const next = generateFloraProfile({
     seed,
     name: floraName.value.trim() || "Generated Flora",
-    growthForm: growthForm.value === "random" ? linked.growthForm || "random" : growthForm.value,
-    climate: climate.value === "random" ? linked.climate || "random" : climate.value,
+    growthForm: growthForm.value,
+    climate: resolvedClimate,
     sourceWorld: linked.sourceWorld,
   });
 
@@ -958,6 +963,13 @@ label {
 .saved-record-actions {
   display: flex;
   gap: 0.5rem;
+}
+
+.empty-archive-note {
+  padding: 1rem 1.5rem;
+  color: #7ba3c8;
+  font-style: italic;
+  margin: 0;
 }
 
 .empty-placeholder {

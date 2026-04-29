@@ -7,6 +7,7 @@ import {
   buildSophontHistoryTimeline,
   buildSophontWorldUpdate,
   buildWorldLinkedSophontOptions,
+  deriveSophontVisualCues,
   describeSophontTechBand,
   generateSophontProfile,
   mapWorldToSophontEnvironment,
@@ -167,5 +168,34 @@ describe("sophontGenerator shared biology rules", () => {
     expect(update.secondaryWorldContext).toContain("Open contact");
     expect(update.linkedSophontProfile.currentFlashpoint).toBeTruthy();
     expect(update.remarks.length).toBeGreaterThan(0);
+  });
+
+  it("derives planetary visual cues from environment: arctic worlds produce insulating hide and frost-white coloration", () => {
+    const arctic = deriveSophontVisualCues({ biology: { "Home Environment": "Arctic" } });
+    expect(arctic.integument.toLowerCase()).toMatch(/insulating|pelage|fat|hide/);
+    expect(arctic.coloration.toLowerCase()).toMatch(/frost|white|grey|ivory/);
+    expect(arctic.physicalAdaptation.toLowerCase()).toMatch(/compact|heat|extremity/);
+  });
+
+  it("derives planetary visual cues from environment: desert worlds produce heat-reflective scaled exoderm", () => {
+    const desert = deriveSophontVisualCues({ biology: { "Home Environment": "Desert" } });
+    expect(desert.integument.toLowerCase()).toMatch(/scale|plate|heat|exoderm/);
+    expect(desert.coloration.toLowerCase()).toMatch(/tan|ochre|rust|sun/);
+    expect(desert.physicalAdaptation.toLowerCase()).toMatch(/elongated|heat|limb/);
+  });
+
+  it("derives planetary visual cues from environment: aquatic worlds produce hydrodynamic scale arrays", () => {
+    const aquatic = deriveSophontVisualCues({ biology: { "Home Environment": "Aquatic" } });
+    expect(aquatic.integument.toLowerCase()).toMatch(/hydrodynamic|scale|hide/);
+    expect(aquatic.coloration.toLowerCase()).toMatch(/blue|grey|teal|counter/);
+    expect(aquatic.physicalAdaptation.toLowerCase()).toMatch(/fin|paddle|aquatic|fluid/);
+  });
+
+  it("injects planetary visual cues into generated sophont image prompts", () => {
+    const arcticSophont = generateSophontProfile({ seed: "arctic-test", homeEnvironment: "Arctic" });
+    expect(arcticSophont.imagePrompt.toLowerCase()).toMatch(/insulating|pelage|fat|frost|white|ivory/);
+
+    const desertSophont = generateSophontProfile({ seed: "desert-test", homeEnvironment: "Desert" });
+    expect(desertSophont.imagePrompt.toLowerCase()).toMatch(/scale|plate|tan|ochre|heat/);
   });
 });

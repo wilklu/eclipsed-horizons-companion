@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   SYSTEM_WBH_RULES,
   auToFractionalOrbit,
+  calculateBaselineOrbitWbh,
   calculateHabitableCandidateWindowWbh,
   calculateBaselineNumberWbh,
   calculateEffectiveHzcoDeviation,
@@ -66,6 +67,47 @@ describe("systemGenerationWbh", () => {
     expect(
       calculateBaselineNumberWbh({ rollTotal: 9, luminosityClass: "V", totalWorlds: 17, secondaryStarCount: 2 }),
     ).toBe(7);
+  });
+
+  it("places cold-system baseline orbit past the HZCO for solar-type stars", () => {
+    // baselineNumber < 1 means all worlds are exterior to the HZCO (cold outer zone).
+    // For a G star (HZCO ≈ 3), the WBH formula is: HZCO - baseline + totalWorlds + (2D-2)/10.
+    // With rollTotal=7 (median), baseline=-2, totalWorlds=5, hzco=3: 3-(-2)+5+0.5 = 10.5
+    const solarBaseline = calculateBaselineOrbitWbh({
+      rollTotal: 7,
+      hzco: 3,
+      baselineNumber: -2,
+      totalWorlds: 5,
+      minimumOrbit: 0.02,
+    });
+    expect(solarBaseline).toBeGreaterThan(3); // must be past the 1 AU habitable zone
+  });
+
+  it("uses compact formula for dim-star cold systems where HZCO is below orbit 1", () => {
+    // For an M dwarf (HZCO ≈ 0.1), cold system uses the small minimumOrbit-anchored formula.
+    const dimBaseline = calculateBaselineOrbitWbh({
+      rollTotal: 7,
+      hzco: 0.1,
+      baselineNumber: -1,
+      totalWorlds: 3,
+      minimumOrbit: 0.01,
+    });
+    // Result should be a small orbit number close to minimumOrbit, not past orbit 1
+    expect(dimBaseline).toBeLessThan(1);
+    expect(dimBaseline).toBeGreaterThan(0);
+  });
+
+  it("places normal-range baseline orbit near the HZCO for G-type stars", () => {
+    // baselineNumber in [1, totalWorlds] → baseline lands within ±0.5 of HZCO
+    const normalBaseline = calculateBaselineOrbitWbh({
+      rollTotal: 7,
+      hzco: 3,
+      baselineNumber: 3,
+      totalWorlds: 5,
+      minimumOrbit: 0.02,
+    });
+    expect(normalBaseline).toBeGreaterThanOrEqual(2.5);
+    expect(normalBaseline).toBeLessThanOrEqual(3.5);
   });
 
   it("builds a WBH system body plan with orbit placements", () => {

@@ -331,9 +331,86 @@ function pickFrom(values = [], rng = Math.random, fallback = "Unknown") {
   return values[Math.floor(rng() * values.length)] ?? fallback;
 }
 
+export function deriveCreatureVisualCues(profile = {}) {
+  const terrain = String(profile?.terrain || "Clear").toLowerCase();
+  const locomotion = String(profile?.locomotion || "Walker");
+  const covering = String(profile?.extended?.covering || "").toLowerCase();
+
+  let integument;
+  let coloration;
+  let envAdaptation;
+
+  if (terrain.includes("frozen") || terrain.includes("ice") || terrain.includes("tundra")) {
+    integument = covering.includes("scale")
+      ? "pale insulating scales with a thick subcutaneous fat layer"
+      : "dense insulating fur coat";
+    coloration = "white, grey, or pale blue-grey camouflage patterning";
+    envAdaptation = "cold-adapted physiology with layered thermal insulation and compact heat-conserving extremities";
+  } else if (terrain.includes("desert") || terrain.includes("baked") || terrain.includes("dune")) {
+    integument = "heat-reflective scales or ceramic-like plates";
+    coloration = "sun-bleached tan, ochre, or russet earth tones";
+    envAdaptation = "heat-shedding body geometry with elongated radiating limbs and minimized sun-facing profile";
+  } else if (terrain.includes("ocean") || terrain.includes("lake") || terrain.includes("river")) {
+    integument = "smooth hydrodynamic pressure-scales";
+    coloration = "counter-shaded ocean blue, grey, or mottled silver-white";
+    envAdaptation = "fully aquatic body plan with fluid-displacement contours and reduced drag surfaces";
+  } else if (terrain.includes("wetland") || terrain.includes("swamp") || terrain.includes("bog")) {
+    integument = covering || "slick amphibious hide with moisture-retaining mucous layer";
+    coloration = "mottled olive, brown, and grey marsh camouflage";
+    envAdaptation = "semi-aquatic build with webbed appendages and waterproof skin sealing";
+  } else if (terrain.includes("shore") || terrain.includes("beach")) {
+    integument = covering || "tough salt-tolerant hide";
+    coloration = "sandy brown and speckled grey tidal-flat tones";
+    envAdaptation = "tidal-zone adapted body with semi-aquatic limb structure and salt-hardened skin";
+  } else if (terrain.includes("mountain") || terrain.includes("precipice") || terrain.includes("chasm")) {
+    integument = "dense ridged hide with toughened grip-pads on the extremities";
+    coloration = "slate grey, muted brown, and stone-matching mottled tones";
+    envAdaptation = "sure-footed build with reinforced joints, low center of gravity, and wind-bracing musculature";
+  } else if (terrain.includes("rough") && !terrain.includes("wood")) {
+    integument = covering || "thick callused hide";
+    coloration = "grey-brown broken-ground camouflage";
+    envAdaptation = "rugged terrain-adapted limb structure with impact-absorbing skeletal reinforcement";
+  } else if (
+    terrain.includes("wood") ||
+    terrain.includes("forest") ||
+    terrain.includes("rural") ||
+    terrain.includes("crop")
+  ) {
+    integument = covering || "dappled mottled hide";
+    coloration = "dappled green-brown, bark-pattern or leaf-mottled camouflage";
+    envAdaptation = "forest-adapted camouflage with flexible climbing joints and light-filtering visual organs";
+  } else if (
+    terrain.includes("cave") ||
+    terrain.includes("cavern") ||
+    terrain.includes("underground") ||
+    terrain.includes("mine") ||
+    terrain.includes("abyss")
+  ) {
+    integument = "pale or semi-translucent thin hide";
+    coloration = "pallid bone-white or faint bioluminescent markings";
+    envAdaptation =
+      "low-light adapted build with reduced pigmentation, enlarged sensory organs, and tactile lateral line";
+  } else {
+    integument = covering || "natural textured hide";
+    coloration = "natural earth tones with counter-shading";
+    envAdaptation = "generalist physiology suited to open terrain with efficient thermoregulation";
+  }
+
+  if (["Swimmer", "Swims", "Aquatic", "Diver"].includes(locomotion)) {
+    integument = "smooth streamlined scales";
+    envAdaptation = envAdaptation + ", with hydrodynamic fin-bearing frame and gill or lateral-line structures";
+  } else if (["Flyer", "Flyphib", "Triphib"].includes(locomotion)) {
+    integument = covering.includes("membrane") ? covering : "feathered or membrane-winged lightweight body";
+    envAdaptation = envAdaptation + ", with hollow skeletal structure and aerodynamic wing surface";
+  }
+
+  return { integument, coloration, envAdaptation };
+}
+
 export function buildCreatureImagePrompt(profile = {}) {
   const name = String(profile?.name || "Generated Beast");
-  const terrain = String(profile?.terrain || "frontier wilds").toLowerCase();
+  const terrain = String(profile?.terrain || "frontier wilds");
+  const terrainLower = terrain.toLowerCase();
   const locomotion = String(profile?.locomotion || "walker").toLowerCase();
   const niche = String(profile?.ecologicalNiche?.niche || "omnivore").toLowerCase();
   const subniche = String(profile?.ecologicalNiche?.subniche || "generalist").toLowerCase();
@@ -341,7 +418,6 @@ export function buildCreatureImagePrompt(profile = {}) {
   const measure = String(profile?.size?.measure || "medium-sized silhouette");
   const body = String(profile?.extended?.bodySymmetry || "bilateral frame").toLowerCase();
   const stance = String(profile?.extended?.stance || "alert posture").toLowerCase();
-  const covering = String(profile?.extended?.covering || "natural hide").toLowerCase();
   const weapon = String(profile?.combat?.weapon?.weapon || "body").toLowerCase();
   const adaptation = String(profile?.extended?.notableAdaptation || "localized survival trait").toLowerCase();
   const senses = Array.isArray(profile?.extended?.senses)
@@ -349,9 +425,11 @@ export function buildCreatureImagePrompt(profile = {}) {
     : "sharp survival senses";
   const worldName = String(profile?.sourceWorld?.name || "an alien frontier world");
 
+  const { integument, coloration, envAdaptation } = deriveCreatureVisualCues(profile);
+
   return {
-    visualDescription: `${name} appears as a ${sizeLabel} ${niche} beast adapted to ${terrain}, with a ${body}, ${stance}, ${covering}, and a ${weapon}-based threat profile. Its frame suggests ${subniche} behavior, while notable features include ${adaptation} and ${senses}.`,
-    imagePrompt: `Detailed sci-fi creature concept art of ${name}, an alien ${niche} from ${worldName}, ${measure}, ${body}, ${stance}, ${covering}, moving as a ${locomotion}, natural weapon emphasis on ${weapon}, adapted for ${terrain}, hints of ${adaptation}, full body visible, naturalistic field-guide illustration, dramatic but realistic lighting, highly detailed.`,
+    visualDescription: `${name} appears as a ${sizeLabel} ${niche} beast native to ${terrainLower} environments, with a ${body}, ${stance}, and ${integument}. Its ${coloration} coloration and ${envAdaptation} mark it as a product of harsh planetary conditions. Behavioral profile suggests ${subniche} tendencies, with a ${weapon}-based threat response, ${adaptation}, and ${senses}.`,
+    imagePrompt: `Detailed sci-fi creature concept art of ${name}, an alien ${niche} from ${worldName}, ${measure}, ${body}, ${stance}, ${integument}, ${coloration}, moving as a ${locomotion}, natural weapon emphasis on ${weapon}, evolved for ${terrainLower} conditions — ${envAdaptation}, hints of ${adaptation}, full body visible, naturalistic field-guide illustration, dramatic but realistic lighting, highly detailed.`,
     imageCaption: `${name} — ${sizeLabel} ${niche} specimen from ${worldName}`,
   };
 }

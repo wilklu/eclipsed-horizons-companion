@@ -39,7 +39,9 @@
           <label>Seed:</label>
           <div class="name-row">
             <input v-model="seedValue" placeholder="guid-seed" class="text-input" />
-            <button class="btn btn-secondary" @click="generateNewSeed">🧬</button>
+            <button class="btn btn-secondary" type="button" title="Generate new seed" @click="generateNewSeed">
+              🧬 New
+            </button>
           </div>
         </div>
         <div class="control-group">
@@ -316,7 +318,7 @@
         </div>
       </div>
 
-      <section v-if="savedSophonts.length" class="sophont-display sophont-archive">
+      <section class="sophont-display sophont-archive">
         <div class="sophont-header">
           <div class="sophont-icon">📚</div>
           <div>
@@ -324,7 +326,7 @@
             <p class="sophont-tagline">Reload or refine persistent species dossiers linked to this world.</p>
           </div>
         </div>
-        <div class="saved-record-list">
+        <div v-if="savedSophonts.length" class="saved-record-list">
           <article v-for="entry in savedSophonts" :key="entry.id" class="saved-record-card">
             <div class="saved-record-copy">
               <strong>{{ entry.name }}</strong>
@@ -338,6 +340,7 @@
             </div>
           </article>
         </div>
+        <p v-else class="empty-archive-note">No saved sophonts yet. Generate and save a species to see it here.</p>
       </section>
     </div>
   </div>
@@ -692,6 +695,10 @@ async function ensureSophontSpeciesPool() {
 
 async function generateSophont() {
   const seed = ensureSeed();
+  const resolvedHomeEnvironment =
+    homeEnvironment.value === "random"
+      ? HOME_ENVS[Math.floor(Math.random() * HOME_ENVS.length)]
+      : homeEnvironment.value;
   if (!String(speciesName.value || "").trim()) {
     randomizeName();
   }
@@ -749,8 +756,8 @@ async function generateSophont() {
   const next = generateSophontProfile({
     seed,
     name: speciesName.value.trim() || "Generated Sophont",
-    bodyPlan: bodyPlan.value === "random" ? linked.bodyPlan || "random" : bodyPlan.value,
-    homeEnvironment: homeEnvironment.value === "random" ? linked.homeEnvironment || "random" : homeEnvironment.value,
+    bodyPlan: bodyPlan.value,
+    homeEnvironment: resolvedHomeEnvironment,
     sourceWorld: linked.sourceWorld,
   });
 
@@ -1050,6 +1057,13 @@ async function exportSophont() {
 .saved-record-list {
   display: grid;
   gap: 0.75rem;
+}
+
+.empty-archive-note {
+  padding: 1rem 1.5rem;
+  color: #7ba3c8;
+  font-style: italic;
+  margin: 0;
 }
 
 .saved-record-card {

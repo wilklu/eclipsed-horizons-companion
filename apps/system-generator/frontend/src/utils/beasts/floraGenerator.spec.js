@@ -3,6 +3,7 @@ import {
   buildFloraImagePrompt,
   buildFloraWorldUpdate,
   buildWorldLinkedFloraOptions,
+  deriveFloraVisualCues,
   generateFloraProfile,
   mapWorldToFloraClimate,
   randomFloraName,
@@ -116,5 +117,31 @@ describe("floraGenerator", () => {
     expect(update.linkedFloraSummary.scientificName).toBeTruthy();
     expect(update.linkedFloraSummary.originModel).toBeTruthy();
     expect(update.remarks.length).toBeGreaterThan(0);
+  });
+
+  it("derives planetary visual cues from climate: tundra worlds produce frost-adapted tissues", () => {
+    const tundra = deriveFloraVisualCues({ biology: { Climate: "Tundra" } });
+    expect(tundra.climaticTexture.toLowerCase()).toMatch(/frost|wiry|antifreeze|stolon/);
+    expect(tundra.climaticAdaptation.toLowerCase()).toMatch(/cold|ivory|frost|silver/);
+  });
+
+  it("derives planetary visual cues from climate: arid worlds produce drought-adapted waxy stems", () => {
+    const arid = deriveFloraVisualCues({ biology: { Climate: "Arid" } });
+    expect(arid.climaticTexture.toLowerCase()).toMatch(/waxy|drought|epidermis|storage/);
+    expect(arid.climaticAdaptation.toLowerCase()).toMatch(/ochre|amber|heat|sun/);
+  });
+
+  it("derives planetary visual cues from climate: wetland worlds produce flood-adapted membranes", () => {
+    const wetland = deriveFloraVisualCues({ biology: { Climate: "Wetland" } });
+    expect(wetland.climaticTexture.toLowerCase()).toMatch(/moisture|membrane|flood|root/);
+    expect(wetland.climaticAdaptation.toLowerCase()).toMatch(/emerald|teal|waterlogged|flood/);
+  });
+
+  it("injects planetary visual cues into generated flora image prompts", () => {
+    const tundraFlora = generateFloraProfile({ seed: "tundra-test", climate: "Tundra" });
+    expect(tundraFlora.imagePrompt.toLowerCase()).toMatch(/frost|wiry|antifreeze|ivory|silver|cold/);
+
+    const aridFlora = generateFloraProfile({ seed: "arid-test", climate: "Arid" });
+    expect(aridFlora.imagePrompt.toLowerCase()).toMatch(/waxy|drought|ochre|amber|heat/);
   });
 });

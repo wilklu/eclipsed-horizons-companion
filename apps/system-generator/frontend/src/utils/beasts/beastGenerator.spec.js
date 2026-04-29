@@ -3,6 +3,7 @@ import {
   buildCreatureImagePrompt,
   buildWorldLinkedCreatureOptions,
   buildWorldTerrainPalette,
+  deriveCreatureVisualCues,
   generateBeastProfile,
   generateWorldFaunaBundle,
   generateGuidSeed,
@@ -202,5 +203,34 @@ describe("beastGenerator rules foundation", () => {
     expect(Array.isArray(beast.extended.senses)).toBe(true);
     expect(beast.extended.specialTraits.length).toBeGreaterThan(0);
     expect(beast.extended.encounterHooks.length).toBeGreaterThan(0);
+  });
+
+  it("derives planetary visual cues from terrain: cold worlds produce insulating fur or pale scales", () => {
+    const frozen = deriveCreatureVisualCues({ terrain: "Frozen Lands", locomotion: "Walker" });
+    expect(frozen.integument.toLowerCase()).toMatch(/fur|insulating|fat/);
+    expect(frozen.coloration.toLowerCase()).toMatch(/white|grey|pale|blue/);
+    expect(frozen.envAdaptation.toLowerCase()).toMatch(/cold|thermal|insulation/);
+  });
+
+  it("derives planetary visual cues from terrain: hot/desert worlds produce heat-shedding scales", () => {
+    const desert = deriveCreatureVisualCues({ terrain: "Desert", locomotion: "Walker" });
+    expect(desert.integument.toLowerCase()).toMatch(/scale|plate|heat/);
+    expect(desert.coloration.toLowerCase()).toMatch(/tan|ochre|russet|earth/);
+    expect(desert.envAdaptation.toLowerCase()).toMatch(/heat|radiating|elongated/);
+  });
+
+  it("derives planetary visual cues from terrain: aquatic worlds produce hydrodynamic scales", () => {
+    const ocean = deriveCreatureVisualCues({ terrain: "Ocean", locomotion: "Swimmer" });
+    expect(ocean.integument.toLowerCase()).toMatch(/scale|streamlined/);
+    expect(ocean.coloration.toLowerCase()).toMatch(/blue|grey|counter/);
+    expect(ocean.envAdaptation.toLowerCase()).toMatch(/aquatic|hydro|fluid|fin/);
+  });
+
+  it("injects planetary visual cues into generated image prompts", () => {
+    const frozenBeast = generateBeastProfile({ seed: "frozen-test", terrain: "Frozen Lands", worldSize: "5" });
+    expect(frozenBeast.imagePrompt.toLowerCase()).toMatch(/fur|insulating|fat|pale|cold/);
+
+    const desertBeast = generateBeastProfile({ seed: "desert-test", terrain: "Desert", worldSize: "8" });
+    expect(desertBeast.imagePrompt.toLowerCase()).toMatch(/scale|plate|heat|tan|ochre/);
   });
 });

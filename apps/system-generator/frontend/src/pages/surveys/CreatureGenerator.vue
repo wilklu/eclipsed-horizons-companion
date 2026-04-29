@@ -35,11 +35,13 @@
           </div>
         </div>
 
-        <div class="control-group">
+        <div class="control-group control-group-wide">
           <label>Seed</label>
           <div class="name-row">
             <input v-model="seedValue" placeholder="guid-seed" class="text-input" />
-            <button class="btn btn-secondary" @click="generateNewSeed">🧬</button>
+            <button class="btn btn-secondary" type="button" title="Generate new seed" @click="generateNewSeed">
+              🧬 New
+            </button>
           </div>
         </div>
 
@@ -55,6 +57,7 @@
         <div class="control-group">
           <label>Native Terrain</label>
           <select v-model="terrain" class="select-input">
+            <option value="random">🎲 Random</option>
             <option v-for="entry in TERRAIN_OPTIONS" :key="entry" :value="entry">{{ entry }}</option>
           </select>
         </div>
@@ -67,9 +70,9 @@
           </select>
         </div>
 
-        <div class="control-group">
+        <div class="control-group control-group-narrow">
           <label>World Size</label>
-          <select v-model="worldSize" class="select-input">
+          <select v-model="worldSize" class="select-input select-input-narrow">
             <option v-for="entry in WORLD_SIZE_OPTIONS" :key="entry" :value="entry">{{ entry }}</option>
           </select>
         </div>
@@ -80,15 +83,6 @@
             <option value="">Manual / Unlinked</option>
             <option v-for="entry in worldOptions" :key="entry.key" :value="entry.key">{{ entry.label }}</option>
           </select>
-        </div>
-
-        <div class="control-group control-group-wide">
-          <label>Linked World</label>
-          <input
-            v-model="linkedWorldName"
-            placeholder="Optional world name for linked fauna generation"
-            class="text-input"
-          />
         </div>
 
         <div class="control-group">
@@ -357,7 +351,7 @@
         </div>
       </div>
 
-      <section v-if="savedCreatures.length" class="creature-display creature-archive">
+      <section class="creature-display creature-archive">
         <div class="creature-header">
           <div class="creature-icon">📚</div>
           <div class="header-copy">
@@ -365,7 +359,7 @@
             <p class="summary-copy">Reopen, update, or remove linked fauna records for this world.</p>
           </div>
         </div>
-        <div class="saved-record-list">
+        <div v-if="savedCreatures.length" class="saved-record-list">
           <article v-for="entry in savedCreatures" :key="entry.id" class="saved-record-card">
             <div class="saved-record-copy">
               <strong>{{ entry.name }}</strong>
@@ -379,9 +373,10 @@
             </div>
           </article>
         </div>
+        <p v-else class="empty-archive-note">No saved creatures yet. Generate and save a beast to see it here.</p>
       </section>
 
-      <section v-if="savedFaunaBundles.length" class="creature-display creature-archive">
+      <section class="creature-display creature-archive">
         <div class="creature-header">
           <div class="creature-icon">🗺️</div>
           <div class="header-copy">
@@ -389,7 +384,7 @@
             <p class="summary-copy">Local ecology sets are attached to the selected world link for quick reuse.</p>
           </div>
         </div>
-        <div class="saved-record-list">
+        <div v-if="savedFaunaBundles.length" class="saved-record-list">
           <article v-for="entry in savedFaunaBundles" :key="entry.id" class="saved-record-card">
             <div class="saved-record-copy">
               <strong>{{ entry.worldName || "Linked World" }}</strong>
@@ -403,12 +398,12 @@
             </div>
           </article>
         </div>
+        <p v-else class="empty-archive-note">
+          No saved fauna bundles yet. Generate a world fauna bundle and save it to see it here.
+        </p>
       </section>
 
-      <div
-        v-if="!creature && !faunaBundle && !savedCreatures.length && !savedFaunaBundles.length"
-        class="empty-placeholder"
-      >
+      <div v-if="!creature && !faunaBundle" class="empty-placeholder">
         <h2>BeastMaker Fauna Generator</h2>
         <p>Select terrain, world size, and niche guidance, then generate a rule-based creature profile.</p>
       </div>
@@ -486,7 +481,7 @@ const artStyle = ref(DEFAULT_ART_STYLE);
 const artPreviewUrl = ref("");
 const seedValue = ref(generateGuidSeed("fauna"));
 const generationMode = ref("single");
-const terrain = ref("Woods");
+const terrain = ref("random");
 const primaryNiche = ref("random");
 const worldSize = ref("8");
 const linkedWorldName = ref("");
@@ -846,6 +841,8 @@ async function ensureFaunaSpeciesPool() {
 
 async function generateCreature() {
   const seed = ensureSeed();
+  const resolvedTerrain =
+    terrain.value === "random" ? TERRAIN_OPTIONS[Math.floor(Math.random() * TERRAIN_OPTIONS.length)] : terrain.value;
   if (!String(creatureName.value || "").trim()) {
     randomizeName();
   }
@@ -853,15 +850,18 @@ async function generateCreature() {
   await ensureFaunaSpeciesPool();
 
   const linkedWorld = selectedWorldRecord.value
-    ? buildWorldLinkedCreatureOptions(selectedWorldRecord.value)
+    ? {
+        ...buildWorldLinkedCreatureOptions(selectedWorldRecord.value),
+        terrain: resolvedTerrain,
+      }
     : linkedWorldName.value.trim()
       ? buildWorldLinkedCreatureOptions({
           name: linkedWorldName.value.trim(),
-          terrain: terrain.value,
+          terrain: resolvedTerrain,
           size: worldSize.value,
           nativeSophontLife: selectedWorldRecord.value?.nativeSophontLife,
         })
-      : { sourceWorld: null, terrain: terrain.value, worldSize: worldSize.value };
+      : { sourceWorld: null, terrain: resolvedTerrain, worldSize: worldSize.value };
 
   const propagated = pickNearbySpeciesTemplate({
     records: creatureStore.getAllCreatures,
@@ -1062,7 +1062,7 @@ function loadSavedCreature(record) {
   generationMode.value =
     normalizedRecord.generationMode ||
     (Array.isArray(normalizedRecord.encounterTable) && normalizedRecord.encounterTable.length ? "table" : "single");
-  terrain.value = normalizedRecord.terrain || "Woods";
+  terrain.value = normalizedRecord.terrain || "random";
   worldSize.value = String(normalizedRecord.worldSize || "8");
   primaryNiche.value = normalizedRecord.primaryNicheSelection || normalizedRecord.ecologicalNiche?.niche || "random";
   linkedWorldName.value = normalizedRecord.worldName || normalizedRecord.sourceWorld?.name || "";
@@ -1113,7 +1113,7 @@ function resetForm() {
   creatureName.value = "";
   seedValue.value = generateGuidSeed("fauna");
   generationMode.value = "single";
-  terrain.value = "Woods";
+  terrain.value = "random";
   primaryNiche.value = "random";
   worldSize.value = "8";
   linkedWorldName.value = "";
@@ -1208,6 +1208,16 @@ async function exportCreature() {
   color: #00ffff;
   font-weight: bold;
   font-size: 0.9rem;
+}
+
+.control-group-narrow {
+  min-width: 0;
+  max-width: 120px;
+}
+
+.select-input-narrow {
+  min-width: 0;
+  width: 100%;
 }
 
 .control-action {
@@ -1519,6 +1529,13 @@ async function exportCreature() {
   color: #d8e7ff;
   font-size: 0.85rem;
   line-height: 1.5;
+}
+
+.empty-archive-note {
+  padding: 1rem 1.5rem;
+  color: #7ba3c8;
+  font-style: italic;
+  margin: 0;
 }
 
 .empty-placeholder {

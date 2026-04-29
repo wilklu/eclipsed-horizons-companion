@@ -514,6 +514,53 @@ export function buildWorldLinkedSophontOptions(world = {}) {
   };
 }
 
+export function deriveSophontVisualCues(profile = {}) {
+  const environment = String(profile?.biology?.["Home Environment"] || "Forest");
+  const map = {
+    Arctic: {
+      integument: "dense insulating pelage coat or thick layered fat-backed hide",
+      coloration: "frost-white, pale grey-blue, or muted ivory winter pigmentation",
+      physicalAdaptation: "compact heat-retaining body with reduced extremity exposure",
+    },
+    Desert: {
+      integument: "heat-reflective scaled or ceramic-plated exoderm",
+      coloration: "sun-bleached tan, ochre, or rust pigmentation",
+      physicalAdaptation: "elongated limbs for heat dissipation and shade-seeking body posture",
+    },
+    Aquatic: {
+      integument: "hydrodynamic smooth hide or iridescent close-packed scale array",
+      coloration: "counter-shaded blue-grey and teal aquatic patterning",
+      physicalAdaptation: "aquatic fin and paddle limb adaptations for fluid locomotion",
+    },
+    Forest: {
+      integument: "dappled mottled camouflage hide or layered feathering",
+      coloration: "dappled green-brown and bark-pattern earth tones",
+      physicalAdaptation: "arboreal grip structures and balance-optimized limb proportions",
+    },
+    Mountain: {
+      integument: "dense ridged hide with toughened extremity pad coverage",
+      coloration: "slate grey and muted brown altitude-adaptive pigmentation",
+      physicalAdaptation: "sure-footed low center of gravity build with reinforced joint structure",
+    },
+    Underground: {
+      integument: "pale or semi-translucent thin skin with bioluminescent organ inlays",
+      coloration: "pallid bone-white and softly glowing bioluminescent markings",
+      physicalAdaptation: "reduced visual organs replaced by enlarged chemosensory and vibration-sensing arrays",
+    },
+    "Dense Atmosphere": {
+      integument: "reinforced respiratory-filtering dermal layer with pressure-sealing skin folds",
+      coloration: "deep saturated pigmentation protective against dense-atmosphere UV scatter",
+      physicalAdaptation: "broad pressure-adapted torso with high-volume lung architecture",
+    },
+    "Thin Atmosphere": {
+      integument: "compact UV-resistant melanin-rich integument with oxygen-conserving pore structure",
+      coloration: "dark melanin-heavy tones providing high UV radiation shielding",
+      physicalAdaptation: "oxygen-conserving efficient musculature and high-altitude breathing adaptations",
+    },
+  };
+  return map[environment] || map.Forest;
+}
+
 export function buildSophontImagePrompt(profile = {}) {
   const name = String(profile?.name || "Generated Sophont");
   const bodyPlan = String(profile?.biology?.["Body Plan"] || "Bilateral Symmetry").toLowerCase();
@@ -539,9 +586,11 @@ export function buildSophontImagePrompt(profile = {}) {
       ? profile.specialAbilities.slice(0, 2).join(", ").toLowerCase()
       : "no obvious overt augmentations";
 
+  const { integument, coloration, physicalAdaptation } = deriveSophontVisualCues(profile);
+
   return {
-    visualDescription: `${name} present as a ${bodyPlan} sophont species shaped by ${environment} conditions, averaging ${height} and ${mass}. Their appearance suggests ${focus}, ${posture}, and ${aesthetics} design language, with recognizable traits such as ${traitNames} and ${specialAbilities}.`,
-    imagePrompt: `Detailed sci-fi species concept art of ${name}, alien sophont from ${worldName}, ${bodyPlan} anatomy, adapted to ${environment}, average build ${height} and ${mass}, visual cues of ${focus}, ${aesthetics} cultural design, ${language} communication style, ${government} civic identity, ${techBand} setting, full-body character sheet, cinematic but realistic lighting, highly detailed.`,
+    visualDescription: `${name} present as a ${bodyPlan} sophont species shaped by ${environment} conditions, averaging ${height} and ${mass}. Physical characteristics include ${integument} and ${coloration}, marking them as products of their homeworld environment. Cultural profile reflects ${focus}, ${posture}, and ${aesthetics} design language, with distinctive ${traitNames} and ${specialAbilities}.`,
+    imagePrompt: `Detailed sci-fi species concept art of ${name}, alien sophont from ${worldName}, ${bodyPlan} anatomy, adapted to ${environment}, ${integument}, ${coloration}, ${physicalAdaptation}, average build ${height} and ${mass}, visual cues of ${focus}, ${aesthetics} cultural design, ${language} communication style, ${government} civic identity, ${techBand} setting, full-body character sheet, cinematic but realistic lighting, highly detailed.`,
     imageCaption: `${name} — ${techBand} sophont concept from ${worldName}`,
   };
 }

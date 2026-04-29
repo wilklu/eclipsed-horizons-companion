@@ -1018,6 +1018,45 @@ export function buildWorldLinkedFloraOptions(world = {}) {
   };
 }
 
+export function deriveFloraVisualCues(profile = {}) {
+  const climate = String(profile?.biology?.Climate || profile?.climate || "Temperate");
+  const map = {
+    Tundra: {
+      climaticTexture: "frost-hardened wiry tissues and compact antifreeze-adapted stolon networks",
+      climaticAdaptation: "cold-cycle dormancy and bleached ivory or frost-silver seasonal pigmentation",
+    },
+    Arid: {
+      climaticTexture: "thick waxy drought-resistant epidermis and elongated water-storage stems",
+      climaticAdaptation: "sun-scorch resilience with sun-bleached ochre and amber heat-deflecting surfaces",
+    },
+    Wetland: {
+      climaticTexture: "slick moisture-rich membranes and broad flood-adapted root mats",
+      climaticAdaptation: "waterlogged soil tolerance and deep emerald and teal flood-season coloration",
+    },
+    Tropical: {
+      climaticTexture: "lush waxy broad leaves and rapid-growth high-humidity stem architecture",
+      climaticAdaptation: "high-humidity flourishing with vibrant scarlet-emerald and violet canopy pigmentation",
+    },
+    Alpine: {
+      climaticTexture: "tough wind-resistant bark plating and compact low-profile growth form",
+      climaticAdaptation: "altitude stress tolerance and muted grey-green and silver wind-scoured coloration",
+    },
+    Subterranean: {
+      climaticTexture: "pale chemotrophic tissues and light-seeking tendril networks",
+      climaticAdaptation: "photosynthesis-free nutrition and translucent bioluminescent pallid bloom pigmentation",
+    },
+    Coastal: {
+      climaticTexture: "salt-resistant cuticle and tidal-anchored rhizome spread",
+      climaticAdaptation: "saline flooding tolerance and sea-green turquoise salt-bleached coloration",
+    },
+    Temperate: {
+      climaticTexture: "flexible seasonal leaf tissues and balanced bark layering",
+      climaticAdaptation: "seasonal growth-rest cycling and rich varied greens with earth-tone autumn pigmentation",
+    },
+  };
+  return map[climate] || map.Temperate;
+}
+
 export function buildFloraImagePrompt({
   name = "Generated Flora",
   biology = {},
@@ -1042,9 +1081,10 @@ export function buildFloraImagePrompt({
   const bloomShape = pick(BLOOM_SHAPES, rng);
   const surfaceTexture = pick(SURFACE_TEXTURES, rng);
   const lightingMood = pick(LIGHTING_MOODS, rng);
+  const { climaticTexture, climaticAdaptation } = deriveFloraVisualCues({ biology });
 
-  const visualDescription = `${name} appears as a ${climate} ${growthForm.toLowerCase()} roughly ${height} tall, with ${canopy}, ${coloration}, and ${bloomShape} supported by ${surfaceTexture}. It grows from ${soil} using ${waterStrategy}, and its most notable traits include ${featureList}.`;
-  const imagePrompt = `Detailed botanical concept art of ${name}, an alien ${growthForm.toLowerCase()} on ${worldName}, ${height} tall, ${canopy}, ${coloration}, ${bloomShape}, ${surfaceTexture}, adapted for ${climate} conditions, growing from ${soil}, hints of ${featureList}, naturalistic sci-fi field-guide style, full plant visible, clean composition, ${lightingMood}, highly detailed.`;
+  const visualDescription = `${name} appears as a ${climate} ${growthForm.toLowerCase()} roughly ${height} tall, with ${canopy}, ${coloration}, and ${bloomShape} supported by ${surfaceTexture}. Its ${climaticTexture} reflect ${climaticAdaptation}. Most notable traits include ${featureList}.`;
+  const imagePrompt = `Detailed botanical concept art of ${name}, an alien ${growthForm.toLowerCase()} on ${worldName}, ${height} tall, ${canopy}, ${coloration}, ${bloomShape}, ${surfaceTexture}, ${climaticTexture}, adapted for ${climate} conditions — ${climaticAdaptation}, growing from ${soil}, hints of ${featureList}, naturalistic sci-fi field-guide style, full plant visible, clean composition, ${lightingMood}, highly detailed.`;
 
   return { visualDescription, imagePrompt, imageCaption: `${name} — ${primaryUse} specimen from ${worldName}` };
 }
