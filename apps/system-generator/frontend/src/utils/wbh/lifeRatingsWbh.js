@@ -5,6 +5,11 @@ function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
+function resolve2d6Roll(rollDie) {
+  const resolvedRollDie = typeof rollDie === "function" ? rollDie : createRandomRoller();
+  return roll2d(resolvedRollDie);
+}
+
 export function calculateBiomassRating({
   atmosphereCode = 0,
   hydrographics = 0,
@@ -13,6 +18,7 @@ export function calculateBiomassRating({
   systemAgeGyr = 5,
   zone = "",
   rollDie = null,
+  returnBreakdown = false,
 } = {}) {
   const numericAtmosphere = Number(atmosphereCode || 0);
   const numericHydrographics = Number(hydrographics || 0);
@@ -61,9 +67,15 @@ export function calculateBiomassRating({
   else if (zoneToken === "warm" || zoneToken === "cold") biomassDm -= 2;
 
   biomassDm = clamp(biomassDm, -12, 4);
-  const resolvedRollDie = typeof rollDie === "function" ? rollDie : createRandomRoller();
-  const rollTotal = roll2d(resolvedRollDie);
-  return Number(clamp(rollTotal + biomassDm, 0, 15));
+  const rollTotal = resolve2d6Roll(rollDie);
+  const total = Number(clamp(rollTotal + biomassDm, 0, 15));
+  return returnBreakdown
+    ? {
+        value: total,
+        rollTotal,
+        dm: biomassDm,
+      }
+    : total;
 }
 
 export function calculateBiocomplexityRating({
@@ -72,6 +84,7 @@ export function calculateBiocomplexityRating({
   atmosphereTaints = [],
   systemAgeGyr = 5,
   rollDie = null,
+  returnBreakdown = false,
 } = {}) {
   const numericAtmosphere = Number(atmosphereCode || 0);
   const numericAge = Number.isFinite(Number(systemAgeGyr)) ? Number(systemAgeGyr) : 5;
@@ -98,21 +111,40 @@ export function calculateBiocomplexityRating({
   else if (numericAge <= 3) biocomplexityDm -= 4;
   else if (numericAge <= 4) biocomplexityDm -= 2;
 
-  const resolvedRollDie = typeof rollDie === "function" ? rollDie : createRandomRoller();
-  const rollModifier = roll2d(resolvedRollDie) - 7;
-  const biocomplexity = clamp(rollModifier + Math.min(Number(biomass), 9) + biocomplexityDm, 1, 15);
-  return Number(biocomplexity);
+  const rollTotal = resolve2d6Roll(rollDie);
+  const rollModifier = rollTotal - 7;
+  const biocomplexity = Number(clamp(rollModifier + Math.min(Number(biomass), 9) + biocomplexityDm, 1, 15));
+  return returnBreakdown
+    ? {
+        value: biocomplexity,
+        rollTotal,
+        rollModifier,
+        dm: biocomplexityDm,
+      }
+    : biocomplexity;
 }
 
-export function calculateBiodiversityRating({ biomass = 0, biocomplexity = 0, rollDie = null } = {}) {
+export function calculateBiodiversityRating({
+  biomass = 0,
+  biocomplexity = 0,
+  rollDie = null,
+  returnBreakdown = false,
+} = {}) {
   if (!(Number(biomass) > 0)) {
     return 0;
   }
 
-  const resolvedRollDie = typeof rollDie === "function" ? rollDie : createRandomRoller();
-  const rollModifier = roll2d(resolvedRollDie) - 7;
-  const biodiversity = Math.ceil(rollModifier + (Number(biomass) + Number(biocomplexity)) / 2);
-  return Number(clamp(biodiversity, 1, 15));
+  const rollTotal = resolve2d6Roll(rollDie);
+  const rollModifier = rollTotal - 7;
+  const biodiversity = Number(clamp(Math.ceil(rollModifier + (Number(biomass) + Number(biocomplexity)) / 2), 1, 15));
+  return returnBreakdown
+    ? {
+        value: biodiversity,
+        rollTotal,
+        rollModifier,
+        dm: 0,
+      }
+    : biodiversity;
 }
 
 export function calculateCompatibilityRating({
@@ -122,6 +154,7 @@ export function calculateCompatibilityRating({
   atmosphereTaints = [],
   systemAgeGyr = 5,
   rollDie = null,
+  returnBreakdown = false,
 } = {}) {
   const numericAtmosphere = Number(atmosphereCode || 0);
   const numericAge = Number.isFinite(Number(systemAgeGyr)) ? Number(systemAgeGyr) : 5;
@@ -141,8 +174,13 @@ export function calculateCompatibilityRating({
   else if ([13, 14].includes(numericAtmosphere)) compatibilityDm -= 1;
   if (numericAge > 8) compatibilityDm -= 2;
 
-  const resolvedRollDie = typeof rollDie === "function" ? rollDie : createRandomRoller();
-  const rollTotal = roll2d(resolvedRollDie);
-  const compatibility = Math.floor(rollTotal - Number(biocomplexity) / 2 + compatibilityDm);
-  return Number(clamp(compatibility, 0, 15));
+  const rollTotal = resolve2d6Roll(rollDie);
+  const compatibility = Number(clamp(Math.floor(rollTotal - Number(biocomplexity) / 2 + compatibilityDm), 0, 15));
+  return returnBreakdown
+    ? {
+        value: compatibility,
+        rollTotal,
+        dm: compatibilityDm,
+      }
+    : compatibility;
 }

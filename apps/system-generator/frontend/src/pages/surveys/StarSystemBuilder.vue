@@ -203,50 +203,83 @@
                 </tr>
               </thead>
               <tbody>
-                <tr
-                  v-for="(planet, i) in system.planets"
-                  :key="i"
-                  :class="{
-                    habitable: planet.zone === 'habitable',
-                    selectable: isWorldBuilderCandidate(planet),
-                    selected: selectedWorldIndex === i,
-                  }"
-                  @click="selectWorldCandidate(i)"
-                  @dblclick="isWorldBuilderCandidate(planet) && proceedToWorldBuilder()"
-                >
-                  <td>{{ i + 1 }}</td>
-                  <td>
-                    <div class="planet-name-cell">
-                      <span>{{ planet.name }}</span>
-                      <span v-if="planet.isMainworld" class="catalog-chip catalog-chip--mainworld">Mainworld</span>
-                      <span v-if="planet.isMoon" class="catalog-chip catalog-chip--moon">Moon</span>
-                    </div>
-                    <div v-if="planet.parentWorldName" class="planet-parent">of {{ planet.parentWorldName }}</div>
-                  </td>
-                  <td>{{ describePlanetType(planet) }}</td>
-                  <td>{{ planet.uwp || "—" }}</td>
-                  <td>{{ planet.composition || "Unknown" }}</td>
-                  <td>{{ planet.orbitNumber ?? "—" }}</td>
-                  <td>{{ planet.orbitAU }}</td>
-                  <td>
-                    <span class="zone-badge" :class="planet.zone">{{ planet.zone }}</span>
-                  </td>
-                  <td>
-                    <div class="catalog-status-cell">
-                      <span class="catalog-status" :class="resolveCatalogNativeLifeStatusClass(planet)">
-                        {{ resolveCatalogNativeLifeLabel(planet) }}
+                <template v-for="(planet, i) in system.planets" :key="`${i}-${planet?.name || 'world'}`">
+                  <tr
+                    :class="{
+                      habitable: planet.zone === 'habitable',
+                      selectable: isWorldBuilderCandidate(planet),
+                      selected: selectedWorldIndex === i,
+                    }"
+                    @click="selectWorldCandidate(i)"
+                    @dblclick="isWorldBuilderCandidate(planet) && proceedToWorldBuilder()"
+                  >
+                    <td>{{ i + 1 }}</td>
+                    <td>
+                      <div class="planet-name-cell">
+                        <span>{{ planet.name }}</span>
+                        <span v-if="planet.isMainworld" class="catalog-chip catalog-chip--mainworld">Mainworld</span>
+                        <span v-if="planet.isMoon" class="catalog-chip catalog-chip--moon">Moon</span>
+                      </div>
+                      <div v-if="planet.parentWorldName" class="planet-parent">of {{ planet.parentWorldName }}</div>
+                    </td>
+                    <td>{{ describePlanetType(planet) }}</td>
+                    <td>{{ planet.uwp || "—" }}</td>
+                    <td>{{ planet.composition || "Unknown" }}</td>
+                    <td>{{ planet.orbitNumber ?? "—" }}</td>
+                    <td>{{ planet.orbitAU }}</td>
+                    <td>
+                      <span class="zone-badge" :class="planet.zone">{{ planet.zone }}</span>
+                    </td>
+                    <td>
+                      <div class="catalog-status-cell">
+                        <span class="catalog-status" :class="resolveCatalogNativeLifeStatusClass(planet)">
+                          {{ resolveCatalogNativeLifeLabel(planet) }}
+                        </span>
+                        <span v-if="hasCatalogNativeLifeProfile(planet.nativeLifeform)" class="catalog-status-meta">
+                          {{ normalizeCatalogNativeLifeProfile(planet.nativeLifeform) }}
+                        </span>
+                        <button
+                          v-if="hasLifeRatingRolls(planet)"
+                          type="button"
+                          class="catalog-rolls-btn"
+                          @click.stop="toggleLifeRatingRollDetails(i)"
+                        >
+                          {{ expandedLifeRollIndex === i ? "Hide Rolls" : "View Rolls" }}
+                        </button>
+                      </div>
+                    </td>
+                    <td>
+                      <span class="catalog-status" :class="resolveCatalogSophontStatusClass(planet)">
+                        {{ resolveCatalogNativeSophontLabel(planet) }}
                       </span>
-                      <span v-if="hasCatalogNativeLifeProfile(planet.nativeLifeform)" class="catalog-status-meta">
-                        {{ normalizeCatalogNativeLifeProfile(planet.nativeLifeform) }}
-                      </span>
-                    </div>
-                  </td>
-                  <td>
-                    <span class="catalog-status" :class="resolveCatalogSophontStatusClass(planet)">
-                      {{ resolveCatalogNativeSophontLabel(planet) }}
-                    </span>
-                  </td>
-                </tr>
+                    </td>
+                  </tr>
+                  <tr v-if="expandedLifeRollIndex === i && hasLifeRatingRolls(planet)" class="catalog-rolls-row">
+                    <td colspan="10">
+                      <div class="catalog-rolls-card">
+                        <strong>WBH Native Life Rolls</strong>
+                        <div class="catalog-rolls-grid">
+                          <span>{{
+                            formatLifeRatingRollEntry("Biomass", planet?.nativeLifeRatingRolls?.biomass)
+                          }}</span>
+                          <span>
+                            {{
+                              formatLifeRatingRollEntry("Biocomplexity", planet?.nativeLifeRatingRolls?.biocomplexity)
+                            }}
+                          </span>
+                          <span>
+                            {{ formatLifeRatingRollEntry("Biodiversity", planet?.nativeLifeRatingRolls?.biodiversity) }}
+                          </span>
+                          <span>
+                            {{
+                              formatLifeRatingRollEntry("Compatibility", planet?.nativeLifeRatingRolls?.compatibility)
+                            }}
+                          </span>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                </template>
               </tbody>
             </table>
           </div>
@@ -379,6 +412,7 @@ const primarySpectral = ref(normalizePrimarySelection(route.query.star));
 const multiplicity = ref("random");
 const system = ref(null);
 const systemName = ref("");
+const expandedLifeRollIndex = ref(null);
 const isTtsSupported = isSpeechSynthesisSupported();
 const isSpeaking = ref(false);
 const selectedWorldIndex = ref(null);
@@ -1056,6 +1090,28 @@ function resolveCatalogSophontStatusClass(planet) {
   return "catalog-status--absent";
 }
 
+function hasLifeRatingRolls(planet) {
+  return Boolean(planet?.nativeLifeRatingRolls && typeof planet.nativeLifeRatingRolls === "object");
+}
+
+function toggleLifeRatingRollDetails(index) {
+  expandedLifeRollIndex.value = expandedLifeRollIndex.value === index ? null : index;
+}
+
+function formatLifeRatingRollEntry(label, entry) {
+  if (!entry || typeof entry !== "object") {
+    return `${label}: no roll data`;
+  }
+
+  const rollTotal = Number(entry.rollTotal);
+  const dm = Number(entry.dm ?? 0);
+  const total = Number(entry.total);
+  const rollText = Number.isFinite(rollTotal) ? `2d6=${rollTotal}` : "2d6=n/a";
+  const dmText = Number.isFinite(dm) ? `DM ${dm >= 0 ? `+${dm}` : dm}` : "DM n/a";
+  const totalText = Number.isFinite(total) ? `Total ${total}` : "Total n/a";
+  return `${label}: ${rollText}, ${dmText}, ${totalText}`;
+}
+
 function summarizeSelectedWorld(planet) {
   if (!planet) {
     return "";
@@ -1088,6 +1144,13 @@ function resolveSelectedWorldIndex(planets) {
 
   return findDefaultWorldIndex(planets);
 }
+
+watch(
+  () => system.value?.systemId,
+  () => {
+    expandedLifeRollIndex.value = null;
+  },
+);
 
 function selectWorldCandidate(index) {
   if (!system.value?.planets?.[index]) {
@@ -2206,6 +2269,44 @@ onUnmounted(() => {
 .catalog-status-meta {
   color: #7f93a5;
   font-size: 0.72rem;
+}
+
+.catalog-rolls-btn {
+  margin-top: 0.2rem;
+  align-self: flex-start;
+  background: transparent;
+  border: 1px solid rgba(0, 217, 255, 0.3);
+  color: #7fdcff;
+  border-radius: 999px;
+  padding: 0.14rem 0.5rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.catalog-rolls-btn:hover {
+  background: rgba(0, 217, 255, 0.1);
+}
+
+.catalog-rolls-row td {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.catalog-rolls-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid rgba(0, 217, 255, 0.18);
+  border-radius: 0.45rem;
+}
+
+.catalog-rolls-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 0.25rem 0.8rem;
+  font-size: 0.74rem;
+  color: #b8c9d8;
 }
 
 .planet-table tr.habitable td {

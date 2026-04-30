@@ -1605,6 +1605,10 @@ function toExtendedHex(value) {
   return numeric.toString(16).toUpperCase();
 }
 
+function encodeNativeLifeProfile({ biomass = 0, biocomplexity = 0, biodiversity = 0, compatibility = 0 } = {}) {
+  return `${toExtendedHex(biomass)}${toExtendedHex(biocomplexity)}${toExtendedHex(biodiversity)}${toExtendedHex(compatibility)}`;
+}
+
 function buildNativeLifeRatings({
   size,
   atmosphereCode,
@@ -1619,53 +1623,122 @@ function buildNativeLifeRatings({
   ...world
 } = {}) {
   if (Number(size) <= 0 || isRestrictedNativeLifeCandidate({ type, isMoon })) {
-    return { biomass: 0, biocomplexity: 0, biodiversity: 0, compatibility: 0 };
+    return {
+      biomass: 0,
+      biocomplexity: 0,
+      biodiversity: 0,
+      compatibility: 0,
+      rolls: {
+        biomass: null,
+        biocomplexity: null,
+        biodiversity: null,
+        compatibility: null,
+      },
+    };
   }
 
   const subtypeBias = resolveWorldSubtypeEnvironmentalBias(world);
-  const biomass = clamp(
-    calculateBiomassRating({
-      atmosphereCode,
-      hydrographics,
-      avgTempC,
-      systemAgeGyr,
-      zone,
-      rollDie,
-    }) + Number(subtypeBias.biomassDm || 0),
-    0,
-    15,
-  );
+  const biomassBreakdown = calculateBiomassRating({
+    atmosphereCode,
+    hydrographics,
+    avgTempC,
+    systemAgeGyr,
+    zone,
+    rollDie,
+    returnBreakdown: true,
+  });
+  const biomass = clamp(Number(biomassBreakdown?.value ?? 0) + Number(subtypeBias.biomassDm || 0), 0, 15);
 
   if (biomass <= 0) {
-    return { biomass: 0, biocomplexity: 0, biodiversity: 0, compatibility: 0 };
+    return {
+      biomass: 0,
+      biocomplexity: 0,
+      biodiversity: 0,
+      compatibility: 0,
+      rolls: {
+        biomass: {
+          rollTotal: Number(biomassBreakdown?.rollTotal ?? 0),
+          dm: Number(biomassBreakdown?.dm ?? 0) + Number(subtypeBias.biomassDm || 0),
+          total: 0,
+          subtypeDm: Number(subtypeBias.biomassDm || 0),
+        },
+        biocomplexity: null,
+        biodiversity: null,
+        compatibility: null,
+      },
+    };
   }
 
+  const biocomplexityBreakdown = calculateBiocomplexityRating({
+    biomass,
+    atmosphereCode,
+    atmosphereTaints,
+    systemAgeGyr,
+    rollDie,
+    returnBreakdown: true,
+  });
   const biocomplexity = clamp(
-    calculateBiocomplexityRating({
-      biomass,
-      atmosphereCode,
-      atmosphereTaints,
-      systemAgeGyr,
-      rollDie,
-    }) + Number(subtypeBias.biocomplexityDm || 0),
+    Number(biocomplexityBreakdown?.value ?? 1) + Number(subtypeBias.biocomplexityDm || 0),
     1,
     15,
   );
-  const biodiversity = calculateBiodiversityRating({ biomass, biocomplexity, rollDie });
+
+  const biodiversityBreakdown = calculateBiodiversityRating({
+    biomass,
+    biocomplexity,
+    rollDie,
+    returnBreakdown: true,
+  });
+  const biodiversity = Number(biodiversityBreakdown?.value ?? 0);
+
+  const compatibilityBreakdown = calculateCompatibilityRating({
+    biomass,
+    biocomplexity,
+    atmosphereCode,
+    atmosphereTaints,
+    systemAgeGyr,
+    rollDie,
+    returnBreakdown: true,
+  });
   const compatibility = clamp(
-    calculateCompatibilityRating({
-      biomass,
-      biocomplexity,
-      atmosphereCode,
-      atmosphereTaints,
-      systemAgeGyr,
-      rollDie,
-    }) + Number(subtypeBias.compatibilityDm || 0),
+    Number(compatibilityBreakdown?.value ?? 0) + Number(subtypeBias.compatibilityDm || 0),
     0,
     15,
   );
 
-  return { biomass, biocomplexity, biodiversity, compatibility };
+  return {
+    biomass,
+    biocomplexity,
+    biodiversity,
+    compatibility,
+    rolls: {
+      biomass: {
+        rollTotal: Number(biomassBreakdown?.rollTotal ?? 0),
+        dm: Number(biomassBreakdown?.dm ?? 0) + Number(subtypeBias.biomassDm || 0),
+        total: biomass,
+        subtypeDm: Number(subtypeBias.biomassDm || 0),
+      },
+      biocomplexity: {
+        rollTotal: Number(biocomplexityBreakdown?.rollTotal ?? 0),
+        rollModifier: Number(biocomplexityBreakdown?.rollModifier ?? 0),
+        dm: Number(biocomplexityBreakdown?.dm ?? 0) + Number(subtypeBias.biocomplexityDm || 0),
+        total: biocomplexity,
+        subtypeDm: Number(subtypeBias.biocomplexityDm || 0),
+      },
+      biodiversity: {
+        rollTotal: Number(biodiversityBreakdown?.rollTotal ?? 0),
+        rollModifier: Number(biodiversityBreakdown?.rollModifier ?? 0),
+        dm: 0,
+        total: biodiversity,
+      },
+      compatibility: {
+        rollTotal: Number(compatibilityBreakdown?.rollTotal ?? 0),
+        dm: Number(compatibilityBreakdown?.dm ?? 0) + Number(subtypeBias.compatibilityDm || 0),
+        total: compatibility,
+        subtypeDm: Number(subtypeBias.compatibilityDm || 0),
+      },
+    },
+  };
 }
 
 export function rollNativeSophontLife({
@@ -1734,6 +1807,12 @@ export function determineNativeSophontLife({
 }
 
 export function buildNativeLifeProfile(world = {}) {
+  const predefinedRatings =
+    world?.nativeLifeRatings && typeof world.nativeLifeRatings === "object" ? world.nativeLifeRatings : null;
+  if (predefinedRatings) {
+    return encodeNativeLifeProfile(predefinedRatings);
+  }
+
   const ratings = buildNativeLifeRatings({
     ...world,
     size: world?.size,
@@ -1747,7 +1826,7 @@ export function buildNativeLifeProfile(world = {}) {
     rollDie: world?.rollDie ?? null,
   });
 
-  return `${toExtendedHex(ratings.biomass)}${toExtendedHex(ratings.biocomplexity)}${toExtendedHex(ratings.biodiversity)}${toExtendedHex(ratings.compatibility)}`;
+  return encodeNativeLifeProfile(ratings);
 }
 
 export function determineHabitabilityRating({
@@ -2711,13 +2790,21 @@ export function generateWorldPhysicalCharacteristicsWbh(params = {}) {
   // Compute native life profile using the same rollDie used for generation so
   // biomass follows the WBH 2D + DMs rule deterministically when a seeded
   // roller was supplied.
-  const nativeLifeform = buildNativeLifeProfile({
+  const nativeLifeRatings = buildNativeLifeRatings({
     ...classifiedResult,
     rollDie,
   });
+  const nativeLifeform = encodeNativeLifeProfile(nativeLifeRatings);
 
   return {
     ...classifiedResult,
     nativeLifeform,
+    nativeLifeRatings: {
+      biomass: Number(nativeLifeRatings?.biomass ?? 0),
+      biocomplexity: Number(nativeLifeRatings?.biocomplexity ?? 0),
+      biodiversity: Number(nativeLifeRatings?.biodiversity ?? 0),
+      compatibility: Number(nativeLifeRatings?.compatibility ?? 0),
+    },
+    nativeLifeRatingRolls: nativeLifeRatings?.rolls ?? null,
   };
 }

@@ -247,6 +247,8 @@ export const WORLD_PROFILE_FIELDS = [
   "factionsProfile",
   "secondaryWorldContext",
   "nativeLifeform",
+  "nativeLifeRatings",
+  "nativeLifeRatingRolls",
   "economics",
   "remarks",
   "mainworldCandidateScore",
