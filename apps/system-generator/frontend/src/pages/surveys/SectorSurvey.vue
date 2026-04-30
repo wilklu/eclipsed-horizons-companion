@@ -3486,9 +3486,11 @@ function buildSurveyPreviewState({
           rows: resolvedRows,
           fallbackHexes: hexes,
         })
-      : Array.isArray(hexes)
+      : Array.isArray(hexes) && hexes.length
         ? hexes
-        : [];
+        : metadata
+          ? buildPersistedSectorHexesFromMetadata(metadata, { cols: resolvedCols, rows: resolvedRows })
+          : [];
 
   return buildSectorSurveyRebuiltPreview({
     previewScope: resolvedPreviewScope,
@@ -3835,9 +3837,31 @@ async function generatePrimaryStarsFromPresence() {
     await new Promise((resolve) => setTimeout(resolve, 200));
 
     const existingTypes = activeSectorMetadata.value?.hexStarTypes ?? {};
-    const { isGalacticCenterSector } = getSelectedSectorContext();
+    const { isGalacticCenterSector, centerCoord, centerAnomalyType } = getSelectedSectorContext();
     const hexes = visibleScopeHexes
       .map((hex) => {
+        const normalizedHex = normalizeHexToSectorCoord(hex);
+        const isCenterHex = isGalacticCenterSector && normalizedHex?.coord === centerCoord;
+
+        if (isCenterHex) {
+          const centerStarMetadata = buildHexStarTypeMetadata({
+            anomalyType: centerAnomalyType,
+            generatedStars: buildGeneratedStarsForHex({ anomalyType: centerAnomalyType }),
+            fallbackStarType: centerAnomalyType,
+          });
+
+          return {
+            ...normalizedHex,
+            hasSystem: true,
+            presenceOnly: false,
+            starType: centerStarMetadata.starType,
+            starClass: "anomaly-core",
+            secondaryStars: centerStarMetadata.secondaryStars,
+            generatedStars: centerStarMetadata.generatedStars.map((star) => ({ ...star })),
+            anomalyType: centerStarMetadata.anomalyType,
+          };
+        }
+
         if (!hex?.presenceOnly && hex?.starType) {
           return {
             ...hex,
