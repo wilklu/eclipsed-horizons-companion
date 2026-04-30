@@ -312,11 +312,7 @@
               <div class="prompt-header">
                 <span class="prompt-label">Image Prompt</span>
                 <div class="saved-record-actions">
-                  <button
-                    type="button"
-                    class="btn btn-secondary btn-copy"
-                    @click="copyPromptText(creature.imagePrompt)"
-                  >
+                  <button type="button" class="btn btn-secondary btn-copy" @click="copyPromptText(styledImagePrompt)">
                     Copy Prompt
                   </button>
                   <button type="button" class="btn btn-secondary btn-copy" @click="generateConceptArt(creature)">
@@ -340,7 +336,7 @@
                   </button>
                 </div>
               </div>
-              <textarea :value="creature.imagePrompt" class="prompt-textarea" rows="5" readonly />
+              <textarea :value="styledImagePrompt" class="prompt-textarea" rows="5" readonly />
             </div>
             <div v-if="artPreviewUrl" class="prompt-block section-offset">
               <span class="prompt-label">Concept Art Preview · {{ artStyle }}</span>
@@ -444,7 +440,12 @@ import {
   speakTextWithPreferences,
   stopSpeechSynthesis,
 } from "../../utils/speechSynthesis.js";
-import { ART_STYLE_PRESETS, DEFAULT_ART_STYLE, buildConceptArtUrl } from "../../utils/imageGeneration.js";
+import {
+  ART_STYLE_PRESETS,
+  DEFAULT_ART_STYLE,
+  buildConceptArtPrompt,
+  buildConceptArtUrl,
+} from "../../utils/imageGeneration.js";
 import * as toastService from "../../utils/toast.js";
 import {
   findMatchingWorldOption,
@@ -489,6 +490,10 @@ const selectedWorldKey = ref("");
 const creature = ref(null);
 const faunaBundle = ref(null);
 const encounterTable = ref([]);
+
+const styledImagePrompt = computed(() =>
+  buildConceptArtPrompt(String(creature.value?.imagePrompt || ""), { entityType: "fauna", style: artStyle.value }),
+);
 
 const worldOptions = computed(() => listSystemWorldOptions(systemStore.getAllSystems));
 
@@ -714,7 +719,7 @@ function buildNotes(profile) {
     `Locomotion class is ${profile.locomotion.toLowerCase()} with ${profile.speed.speedC.toLowerCase()} cruise speed.`,
   ];
 
-  if (profile.combat.armor.types.length) {
+  if (profile.combat?.armor?.types?.length) {
     notes.push(`Armor traits present: ${profile.combat.armor.types.join(", ")}.`);
   } else {
     notes.push("No significant natural armor is indicated.");
@@ -814,7 +819,9 @@ function buildCreatureViewModel(profile, existingRecord = {}) {
       attack: formatReactionValue(profile.reactions.attack),
       flee: formatReactionValue(profile.reactions.flee),
       weapon: `${profile.combat.weapon.weapon} (${profile.combat.weapon.damageType})`,
-      armour: profile.combat.armor.types.length ? profile.combat.armor.types.join(", ") : "No Armor",
+      armour: profile.combat?.armor?.types?.length
+        ? profile.combat.armor.types.join(", ")
+        : (profile.combat?.armour ?? "No Armor"),
     },
     ecology: {
       Diet: buildDiet(profile),

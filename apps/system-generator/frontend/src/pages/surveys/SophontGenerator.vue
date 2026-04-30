@@ -275,7 +275,7 @@
               <div class="prompt-header">
                 <span class="prompt-label">Image Prompt</span>
                 <div class="saved-record-actions">
-                  <button type="button" class="btn btn-secondary btn-copy" @click="copyPromptText(sophont.imagePrompt)">
+                  <button type="button" class="btn btn-secondary btn-copy" @click="copyPromptText(styledImagePrompt)">
                     Copy Prompt
                   </button>
                   <button type="button" class="btn btn-secondary btn-copy" @click="generateConceptArt(sophont)">
@@ -299,7 +299,7 @@
                   </button>
                 </div>
               </div>
-              <textarea :value="sophont.imagePrompt" class="prompt-textarea" rows="5" readonly />
+              <textarea :value="styledImagePrompt" class="prompt-textarea" rows="5" readonly />
             </div>
             <div v-if="artPreviewUrl" class="prompt-block section-offset">
               <span class="prompt-label">Concept Art Preview · {{ artStyle }}</span>
@@ -376,7 +376,12 @@ import {
   speakTextWithPreferences,
   stopSpeechSynthesis,
 } from "../../utils/speechSynthesis.js";
-import { ART_STYLE_PRESETS, DEFAULT_ART_STYLE, buildConceptArtUrl } from "../../utils/imageGeneration.js";
+import {
+  ART_STYLE_PRESETS,
+  DEFAULT_ART_STYLE,
+  buildConceptArtPrompt,
+  buildConceptArtUrl,
+} from "../../utils/imageGeneration.js";
 import * as toastService from "../../utils/toast.js";
 import {
   findMatchingWorldOption,
@@ -413,6 +418,10 @@ const bodyPlan = ref("random");
 const homeEnvironment = ref("random");
 const selectedWorldKey = ref("");
 const sophont = ref(null);
+
+const styledImagePrompt = computed(() =>
+  buildConceptArtPrompt(String(sophont.value?.imagePrompt || ""), { entityType: "sophont", style: artStyle.value }),
+);
 
 const worldOptions = computed(() => listSystemWorldOptions(systemStore.getAllSystems));
 

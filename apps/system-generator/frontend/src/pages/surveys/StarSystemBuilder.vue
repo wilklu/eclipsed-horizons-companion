@@ -195,6 +195,7 @@
                   <th>Type</th>
                   <th>UWP</th>
                   <th>Composition</th>
+                  <th>Orbit #</th>
                   <th>Orbit (AU)</th>
                   <th>Zone</th>
                   <th>Native Lifeforms</th>
@@ -225,6 +226,7 @@
                   <td>{{ describePlanetType(planet) }}</td>
                   <td>{{ planet.uwp || "—" }}</td>
                   <td>{{ planet.composition || "Unknown" }}</td>
+                  <td>{{ planet.orbitNumber ?? "—" }}</td>
                   <td>{{ planet.orbitAU }}</td>
                   <td>
                     <span class="zone-badge" :class="planet.zone">{{ planet.zone }}</span>
@@ -292,12 +294,13 @@ import { applyPlanetaryBodyClassification } from "../../utils/systemWorldClassif
 import {
   buildProfiledWbhSystemPlanets,
   calculateSystemHabitableZone,
+  determineSystemPlanetZone,
   sortSystemPlanetsByOrbit,
 } from "../../utils/systemWorldGeneration.js";
 import { starDescriptorToCssClass } from "../../utils/starDisplay.js";
 import { inferSystemNameFromSystemRecord } from "../../utils/systemSummary.js";
 import { formatTemperatureFromKelvin } from "../../utils/temperatureFormatting.js";
-import { generateAutomaticWorldName } from "../../utils/worldProfileGenerator.js";
+import { toRomanNumeral } from "../../utils/worldProfileGenerator.js";
 import { generateMultipleStarSystemWbh } from "../../utils/wbh/starGenerationWbh.js";
 
 const props = defineProps({
@@ -489,6 +492,21 @@ function multiplicityFromStars(stars) {
   if (count === 2) return "binary";
   if (count === 1) return "single";
   return "random";
+}
+
+function resolveMultiplicityMode(value) {
+  const normalized = String(value || "random")
+    .trim()
+    .toLowerCase();
+  if (["single", "binary", "trinary", "random"].includes(normalized)) {
+    return normalized;
+  }
+  return "random";
+}
+
+function pickRandomMultiplicityMode() {
+  const index = Math.floor(Math.random() * 3);
+  return ["single", "binary", "trinary"][index] || "single";
 }
 
 function sectorStarClassForSystem(systemRecord) {
@@ -717,13 +735,7 @@ function toPersistedSystem(nextSystem) {
 }
 
 function ensureSystemSuffix(name) {
-  const trimmed = String(name || "").trim();
-  if (!trimmed) return "";
-  const endsWithSystem = /\bsystem\s*$/i.test(trimmed);
-  const objectNounRegex =
-    /\b(?:belt|cluster|field|reach|expanse|ring|gate|spiral|domain|wastes|wilds|depths|shroud|corridor|band|zone|trail|chain|arc|shelf|spur|tract)\s*$/i;
-  if (endsWithSystem || objectNounRegex.test(trimmed)) return trimmed;
-  return `${trimmed} System`;
+  return String(name || "").trim();
 }
 
 function resolveStarDisplayLabel(star = null) {
@@ -1144,13 +1156,18 @@ const hzPlanetMarkers = computed(() => {
     const orbitLabel = Number.isFinite(orbit) ? `${orbit} AU` : "Orbit unknown";
 
     const worldName = String(planet?.name || `World ${index + 1}`).trim() || `World ${index + 1}`;
+    const hz = resolvedHabitableZone.value;
+    const liveZone =
+      Number.isFinite(orbit) && hz?.hasRadiantHabitableZone
+        ? determineSystemPlanetZone(orbit, hz)
+        : String(planet?.zone || "unknown")
+            .trim()
+            .toLowerCase();
 
     return {
       key: `${worldName}-${index}`,
       index,
-      zone: String(planet?.zone || "unknown")
-        .trim()
-        .toLowerCase(),
+      zone: liveZone,
       positionPercent: resolveHabitableZoneMarkerPosition(orbit, resolvedHabitableZone.value, maxOrbitAU),
       shortLabel: worldName.length > 10 ? `${worldName.slice(0, 10)}…` : worldName,
       label: `${summarizeSelectedWorld(planet) || worldName} — ${orbitLabel}`,
@@ -1162,6 +1179,8 @@ const hzPlanetMarkers = computed(() => {
 async function buildSystem() {
   const requestedPrimary = normalizePrimarySelection(primarySpectral.value);
   primarySpectral.value = requestedPrimary;
+  const requestedMultiplicity = resolveMultiplicityMode(multiplicity.value);
+  const activeMultiplicity = requestedMultiplicity === "random" ? pickRandomMultiplicityMode() : requestedMultiplicity;
 
   const existingStars = resolveGeneratedStarsFromSystem(system.value);
   const shouldReuseExistingStars =
@@ -1177,15 +1196,15 @@ async function buildSystem() {
       : (PRIMARY_TYPE_OPTIONS.find((entry) => entry.code === requestedPrimary) ?? null);
   const primaryIsAnomaly = primaryEntry ? ANOMALY_TYPES.some((entry) => entry.code === primaryEntry.code) : false;
 
-  const starCountLimit = multiplicity.value === "single" ? 1 : multiplicity.value === "binary" ? 2 : 3;
+  const starCountLimit = activeMultiplicity === "single" ? 1 : activeMultiplicity === "binary" ? 2 : 3;
   const stars = shouldReuseExistingStars
     ? existingStars.map((star) => ({ ...star }))
     : primaryIsAnomaly
       ? [buildAnomalyPrimary(primaryEntry)]
       : generateMultipleStarSystemWbh({
           spectralType: requestedPrimary === "random" ? undefined : requestedPrimary,
-          maxStars: multiplicity.value === "random" ? 3 : starCountLimit,
-        }).slice(0, multiplicity.value === "random" ? 3 : starCountLimit);
+          maxStars: starCountLimit,
+        }).slice(0, starCountLimit);
 
   const nextSystemName = ensureSystemSuffix(
     String(systemName.value || system.value?.name || inferSystemNameFromSystemRecord(system.value) || "").trim() ||
@@ -1248,7 +1267,7 @@ async function buildSystem() {
     buildProfiledWbhSystemPlanets({
       stars,
       habitableZone: hz,
-      createPlanetName: ({ type, usedNames, index }) =>
+      createPlanetName: ({ type, index }) =>
         type === "Planetoid Belt"
           ? generateObjectName({
               mode: String(preferencesStore.asteroidBeltNameMode || "phonotactic")
@@ -1262,12 +1281,7 @@ async function buildSystem() {
               seed: `${props.sectorId || "sector"}:${hexCoord.value || "0000"}:belt:${index}`,
               parentName: nextSystemName,
             })
-          : generateAutomaticWorldName({
-              mode: preferencesStore.worldNameMode,
-              usedNames,
-              systemName: nextSystemName,
-              seed: `${props.sectorId || "sector"}:${hexCoord.value || "0000"}:world:${index}`,
-            }),
+          : `${nextSystemName} ${toRomanNumeral(index + 1)}`,
     }),
   );
 
@@ -1294,7 +1308,7 @@ async function buildSystem() {
     },
   };
 
-  multiplicity.value = multiplicityFromStars(stars);
+  multiplicity.value = requestedMultiplicity === "random" ? "random" : multiplicityFromStars(stars);
   system.value = nextSystem;
   selectedWorldIndex.value = resolveSelectedWorldIndex(planets);
 
@@ -1347,7 +1361,7 @@ async function generateWorlds() {
     buildProfiledWbhSystemPlanets({
       stars,
       habitableZone: hz,
-      createPlanetName: ({ type, usedNames, index }) =>
+      createPlanetName: ({ type, index }) =>
         type === "Planetoid Belt"
           ? generateObjectName({
               mode: String(preferencesStore.asteroidBeltNameMode || "phonotactic")
@@ -1361,12 +1375,7 @@ async function generateWorlds() {
               seed: `${props.sectorId || "sector"}:${hexCoord.value || "0000"}:belt:${index}`,
               parentName: nextSystemName,
             })
-          : generateAutomaticWorldName({
-              mode: preferencesStore.worldNameMode,
-              usedNames,
-              systemName: nextSystemName,
-              seed: `${props.sectorId || "sector"}:${hexCoord.value || "0000"}:world:${index}`,
-            }),
+          : `${nextSystemName} ${toRomanNumeral(index + 1)}`,
     }),
   );
 

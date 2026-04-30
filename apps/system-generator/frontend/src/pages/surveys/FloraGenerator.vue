@@ -165,7 +165,7 @@
               <div class="prompt-header">
                 <div class="prompt-label">Image Prompt</div>
                 <div class="saved-record-actions">
-                  <button type="button" class="btn btn-secondary btn-copy" @click="copyPromptText(flora.imagePrompt)">
+                  <button type="button" class="btn btn-secondary btn-copy" @click="copyPromptText(styledImagePrompt)">
                     Copy Prompt
                   </button>
                   <button type="button" class="btn btn-secondary btn-copy" @click="generateConceptArt(flora)">
@@ -189,7 +189,7 @@
                   </button>
                 </div>
               </div>
-              <textarea readonly class="prompt-textarea" :value="flora.imagePrompt"></textarea>
+              <textarea readonly class="prompt-textarea" :value="styledImagePrompt"></textarea>
             </div>
             <div v-if="artPreviewUrl" class="prompt-block section-offset">
               <div class="prompt-label">Concept Art Preview · {{ artStyle }}</div>
@@ -271,7 +271,12 @@ import {
   speakTextWithPreferences,
   stopSpeechSynthesis,
 } from "../../utils/speechSynthesis.js";
-import { ART_STYLE_PRESETS, DEFAULT_ART_STYLE, buildConceptArtUrl } from "../../utils/imageGeneration.js";
+import {
+  ART_STYLE_PRESETS,
+  DEFAULT_ART_STYLE,
+  buildConceptArtPrompt,
+  buildConceptArtUrl,
+} from "../../utils/imageGeneration.js";
 import * as toastService from "../../utils/toast.js";
 import {
   findMatchingWorldOption,
@@ -307,6 +312,10 @@ const growthForm = ref("random");
 const climate = ref("random");
 const selectedWorldKey = ref("");
 const flora = ref(null);
+
+const styledImagePrompt = computed(() =>
+  buildConceptArtPrompt(String(flora.value?.imagePrompt || ""), { entityType: "flora", style: artStyle.value }),
+);
 
 const worldOptions = computed(() => listSystemWorldOptions(systemStore.getAllSystems));
 
