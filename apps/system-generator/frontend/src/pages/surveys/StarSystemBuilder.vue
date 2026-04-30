@@ -867,7 +867,7 @@ async function hydrateSystem() {
         primarySpectral.value = normalizePrimarySelection(
           resolveStarDisplayLabel(hydratedExisting.stars[0] || hydratedExisting?.primaryStar),
         );
-        multiplicity.value = multiplicityFromStars(hydratedExisting.stars);
+        multiplicity.value = resolveMultiplicityMode(route.query.multiplicity);
         const sortedPlanets = sortSystemPlanetsByOrbit(hydratedExisting?.planets);
         system.value = {
           ...hydratedExisting,

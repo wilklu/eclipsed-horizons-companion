@@ -342,6 +342,19 @@ describe("worldPhysicalCharacteristicsWbh", () => {
     ).toBeLessThanOrEqual(4);
   });
 
+  it("applies WBH biomass DM stacking for low-temperature atmosphere-4 worlds", () => {
+    expect(
+      calculateBiomassRating({
+        atmosphereCode: 4,
+        hydrographics: 6,
+        avgTempC: -5,
+        highTempC: -5,
+        systemAgeGyr: 3,
+        rollDie: createSequenceRoller([6, 6]),
+      }),
+    ).toBe(5);
+  });
+
   it("limits native sophont life to habitable-zone candidates", () => {
     expect(
       determineNativeSophontLife({

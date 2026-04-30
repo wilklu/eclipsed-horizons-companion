@@ -1,4 +1,5 @@
 import { roll2d } from "./diceFormulasWbh.js";
+import { createRandomRoller } from "./dice.js";
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
@@ -16,7 +17,8 @@ export function calculateBiomassRating({
   const numericAtmosphere = Number(atmosphereCode || 0);
   const numericHydrographics = Number(hydrographics || 0);
   const numericTemp = Number(avgTempC || 0);
-  const numericHighTemp = Number(highTempC);
+  const parsedHighTemp = Number(highTempC);
+  const numericHighTemp = Number.isFinite(parsedHighTemp) ? parsedHighTemp : numericTemp;
   const numericAge = Number.isFinite(Number(systemAgeGyr)) ? Number(systemAgeGyr) : 5;
 
   if (numericAge < 0.1) {
@@ -59,7 +61,8 @@ export function calculateBiomassRating({
   else if (zoneToken === "warm" || zoneToken === "cold") biomassDm -= 2;
 
   biomassDm = clamp(biomassDm, -12, 4);
-  const rollTotal = typeof rollDie === "function" ? roll2d(rollDie) : 7;
+  const resolvedRollDie = typeof rollDie === "function" ? rollDie : createRandomRoller();
+  const rollTotal = roll2d(resolvedRollDie);
   return Number(clamp(rollTotal + biomassDm, 0, 15));
 }
 
@@ -95,7 +98,8 @@ export function calculateBiocomplexityRating({
   else if (numericAge <= 3) biocomplexityDm -= 4;
   else if (numericAge <= 4) biocomplexityDm -= 2;
 
-  const rollModifier = (typeof rollDie === "function" ? roll2d(rollDie) : 7) - 7;
+  const resolvedRollDie = typeof rollDie === "function" ? rollDie : createRandomRoller();
+  const rollModifier = roll2d(resolvedRollDie) - 7;
   const biocomplexity = clamp(rollModifier + Math.min(Number(biomass), 9) + biocomplexityDm, 1, 15);
   return Number(biocomplexity);
 }
@@ -105,7 +109,8 @@ export function calculateBiodiversityRating({ biomass = 0, biocomplexity = 0, ro
     return 0;
   }
 
-  const rollModifier = (typeof rollDie === "function" ? roll2d(rollDie) : 7) - 7;
+  const resolvedRollDie = typeof rollDie === "function" ? rollDie : createRandomRoller();
+  const rollModifier = roll2d(resolvedRollDie) - 7;
   const biodiversity = Math.ceil(rollModifier + (Number(biomass) + Number(biocomplexity)) / 2);
   return Number(clamp(biodiversity, 1, 15));
 }
@@ -136,7 +141,8 @@ export function calculateCompatibilityRating({
   else if ([13, 14].includes(numericAtmosphere)) compatibilityDm -= 1;
   if (numericAge > 8) compatibilityDm -= 2;
 
-  const rollTotal = typeof rollDie === "function" ? roll2d(rollDie) : 7;
+  const resolvedRollDie = typeof rollDie === "function" ? rollDie : createRandomRoller();
+  const rollTotal = roll2d(resolvedRollDie);
   const compatibility = Math.floor(rollTotal - Number(biocomplexity) / 2 + compatibilityDm);
   return Number(clamp(compatibility, 0, 15));
 }
