@@ -1614,6 +1614,7 @@ function buildNativeLifeRatings({
   atmosphereCode,
   hydrographics,
   avgTempC,
+  highTempC = null,
   atmosphereTaints = [],
   type,
   isMoon = false,
@@ -1642,11 +1643,15 @@ function buildNativeLifeRatings({
     atmosphereCode,
     hydrographics,
     avgTempC,
+    highTempC,
     systemAgeGyr,
     zone,
+    isMoon,
     rollDie,
     returnBreakdown: true,
   });
+  // Keep displayed Biomass DM on WBH core components, but allow subtype flavor
+  // to influence the resulting biomass value used by downstream life ratings.
   const biomass = clamp(Number(biomassBreakdown?.value ?? 0) + Number(subtypeBias.biomassDm || 0), 0, 15);
 
   if (biomass <= 0) {
@@ -1658,9 +1663,9 @@ function buildNativeLifeRatings({
       rolls: {
         biomass: {
           rollTotal: Number(biomassBreakdown?.rollTotal ?? 0),
-          dm: Number(biomassBreakdown?.dm ?? 0) + Number(subtypeBias.biomassDm || 0),
+          dm: Number(biomassBreakdown?.dm ?? 0),
           total: 0,
-          subtypeDm: Number(subtypeBias.biomassDm || 0),
+          subtypeDm: 0,
         },
         biocomplexity: null,
         biodiversity: null,
@@ -1714,9 +1719,9 @@ function buildNativeLifeRatings({
     rolls: {
       biomass: {
         rollTotal: Number(biomassBreakdown?.rollTotal ?? 0),
-        dm: Number(biomassBreakdown?.dm ?? 0) + Number(subtypeBias.biomassDm || 0),
+        dm: Number(biomassBreakdown?.dm ?? 0),
         total: biomass,
-        subtypeDm: Number(subtypeBias.biomassDm || 0),
+        subtypeDm: 0,
       },
       biocomplexity: {
         rollTotal: Number(biocomplexityBreakdown?.rollTotal ?? 0),

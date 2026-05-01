@@ -17,6 +17,7 @@ export function calculateBiomassRating({
   highTempC = null,
   systemAgeGyr = 5,
   zone = "",
+  isMoon = false,
   rollDie = null,
   returnBreakdown = false,
 } = {}) {
@@ -24,7 +25,8 @@ export function calculateBiomassRating({
   const numericHydrographics = Number(hydrographics || 0);
   const numericTemp = Number(avgTempC || 0);
   const parsedHighTemp = Number(highTempC);
-  const numericHighTemp = Number.isFinite(parsedHighTemp) ? parsedHighTemp : numericTemp;
+  // null/undefined highTempC must fall back to avgTempC (Number(null)=0 is finite but wrong)
+  const numericHighTemp = highTempC != null && Number.isFinite(parsedHighTemp) ? parsedHighTemp : numericTemp;
   const numericAge = Number.isFinite(Number(systemAgeGyr)) ? Number(systemAgeGyr) : 5;
 
   if (numericAge < 0.1) {
@@ -47,26 +49,24 @@ export function calculateBiomassRating({
   else if (numericHydrographics >= 6 && numericHydrographics <= 8) biomassDm += 1;
   else if (numericHydrographics >= 9) biomassDm += 2;
 
-  // 273K = 0°C; 353K = 80°C per WBH Life Survey rules
+  // 273K = 0°C; 353K = 80°C per WBH Life Survey rules.
+  // Temperature DMs use the same table for worlds and moons:
+  // high-temp extremes = -4, mean-temp extremes = -2, mean 5..30 = +2.
   if (Number.isFinite(numericHighTemp)) {
-    if (numericHighTemp < 0) biomassDm -= 2;
-    else if (numericHighTemp > 80) biomassDm -= 2;
+    if (numericHighTemp < 0) biomassDm -= 4;
+    else if (numericHighTemp > 80) biomassDm -= 4;
   }
 
-  if (numericTemp >= 6 && numericTemp <= 30) biomassDm += 2;
-  else if (numericTemp < 0) biomassDm -= 4;
-  else if (numericTemp > 80) biomassDm -= 4;
-  else if (numericTemp < 6 || numericTemp > 30) biomassDm -= 2;
+  if (numericTemp >= 5 && numericTemp <= 30) biomassDm += 2;
+  else if (numericTemp < 0) biomassDm -= 2;
+  else if (numericTemp > 80) biomassDm -= 2;
 
   if (numericAge < 0.2) biomassDm -= 6;
   else if (numericAge < 1) biomassDm -= 2;
   else if (numericAge > 4) biomassDm += 1;
 
-  const zoneToken = String(zone || "")
-    .trim()
-    .toLowerCase();
-  if (zoneToken === "hot" || zoneToken === "frozen") biomassDm -= 6;
-  else if (zoneToken === "warm" || zoneToken === "cold") biomassDm -= 2;
+  // WBH biomass DM derives from atmosphere, hydrographics, temperatures, and age.
+  // Orbit-zone penalties are handled elsewhere and should not be double-counted here.
 
   biomassDm = clamp(biomassDm, -12, 4);
   const rollTotal = resolve2d6Roll(rollDie);

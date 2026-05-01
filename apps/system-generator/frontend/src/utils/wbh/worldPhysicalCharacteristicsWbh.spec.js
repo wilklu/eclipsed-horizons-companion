@@ -355,6 +355,48 @@ describe("worldPhysicalCharacteristicsWbh", () => {
     ).toBe(5);
   });
 
+  it("uses component-only biomass DM for atmosphere-2 dry worlds above freezing", () => {
+    const biomass = calculateBiomassRating({
+      atmosphereCode: 2,
+      hydrographics: 0,
+      avgTempC: 2,
+      highTempC: 2,
+      systemAgeGyr: 5,
+      zone: "cold",
+      rollDie: createSequenceRoller([3, 4]),
+      returnBreakdown: true,
+    });
+
+    // Atmosphere 2 (-3) + Hydrographics 0 (-4) + Age > 4 (+1) = -6
+    expect(biomass.dm).toBe(-6);
+  });
+
+  it("applies biomass temperature DMs as mean -2 / high -4 with 5-30 comfort bonus", () => {
+    const coldExtreme = calculateBiomassRating({
+      atmosphereCode: 6,
+      hydrographics: 5,
+      avgTempC: -1,
+      highTempC: -1,
+      systemAgeGyr: 5,
+      rollDie: createSequenceRoller([3, 4]),
+      returnBreakdown: true,
+    });
+    const comfortBand = calculateBiomassRating({
+      atmosphereCode: 6,
+      hydrographics: 5,
+      avgTempC: 5,
+      highTempC: 20,
+      systemAgeGyr: 5,
+      rollDie: createSequenceRoller([3, 4]),
+      returnBreakdown: true,
+    });
+
+    // Extreme cold: high -4 + mean -2 + age +1 = -5
+    expect(coldExtreme.dm).toBe(-5);
+    // Comfort band lower bound at 5°C gives +2 and age adds +1
+    expect(comfortBand.dm).toBe(3);
+  });
+
   it("limits native sophont life to habitable-zone candidates", () => {
     expect(
       determineNativeSophontLife({
