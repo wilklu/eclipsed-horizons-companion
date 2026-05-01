@@ -509,7 +509,10 @@ function normalizeNativeSophontWorldState(world = {}) {
 
   if (isNativeLifeRestrictedWorld(normalizedWorld)) {
     normalizedWorld.nativeSophontLife = false;
-    normalizedWorld.nativeLifeform = "0000";
+    // Only set nativeLifeform to "0000" if it's not already explicitly set
+    if (!normalizedWorld.nativeLifeform) {
+      normalizedWorld.nativeLifeform = "0000";
+    }
     return normalizedWorld;
   }
 
@@ -525,7 +528,10 @@ function normalizeNativeSophontWorldState(world = {}) {
     !hasHabitableZoneClassification(normalizedWorld)
   ) {
     normalizedWorld.nativeSophontLife = false;
-    normalizedWorld.nativeLifeform = "0000";
+    // Only set nativeLifeform to "0000" if it's not already explicitly set
+    if (!normalizedWorld.nativeLifeform) {
+      normalizedWorld.nativeLifeform = "0000";
+    }
   }
 
   return normalizedWorld;

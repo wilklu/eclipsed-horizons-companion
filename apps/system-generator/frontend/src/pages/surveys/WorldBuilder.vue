@@ -755,7 +755,7 @@ const SYSTEM_WORLD_FIELDS = [
   "moonsData",
   "magnetosphere",
 ];
-const LIFE_WORLD_FIELDS = ["nativeSophontLife", "nativeLifeform"];
+const LIFE_WORLD_FIELDS = ["nativeSophontLife", "nativeLifeform", "nativeLifeRatings", "nativeLifeRatingRolls"];
 const CENSUS_WORLD_FIELDS = [
   "populationCode",
   "population",
