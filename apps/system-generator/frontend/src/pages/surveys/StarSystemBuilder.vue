@@ -257,7 +257,7 @@
                   <tr v-if="expandedLifeRollIndex === i && hasLifeRatingRolls(planet)" class="catalog-rolls-row">
                     <td colspan="10">
                       <div class="catalog-rolls-card">
-                        <strong>WBH Native Life Rolls</strong>
+                        <strong>Life Survey Rolls</strong>
                         <div class="catalog-rolls-grid">
                           <span>{{
                             formatLifeRatingRollEntry("Biomass", planet?.nativeLifeRatingRolls?.biomass)
@@ -1103,13 +1103,38 @@ function formatLifeRatingRollEntry(label, entry) {
     return `${label}: no roll data`;
   }
 
-  const rollTotal = Number(entry.rollTotal);
+  const rollTotal = Number(entry.rollTotal ?? 0);
+  const rollModifier = Number(entry.rollModifier ?? rollTotal - 7);
   const dm = Number(entry.dm ?? 0);
-  const total = Number(entry.total);
-  const rollText = Number.isFinite(rollTotal) ? `2d6=${rollTotal}` : "2d6=n/a";
-  const dmText = Number.isFinite(dm) ? `DM ${dm >= 0 ? `+${dm}` : dm}` : "DM n/a";
-  const totalText = Number.isFinite(total) ? `Total ${total}` : "Total n/a";
-  return `${label}: ${rollText}, ${dmText}, ${totalText}`;
+  const total = Number(entry.total ?? 0);
+  const dmText = dm !== 0 ? `, DM ${dm >= 0 ? `+${dm}` : dm}` : "";
+
+  if (label === "Biomass") {
+    // 2D + DMs = total
+    return `Biomass: 2d6=${rollTotal}${dmText} = ${total}`;
+  }
+  if (label === "Biocomplexity") {
+    // (2D − 7) + min(Biomass, 9) + DMs = total
+    const biomassCap = Number.isFinite(Number(entry.biomassCap)) ? Number(entry.biomassCap) : total - rollModifier - dm;
+    return `Biocomplexity: 2d6−7=${rollModifier}, +min(Biomass,9)=${biomassCap}${dmText} = ${total}`;
+  }
+  if (label === "Biodiversity") {
+    // (2D − 7) + (Biomass + Biocomplexity) / 2 = total
+    const avg = Number.isFinite(Number(entry.biomassBiocomplexityAvg))
+      ? Number(entry.biomassBiocomplexityAvg)
+      : total - rollModifier;
+    const avgText = Number.isInteger(avg) ? String(avg) : avg.toFixed(1);
+    return `Biodiversity: 2d6−7=${rollModifier}, +(Biomass+Biocomplexity)/2=${avgText} = ${total}`;
+  }
+  if (label === "Compatibility") {
+    // 2D − (Biocomplexity / 2) + DMs = total
+    const bcHalf = Number.isFinite(Number(entry.biocomplexityHalf))
+      ? Number(entry.biocomplexityHalf)
+      : rollTotal + dm - total;
+    const bcHalfText = Number.isInteger(bcHalf) ? String(bcHalf) : bcHalf.toFixed(1);
+    return `Compatibility: 2d6=${rollTotal}, −Biocomplexity/2=−${bcHalfText}${dmText} = ${total}`;
+  }
+  return `${label}: 2d6=${rollTotal}${dmText} = ${total}`;
 }
 
 function summarizeSelectedWorld(planet) {

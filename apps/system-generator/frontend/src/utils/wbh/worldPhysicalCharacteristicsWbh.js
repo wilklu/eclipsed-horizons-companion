@@ -1721,6 +1721,7 @@ function buildNativeLifeRatings({
       biocomplexity: {
         rollTotal: Number(biocomplexityBreakdown?.rollTotal ?? 0),
         rollModifier: Number(biocomplexityBreakdown?.rollModifier ?? 0),
+        biomassCap: Math.min(Number(biomass), 9),
         dm: Number(biocomplexityBreakdown?.dm ?? 0) + Number(subtypeBias.biocomplexityDm || 0),
         total: biocomplexity,
         subtypeDm: Number(subtypeBias.biocomplexityDm || 0),
@@ -1728,11 +1729,13 @@ function buildNativeLifeRatings({
       biodiversity: {
         rollTotal: Number(biodiversityBreakdown?.rollTotal ?? 0),
         rollModifier: Number(biodiversityBreakdown?.rollModifier ?? 0),
+        biomassBiocomplexityAvg: (Number(biomass) + Number(biocomplexity)) / 2,
         dm: 0,
         total: biodiversity,
       },
       compatibility: {
         rollTotal: Number(compatibilityBreakdown?.rollTotal ?? 0),
+        biocomplexityHalf: Number(biocomplexity) / 2,
         dm: Number(compatibilityBreakdown?.dm ?? 0) + Number(subtypeBias.compatibilityDm || 0),
         total: compatibility,
         subtypeDm: Number(subtypeBias.compatibilityDm || 0),
@@ -2786,6 +2789,23 @@ export function generateWorldPhysicalCharacteristicsWbh(params = {}) {
         : "implemented-world-environment-and-physics",
     wbhCoverage: WORLD_PHYSICAL_CHARACTERISTIC_RULES,
   };
+
+  // Gas Giants and Planetoid Belts cannot have native life
+  const isRestricted =
+    params.isGasGiant ||
+    isRestrictedNativeLifeCandidate({
+      type: params.type ?? classifiedResult?.worldFamily,
+      isMoon: params.isMoon,
+    });
+
+  if (isRestricted) {
+    return {
+      ...classifiedResult,
+      nativeLifeform: "0000",
+      nativeLifeRatings: null,
+      nativeLifeRatingRolls: null,
+    };
+  }
 
   // Compute native life profile using the same rollDie used for generation so
   // biomass follows the WBH 2D + DMs rule deterministically when a seeded

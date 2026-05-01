@@ -47,14 +47,16 @@ export function calculateBiomassRating({
   else if (numericHydrographics >= 6 && numericHydrographics <= 8) biomassDm += 1;
   else if (numericHydrographics >= 9) biomassDm += 2;
 
+  // 273K = 0°C; 353K = 80°C per WBH Life Survey rules
   if (Number.isFinite(numericHighTemp)) {
-    if (numericHighTemp < 0) biomassDm -= 4;
+    if (numericHighTemp < 0) biomassDm -= 2;
     else if (numericHighTemp > 80) biomassDm -= 2;
   }
 
   if (numericTemp >= 6 && numericTemp <= 30) biomassDm += 2;
-  else if (numericTemp < -50 || numericTemp > 60) biomassDm -= 6;
-  else if (numericTemp < 0 || numericTemp > 30) biomassDm -= 2;
+  else if (numericTemp < 0) biomassDm -= 4;
+  else if (numericTemp > 80) biomassDm -= 4;
+  else if (numericTemp < 6 || numericTemp > 30) biomassDm -= 2;
 
   if (numericAge < 0.2) biomassDm -= 6;
   else if (numericAge < 1) biomassDm -= 2;
