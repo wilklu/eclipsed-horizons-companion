@@ -337,6 +337,33 @@
             </div>
           </section>
 
+          <section
+            v-if="!isGasGiantSurvey && world.terrainComposition?.hexCounts?.length"
+            class="world-section world-section--compact"
+          >
+            <div class="section-header">
+              <h3>🗺️ Terrain Survey</h3>
+            </div>
+            <div class="prop-list">
+              <div class="prop-row" v-for="note in world.terrainComposition.surfaceProfile" :key="note">
+                <span class="prop-value">{{ note }}</span>
+              </div>
+            </div>
+            <div class="prop-list" style="margin-top: 0.5rem">
+              <div class="prop-row" v-for="entry in world.terrainComposition.hexCounts" :key="entry.type">
+                <span class="prop-label">{{ entry.type }}:</span>
+                <span class="prop-value">{{ entry.hexes }} hexes ({{ entry.percent }}%)</span>
+              </div>
+              <div class="prop-row">
+                <span class="prop-label">Total assigned:</span>
+                <span class="prop-value"
+                  >{{ world.terrainComposition.assignedHexes }} /
+                  {{ world.terrainComposition.totalMapHexes }} hexes</span
+                >
+              </div>
+            </div>
+          </section>
+
           <section v-if="showBiosocialSurveySections" class="world-section">
             <div class="section-header">
               <h3>🧬 Life Survey</h3>

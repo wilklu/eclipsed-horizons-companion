@@ -1,5 +1,6 @@
 import { classifyPlanetaryBody } from "../systemWorldClassification.js";
 import { calculatePlanetaryOrbitalPeriod, fractionalOrbitToAu } from "./systemGenerationWbh.js";
+import { generateMainworldTerrainComposition } from "./mainworldMappingWbh.js";
 
 import { createRandomRoller } from "./dice.js";
 import { rollSingleDie, rollD3, roll2d, rollNd } from "./diceFormulasWbh.js";
@@ -2803,9 +2804,25 @@ export function generateWorldPhysicalCharacteristicsWbh(params = {}) {
       isMoon: params.isMoon,
     });
 
+  const terrainComposition =
+    params.isGasGiant || sizeCode === "0" || sizeCode === "R"
+      ? null
+      : generateMainworldTerrainComposition({
+          sizeCode,
+          atmosphereCode: classifiedResult.atmosphereCode,
+          hydrographics: classifiedResult.hydrographics,
+          hydrographicsPercent: classifiedResult.hydrographicsPercent,
+          avgTempC: classifiedResult.avgTempC,
+          highTempC: classifiedResult.highTempC,
+          seismology: classifiedResult.seismology,
+          majorTectonicPlates: classifiedResult.majorTectonicPlates,
+          dominantSurface: classifiedResult.dominantSurface,
+        });
+
   if (isRestricted) {
     return {
       ...classifiedResult,
+      terrainComposition,
       nativeLifeform: "0000",
       nativeLifeRatings: null,
       nativeLifeRatingRolls: null,
@@ -2823,6 +2840,7 @@ export function generateWorldPhysicalCharacteristicsWbh(params = {}) {
 
   return {
     ...classifiedResult,
+    terrainComposition,
     nativeLifeform,
     nativeLifeRatings: {
       biomass: Number(nativeLifeRatings?.biomass ?? 0),
