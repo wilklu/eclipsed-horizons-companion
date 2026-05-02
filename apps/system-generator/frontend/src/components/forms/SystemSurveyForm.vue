@@ -1,417 +1,612 @@
 <template>
-  <div class="survey-form">
+  <div :class="['survey-form', { wide: isWide }]">
     <!-- FORM HEADER - BURGUNDY -->
     <div class="form-header">
       <div class="title-block">System Survey</div>
-      <div class="form-number">FORM 041D-II.III</div>
+      <div class="header-controls">
+        <div class="form-number">FORM 041D-II.III</div>
+        <button
+          type="button"
+          class="btn btn-secondary btn-toggle"
+          @click="toggleWide"
+          :aria-pressed="String(isWide)"
+          aria-label="Toggle full width view"
+          title="Toggle full width view"
+        >
+          <span v-if="!isWide">Expand ↔</span>
+          <span v-else>Collapse ⇆</span>
+        </button>
+      </div>
     </div>
 
     <div class="survey-class-bar">Reconnaissance & Initial Survey — System Overview</div>
 
-    <!-- SYSTEM IDENTIFICATION SECTION -->
-    <div class="section-block">
-      <div class="form-row">
-        <div class="form-cell grow-3">
-          <label class="cell-label">System / Star Designation</label>
-          <input
-            v-model="surveyData.systemDesignation"
-            type="text"
-            class="cell-input"
-            placeholder="e.g., Alpha Centauri A"
-          />
-        </div>
-        <div class="form-cell grow-2">
-          <label class="cell-label">Sector | Hex Location</label>
-          <input v-model="surveyData.sectorHex" type="text" class="cell-input" placeholder="e.g., Orion 0101" />
-        </div>
-        <div class="form-cell">
-          <label class="cell-label">Survey Date</label>
-          <input v-model="surveyData.surveyDate" type="date" class="cell-input" />
-        </div>
-        <div class="form-cell">
-          <label class="cell-label">Survey Class</label>
-          <select v-model="surveyData.surveyClass" class="cell-input">
-            <option value="">—</option>
-            <option value="A">A</option>
-            <option value="B">B</option>
-            <option value="C">C</option>
-            <option value="D">D</option>
-          </select>
-        </div>
-      </div>
+    <div class="survey-layout" :class="{ wide: isWide }">
+      <nav class="section-nav" role="tablist" aria-label="System Survey Sections" aria-orientation="vertical">
+        <ul>
+          <li>
+            <button
+              id="tab-all"
+              role="tab"
+              type="button"
+              class="nav-button"
+              @click="expandedSection = 'all'"
+              :class="{ active: expandedSection === 'all' }"
+              aria-controls="panel-all"
+              :aria-selected="expandedSection === 'all' ? 'true' : 'false'"
+              :tabindex="expandedSection === 'all' ? 0 : -1"
+            >
+              Show All
+            </button>
+          </li>
+          <li v-for="(s, index) in sections" :key="s.key">
+            <button
+              :id="'tab-' + s.key"
+              role="tab"
+              type="button"
+              class="nav-button"
+              @click="selectSection(s.key)"
+              :class="{ active: expandedSection === s.key }"
+              :aria-controls="'panel-' + s.key"
+              :aria-selected="expandedSection === s.key ? 'true' : 'false'"
+              :tabindex="expandedSection === s.key ? 0 : -1"
+              @keydown="handleNavKeydown($event, index)"
+            >
+              {{ s.label }}
+            </button>
+          </li>
+        </ul>
+      </nav>
 
-      <div class="form-row">
-        <div class="form-cell grow-2">
-          <label class="cell-label">System Age (Gyr)</label>
-          <input v-model.number="surveyData.systemAge" type="number" step="0.1" class="cell-input" placeholder="4.6" />
-        </div>
-        <div class="form-cell grow-2">
-          <label class="cell-label">Travel Zone</label>
-          <select v-model="surveyData.travelZone" class="cell-input">
-            <option value="">Green</option>
-            <option value="amber">Amber</option>
-            <option value="red">Red</option>
-          </select>
-        </div>
-        <div class="form-cell grow-3">
-          <label class="cell-label">Surveying Vessel / Lead Scout</label>
-          <input v-model="surveyData.surveyingVessel" type="text" class="cell-input" placeholder="Vessel name" />
-        </div>
-        <div class="form-cell grow-2">
-          <label class="cell-label">Previous Survey (date)</label>
-          <input v-model="surveyData.previousSurveyDate" type="date" class="cell-input" />
-        </div>
-      </div>
-    </div>
-
-    <!-- STELLAR COMPONENTS SECTION -->
-    <div class="section-block">
-      <div class="section-label">Stellar Components</div>
-      <div class="table-wrapper">
-        <table class="stellar-table">
-          <thead>
-            <tr>
-              <th>Desig</th>
-              <th>Type / Subtype</th>
-              <th>Lum Class</th>
-              <th>Mass (M☉)</th>
-              <th>Lum (L☉)</th>
-              <th>Temp (K)</th>
-              <th>Diam (D☉)</th>
-              <th>Stellar Profile</th>
-              <th>Notes</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="(star, index) in surveyData.stars" :key="index">
-              <td>
-                <input v-model="star.designation" type="text" class="table-input" placeholder="Primary" />
-              </td>
-              <td>
-                <input v-model="star.typeSubtype" type="text" class="table-input" placeholder="G2V" />
-              </td>
-              <td>
-                <input v-model="star.lumClass" type="text" class="table-input" placeholder="V" />
-              </td>
-              <td>
-                <input v-model.number="star.mass" type="number" step="0.01" class="table-input" placeholder="1.0" />
-              </td>
-              <td>
+      <transition name="fade-slide" mode="out-in" appear>
+        <div class="section-area" :key="expandedSection">
+          <!-- SYSTEM IDENTIFICATION SECTION -->
+          <div
+            class="section-block"
+            id="panel-overview"
+            role="tabpanel"
+            aria-labelledby="tab-overview"
+            :aria-hidden="!(expandedSection === 'overview' || expandedSection === 'all')"
+            v-show="expandedSection === 'overview' || expandedSection === 'all'"
+          >
+            <div class="form-row">
+              <div class="form-cell grow-3">
+                <label class="cell-label">System / Star Designation</label>
                 <input
-                  v-model.number="star.luminosity"
-                  type="number"
-                  step="0.01"
-                  class="table-input"
-                  placeholder="1.0"
+                  v-model="surveyData.systemDesignation"
+                  type="text"
+                  class="cell-input"
+                  placeholder="e.g., Alpha Centauri A"
                 />
-              </td>
-              <td>
-                <input v-model.number="star.temperature" type="number" class="table-input" placeholder="5778" />
-              </td>
-              <td>
-                <input v-model.number="star.diameter" type="number" step="0.01" class="table-input" placeholder="1.0" />
-              </td>
-              <td>
-                <input v-model="star.stellarProfile" type="text" class="table-input" placeholder="—" />
-              </td>
-              <td>
-                <input v-model="star.notes" type="text" class="table-input" placeholder="Notes" />
-              </td>
-              <td class="action-cell">
-                <button
-                  @click="removeStar(index)"
-                  class="btn-remove"
-                  v-if="surveyData.stars.length > 1"
-                  title="Remove star"
-                >
-                  ✕
-                </button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <!-- ADD STAR BUTTON -->
-      <div class="button-row">
-        <button @click="addStar" class="btn btn-small btn-add">+ Add Star</button>
-      </div>
-
-      <!-- HABITABILITY ZONE DATA -->
-      <div class="form-row">
-        <div class="form-cell grow-2">
-          <label class="cell-label">HZ Centre (AU)</label>
-          <input v-model.number="surveyData.hzCentre" type="number" step="0.01" class="cell-input" />
-        </div>
-        <div class="form-cell grow-2">
-          <label class="cell-label">HZ Inner (AU)</label>
-          <input v-model.number="surveyData.hzInner" type="number" step="0.01" class="cell-input" />
-        </div>
-        <div class="form-cell grow-2">
-          <label class="cell-label">HZ Outer (AU)</label>
-          <input v-model.number="surveyData.hzOuter" type="number" step="0.01" class="cell-input" />
-        </div>
-        <div class="form-cell grow-2">
-          <label class="cell-label">Gas Giants</label>
-          <input v-model.number="surveyData.gasGiants" type="number" class="cell-input" />
-        </div>
-        <div class="form-cell grow-2">
-          <label class="cell-label">Belts</label>
-          <input v-model.number="surveyData.belts" type="number" class="cell-input" />
-        </div>
-        <div class="form-cell grow-2">
-          <label class="cell-label">Terrestrials</label>
-          <input v-model.number="surveyData.terrestrials" type="number" class="cell-input" />
-        </div>
-      </div>
-    </div>
-
-    <!-- WORLD SURVEY TABLE -->
-    <div class="section-block">
-      <div class="section-label">World / Body Survey</div>
-
-      <!-- Column Key -->
-      <div class="column-key">
-        <strong>Type:</strong>
-        <span class="badge badge-mw">MW</span> Mainworld &nbsp; <span class="badge badge-ter">TER</span> Terrestrial
-        &nbsp; <span class="badge badge-moon">MON</span> Moon &nbsp; <span class="badge badge-gg">GG</span> Gas Giant
-        &nbsp; <span class="badge badge-belt">BLT</span> Belt &nbsp; | &nbsp; <strong>Life:</strong> MXDC profile
-        (Biomass / Biocomplexity / Biodiversity / Compatibility) | <strong>Hab:</strong> Habitability Rating |
-        <strong>Res:</strong> Resource Rating
-      </div>
-
-      <div class="table-wrapper">
-        <table class="world-table">
-          <thead>
-            <tr>
-              <th style="width: 28px">#</th>
-              <th>Designation</th>
-              <th>Type</th>
-              <th>O# / AU</th>
-              <th>SAH</th>
-              <th>Diam (km)</th>
-              <th>Mean T (K)</th>
-              <th>Atm</th>
-              <th>Hyd</th>
-              <th>Life MXDC</th>
-              <th>Hab</th>
-              <th>Res</th>
-              <th>Notes</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="(world, index) in surveyData.worlds" :key="index" :class="{ mainworld: world.type === 'MW' }">
-              <td class="index-cell">{{ index + 1 }}</td>
-              <td>
-                <input v-model="world.designation" type="text" class="table-input" placeholder="Name" />
-              </td>
-              <td>
-                <select v-model="world.type" class="table-input">
+              </div>
+              <div class="form-cell grow-2">
+                <label class="cell-label">Sector | Hex Location</label>
+                <input v-model="surveyData.sectorHex" type="text" class="cell-input" placeholder="e.g., Orion 0101" />
+              </div>
+              <div class="form-cell">
+                <label class="cell-label">Survey Date</label>
+                <input v-model="surveyData.surveyDate" type="date" class="cell-input" />
+              </div>
+              <div class="form-cell">
+                <label class="cell-label">Survey Class</label>
+                <select v-model="surveyData.surveyClass" class="cell-input">
                   <option value="">—</option>
-                  <option value="MW">MW</option>
-                  <option value="TER">TER</option>
-                  <option value="MON">MON</option>
-                  <option value="GG">GG</option>
-                  <option value="BLT">BLT</option>
+                  <option value="A">A</option>
+                  <option value="B">B</option>
+                  <option value="C">C</option>
+                  <option value="D">D</option>
                 </select>
-              </td>
-              <td>
-                <input v-model="world.orbitAu" type="text" class="table-input" placeholder="1/0.5" />
-              </td>
-              <td>
-                <input v-model="world.sah" type="text" class="table-input" placeholder="—" />
-              </td>
-              <td>
-                <input v-model.number="world.diameter" type="number" class="table-input" placeholder="0" />
-              </td>
-              <td>
-                <input v-model.number="world.temperature" type="number" class="table-input" placeholder="0" />
-              </td>
-              <td>
-                <input v-model="world.atmosphere" type="text" class="table-input" placeholder="0" />
-              </td>
-              <td>
-                <input v-model="world.hydrosphere" type="text" class="table-input" placeholder="0" />
-              </td>
-              <td>
-                <input v-model="world.lifeMxdc" type="text" class="table-input" placeholder="—" />
-              </td>
-              <td>
-                <input v-model="world.habitability" type="text" class="table-input" placeholder="—" />
-              </td>
-              <td>
-                <input v-model="world.resources" type="text" class="table-input" placeholder="—" />
-              </td>
-              <td>
-                <input v-model="world.notes" type="text" class="table-input" placeholder="Notes" />
-              </td>
-              <td class="action-cell">
-                <button @click="removeWorld(index)" class="btn-remove" title="Remove world">✕</button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+              </div>
+            </div>
 
-      <!-- ADD WORLD BUTTON & TOTALS -->
-      <div class="button-row">
-        <button @click="addWorld" class="btn btn-small btn-add">+ Add World</button>
-      </div>
+            <div class="form-row">
+              <div class="form-cell grow-2">
+                <label class="cell-label">System Age (Gyr)</label>
+                <input
+                  v-model.number="surveyData.systemAge"
+                  type="number"
+                  step="0.1"
+                  class="cell-input"
+                  placeholder="4.6"
+                />
+              </div>
+              <div class="form-cell grow-2">
+                <label class="cell-label">Travel Zone</label>
+                <select v-model="surveyData.travelZone" class="cell-input">
+                  <option value="">Green</option>
+                  <option value="amber">Amber</option>
+                  <option value="red">Red</option>
+                </select>
+              </div>
+              <div class="form-cell grow-3">
+                <label class="cell-label">Surveying Vessel / Lead Scout</label>
+                <input v-model="surveyData.surveyingVessel" type="text" class="cell-input" placeholder="Vessel name" />
+              </div>
+              <div class="form-cell grow-2">
+                <label class="cell-label">Previous Survey (date)</label>
+                <input v-model="surveyData.previousSurveyDate" type="date" class="cell-input" />
+              </div>
+            </div>
+          </div>
 
-      <!-- TOTALS BAR -->
-      <div class="totals-bar">
-        <span><strong>Mainworld:</strong> {{ countWorldsByType("MW") }}</span>
-        <span><strong>Terrestrials:</strong> {{ countWorldsByType("TER") }}</span>
-        <span><strong>Moons:</strong> {{ countWorldsByType("MON") }}</span>
-        <span><strong>Gas Giants:</strong> {{ countWorldsByType("GG") }}</span>
-        <span><strong>Belts:</strong> {{ countWorldsByType("BLT") }}</span>
-      </div>
+          <!-- STELLAR COMPONENTS SECTION -->
+          <div
+            class="section-block"
+            id="panel-stellar"
+            role="tabpanel"
+            aria-labelledby="tab-stellar"
+            :aria-hidden="!(expandedSection === 'stellar' || expandedSection === 'all')"
+            v-show="expandedSection === 'stellar' || expandedSection === 'all'"
+          >
+            <div class="section-label">Stellar Components</div>
+            <div class="table-wrapper">
+              <table class="stellar-table">
+                <thead>
+                  <tr>
+                    <th>Desig</th>
+                    <th>Type / Subtype</th>
+                    <th>Lum Class</th>
+                    <th>Mass (M☉)</th>
+                    <th>Lum (L☉)</th>
+                    <th>Temp (K)</th>
+                    <th>Diam (D☉)</th>
+                    <th>Stellar Profile</th>
+                    <th>Notes</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="(star, index) in surveyData.stars" :key="index">
+                    <td>
+                      <input v-model="star.designation" type="text" class="table-input" placeholder="Primary" />
+                    </td>
+                    <td>
+                      <input v-model="star.typeSubtype" type="text" class="table-input" placeholder="G2V" />
+                    </td>
+                    <td>
+                      <input v-model="star.lumClass" type="text" class="table-input" placeholder="V" />
+                    </td>
+                    <td>
+                      <input
+                        v-model.number="star.mass"
+                        type="number"
+                        step="0.01"
+                        class="table-input"
+                        placeholder="1.0"
+                      />
+                    </td>
+                    <td>
+                      <input
+                        v-model.number="star.luminosity"
+                        type="number"
+                        step="0.01"
+                        class="table-input"
+                        placeholder="1.0"
+                      />
+                    </td>
+                    <td>
+                      <input v-model.number="star.temperature" type="number" class="table-input" placeholder="5778" />
+                    </td>
+                    <td>
+                      <input
+                        v-model.number="star.diameter"
+                        type="number"
+                        step="0.01"
+                        class="table-input"
+                        placeholder="1.0"
+                      />
+                    </td>
+                    <td>
+                      <input v-model="star.stellarProfile" type="text" class="table-input" placeholder="—" />
+                    </td>
+                    <td>
+                      <input v-model="star.notes" type="text" class="table-input" placeholder="Notes" />
+                    </td>
+                    <td class="action-cell">
+                      <button
+                        @click="removeStar(index)"
+                        class="btn-remove"
+                        v-if="surveyData.stars.length > 1"
+                        title="Remove star"
+                      >
+                        ✕
+                      </button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- ADD STAR BUTTON -->
+            <div class="button-row">
+              <button @click="addStar" class="btn btn-small btn-add">+ Add Star</button>
+            </div>
+
+            <!-- HABITABILITY ZONE DATA -->
+            <div class="form-row">
+              <div class="form-cell grow-2">
+                <label class="cell-label">HZ Centre (AU)</label>
+                <input v-model.number="surveyData.hzCentre" type="number" step="0.01" class="cell-input" />
+              </div>
+              <div class="form-cell grow-2">
+                <label class="cell-label">HZ Inner (AU)</label>
+                <input v-model.number="surveyData.hzInner" type="number" step="0.01" class="cell-input" />
+              </div>
+              <div class="form-cell grow-2">
+                <label class="cell-label">HZ Outer (AU)</label>
+                <input v-model.number="surveyData.hzOuter" type="number" step="0.01" class="cell-input" />
+              </div>
+              <div class="form-cell grow-2">
+                <label class="cell-label">Gas Giants</label>
+                <input v-model.number="surveyData.gasGiants" type="number" class="cell-input" />
+              </div>
+              <div class="form-cell grow-2">
+                <label class="cell-label">Planetoid Belts</label>
+                <input v-model.number="surveyData.belts" type="number" class="cell-input" />
+              </div>
+              <div class="form-cell grow-2">
+                <label class="cell-label">Terrestrials</label>
+                <input v-model.number="surveyData.terrestrials" type="number" class="cell-input" />
+              </div>
+            </div>
+          </div>
+
+          <!-- WORLD SURVEY TABLE -->
+          <div
+            class="section-block"
+            id="panel-worlds"
+            role="tabpanel"
+            aria-labelledby="tab-worlds"
+            :aria-hidden="!(expandedSection === 'worlds' || expandedSection === 'all')"
+            v-show="expandedSection === 'worlds' || expandedSection === 'all'"
+          >
+            <div class="section-label">World / Body Survey</div>
+
+            <!-- Column Key -->
+            <div class="column-key">
+              <strong>Type:</strong>
+              <span class="badge badge-mw">MW</span> Mainworld &nbsp;
+              <span class="badge badge-ter">TER</span> Terrestrial &nbsp; <span class="badge badge-moon">MON</span> Moon
+              &nbsp; <span class="badge badge-gg">GG</span> Gas Giant &nbsp;
+              <span class="badge badge-belt">BLT</span> Belt &nbsp; | &nbsp; <strong>Life:</strong> MXDC profile
+              (Biomass / Biocomplexity / Biodiversity / Compatibility) | <strong>Hab:</strong> Habitability Rating |
+              <strong>Res:</strong> Resource Rating
+            </div>
+
+            <div class="table-wrapper">
+              <table class="world-table">
+                <thead>
+                  <tr>
+                    <th style="width: 28px">#</th>
+                    <th>Designation</th>
+                    <th>Type</th>
+                    <th>O# / AU</th>
+                    <th>SAH</th>
+                    <th>Diam (km)</th>
+                    <th>Mean T (K)</th>
+                    <th>Atm</th>
+                    <th>Hyd</th>
+                    <th>Life MXDC</th>
+                    <th>Hab</th>
+                    <th>Res</th>
+                    <th>Notes</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="(world, index) in surveyData.worlds"
+                    :key="index"
+                    :class="{ mainworld: world.type === 'MW' }"
+                  >
+                    <td class="index-cell">{{ index + 1 }}</td>
+                    <td>
+                      <input v-model="world.designation" type="text" class="table-input" placeholder="Name" />
+                    </td>
+                    <td>
+                      <select v-model="world.type" class="table-input">
+                        <option value="">—</option>
+                        <option value="MW">MW</option>
+                        <option value="TER">TER</option>
+                        <option value="MON">MON</option>
+                        <option value="GG">GG</option>
+                        <option value="BLT">BLT</option>
+                      </select>
+                    </td>
+                    <td>
+                      <input v-model="world.orbitAu" type="text" class="table-input" placeholder="1/0.5" />
+                    </td>
+                    <td>
+                      <input v-model="world.sah" type="text" class="table-input" placeholder="—" />
+                    </td>
+                    <td>
+                      <input v-model.number="world.diameter" type="number" class="table-input" placeholder="0" />
+                    </td>
+                    <td>
+                      <input v-model.number="world.temperature" type="number" class="table-input" placeholder="0" />
+                      <div class="conversion">
+                        <small v-if="formatTemperatureFromKelvin(world.temperature) !== '—'">
+                          ≈ {{ formatTemperatureFromKelvin(world.temperature) }}
+                        </small>
+                        <small v-else class="muted">—</small>
+                        <div v-if="world.temperatureLow || world.temperatureHigh" style="margin-top: 4px">
+                          <small v-if="formatTemperatureFromKelvin(world.temperatureLow) !== '—'"
+                            >Low ≈ {{ formatTemperatureFromKelvin(world.temperatureLow) }}</small
+                          >
+                          <small
+                            v-if="formatTemperatureFromKelvin(world.temperatureHigh) !== '—'"
+                            style="margin-left: 8px"
+                            >High ≈ {{ formatTemperatureFromKelvin(world.temperatureHigh) }}</small
+                          >
+                        </div>
+                      </div>
+                    </td>
+                    <td>
+                      <input v-model="world.atmosphere" type="text" class="table-input" placeholder="0" />
+                    </td>
+                    <td>
+                      <input v-model="world.hydrosphere" type="text" class="table-input" placeholder="0" />
+                    </td>
+                    <td>
+                      <input v-model="world.lifeMxdc" type="text" class="table-input" placeholder="—" />
+                    </td>
+                    <td>
+                      <input v-model="world.habitability" type="text" class="table-input" placeholder="—" />
+                    </td>
+                    <td>
+                      <input v-model="world.resources" type="text" class="table-input" placeholder="—" />
+                    </td>
+                    <td>
+                      <input v-model="world.notes" type="text" class="table-input" placeholder="Notes" />
+                    </td>
+                    <td class="action-cell">
+                      <button @click="removeWorld(index)" class="btn-remove" title="Remove world">✕</button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- ADD WORLD BUTTON & TOTALS -->
+            <div class="button-row">
+              <button @click="addWorld" class="btn btn-small btn-add">+ Add World</button>
+            </div>
+
+            <!-- TOTALS BAR -->
+            <div class="totals-bar">
+              <span><strong>Mainworld:</strong> {{ countWorldsByType("MW") }}</span>
+              <span><strong>Terrestrials:</strong> {{ countWorldsByType("TER") }}</span>
+              <span><strong>Moons:</strong> {{ countWorldsByType("MON") }}</span>
+              <span><strong>Gas Giants:</strong> {{ countWorldsByType("GG") }}</span>
+              <span><strong>Belts:</strong> {{ countWorldsByType("BLT") }}</span>
+            </div>
+          </div>
+
+          <!-- COMPACT WORLD PROFILES -->
+          <div
+            class="section-block"
+            id="panel-compact"
+            role="tabpanel"
+            aria-labelledby="tab-compact"
+            :aria-hidden="!(expandedSection === 'compact' || expandedSection === 'all')"
+            v-show="expandedSection === 'compact' || expandedSection === 'all'"
+          >
+            <div class="section-label">Compact World Profiles</div>
+            <div class="form-row">
+              <div class="form-cell grow-3">
+                <label class="cell-label">Mainworld Name</label>
+                <input v-model="surveyData.mainworldName" type="text" class="cell-input" placeholder="Name" />
+              </div>
+              <div class="form-cell grow-2">
+                <label class="cell-label">Mainworld Type</label>
+                <input v-model="surveyData.mainworldType" type="text" class="cell-input" placeholder="World or Moon" />
+              </div>
+              <div class="form-cell grow-2">
+                <label class="cell-label">Parent World</label>
+                <input v-model="surveyData.mainworldParent" type="text" class="cell-input" placeholder="If moon" />
+              </div>
+              <div class="form-cell grow-2">
+                <label class="cell-label">Mainworld UWP</label>
+                <input v-model="surveyData.mainworldUwp" type="text" class="cell-input" placeholder="X-XXXXXX-X" />
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-cell grow-2">
+                <label class="cell-label">Native Lifeform Profile</label>
+                <input v-model="surveyData.nativeLifeform" type="text" class="cell-input" />
+              </div>
+              <div class="form-cell grow-2">
+                <label class="cell-label">Habitability</label>
+                <input v-model="surveyData.habitability" type="text" class="cell-input" />
+              </div>
+              <div class="form-cell grow-2">
+                <label class="cell-label">Resource Rating</label>
+                <input v-model="surveyData.resourceRating" type="text" class="cell-input" />
+              </div>
+              <div class="form-cell grow-2">
+                <label class="cell-label">Trade Codes</label>
+                <input v-model="surveyData.tradeCodes" type="text" class="cell-input" />
+              </div>
+              <div class="form-cell grow-2">
+                <label class="cell-label">Stellar Profile</label>
+                <input v-model="surveyData.stellarProfile" type="text" class="cell-input" />
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-cell grow-3">
+                <label class="cell-label">Mainworld Remarks</label>
+                <input
+                  v-model="surveyData.mainworldRemarks"
+                  type="text"
+                  class="cell-input"
+                  placeholder="Moon, Mainworld, etc."
+                />
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-cell grow-3">
+                <label class="cell-label">Secondary World Profiles (UWP string)</label>
+                <input v-model="surveyData.secondaryProfiles" type="text" class="cell-input" />
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-cell grow-3">
+                <label class="cell-label">Appeals</label>
+                <input v-model="surveyData.appealProfile" type="text" class="cell-input" />
+              </div>
+              <div class="form-cell grow-3">
+                <label class="cell-label">Private Law</label>
+                <input v-model="surveyData.privateLawProfile" type="text" class="cell-input" />
+              </div>
+              <div class="form-cell grow-3">
+                <label class="cell-label">Personal Rights</label>
+                <input v-model="surveyData.personalRightsProfile" type="text" class="cell-input" />
+              </div>
+              <div class="form-cell grow-5">
+                <label class="cell-label">Notes:</label>
+                <input v-model="surveyData.profileNotes" type="text" class="cell-input" />
+              </div>
+            </div>
+          </div>
+
+          <!-- COMMENTS SECTION -->
+          <div
+            class="comments-block"
+            id="panel-comments"
+            role="tabpanel"
+            aria-labelledby="tab-comments"
+            :aria-hidden="!(expandedSection === 'comments' || expandedSection === 'all')"
+            v-show="expandedSection === 'comments' || expandedSection === 'all'"
+          >
+            <label class="cell-label">Comments / Survey Notes</label>
+            <textarea
+              v-model="surveyData.comments"
+              class="comments-textarea"
+              placeholder="General survey notes and observations..."
+              rows="3"
+            ></textarea>
+          </div>
+
+          <!-- ACTION BUTTONS -->
+          <div class="form-actions">
+            <button @click="saveSurvey" class="btn btn-primary">💾 Save Survey</button>
+            <button @click="resetForm" class="btn btn-secondary">🔄 Reset</button>
+            <button @click="printForm" class="btn btn-secondary">🖨️ Print</button>
+          </div>
+        </div>
+      </transition>
+      <!-- .section-area -->
     </div>
-
-    <!-- COMPACT WORLD PROFILES -->
-    <div class="section-block">
-      <div class="section-label">Compact World Profiles</div>
-      <div class="form-row">
-        <div class="form-cell grow-2">
-          <label class="cell-label">Mainworld UWP</label>
-          <input v-model="surveyData.mainworldUwp" type="text" class="cell-input" placeholder="X-XXXXXX-X" />
-        </div>
-        <div class="form-cell grow-2">
-          <label class="cell-label">Native Lifeform Profile</label>
-          <input v-model="surveyData.nativeLifeform" type="text" class="cell-input" />
-        </div>
-        <div class="form-cell grow-2">
-          <label class="cell-label">Habitability</label>
-          <input v-model="surveyData.habitability" type="text" class="cell-input" />
-        </div>
-        <div class="form-cell grow-2">
-          <label class="cell-label">Resource Rating</label>
-          <input v-model="surveyData.resourceRating" type="text" class="cell-input" />
-        </div>
-        <div class="form-cell grow-2">
-          <label class="cell-label">Trade Codes</label>
-          <input v-model="surveyData.tradeCodes" type="text" class="cell-input" />
-        </div>
-        <div class="form-cell grow-2">
-          <label class="cell-label">Stellar Profile</label>
-          <input v-model="surveyData.stellarProfile" type="text" class="cell-input" />
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-cell grow-3">
-          <label class="cell-label">Secondary World Profiles (UWP string)</label>
-          <input v-model="surveyData.secondaryProfiles" type="text" class="cell-input" />
-        </div>
-        <div class="form-cell grow-5">
-          <label class="cell-label">Notes:</label>
-          <input v-model="surveyData.profileNotes" type="text" class="cell-input" />
-        </div>
-      </div>
-    </div>
-
-    <!-- COMMENTS SECTION -->
-    <div class="comments-block">
-      <label class="cell-label">Comments / Survey Notes</label>
-      <textarea
-        v-model="surveyData.comments"
-        class="comments-textarea"
-        placeholder="General survey notes and observations..."
-        rows="3"
-      ></textarea>
-    </div>
-
-    <!-- ACTION BUTTONS -->
-    <div class="form-actions">
-      <button @click="saveSurvey" class="btn btn-primary">💾 Save Survey</button>
-      <button @click="resetForm" class="btn btn-secondary">🔄 Reset</button>
-      <button @click="printForm" class="btn btn-secondary">🖨️ Print</button>
-    </div>
+    <!-- .survey-layout -->
   </div>
 </template>
 
 <script setup>
-import { ref } from "vue";
-import { systemApi } from "../../api/systemApi";
+import { computed, ref, watch } from "vue";
+import { onBeforeRouteLeave, useRoute } from "vue-router";
+import { useSystemStore } from "../../stores/systemStore";
+import { formatTemperatureFromKelvin } from "../../utils/temperatureFormatting.js";
+import {
+  buildSurveyDataFromSystem,
+  createEmptyStarRow,
+  createEmptySurveyData,
+  createEmptyWorldRow,
+  mergeSystemSurveyRecord,
+} from "./systemSurveyFormModel.js";
+
+const props = defineProps({
+  systemRecord: {
+    type: Object,
+    default: null,
+  },
+  systemId: {
+    type: String,
+    default: "",
+  },
+  autofill: {
+    type: Boolean,
+    default: true,
+  },
+});
+
+const route = useRoute();
+const systemStore = useSystemStore();
+
+let _nameSaveTimer = null;
+
+const resolvedSystemRecord = computed(() => {
+  if (props.systemRecord && typeof props.systemRecord === "object") {
+    return props.systemRecord;
+  }
+
+  const requestedId = String(props.systemId || route.query.systemRecordId || systemStore.currentSystemId || "").trim();
+  if (!requestedId) {
+    return systemStore.getCurrentSystem;
+  }
+
+  return systemStore.systems.find((system) => String(system?.systemId) === requestedId) ?? systemStore.getCurrentSystem;
+});
+
+const sections = [
+  { key: "overview", label: "Overview" },
+  { key: "stellar", label: "Stellar Components" },
+  { key: "worlds", label: "Worlds" },
+  { key: "compact", label: "Compact Profiles" },
+  { key: "comments", label: "Comments" },
+];
+
+const expandedSection = ref(sections[0].key);
+
+function selectSection(key) {
+  expandedSection.value = key;
+}
+
+const isWide = ref(false);
+function toggleWide() {
+  isWide.value = !isWide.value;
+  if (isWide.value) {
+    const cur = document.getElementById("tab-" + expandedSection.value);
+    if (cur) cur.focus();
+  }
+}
+
+function handleNavKeydown(event, index) {
+  const key = event.key;
+  if (key === "ArrowDown" || key === "ArrowUp" || key === "Home" || key === "End") {
+    event.preventDefault();
+    let nextIndex;
+    if (key === "Home") nextIndex = 0;
+    else if (key === "End") nextIndex = sections.length - 1;
+    else {
+      const delta = key === "ArrowDown" ? 1 : -1;
+      nextIndex = (index + delta + sections.length) % sections.length;
+    }
+    const nextKey = sections[nextIndex].key;
+    const nextBtn = document.getElementById("tab-" + nextKey);
+    if (nextBtn) nextBtn.focus();
+  }
+}
 
 // Form data
-const surveyData = ref({
-  systemDesignation: "",
-  sectorHex: "",
-  surveyDate: new Date().toISOString().split("T")[0],
-  surveyClass: "A",
-  systemAge: null,
-  travelZone: "Green",
-  surveyingVessel: "",
-  previousSurveyDate: "",
+const surveyData = ref(createEmptySurveyData());
 
-  // Stellar data
-  stars: [
-    {
-      designation: "",
-      typeSubtype: "",
-      lumClass: "",
-      mass: null,
-      luminosity: null,
-      temperature: null,
-      diameter: null,
-      stellarProfile: "",
-      notes: "",
-    },
-  ],
-
-  // Habitability zone
-  hzCentre: null,
-  hzInner: null,
-  hzOuter: null,
-  gasGiants: 0,
-  belts: 0,
-  terrestrials: 0,
-
-  // Worlds table (12 rows initially)
-  worlds: Array.from({ length: 12 }, () => ({
-    designation: "",
-    type: "",
-    orbitAu: "",
-    sah: "",
-    diameter: null,
-    temperature: null,
-    atmosphere: "",
-    hydrosphere: "",
-    lifeMxdc: "",
-    habitability: "",
-    resources: "",
-    notes: "",
-  })),
-
-  // Compact profiles
-  mainworldUwp: "",
-  nativeLifeform: "",
-  habitability: "",
-  resourceRating: "",
-  tradeCodes: "",
-  stellarProfile: "",
-  secondaryProfiles: "",
-  profileNotes: "",
-
-  // Comments
-  comments: "",
-});
+watch(
+  resolvedSystemRecord,
+  (systemRecord) => {
+    if (!props.autofill) {
+      return;
+    }
+    surveyData.value = buildSurveyDataFromSystem(systemRecord);
+  },
+  { immediate: true },
+);
 
 // Add new star
 const addStar = () => {
-  surveyData.value.stars.push({
-    designation: "",
-    typeSubtype: "",
-    lumClass: "",
-    mass: null,
-    luminosity: null,
-    temperature: null,
-    diameter: null,
-    stellarProfile: "",
-    notes: "",
-  });
+  surveyData.value.stars.push(createEmptyStarRow());
 };
 
 // Remove star
@@ -425,20 +620,7 @@ const removeStar = (index) => {
 
 // Add new world
 const addWorld = () => {
-  surveyData.value.worlds.push({
-    designation: "",
-    type: "",
-    orbitAu: "",
-    sah: "",
-    diameter: null,
-    temperature: null,
-    atmosphere: "",
-    hydrosphere: "",
-    lifeMxdc: "",
-    habitability: "",
-    resources: "",
-    notes: "",
-  });
+  surveyData.value.worlds.push(createEmptyWorldRow());
 };
 
 // Remove world
@@ -450,6 +632,80 @@ const removeWorld = (index) => {
 const countWorldsByType = (type) => {
   return surveyData.value.worlds.filter((w) => w.type === type).length;
 };
+
+// Save system name — shared helper
+function saveSystemName(nextName, systemRecord) {
+  if (!systemRecord?.systemId) return;
+  const name = String(nextName || "").trim();
+  if (!name) return;
+  systemStore
+    .updateSystem(systemRecord.systemId, {
+      ...systemRecord,
+      name,
+      systemName: name,
+      systemDesignation: name,
+      metadata: {
+        ...(systemRecord.metadata && typeof systemRecord.metadata === "object" ? systemRecord.metadata : {}),
+        displayName: name,
+        systemRecord: {
+          ...(systemRecord.metadata?.systemRecord && typeof systemRecord.metadata.systemRecord === "object"
+            ? systemRecord.metadata.systemRecord
+            : {}),
+          name,
+          systemName: name,
+          systemDesignation: name,
+        },
+        lastModified: new Date().toISOString(),
+      },
+    })
+    .catch(() => {});
+}
+
+// Debounced auto-save as user types the system name
+watch(
+  () => surveyData.value.systemDesignation,
+  (nextName) => {
+    if (_nameSaveTimer) clearTimeout(_nameSaveTimer);
+    _nameSaveTimer = setTimeout(() => {
+      const systemRecord = resolvedSystemRecord.value;
+      const stored = String(
+        systemRecord?.name ||
+          systemRecord?.systemName ||
+          systemRecord?.systemDesignation ||
+          systemRecord?.metadata?.systemRecord?.name ||
+          systemRecord?.metadata?.displayName ||
+          "",
+      ).trim();
+      if (String(nextName || "").trim() !== stored) {
+        saveSystemName(nextName, systemRecord);
+      }
+    }, 800);
+  },
+);
+
+// Also flush on navigate-away in case the debounce hasn't fired yet
+if (typeof onBeforeRouteLeave === "function") {
+  onBeforeRouteLeave(() => {
+    if (_nameSaveTimer) {
+      clearTimeout(_nameSaveTimer);
+      _nameSaveTimer = null;
+    }
+    const systemRecord = resolvedSystemRecord.value;
+    const nextName = String(surveyData.value.systemDesignation || "").trim();
+    if (!nextName) return;
+    const stored = String(
+      systemRecord?.name ||
+        systemRecord?.systemName ||
+        systemRecord?.systemDesignation ||
+        systemRecord?.metadata?.systemRecord?.name ||
+        systemRecord?.metadata?.displayName ||
+        "",
+    ).trim();
+    if (nextName !== stored) {
+      saveSystemName(nextName, systemRecord);
+    }
+  });
+}
 
 // Save survey
 const saveSurvey = async () => {
@@ -464,43 +720,19 @@ const saveSurvey = async () => {
   }
 
   try {
-    const payload = {
-      systemDesignation: surveyData.value.systemDesignation,
-      sectorHex: surveyData.value.sectorHex,
-      surveyDate: surveyData.value.surveyDate,
-      surveyClass: surveyData.value.surveyClass,
-      systemAge: surveyData.value.systemAge,
-      travelZone: surveyData.value.travelZone,
-      surveyingVessel: surveyData.value.surveyingVessel,
-      previousSurveyDate: surveyData.value.previousSurveyDate,
-      stars: surveyData.value.stars,
-      habitabilityZone: {
-        centre: surveyData.value.hzCentre,
-        inner: surveyData.value.hzInner,
-        outer: surveyData.value.hzOuter,
-      },
-      objectCounts: {
-        gasGiants: surveyData.value.gasGiants,
-        belts: surveyData.value.belts,
-        terrestrials: surveyData.value.terrestrials,
-      },
-      worlds: surveyData.value.worlds,
-      profiles: {
-        mainworldUwp: surveyData.value.mainworldUwp,
-        nativeLifeform: surveyData.value.nativeLifeform,
-        habitability: surveyData.value.habitability,
-        resourceRating: surveyData.value.resourceRating,
-        tradeCodes: surveyData.value.tradeCodes,
-        stellarProfile: surveyData.value.stellarProfile,
-        secondaryProfiles: surveyData.value.secondaryProfiles,
-        profileNotes: surveyData.value.profileNotes,
-      },
-      comments: surveyData.value.comments,
-    };
+    const currentRecord =
+      resolvedSystemRecord.value && typeof resolvedSystemRecord.value === "object" ? resolvedSystemRecord.value : null;
 
-    console.log("✓ System Survey saved:", payload);
+    if (currentRecord?.systemId) {
+      const nextRecord = mergeSystemSurveyRecord(currentRecord, surveyData.value);
+
+      await systemStore.updateSystem(currentRecord.systemId, nextRecord);
+      systemStore.setCurrentSystem(currentRecord.systemId);
+    } else {
+      console.log("✓ System Survey saved:", surveyData.value);
+    }
+
     alert("✓ System Survey saved successfully!");
-    // TODO: Connect to API when endpoint is ready
   } catch (error) {
     console.error("✗ Save failed:", error);
     alert("✗ Failed to save survey. Check console for details.");
@@ -509,58 +741,7 @@ const saveSurvey = async () => {
 
 // Reset form
 const resetForm = () => {
-  surveyData.value = {
-    systemDesignation: "",
-    sectorHex: "",
-    surveyDate: new Date().toISOString().split("T")[0],
-    surveyClass: "A",
-    systemAge: null,
-    travelZone: "Green",
-    surveyingVessel: "",
-    previousSurveyDate: "",
-    stars: [
-      {
-        designation: "",
-        typeSubtype: "",
-        lumClass: "",
-        mass: null,
-        luminosity: null,
-        temperature: null,
-        diameter: null,
-        stellarProfile: "",
-        notes: "",
-      },
-    ],
-    hzCentre: null,
-    hzInner: null,
-    hzOuter: null,
-    gasGiants: 0,
-    belts: 0,
-    terrestrials: 0,
-    worlds: Array.from({ length: 12 }, () => ({
-      designation: "",
-      type: "",
-      orbitAu: "",
-      sah: "",
-      diameter: null,
-      temperature: null,
-      atmosphere: "",
-      hydrosphere: "",
-      lifeMxdc: "",
-      habitability: "",
-      resources: "",
-      notes: "",
-    })),
-    mainworldUwp: "",
-    nativeLifeform: "",
-    habitability: "",
-    resourceRating: "",
-    tradeCodes: "",
-    stellarProfile: "",
-    secondaryProfiles: "",
-    profileNotes: "",
-    comments: "",
-  };
+  surveyData.value = createEmptySurveyData();
 };
 
 // Print form
@@ -581,7 +762,7 @@ const printForm = () => {
   background: #ffffff;
   border: 2px solid #000;
   margin: 0 auto;
-  max-width: 1000px;
+  max-width: 100%;
 }
 
 /* ── HEADER (BURGUNDY) ── */
@@ -636,6 +817,8 @@ const printForm = () => {
 .form-row {
   display: flex;
   border-bottom: 1px solid #ccc;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .form-row:last-child {
@@ -650,6 +833,8 @@ const printForm = () => {
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
+  /* Allow flex children to shrink properly and avoid overflow */
+  min-width: 0;
 }
 
 .form-cell:last-child {
@@ -999,6 +1184,168 @@ const printForm = () => {
   .survey-form {
     margin: 0;
     width: 100%;
+  }
+}
+
+/* when wide, slightly increase nav column so content breathes */
+.survey-layout {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 16px;
+  padding: 12px;
+}
+
+/* wide form removes the centered max-width and uses full available width */
+.survey-form.wide {
+  max-width: none;
+  width: calc(100% - 32px);
+  margin: 0 16px;
+  transition:
+    width 220ms ease,
+    margin 220ms ease;
+}
+
+/* when wide, slightly increase nav column so content breathes */
+.survey-form.wide .survey-layout {
+  grid-template-columns: 260px 1fr;
+}
+
+.section-nav {
+  border-right: 1px solid #ddd;
+  padding: 8px;
+  background: #fff;
+  position: sticky;
+  top: 12px;
+  align-self: start;
+  max-height: calc(100vh - 40px);
+  overflow: auto;
+}
+
+.section-nav ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.section-nav li {
+  margin-bottom: 6px;
+}
+
+.nav-button {
+  width: 100%;
+  text-align: left;
+  padding: 8px 10px;
+  font-size: 12px;
+  border: 1px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.nav-button:hover {
+  background: #f3f3f3;
+}
+
+.nav-button.active {
+  background: #9a410e;
+  color: #fff;
+  border-color: rgba(0, 0, 0, 0.05);
+}
+
+.section-area {
+  padding: 8px 8px 20px 8px;
+  min-width: 0;
+}
+
+/* ── TRANSITION FOR SECTION SWAPS ── */
+.fade-slide-enter-active,
+.fade-slide-leave-active {
+  transition:
+    opacity 220ms ease,
+    transform 220ms ease;
+}
+.fade-slide-enter-from,
+.fade-slide-leave-to {
+  opacity: 0;
+  transform: translateY(6px);
+}
+.fade-slide-enter-to,
+.fade-slide-leave-from {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.nav-button:focus {
+  outline: 3px solid rgba(154, 65, 14, 0.2);
+  outline-offset: 2px;
+}
+
+@media (max-width: 900px) {
+  .survey-layout {
+    grid-template-columns: 1fr;
+  }
+  .section-nav {
+    display: none;
+  }
+}
+
+/* ── PRINT STYLES TO PRESERVE OUTPUT ── */
+@media print {
+  .form-actions,
+  .button-row,
+  .btn,
+  .btn-add,
+  .btn-remove {
+    display: none !important;
+  }
+
+  .form-header,
+  .section-label,
+  .sub-table th {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  body {
+    background: white;
+    padding: 0;
+  }
+
+  .survey-form {
+    margin: 0;
+    width: 100%;
+    border: none;
+    box-shadow: none;
+  }
+
+  .left-nav,
+  .section-nav {
+    display: none !important;
+  }
+
+  .section-block,
+  .section-block *,
+  .section-content,
+  .collapsed,
+  [aria-hidden="true"],
+  .hidden {
+    display: block !important;
+    visibility: visible !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  .section-block {
+    page-break-inside: avoid;
+  }
+
+  input,
+  textarea,
+  select,
+  .table-input {
+    background: #fff !important;
+    color: #000 !important;
+    border: 1px solid #000 !important;
   }
 }
 </style>

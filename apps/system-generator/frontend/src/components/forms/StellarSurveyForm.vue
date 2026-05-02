@@ -69,7 +69,7 @@
           </select>
         </div>
         <div class="objects-cell">
-          <label class="cell-label">Class I Status?</label>
+          <label class="cell-label">Stellar Survey Status?</label>
           <select v-model="surveyData.classIStatus" class="cell-input objects-input">
             <option value="">—</option>
             <option value="confirmed">Confirmed</option>
@@ -343,6 +343,9 @@ const printForm = () => {
   border: 2px solid #000;
   margin: 0 auto;
   max-width: 1000px;
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
+  scrollbar-gutter: stable;
 }
 
 /* ── HEADER (PURPLE FOR DIFFERENTIATION) ── */

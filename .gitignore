@@ -32,6 +32,14 @@ __pycache__/
 *.pyo
 site/
 
+# Local databases (do not sync to GitHub)
+*.db
+*.sqlite
+*.sqlite3
+*.db-wal
+*.db-shm
+
+
 # Java artefacts (template – kept for safety)
 *.class
 *.jar

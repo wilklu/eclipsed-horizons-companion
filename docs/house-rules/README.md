@@ -4,12 +4,12 @@ Welcome to the house rules documentation for the **Eclipsed Horizons** Traveller
 
 ## Rule Status Definitions
 
-| Status | Description |
-|---|---|
-| **CANON** | Official Mongoose Traveller rules — included here for quick reference |
-| **APPROVED** | Agreed-upon house rules in active use at our table |
-| **OPTIONAL** | Rules players may choose to use on a per-character or per-session basis |
-| **EXPERIMENTAL** | Currently being playtested; subject to revision or removal |
+| Status           | Description                                                             |
+| ---------------- | ----------------------------------------------------------------------- |
+| **CANON**        | Official Mongoose Traveller rules — included here for quick reference   |
+| **APPROVED**     | Agreed-upon house rules in active use at our table                      |
+| **OPTIONAL**     | Rules players may choose to use on a per-character or per-session basis |
+| **EXPERIMENTAL** | Currently being playtested; subject to revision or removal              |
 
 ## Categories
 
@@ -18,7 +18,7 @@ Welcome to the house rules documentation for the **Eclipsed Horizons** Traveller
 - [Psionics](psionics.md) — Psionic talent and power rules
 - [Trade & Commerce](trade-and-commerce.md) — Modified speculative trade rules
 - [Space Travel](space-travel.md) — Jump travel, encounters, and shipboard rules
-- [World Building](world-building.md) — Custom world and system generation tweaks
+- [World Building](world-building.md) — Custom world and system generation tweaks, including Galactic timekeeping
 
 ## Contributing
 
