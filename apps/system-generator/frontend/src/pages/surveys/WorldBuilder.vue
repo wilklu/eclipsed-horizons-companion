@@ -174,25 +174,6 @@
                   {{ Math.round((world.hydrographicsCompositionDetailed.iceFraction || 0) * 100) }}%
                 </span>
               </div>
-              <div class="prop-row" v-if="world.compositionDetailed?.bulkElementAbundances?.length">
-                <span class="prop-label">Bulk Composition:</span>
-                <span class="prop-value">
-                  {{
-                    world.compositionDetailed.bulkElementAbundances
-                      .slice(0, 6)
-                      .map((e) => `${e.element} ${Number(e.weightPercent).toFixed(2)}%`)
-                      .join(", ")
-                  }}
-                </span>
-              </div>
-              <div class="prop-row" v-if="world.compositionDetailed?.volatiles?.length">
-                <span class="prop-label">Volatiles:</span>
-                <span class="prop-value">{{
-                  world.compositionDetailed.volatiles
-                    .map((v) => `${v.species} ${Number(v.weightPercent).toFixed(3)}%`)
-                    .join(", ")
-                }}</span>
-              </div>
               <div class="prop-row">
                 <span class="prop-label">Gravity:</span>
                 <span class="prop-value">{{ world.gravity }} G</span>
@@ -319,6 +300,39 @@
               <div class="prop-row">
                 <span class="prop-label">Magnetosphere:</span>
                 <span class="prop-value">{{ world.magnetosphere }}</span>
+              </div>
+            </div>
+          </section>
+
+          <section
+            v-if="
+              !isGasGiantSurvey &&
+              (world.compositionDetailed?.bulkElementAbundances?.length || world.compositionDetailed?.volatiles?.length)
+            "
+            class="world-section world-section--compact"
+          >
+            <div class="section-header">
+              <h3>🪨 Bulk Composition & Volatiles</h3>
+            </div>
+            <div class="prop-list">
+              <div class="prop-row" v-if="world.compositionDetailed?.bulkElementAbundances?.length">
+                <span class="prop-label">Bulk Composition:</span>
+                <span class="prop-value">
+                  {{
+                    world.compositionDetailed.bulkElementAbundances
+                      .slice(0, 6)
+                      .map((e) => `${e.element} ${Number(e.weightPercent).toFixed(2)}%`)
+                      .join(", ")
+                  }}
+                </span>
+              </div>
+              <div class="prop-row" v-if="world.compositionDetailed?.volatiles?.length">
+                <span class="prop-label">Volatiles:</span>
+                <span class="prop-value">{{
+                  world.compositionDetailed.volatiles
+                    .map((v) => `${v.species} ${Number(v.weightPercent).toFixed(3)}%`)
+                    .join(", ")
+                }}</span>
               </div>
             </div>
           </section>
@@ -1140,6 +1154,10 @@ function describeNativeLifeRating(kind, value) {
 
 function formatNativeLifeRating(profile, index, kind) {
   const digits = normalizeNativeLifeProfile(profile).padEnd(4, "0").slice(0, 4);
+  // When biomass is 0, all downstream ratings are meaningless — show 0 for all
+  if (index > 0 && digits.charAt(0) === "0") {
+    return describeNativeLifeRating(kind, "0");
+  }
   return describeNativeLifeRating(kind, digits.charAt(index));
 }
 

@@ -622,18 +622,30 @@
             class="control-card subsector-sidebar-card subsector-sidebar-card--actions"
           >
             <label>Subsector Survey</label>
-            <div class="subsector-sidebar-actions" style="margin-bottom: 0.4rem">
+            <div class="survey-option-grid" role="radiogroup" aria-label="Subsector survey generation options">
               <button
-                class="btn btn-primary subsector-sidebar-btn"
-                :disabled="isLoading || fullGenerationBlockedByTier"
-                :title="fullGenerationBlockedByTier ? fullGenerationBlockedReason : ''"
-                @click="generateAllSubsectorSystems"
+                v-for="option in generationModeOptions"
+                :key="option.id"
+                type="button"
+                class="survey-option-btn"
+                :class="{ active: effectiveGenerationMode === option.id }"
+                :aria-pressed="effectiveGenerationMode === option.id"
+                :disabled="isLoading"
+                @click="selectAndRunSurveyMode(option.id)"
               >
-                {{ isLoading ? "Generating..." : "⭐ Generate All Subsector Systems" }}
+                {{ option.label }}
               </button>
             </div>
-            <div class="subsector-sidebar-copy">
-              Generate all systems and world profiles for the current subsector viewport.
+            <div class="control-help control-help--multiline" style="margin-top: 0.4rem">
+              {{ generationAction?.description }}
+            </div>
+            <div class="control-inline-row control-inline-row--generation">
+              <div class="survey-action-label">{{ surveyActionLabel }}</div>
+            </div>
+            <div class="tier-policy-badge" :class="`tier-policy-badge--${generationPolicyBadge.tier}`">
+              <span class="tier-policy-badge__tier">{{ generationPolicyBadge.tierLabel }}</span>
+              <span class="tier-policy-badge__rule">{{ generationPolicyBadge.rule }}</span>
+              <span class="tier-policy-badge__mode">{{ generationPolicyBadge.modeLabel }}</span>
             </div>
             <div v-if="generationStatusMessage" class="control-help control-help--multiline generation-status-copy">
               {{ generationStatusMessage }}

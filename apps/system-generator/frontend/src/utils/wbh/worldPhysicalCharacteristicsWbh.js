@@ -1720,7 +1720,7 @@ function buildNativeLifeRatings({
       biomass: {
         rollTotal: Number(biomassBreakdown?.rollTotal ?? 0),
         dm: Number(biomassBreakdown?.dm ?? 0),
-        total: biomass,
+        total: Number(biomassBreakdown?.value ?? 0),
         subtypeDm: 0,
       },
       biocomplexity: {

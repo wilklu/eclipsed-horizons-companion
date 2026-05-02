@@ -273,20 +273,20 @@
                 ></textarea>
               </div>
             </div>
-          </div>
 
-          <div class="form-row">
-            <div class="form-cell grow-2">
-              <label class="cell-label">Bulk Composition</label>
-              <div style="display: flex; gap: 8px; align-items: center">
-                <button type="button" class="btn btn-small btn-add" @click="generateCompositionFromSurvey">
-                  Generate Composition
-                </button>
-                <small class="muted">Auto-fill structured bulk composition from survey inputs</small>
+            <div class="form-row">
+              <div class="form-cell grow-2">
+                <label class="cell-label">Bulk Composition</label>
+                <div style="display: flex; gap: 8px; align-items: center">
+                  <button type="button" class="btn btn-small btn-add" @click="generateCompositionFromSurvey">
+                    Generate Composition
+                  </button>
+                  <small class="muted">Auto-fill structured bulk composition from survey inputs</small>
+                </div>
               </div>
-            </div>
-            <div class="form-cell grow-6" style="padding: 6px">
-              <CompositionEditor v-model="surveyData.size.compositionDetailed" />
+              <div class="form-cell grow-6" style="padding: 6px">
+                <CompositionEditor v-model="surveyData.size.compositionDetailed" />
+              </div>
             </div>
           </div>
 
