@@ -4722,14 +4722,28 @@ async function generateInspectorSectorPresenceInternalWithOptions(sector, { incl
   const targetSector = buildPersistableSector(sector);
   const { galaxy, densityClass } = getSectorGenerationContext(targetSector);
   const occupiedHexes = rollOccupiedHexesForSector(galaxy, densityClass);
-  if (isGalacticCenterSector(targetSector)) {
-    const centerCoord = sectorHexCoord(Math.ceil(HEX_PRESENCE_COLS / 2), Math.ceil(HEX_PRESENCE_ROWS / 2));
-    if (!occupiedHexes.includes(centerCoord)) {
-      occupiedHexes.push(centerCoord);
-    }
-  }
   const galacticCenter = isGalacticCenterSector(targetSector);
+  const centerCoord = sectorHexCoord(Math.ceil(HEX_PRESENCE_COLS / 2), Math.ceil(HEX_PRESENCE_ROWS / 2));
   const anomalyType = galacticCenter ? centerAnomalyTypeForGalaxy(galaxy) : null;
+  if (galacticCenter && !occupiedHexes.includes(centerCoord)) {
+    occupiedHexes.push(centerCoord);
+  }
+
+  const hexStarTypes = {};
+  if (galacticCenter) {
+    const starMetadata = buildHexStarTypeMetadata({
+      anomalyType,
+      generatedStars: buildGeneratedStars({ anomalyType, fallbackStarType: anomalyType || "G2V" }),
+      fallbackStarType: anomalyType || "G2V",
+    });
+    hexStarTypes[centerCoord] = {
+      starType: starMetadata.starType,
+      starClass: "anomaly-core",
+      secondaryStars: starMetadata.secondaryStars,
+      generatedStars: starMetadata.generatedStars.map((star) => ({ ...star })),
+      anomalyType: starMetadata.anomalyType,
+    };
+  }
 
   const payload = {
     ...targetSector,
@@ -4740,14 +4754,24 @@ async function generateInspectorSectorPresenceInternalWithOptions(sector, { incl
       hexPresenceGenerated: true,
       hexPresenceGeneratedAt: new Date().toISOString(),
       occupiedHexes,
-      hexStarTypes: {},
+      hexStarTypes,
       isGalacticCenterSector: galacticCenter,
       centralAnomalyType: anomalyType,
     }),
   };
 
   const updated = await sectorApi.upsertSector(payload);
-  await systemStore.replaceSectorSystems(updated.sectorId, []);
+  const anomalySystems = galacticCenter
+    ? [buildAtlasGeneratedSystem(targetSector, centerCoord, null, [], anomalyType)].map((system) => ({
+        ...system,
+        galaxyId: updated.galaxyId,
+        sectorId: updated.sectorId,
+        systemId: `${updated.sectorId}:${String(system?.systemId || "")
+          .split(":")
+          .pop()}`,
+      }))
+    : [];
+  await systemStore.replaceSectorSystems(updated.sectorId, anomalySystems);
   applySectorUpdate(updated);
   return { updated, occupiedHexes };
 }

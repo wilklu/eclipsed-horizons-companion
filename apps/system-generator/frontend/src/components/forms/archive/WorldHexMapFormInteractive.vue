@@ -71,7 +71,8 @@
       </div>
       <span class="scale-unit">km</span>
       <span class="scale-info">
-        | Size {{ mapData.worldSize }} | {{ calculateTotalHexes() }} hexes | Diameter: {{ calculateDiameter() }} km
+        | Size {{ mapData.worldSize }} overlay | {{ calculateTotalHexes() }} active hexes | Diameter:
+        {{ calculateDiameter() }} km
       </span>
     </div>
 
@@ -104,6 +105,14 @@
       </div>
 
       <div class="action-buttons">
+        <button
+          v-if="terrainSeed?.hexCounts?.length"
+          @click="seedFromTerrainComposition"
+          class="btn btn-small btn-accent"
+          title="Randomly distribute terrain from the generated Terrain Survey"
+        >
+          🌍 Auto-seed terrain
+        </button>
         <button @click="clearSelection" class="btn btn-small btn-secondary" :disabled="!selectedHex">
           Clear Selection
         </button>
@@ -128,7 +137,7 @@
         <!-- Icosahedron triangles -->
         <g v-for="(triangle, idx) in triangles" :key="`tri-${idx}`">
           <!-- Triangle outline -->
-          <polygon :points="triangle.points" :class="`tri-${triangle.orientation}`" />
+          <polygon :points="triangle.points" :class="`tri-${triangle.orient}`" />
 
           <!-- Triangle label -->
           <text :x="triangle.labelX" :y="triangle.labelY" class="tri-num" text-anchor="middle" pointer-events="none">
@@ -136,20 +145,26 @@
           </text>
 
           <!-- Hexagonal grid for this triangle -->
-          <g v-for="(hex, hexIdx) in generateHexagons(triangle, mapData.worldSize)" :key="`hex-${idx}-${hexIdx}`">
+          <g v-for="(hex, hexIdx) in generateHexagons(triangle, BASE_GRID_SIZE)" :key="`hex-${idx}-${hexIdx}`">
             <!-- Hex outline -->
             <path
               :d="hex.path"
               :class="[
                 'hex-cell',
                 {
+                  'hex-disabled': !isHexActive(triangle.label, hexIdx),
                   'hex-selected': isHexSelected(triangle.label, hexIdx),
-                  'hex-hover': hoveredHex?.triangle === triangle.label && hoveredHex?.hexIndex === hexIdx,
+                  'hex-hover':
+                    isHexActive(triangle.label, hexIdx) &&
+                    hoveredHex?.triangle === triangle.label &&
+                    hoveredHex?.hexIndex === hexIdx,
                 },
               ]"
               :fill="getHexColor(triangle.label, hexIdx)"
               @click="selectHex(triangle.label, hexIdx)"
-              @mouseenter="hoveredHex = { triangle: triangle.label, hexIndex: hexIdx }"
+              @mouseenter="
+                hoveredHex = isHexActive(triangle.label, hexIdx) ? { triangle: triangle.label, hexIndex: hexIdx } : null
+              "
               @mouseleave="hoveredHex = null"
             />
 
@@ -272,7 +287,55 @@
 </template>
 
 <script setup>
-import { ref, computed, reactive } from "vue";
+import { ref, computed, reactive, watch } from "vue";
+
+const props = defineProps({
+  /** terrainComposition object from generateMainworldTerrainComposition */
+  terrainSeed: { type: Object, default: null },
+  /** Pre-fill world name */
+  seedWorldName: { type: String, default: "" },
+  /** Pre-fill UWP */
+  seedUwp: { type: String, default: "" },
+  /** Pre-fill system name */
+  seedSystem: { type: String, default: "" },
+  /** World size code (0-F or numeric 1-10) — used to set mapData.worldSize */
+  seedWorldSize: { type: [String, Number], default: null },
+});
+
+// Maps generator category names to this component's terrain IDs
+const CATEGORY_TO_TERRAIN = {
+  water: "water",
+  ice: "tundra",
+  elevated: "mountain",
+  arid: "desert",
+  vegetation: "forest",
+  exotic: "desert",
+  plains: "plains",
+};
+
+// More granular type-level overrides (wetland/wet woods → swamp)
+const TYPE_TO_TERRAIN = {
+  Wetland: "swamp",
+  "Wet Woods": "swamp",
+  Shore: "water",
+  Ocean: "water",
+  Islands: "plains",
+  River: "water",
+  Lake: "water",
+  Icecap: "tundra",
+  Glacier: "tundra",
+  "Ice Field": "tundra",
+  "Frozen Lands": "tundra",
+  Mountain: "mountain",
+  Rough: "mountain",
+  Volcano: "mountain",
+  Desert: "desert",
+  "Baked lands": "desert",
+  Woods: "forest",
+  "Rough Woods": "forest",
+  Exotic: "desert",
+  Clear: "plains",
+};
 
 // State
 const svgKey = ref(0);
@@ -282,6 +345,13 @@ const hoveredHex = ref(null);
 const showHexLabels = ref(false);
 const mappedHexes = ref(new Map()); // Stores hex terrain data
 
+function parseSeedSize(raw) {
+  if (raw === null || raw === undefined) return null;
+  const n = parseInt(raw, 16);
+  if (!Number.isFinite(n) || n < 1) return null;
+  return Math.min(10, Math.max(1, n));
+}
+
 const mapData = reactive({
   worldName: "",
   uwp: "",
@@ -289,6 +359,27 @@ const mapData = reactive({
   rotation: "ccw",
   worldSize: 5,
 });
+
+const BASE_GRID_SIZE = 7;
+const BASE_GRID_HEXES = 2 + 10 * BASE_GRID_SIZE * BASE_GRID_SIZE;
+
+// Sync identity fields from props when they change
+watch(
+  () => [props.seedWorldName, props.seedUwp, props.seedSystem, props.seedWorldSize],
+  ([name, uwp, system, size]) => {
+    if (name) mapData.worldName = name;
+    if (uwp) mapData.uwp = uwp;
+    if (system) mapData.system = system;
+    const parsed = parseSeedSize(size);
+    if (parsed !== null) {
+      mapData.worldSize = parsed;
+      svgKey.value++;
+      mappedHexes.value.clear();
+      selectedHex.value = null;
+    }
+  },
+  { immediate: true },
+);
 
 // Terrain types with colors and symbols
 const terrainTypes = [
@@ -359,10 +450,15 @@ const sizeReferenceTable = [
   { size: 10, hexesPerEdge: 10, totalHexes: 1002, diameter: 16000 },
 ];
 
+function getTargetHexesForSize(size) {
+  const parsed = Math.max(1, Math.min(10, Number(size) || 1));
+  const requested = 2 + 10 * parsed * parsed;
+  return Math.min(BASE_GRID_HEXES, requested);
+}
+
 // Calculate totals
 const calculateTotalHexes = () => {
-  const size = mapData.worldSize;
-  return 2 + 10 * size * size;
+  return getTargetHexesForSize(mapData.worldSize);
 };
 
 const calculateDiameter = () => {
@@ -375,30 +471,62 @@ function generateHexagons(triangle, size) {
   const [x1, y1, x2, y2, x3, y3] = triangle.pts;
   const hexagons = [];
 
-  // Simple hex grid generation within triangle
-  // For each row, calculate hex positions
-  const rowCount = size;
+  // Build rows from apex -> base so "up" and "down" triangles both render
+  // with the correct widening direction.
+  const p1 = { x: x1, y: y1 };
+  const p2 = { x: x2, y: y2 };
+  const p3 = { x: x3, y: y3 };
+  const isUp = triangle.orient === "up";
+  const apex = isUp ? p1 : p3;
+  const baseLeft = isUp ? p2 : p1;
+  const baseRight = isUp ? p3 : p2;
 
-  for (let row = 0; row < rowCount; row++) {
-    // Calculate how many hexes in this row
-    const hexesInRow = size - row;
+  const triWidth = Math.hypot(baseRight.x - baseLeft.x, baseRight.y - baseLeft.y);
+  const triArea =
+    Math.abs(
+      apex.x * (baseLeft.y - baseRight.y) + baseLeft.x * (baseRight.y - apex.y) + baseRight.x * (apex.y - baseLeft.y),
+    ) / 2;
+  const triHeight = triWidth > 0 ? (2 * triArea) / triWidth : 0;
+
+  let hexIndex = 0;
+
+  const lerp = (a, b, t) => a + (b - a) * t;
+
+  for (let row = 0; row < size; row++) {
+    const bandT = (row + 1) / (size + 1);
+    const rowLeft = {
+      x: lerp(apex.x, baseLeft.x, bandT),
+      y: lerp(apex.y, baseLeft.y, bandT),
+    };
+    const rowRight = {
+      x: lerp(apex.x, baseRight.x, bandT),
+      y: lerp(apex.y, baseRight.y, bandT),
+    };
+
+    const hexesInRow = row + 1;
+    const rowSpan = Math.hypot(rowRight.x - rowLeft.x, rowRight.y - rowLeft.y);
+    const spacingH = hexesInRow > 1 ? rowSpan / (hexesInRow - 1) : triWidth / (size + 1);
+    const spacingV = triHeight / (size + 1);
+
+    // Template-like proportions based on the sample SVG point set.
+    const halfWidth = Math.max(3, Math.min(spacingH * 0.42, spacingV * 0.95));
+    const halfHeightShort = halfWidth * 0.66;
+    const halfHeightLong = halfWidth * 1.1;
 
     for (let col = 0; col < hexesInRow; col++) {
-      // Calculate hex center position (simplified)
-      const triWidth = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
-      const triHeight = Math.sqrt((x1 - x3) ** 2 + (y1 - y3) ** 2);
+      const colT = hexesInRow === 1 ? 0.5 : col / (hexesInRow - 1);
+      const cx = lerp(rowLeft.x, rowRight.x, colT);
+      const cy = lerp(rowLeft.y, rowRight.y, colT);
 
-      const u = (row + 1) / (size + 1);
-      const v = (col + 0.5) / hexesInRow;
-
-      const cx = x1 * (1 - u) + x3 * u + (x2 - x1) * v * (1 - u);
-      const cy = y1 * (1 - u) + y3 * u + (y2 - y1) * v * (1 - u);
-
-      const hexSize = 8;
-
-      // Generate hexagon path
-      const angles = [0, 60, 120, 180, 240, 300].map((a) => (a * Math.PI) / 180);
-      const points = angles.map((angle) => [cx + hexSize * Math.cos(angle), cy + hexSize * Math.sin(angle)]);
+      // Pointy hex template matching travellerworlds-like SVG proportions.
+      const points = [
+        [cx, cy - halfHeightLong],
+        [cx + halfWidth, cy - halfHeightShort],
+        [cx + halfWidth, cy + halfHeightShort],
+        [cx, cy + halfHeightLong],
+        [cx - halfWidth, cy + halfHeightShort],
+        [cx - halfWidth, cy - halfHeightShort],
+      ];
 
       const path = `M ${points.map((p) => p.join(",")).join(" L ")} Z`;
 
@@ -406,12 +534,39 @@ function generateHexagons(triangle, size) {
         cx,
         cy,
         path,
-        index: row * size + col,
+        index: hexIndex++,
       });
     }
   }
 
   return hexagons;
+}
+
+const activeHexKeySet = computed(() => {
+  const allTris = [...TRIANGLE_POINTS.north, ...TRIANGLE_POINTS.middle, ...TRIANGLE_POINTS.south];
+  const centerX = mapDimensions.value.width / 2;
+  const centerY = mapDimensions.value.height / 2;
+  const weightedSlots = [];
+
+  for (const tri of allTris) {
+    const hexes = generateHexagons(tri, BASE_GRID_SIZE);
+    for (let i = 0; i < hexes.length; i++) {
+      const hex = hexes[i];
+      const key = `${tri.id}-${i}`;
+      const dx = hex.cx - centerX;
+      const dy = hex.cy - centerY;
+      const equatorBias = Math.abs((hex.cy - mapDimensions.value.equatorY) / (mapDimensions.value.height * 0.5));
+      const score = dx * dx + dy * dy + equatorBias * 1200;
+      weightedSlots.push({ key, score });
+    }
+  }
+
+  weightedSlots.sort((a, b) => a.score - b.score);
+  return new Set(weightedSlots.slice(0, calculateTotalHexes()).map((slot) => slot.key));
+});
+
+function isHexActive(triangle, hexIndex) {
+  return activeHexKeySet.value.has(`${triangle}-${hexIndex}`);
 }
 
 // Build triangles
@@ -434,6 +589,10 @@ const triangles = computed(() => {
 
 // Hex selection and terrain
 function selectHex(triangle, hexIndex) {
+  if (!isHexActive(triangle, hexIndex)) {
+    return;
+  }
+
   selectedHex.value = { triangle, hexIndex, terrain: null };
 
   const key = `${triangle}-${hexIndex}`;
@@ -454,6 +613,10 @@ function isHexSelected(triangle, hexIndex) {
 
 function getHexColor(triangle, hexIndex) {
   const key = `${triangle}-${hexIndex}`;
+  if (!isHexActive(triangle, hexIndex)) {
+    return "#d5dfea";
+  }
+
   if (mappedHexes.value.has(key)) {
     const terrainId = mappedHexes.value.get(key);
     const terrain = terrainTypes.find((t) => t.id === terrainId);
@@ -508,8 +671,64 @@ function exportMap() {
 
 function recalculateMap() {
   svgKey.value++;
-  mappedHexes.value.clear();
+  mappedHexes.value = new Map(
+    Array.from(mappedHexes.value.entries()).filter(([key]) => activeHexKeySet.value.has(key)),
+  );
   selectedHex.value = null;
+}
+
+/**
+ * Build a shuffled list of all hex slot keys for the current map size.
+ */
+function buildAllHexKeys() {
+  const keys = Array.from(activeHexKeySet.value);
+
+  // Fisher-Yates shuffle
+  for (let i = keys.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [keys[i], keys[j]] = [keys[j], keys[i]];
+  }
+
+  return keys;
+}
+
+/**
+ * Seed the map from the terrainSeed prop, scaling hex counts from the
+ * generator's 490-hex standard to the actual interactive map total.
+ */
+function seedFromTerrainComposition() {
+  const seed = props.terrainSeed;
+  if (!seed?.hexCounts?.length) return;
+
+  const totalInteractive = calculateTotalHexes();
+  const totalSeed = seed.totalMapHexes || 490;
+  const scale = totalInteractive / totalSeed;
+
+  // Build terrain bucket: [ [terrainId, count], ... ]
+  const buckets = [];
+  for (const entry of seed.hexCounts) {
+    const terrainId = TYPE_TO_TERRAIN[entry.type] ?? CATEGORY_TO_TERRAIN[entry.category] ?? "plains";
+    const scaled = Math.round(entry.hexes * scale);
+    if (scaled > 0) buckets.push([terrainId, scaled]);
+  }
+
+  // Flatten to ordered terrain assignments
+  const assignments = [];
+  for (const [terrainId, count] of buckets) {
+    for (let i = 0; i < count; i++) assignments.push(terrainId);
+  }
+
+  // Shuffle hex slots and fill
+  const hexKeys = buildAllHexKeys();
+  const next = new Map();
+  const limit = Math.min(assignments.length, hexKeys.length);
+  for (let i = 0; i < limit; i++) {
+    next.set(hexKeys[i], assignments[i]);
+  }
+
+  mappedHexes.value = next;
+  selectedHex.value = null;
+  svgKey.value++;
 }
 </script>
 
@@ -767,6 +986,16 @@ function recalculateMap() {
   box-shadow: 0 0 6px rgba(14, 154, 135, 0.4);
 }
 
+.btn-accent {
+  background: #4a6fa5;
+  color: #fff;
+}
+
+.btn-accent:hover:not(:disabled) {
+  background: #3a5f95;
+  box-shadow: 0 0 6px rgba(74, 111, 165, 0.4);
+}
+
 .btn-secondary {
   background: #ddd;
   color: #333;
@@ -832,6 +1061,20 @@ function recalculateMap() {
   stroke-width: 1;
   opacity: 1;
   filter: brightness(1.1);
+}
+
+.hex-cell.hex-disabled {
+  stroke: #9fb1c7;
+  stroke-dasharray: 2, 2;
+  opacity: 0.35;
+  cursor: not-allowed;
+  filter: none;
+}
+
+.hex-cell.hex-disabled:hover {
+  stroke: #9fb1c7;
+  stroke-width: 0.6;
+  opacity: 0.35;
 }
 
 .hex-cell.hex-selected {

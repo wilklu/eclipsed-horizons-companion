@@ -1109,6 +1109,9 @@ function applySectorSurveyWorkspaceState({ restoreSelection = false, availableHe
     activeReviewQueue.value = restoredState.activeReviewQueue;
     if (!hasRequestedSubsector) {
       selectedSubsector.value = restoredState.selectedSubsector;
+    } else {
+      const vp = getRequestedSurveyViewport(route);
+      if (vp.subsector) selectedSubsector.value = vp.subsector;
     }
 
     if (restoreSelection && restoredState.selectedSectorId && !String(route.query.sectorId || "").trim()) {
@@ -4692,7 +4695,7 @@ function openHexSystemOnDoubleClick(hex) {
   }
 
   setSelectedHexCoord(hex.coord, { toggle: false, focus: true });
-  proceedToStarSystem();
+  proceedToStarSystem(hex);
 }
 
 function stopSectorNameSpeech() {
@@ -4827,7 +4830,7 @@ async function exportSector() {
   }
 }
 
-function proceedToStarSystem() {
+function proceedToStarSystem(preferredHex = null) {
   persistSectorSurveyWorkspaceState();
 
   if (!generatedSector.value?.sectorId) {
@@ -4835,13 +4838,15 @@ function proceedToStarSystem() {
     return;
   }
 
-  const normalizedSelectedHex = normalizeHexToSectorCoord(selectedHexData.value ?? { coord: selectedHex.value });
+  const effectiveHex =
+    preferredHex && typeof preferredHex === "object"
+      ? preferredHex
+      : (selectedHexData.value ?? { coord: selectedHex.value });
+  const normalizedSelectedHex = normalizeHexToSectorCoord(effectiveHex);
   const persistedHex = String(normalizedSelectedHex?.coord || selectedHex.value || "").trim();
-  const persistedSystemId = String(selectedHexData.value?.systemId || "").trim() || undefined;
+  const persistedSystemId = String(effectiveHex?.systemId || "").trim() || undefined;
 
-  const selectedAnomalyType = String(
-    selectedHexData.value?.anomalyType || selectedHexData.value?.starType || "",
-  ).trim();
+  const selectedAnomalyType = String(effectiveHex?.anomalyType || effectiveHex?.starType || "").trim();
   const galaxyAnomaly = galaxyProfile.value?.morphology?.centralAnomaly;
   const galaxyAnomalyType = String(galaxyAnomaly?.type || "").trim();
   const anomalyTypeMatchesGalaxy =
@@ -4849,7 +4854,7 @@ function proceedToStarSystem() {
 
   const query = {
     hex: persistedHex,
-    star: selectedHexData.value?.starType,
+    star: effectiveHex?.starType,
     systemRecordId: persistedSystemId,
     anomaly: selectedAnomalyType || undefined,
     anomalyMass: anomalyTypeMatchesGalaxy ? galaxyAnomaly?.massSolarMasses : undefined,

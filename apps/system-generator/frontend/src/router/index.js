@@ -62,6 +62,13 @@ const routes = [
     meta: { title: "World Survey" },
   },
   {
+    path: "/world-terrain-map/:systemId?/:worldIndex?",
+    name: "WorldTerrainMap",
+    component: () => import("../pages/surveys/WorldTerrainMap.vue"),
+    props: true,
+    meta: { title: "World Terrain Map" },
+  },
+  {
     path: "/world-physical-survey/:systemId?/:worldIndex?",
     name: "WorldPhysicalSurvey",
     component: () => import("../pages/surveys/WorldPhysicalSurvey.vue"),

@@ -115,6 +115,13 @@
           <button class="btn btn-secondary world-header-survey-btn" @click="openWorldPhysicalSurvey">
             📝 {{ worldPhysicalSurveyButtonLabel }}
           </button>
+          <button
+            v-if="!isGasGiantSurvey"
+            class="btn btn-secondary world-header-survey-btn"
+            @click="openTerrainMapPage"
+          >
+            🗺️ Terrain Map Page
+          </button>
         </div>
 
         <div class="world-grid">
@@ -362,6 +369,21 @@
                 >
               </div>
             </div>
+          </section>
+
+          <section
+            v-if="!isGasGiantSurvey && world.terrainComposition?.hexCounts?.length"
+            class="world-section world-section--full"
+          >
+            <div class="section-header">
+              <h3>🗺️ Terrain Map</h3>
+            </div>
+            <WorldHexMapForm
+              :terrainSeed="world.terrainComposition"
+              :seedWorldName="world.name"
+              :seedUwp="world.uwp"
+              :seedWorldSize="world.size"
+            />
           </section>
 
           <section v-if="showBiosocialSurveySections" class="world-section">
@@ -640,6 +662,7 @@ import { useSystemStore } from "../../stores/systemStore.js";
 import { formatTemperatureFromCelsius } from "../../utils/temperatureFormatting.js";
 import { formatTradeCodeTooltip } from "../../utils/tradeCodes.js";
 import * as toastService from "../../utils/toast.js";
+import WorldHexMapForm from "../../components/forms/WorldHexMapForm.vue";
 
 defineProps({ systemId: { type: String, default: null } });
 const router = useRouter();
@@ -655,7 +678,7 @@ const backRoute = computed(() => {
     return explicitReturnRoute;
   }
 
-  return { name: "StarSystemBuilder" };
+  return { name: "TravellerAtlas" };
 });
 
 // ── Tables ────────────────────────────────────────────────────────────────────
@@ -1787,6 +1810,35 @@ function openWorldPhysicalSurvey() {
   });
 }
 
+function openTerrainMapPage() {
+  const returnTo = serializeReturnRoute({
+    name: String(route.name || "WorldBuilder"),
+    params: { ...route.params },
+    query: { ...route.query },
+  });
+
+  const worldIndex = String(getSelectedWorldIndex() ?? route.query.worldIndex ?? "");
+
+  router.push({
+    name: "WorldTerrainMap",
+    params: {
+      systemId: String(route.params.systemId || ""),
+      worldIndex,
+    },
+    query: {
+      ...route.query,
+      systemId: String(route.params.systemId || ""),
+      systemRecordId: String(systemStore.currentSystemId || ""),
+      worldIndex,
+      worldName: String(world.value?.name || worldName.value || ""),
+      worldSize: String(world.value?.size ?? ""),
+      orbitAU: String(sourceOrbitAU.value || ""),
+      zone: String(sourceZone.value || ""),
+      ...(returnTo ? { returnTo } : {}),
+    },
+  });
+}
+
 watch(
   () => route.query,
   () => {
@@ -2097,6 +2149,10 @@ onBeforeUnmount(() => {
   background: #12122e;
   border-radius: 0.5rem;
   padding: 1.25rem;
+}
+
+.world-section--full {
+  grid-column: 1 / -1;
 }
 
 .world-section h3 {

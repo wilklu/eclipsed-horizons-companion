@@ -218,6 +218,7 @@ export const WORLD_PROFILE_FIELDS = [
   "surfaceDistribution",
   "surfaceDistributionSummary",
   "dominantSurface",
+  "terrainComposition",
   "avgTempC",
   "tempCategory",
   "orbitalPeriodDays",
