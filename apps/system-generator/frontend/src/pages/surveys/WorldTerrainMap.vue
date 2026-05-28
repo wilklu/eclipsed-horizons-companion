@@ -81,7 +81,9 @@
           id="blankMapSVG"
           height="100%"
           width="100%"
-          viewBox="0 0 1066 998"
+          :viewBox="activeViewBox"
+          @click="handleMapClick"
+          style="cursor: crosshair"
         >
           <g v-if="activeTerrainTemplateSize === 5" id="terrain-template-size-5">
             <polygon
@@ -124080,6 +124082,18 @@
               No template scaffold yet for size {{ activeTerrainTemplateSize }}
             </text>
           </g>
+
+          <!-- Water hex overlay – rendered on top; click any hex on the map to toggle water fill -->
+          <g id="water-hex-overlay" pointer-events="none">
+            <polygon
+              v-for="pts in waterHexes"
+              :key="pts"
+              :points="pts"
+              fill="rgb(65,103,183)"
+              stroke="black"
+              stroke-width="1"
+            />
+          </g>
         </svg>
       </section>
     </div>
@@ -124087,7 +124101,7 @@
 </template>
 
 <script setup>
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { useRoute } from "vue-router";
 import { deserializeReturnRoute } from "../../utils/returnRoute.js";
 import { useSystemStore } from "../../stores/systemStore.js";
@@ -124192,6 +124206,51 @@ const systemInfo = computed(() => {
 });
 
 const mapProfileLabel = computed(() => "Traveller seam-wrapped net");
+
+// --- Water hex painting ---
+const waterHexes = ref(new Set());
+
+function handleMapClick(event) {
+  const el = event.target;
+  if (el.tagName.toLowerCase() !== "polygon") return;
+  // Ignore overlay polygons themselves
+  if (el.closest("#water-hex-overlay")) return;
+  const pts = el.getAttribute("points");
+  if (!pts) return;
+  const next = new Set(waterHexes.value);
+  if (next.has(pts)) {
+    next.delete(pts);
+  } else {
+    next.add(pts);
+  }
+  waterHexes.value = next;
+}
+
+// viewBox per world size (size 0 has no map template)
+const SIZE_VIEWBOXES = new Map([
+  [1, "0 0 1010 662"],
+  [2, "0 0 1010 746"],
+  [3, "0 0 1010 830"],
+  [4, "0 0 1010 914"],
+  [5, "0 0 1066 998"],
+  [6, "0 0 1242 1082"],
+  [7, "0 0 1418 1166"],
+  [8, "0 0 1594 1250"],
+  [9, "0 0 1770 1334"],
+  [10, "0 0 1946 1418"],
+  [11, "0 0 2122 1502"],
+  [12, "0 0 2298 1586"],
+  [13, "0 0 2474 1670"],
+  [14, "0 0 2650 1754"],
+  [15, "0 0 2826 1838"],
+  [16, "0 0 3002 1922"],
+  [17, "0 0 3178 2006"],
+  [18, "0 0 3354 2090"],
+  [19, "0 0 3530 2174"],
+  [20, "0 0 3706 2258"],
+]);
+
+const activeViewBox = computed(() => SIZE_VIEWBOXES.get(activeTerrainTemplateSize.value) ?? "0 0 1066 998");
 
 // Traveller extended hex: 0-9 = 0-9, A-F = 10-15, G=16, H=17, J=18 (I skipped), K=19
 // Also accepts plain decimals (e.g. "20").
