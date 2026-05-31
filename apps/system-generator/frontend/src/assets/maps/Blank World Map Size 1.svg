@@ -1,0 +1,222 @@
+﻿
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xml:space="preserve" id="Size-1" height="100%" width="100%" viewBox="0 170 212 124" style="display:block;margin:auto;">
+
+<g id="map-hexes">
+
+<!-- Hex Column 001 -->
+<polygon hex-id="001001" points="26,172 42,179 42,200 26,207 10,200 10,179" style="stroke:black;stroke-width:.25;fill:none"></polygon>
+<!-- Hex Column 002 -->
+<polygon hex-id="002001" points="58,172 74,179 74,200 58,207 42,200 42,179" style="stroke:black;stroke-width:.25;fill:none"></polygon>
+<polygon hex-id="002002" points="42,200 58,207 58,228 42,235 26,228 26,207" style="stroke:black;stroke-width:.25;fill:none"></polygon>
+<polygon hex-id="002003" points="26,228 42,235 42,256 26,263 10,256 10,235" style="stroke:black;stroke-width:.25;fill:none"></polygon>
+<!-- Hex Column 003 -->
+<polygon hex-id="003001" points="90,172 106,179 106,200 90,207 74,200 74,179" style="stroke:black;stroke-width:.25;fill:none"></polygon>
+<polygon hex-id="003002" points="74,200 90,207 90,228 74,235 58,228 58,207" style="stroke:black;stroke-width:.25;fill:none"></polygon>
+<polygon hex-id="003003" points="58,228 74,235 74,256 58,263 42,256 42,235" style="stroke:black;stroke-width:.25;fill:none"></polygon>
+<polygon hex-id="003004" points="42,256 58,263 58,284 42,291 26,284 26,263" style="stroke:black;stroke-width:.25;fill:none"></polygon>
+<!-- Hex Column 004 -->
+<polygon hex-id="004001" points="122,172 138,179 138,200 122,207 106,200 106,179" style="stroke:black;stroke-width:.25;fill:none"></polygon>
+<polygon hex-id="004002" points="106,200 122,207 122,228 106,235 90,228 90,207" style="stroke:black;stroke-width:.25;fill:none"></polygon>
+<polygon hex-id="004003" points="90,228 106,235 106,256 90,263 74,256 74,235" style="stroke:black;stroke-width:.25;fill:none"></polygon>
+<polygon hex-id="004004" points="74,256 90,263 90,284 74,291 58,284 58,263" style="stroke:black;stroke-width:.25;fill:none"></polygon>
+<!-- Hex Column 005 -->
+<polygon hex-id="005001" points="154,172 170,179 170,200 154,207 138,200 138,179" style="stroke:black;stroke-width:.25;fill:none"></polygon>
+<polygon hex-id="005002" points="138,200 154,207 154,228 138,235 122,228 122,207" style="stroke:black;stroke-width:.25;fill:none"></polygon>
+<polygon hex-id="005003" points="122,228 138,235 138,256 122,263 106,256 106,235" style="stroke:black;stroke-width:.25;fill:none"></polygon>
+<polygon hex-id="005004" points="106,256 122,263 122,284 106,291 90,284 90,263" style="stroke:black;stroke-width:.25;fill:none"></polygon>
+<!-- Hex Column 006 -->
+<polygon hex-id="006001" points="186,172 202,179 202,200 186,207 170,200 170,179" style="stroke:black;stroke-width:.25;fill:none"></polygon>
+<polygon hex-id="006002" points="170,200 186,207 186,228 170,235 154,228 154,207" style="stroke:black;stroke-width:.25;fill:none"></polygon>
+<polygon hex-id="006003" points="154,228 170,235 170,256 154,263 138,256 138,235" style="stroke:black;stroke-width:.25;fill:none"></polygon>
+<polygon hex-id="006004" points="138,256 154,263 154,284 138,291 122,284 122,263" style="stroke:black;stroke-width:.25;fill:none"></polygon>
+<!-- Hex Column 007 -->
+<polygon hex-id="007003" points="186,228 202,235 202,256 186,263 170,256 170,235" style="stroke:black;stroke-width:.25;fill:none"></polygon>
+<polygon hex-id="007004" points="170,256 186,263 186,284 170,291 154,284 154,263" style="stroke:black;stroke-width:.25;fill:none"></polygon>
+
+</g>
+
+<g id="map-icosahedral-mask">
+
+<path d="M 26 190 L 42 218 L 58 190" style="stroke-width:0;stroke:black;fill:white"></path>
+<path d="M 58 190 L 74 218 L 90 190" style="stroke-width:0;stroke:black;fill:white"></path>
+<path d="M 90 190 L 106 218 L 122 190" style="stroke-width:0;stroke:black;fill:white"></path>
+<path d="M 122 190 L 138 218 L 154 190" style="stroke-width:0;stroke:black;fill:white"></path>
+<path d="M 154 190 L 170 218 L 186 190" style="stroke-width:0;stroke:black;fill:white"></path>
+<path d="M 42 274 L 58 246 L 74 274" style="stroke-width:0;stroke:black;fill:white"></path>
+<path d="M 74 274 L 90 246 L 106 274" style="stroke-width:0;stroke:black;fill:white"></path>
+<path d="M 106 274 L 122 246 L 138 274" style="stroke-width:0;stroke:black;fill:white"></path>
+<path d="M 138 274 L 154 246 L 170 274" style="stroke-width:0;stroke:black;fill:white"></path>
+
+<polygon points="26,274 42,274 26,246" style="stroke:white;stroke-width:1;fill:white"></polygon>
+<polygon points="187,274 170,274 186,246" style="stroke:white;stroke-width:1;fill:white"></polygon>
+
+</g>
+
+<g id="map-border-mask">
+
+<rect border-id="Left" x="0" y="170" width="26" height="124" style="fill:white;stroke-width:0;stroke:none"></rect>
+<rect border-id="Right" x="186" y="170" width="26" height="124" style="fill:white;stroke-width:0;stroke:none"></rect>
+<rect border-id="Top" x="0" y="170" width="212" height="20" style="fill:white;stroke-width:0;stroke:none"></rect>
+<rect border-id="Bottom" x="0" y="274" width="212" height="20" style="fill:white;stroke-width:0;stroke:none"></rect>
+
+</g>
+
+<g id="map-faces">
+
+<polygon face-id="Upper-0L" points="26,190 42,218 10,218" style="stroke:black;stroke-width:0;fill:none"></polygon>
+<polygon face-id="Middle-0L" points="10,218 42,218 26,246" style="stroke:black;stroke-width:0;fill:none"></polygon>
+<polygon face-id="Middle-1" points="42,218 58,246 26,246" style="stroke:black;stroke-width:0;fill:none"></polygon>
+<polygon face-id="Lower-1" points="26,246 58,246 42,274" style="stroke:black;stroke-width:0;fill:none"></polygon>
+<polygon face-id="Upper-1" points="58,190 74,218 42,218" style="stroke:black;stroke-width:0;fill:none"></polygon>
+<polygon face-id="Middle-2" points="42,218 74,218 58,246" style="stroke:black;stroke-width:0;fill:none"></polygon>
+<polygon face-id="Middle-3" points="74,218 90,246 58,246" style="stroke:black;stroke-width:0;fill:none"></polygon>
+<polygon face-id="Lower-2" points="58,246 90,246 74,274" style="stroke:black;stroke-width:0;fill:none"></polygon>
+<polygon face-id="Upper-2" points="90,190 106,218 74,218" style="stroke:black;stroke-width:0;fill:none"></polygon>
+<polygon face-id="Middle-4" points="74,218 106,218 90,246" style="stroke:black;stroke-width:0;fill:none"></polygon>
+<polygon face-id="Middle-5" points="106,218 122,246 90,246" style="stroke:black;stroke-width:0;fill:none"></polygon>
+<polygon face-id="Lower-3" points="90,246 122,246 106,274" style="stroke:black;stroke-width:0;fill:none"></polygon>
+<polygon face-id="Upper-3" points="122,190 138,218 106,218" style="stroke:black;stroke-width:0;fill:none"></polygon>
+<polygon face-id="Middle-6" points="106,218 138,218 122,246" style="stroke:black;stroke-width:0;fill:none"></polygon>
+<polygon face-id="Middle-7" points="138,218 154,246 122,246" style="stroke:black;stroke-width:0;fill:none"></polygon>
+<polygon face-id="Lower-4" points="122,246 154,246 138,274" style="stroke:black;stroke-width:0;fill:none"></polygon>
+<polygon face-id="Upper-4" points="154,190 170,218 138,218" style="stroke:black;stroke-width:0;fill:none"></polygon>
+<polygon face-id="Middle-8" points="138,218 170,218 154,246" style="stroke:black;stroke-width:0;fill:none"></polygon>
+<polygon face-id="Middle-9" points="170,218 186,246 154,246" style="stroke:black;stroke-width:0;fill:none"></polygon>
+<polygon face-id="Lower-5" points="154,246 186,246 170,274" style="stroke:black;stroke-width:0;fill:none"></polygon>
+<polygon face-id="Upper-0R" points="186,190 202,218 170,218" style="stroke:black;stroke-width:0;fill:none"></polygon>
+<polygon face-id="Middle-0R" points="170,218 202,218 186,246" style="stroke:black;stroke-width:0;fill:none"></polygon>
+
+</g>
+
+<g id="map-lines">
+
+<line x1="26" y1="190" x2="26" y2="246" stroke-width="0.25" stroke="black"></line>
+<line x1="26" y1="246" x2="42" y2="274" stroke-width="0.25" stroke="black"></line>
+<line x1="186" y1="190" x2="186" y2="246" stroke-width="0.25" stroke="black"></line>
+<line x1="170" y1="274" x2="186" y2="246" stroke-width="0.25" stroke="black"></line>
+
+<line x1="26" y1="190" x2="74" y2="274" stroke-width="0.25" stroke="black"></line>
+<line x1="58" y1="190" x2="106" y2="274" stroke-width="0.25" stroke="black"></line>
+<line x1="90" y1="190" x2="138" y2="274" stroke-width="0.25" stroke="black"></line>
+<line x1="122" y1="190" x2="170" y2="274" stroke-width="0.25" stroke="black"></line>
+<line x1="154" y1="190" x2="186" y2="246" stroke-width="0.25" stroke="black"></line>
+
+<line x1="58" y1="190" x2="26" y2="246" stroke-width="0.25" stroke="black"></line>
+<line x1="90" y1="190" x2="42" y2="274" stroke-width="0.25" stroke="black"></line>
+<line x1="122" y1="190" x2="74" y2="274" stroke-width="0.25" stroke="black"></line>
+<line x1="154" y1="190" x2="106" y2="274" stroke-width="0.25" stroke="black"></line>
+<line x1="186" y1="190" x2="138" y2="274" stroke-width="0.25" stroke="black"></line>
+
+</g>
+
+<g id="map-references">
+
+<line ref-line-id="Upper" x1="26" y1="218" x2="186" y2="218" stroke-width=".25" stroke="darkgrey"></line>
+
+<line ref-line-id="Middle" x1="26" y1="230" x2="186" y2="230" stroke-width=".25" stroke="black" stroke-dasharray="2,1.5"></line>
+
+<line ref-line-id="Lower" x1="26" y1="246" x2="186" y2="246" stroke-width=".25" stroke="darkgrey"></line>
+
+</g>
+
+<g id="map-text">
+
+<text style="font-size:0.2em;font-family:Arial, sans-serif;fill:black;" x="25" y="184">0</text>
+<line x1="26" y1="186" x2="26" y2="188" stroke-width="0.25" stroke="black"></line>
+
+<text style="font-size:0.2em;font-family:Arial, sans-serif;fill:black;" x="25" y="254">0</text>
+<line x1="26" y1="248" x2="26" y2="250" stroke-width="0.25" stroke="black"></line>
+
+<text style="font-size:0.2em;font-family:Arial, sans-serif;fill:black;" x="41" y="212">1</text>
+<line x1="42" y1="214" x2="42" y2="216" stroke-width="0.25" stroke="black"></line>
+
+<text style="font-size:0.2em;font-family:Arial, sans-serif;fill:black;" x="41" y="282">1</text>
+<line x1="42" y1="276" x2="42" y2="278" stroke-width="0.25" stroke="black"></line>
+
+<text style="font-size:0.2em;font-family:Arial, sans-serif;fill:black;" x="57" y="184">2</text>
+<line x1="58" y1="186" x2="58" y2="188" stroke-width="0.25" stroke="black"></line>
+
+<text style="font-size:0.2em;font-family:Arial, sans-serif;fill:black;" x="57" y="254">2</text>
+<line x1="58" y1="248" x2="58" y2="250" stroke-width="0.25" stroke="black"></line>
+
+<text style="font-size:0.2em;font-family:Arial, sans-serif;fill:black;" x="73" y="212">3</text>
+<line x1="74" y1="214" x2="74" y2="216" stroke-width="0.25" stroke="black"></line>
+
+<text style="font-size:0.2em;font-family:Arial, sans-serif;fill:black;" x="73" y="282">3</text>
+<line x1="74" y1="276" x2="74" y2="278" stroke-width="0.25" stroke="black"></line>
+
+<text style="font-size:0.2em;font-family:Arial, sans-serif;fill:black;" x="89" y="184">4</text>
+<line x1="90" y1="186" x2="90" y2="188" stroke-width="0.25" stroke="black"></line>
+
+<text style="font-size:0.2em;font-family:Arial, sans-serif;fill:black;" x="89" y="254">4</text>
+<line x1="90" y1="248" x2="90" y2="250" stroke-width="0.25" stroke="black"></line>
+
+<text style="font-size:0.2em;font-family:Arial, sans-serif;fill:black;" x="105" y="212">5</text>
+<line x1="106" y1="214" x2="106" y2="216" stroke-width="0.25" stroke="black"></line>
+
+<text style="font-size:0.2em;font-family:Arial, sans-serif;fill:black;" x="105" y="282">5</text>
+<line x1="106" y1="276" x2="106" y2="278" stroke-width="0.25" stroke="black"></line>
+
+<text style="font-size:0.2em;font-family:Arial, sans-serif;fill:black;" x="121" y="184">6</text>
+<line x1="122" y1="186" x2="122" y2="188" stroke-width="0.25" stroke="black"></line>
+
+<text style="font-size:0.2em;font-family:Arial, sans-serif;fill:black;" x="121" y="254">6</text>
+<line x1="122" y1="248" x2="122" y2="250" stroke-width="0.25" stroke="black"></line>
+
+<text style="font-size:0.2em;font-family:Arial, sans-serif;fill:black;" x="137" y="212">7</text>
+<line x1="138" y1="214" x2="138" y2="216" stroke-width="0.25" stroke="black"></line>
+
+<text style="font-size:0.2em;font-family:Arial, sans-serif;fill:black;" x="137" y="282">7</text>
+<line x1="138" y1="276" x2="138" y2="278" stroke-width="0.25" stroke="black"></line>
+
+<text style="font-size:0.2em;font-family:Arial, sans-serif;fill:black;" x="153" y="184">8</text>
+<line x1="154" y1="186" x2="154" y2="188" stroke-width="0.25" stroke="black"></line>
+
+<text style="font-size:0.2em;font-family:Arial, sans-serif;fill:black;" x="153" y="254">8</text>
+<line x1="154" y1="248" x2="154" y2="250" stroke-width="0.25" stroke="black"></line>
+
+<text style="font-size:0.2em;font-family:Arial, sans-serif;fill:black;" x="169" y="212">9</text>
+<line x1="170" y1="214" x2="170" y2="216" stroke-width="0.25" stroke="black"></line>
+
+<text style="font-size:0.2em;font-family:Arial, sans-serif;fill:black;" x="169" y="282">9</text>
+<line x1="170" y1="276" x2="170" y2="278" stroke-width="0.25" stroke="black"></line>
+
+<text style="font-size:0.2em;font-family:Arial, sans-serif;fill:black;" x="185" y="184">10</text>
+<line x1="186" y1="186" x2="186" y2="188" stroke-width="0.25" stroke="black"></line>
+
+<text style="font-size:0.2em;font-family:Arial, sans-serif;fill:black;" x="185" y="254">10</text>
+<line x1="186" y1="248" x2="186" y2="250" stroke-width="0.25" stroke="black"></line>
+
+<text style="font-size:0.2em;font-family:Arial, sans-serif;fill:black;" x="18" y="191">+2</text>
+<line x1="22" y1="190" x2="24" y2="190" stroke-width="0.25" stroke="black"></line>
+
+<text style="font-size:0.2em;font-family:Arial, sans-serif;fill:black;" x="192" y="191">+2</text>
+<line x1="188" y1="190" x2="190" y2="190" stroke-width="0.25" stroke="black"></line>
+
+<text style="font-size:0.2em;font-family:Arial, sans-serif;fill:black;" x="18" y="219">+1</text>
+<line x1="22" y1="218" x2="24" y2="218" stroke-width="0.25" stroke="black"></line>
+
+<text style="font-size:0.2em;font-family:Arial, sans-serif;fill:black;" x="192" y="219">+1</text>
+<line x1="188" y1="218" x2="190" y2="218" stroke-width="0.25" stroke="black"></line>
+
+<text style="font-size:0.2em;font-family:Arial, sans-serif;fill:black;" x="18" y="231">0</text>
+<line x1="22" y1="230" x2="24" y2="230" stroke-width="0.25" stroke="black"></line>
+
+<text style="font-size:0.2em;font-family:Arial, sans-serif;fill:black;" x="192" y="231">0</text>
+<line x1="188" y1="230" x2="190" y2="230" stroke-width="0.25" stroke="black"></line>
+
+<text style="font-size:0.2em;font-family:Arial, sans-serif;fill:black;" x="18" y="247">-1</text>
+<line x1="22" y1="246" x2="24" y2="246" stroke-width="0.25" stroke="black"></line>
+
+<text style="font-size:0.2em;font-family:Arial, sans-serif;fill:black;" x="192" y="247">-1</text>
+<line x1="188" y1="246" x2="190" y2="246" stroke-width="0.25" stroke="black"></line>
+
+<text style="font-size:0.2em;font-family:Arial, sans-serif;fill:black;" x="34" y="275">-2</text>
+<line x1="38" y1="274" x2="40" y2="274" stroke-width="0.25" stroke="black"></line>
+
+<text style="font-size:0.2em;font-family:Arial, sans-serif;fill:black;" x="176" y="275">-2</text>
+<line x1="172" y1="274" x2="174" y2="274" stroke-width="0.25" stroke="black"></line>
+
+</g>
+
+</svg>
