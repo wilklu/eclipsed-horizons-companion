@@ -1,0 +1,47 @@
+name: Validate World Map Seam Metadata
+
+on:
+  pull_request:
+    paths:
+      - "apps/system-generator/frontend/src/assets/maps/**"
+      - "apps/system-generator/frontend/scripts/annotate-map-logical-ids.mjs"
+      - "apps/system-generator/frontend/scripts/validate-map-seam-metadata.mjs"
+      - "apps/system-generator/frontend/src/utils/worldMapHexTopology.js"
+      - "apps/system-generator/frontend/package.json"
+      - "apps/system-generator/frontend/package-lock.json"
+      - ".github/workflows/validate-map-seams.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "apps/system-generator/frontend/src/assets/maps/**"
+      - "apps/system-generator/frontend/scripts/annotate-map-logical-ids.mjs"
+      - "apps/system-generator/frontend/scripts/validate-map-seam-metadata.mjs"
+      - "apps/system-generator/frontend/src/utils/worldMapHexTopology.js"
+      - "apps/system-generator/frontend/package.json"
+      - "apps/system-generator/frontend/package-lock.json"
+      - ".github/workflows/validate-map-seams.yml"
+
+jobs:
+  validate-seams:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/system-generator/frontend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: apps/system-generator/frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Validate seam metadata
+        run: npm run maps:validate-seams
