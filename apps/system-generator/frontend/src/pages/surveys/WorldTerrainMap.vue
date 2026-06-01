@@ -12,31 +12,31 @@
           <dl class="info-grid">
             <div class="info-row">
               <dt>Name</dt>
-              <dd>{{ worldInfo.name }}</dd>
+              <dd>{{ worldInfo?.name || "Unknown World" }}</dd>
             </div>
             <div class="info-row">
               <dt>UWP</dt>
-              <dd>{{ worldInfo.uwp }}</dd>
+              <dd>{{ worldInfo?.uwp || "—" }}</dd>
             </div>
             <div class="info-row">
               <dt>Size</dt>
-              <dd>{{ worldInfo.size }}</dd>
+              <dd>{{ worldInfo?.size || "—" }}</dd>
             </div>
             <div class="info-row">
               <dt>Atmosphere</dt>
-              <dd>{{ worldInfo.atmosphere }}</dd>
+              <dd>{{ worldInfo?.atmosphere || "—" }}</dd>
             </div>
             <div class="info-row">
               <dt>Hydrographics</dt>
-              <dd>{{ worldInfo.hydrographics }}</dd>
+              <dd>{{ worldInfo?.hydrographics || "—" }}</dd>
             </div>
             <div class="info-row">
               <dt>Population</dt>
-              <dd>{{ worldInfo.population }}</dd>
+              <dd>{{ worldInfo?.population || "—" }}</dd>
             </div>
             <div class="info-row">
               <dt>Resources</dt>
-              <dd>{{ worldInfo.resourceRating }}</dd>
+              <dd>{{ worldInfo?.resourceRating || "—" }}</dd>
             </div>
           </dl>
         </div>
@@ -46,27 +46,27 @@
           <dl class="info-grid">
             <div class="info-row">
               <dt>System</dt>
-              <dd>{{ systemInfo.systemName }}</dd>
+              <dd>{{ systemInfo?.systemName || "Unknown System" }}</dd>
             </div>
             <div class="info-row">
               <dt>Hex</dt>
-              <dd>{{ systemInfo.hex }}</dd>
+              <dd>{{ systemInfo?.hex || "—" }}</dd>
             </div>
             <div class="info-row">
               <dt>Primary Star</dt>
-              <dd>{{ systemInfo.primaryStar }}</dd>
+              <dd>{{ systemInfo?.primaryStar || "—" }}</dd>
             </div>
             <div class="info-row">
               <dt>Orbit</dt>
-              <dd>{{ systemInfo.orbit }}</dd>
+              <dd>{{ systemInfo?.orbit || "—" }}</dd>
             </div>
             <div class="info-row">
               <dt>Zone</dt>
-              <dd>{{ systemInfo.zone }}</dd>
+              <dd>{{ systemInfo?.zone || "—" }}</dd>
             </div>
             <div class="info-row">
               <dt>GG / Belts</dt>
-              <dd>{{ systemInfo.gasGiants }} / {{ systemInfo.belts }}</dd>
+              <dd>{{ systemInfo?.gasGiants ?? "—" }} / {{ systemInfo?.belts ?? "—" }}</dd>
             </div>
             <div class="info-row">
               <dt>Resource Hexes</dt>
@@ -91,7 +91,7 @@
             type="button"
             class="map-button"
             @click="generateTerrain"
-            :disabled="!activeHexCells.length || isAnimating"
+            :disabled="!(activeHexCells?.length ?? 0) || isAnimating"
           >
             Generate Terrain
           </button>
@@ -99,7 +99,7 @@
             type="button"
             class="map-button map-button-accent"
             @click="animateGeneration"
-            :disabled="!activeHexCells.length || isAnimating"
+            :disabled="!(activeHexCells?.length ?? 0) || isAnimating"
           >
             {{ isAnimating ? animationStepLabel : "Walk Through Generation" }}
           </button>
@@ -118,8 +118,12 @@
           <span class="map-controls-note">Target water: {{ Math.round(hydroTargetRatio * 100) }}%</span>
           <span class="map-controls-note" v-if="starterTriangleResultLabel">{{ starterTriangleResultLabel }}</span>
           <span class="map-controls-note" v-if="starterHexResultLabel">{{ starterHexResultLabel }}</span>
+          <span class="map-controls-note">Mountains: {{ activeMountainHexEntries?.length ?? 0 }}</span>
+          <span class="map-controls-note">Chasms: {{ activeChasmHexEntries?.length ?? 0 }}</span>
+          <span class="map-controls-note">Precipices: {{ activePrecipiceHexEntries?.length ?? 0 }}</span>
+          <span class="map-controls-note" v-if="isDieBackWorld">Ruins: {{ activeRuinHexEntries?.length ?? 0 }}</span>
           <span class="map-controls-note" v-if="resourceHexCount > 0"
-            >Resource Hexes: {{ resourceHexCount }} ({{ activeResourceHexEntries.length }} placed)</span
+            >Resource Hexes: {{ resourceHexCount }} ({{ activeResourceHexEntries?.length ?? 0 }} placed)</span
           >
         </div>
         <svg
@@ -192,6 +196,74 @@
               </text>
             </g>
           </g>
+
+          <g id="mountain-hex-overlay" pointer-events="none">
+            <g v-for="entry in activeMountainHexEntries" :key="entry.key">
+              <polygon :points="entry.points" fill="rgba(122, 94, 63, 0.35)" stroke="#5c4125" stroke-width="1.5" />
+              <text
+                :x="entry.cx"
+                :y="entry.cy + 4"
+                text-anchor="middle"
+                font-size="9"
+                font-weight="bold"
+                fill="#4a321b"
+                style="pointer-events: none; user-select: none"
+              >
+                M
+              </text>
+            </g>
+          </g>
+
+          <g id="chasm-hex-overlay" pointer-events="none">
+            <g v-for="entry in activeChasmHexEntries" :key="entry.key">
+              <polygon :points="entry.points" fill="rgba(121, 66, 159, 0.33)" stroke="#5d2f80" stroke-width="1.5" />
+              <text
+                :x="entry.cx"
+                :y="entry.cy + 4"
+                text-anchor="middle"
+                font-size="9"
+                font-weight="bold"
+                fill="#3f1f57"
+                style="pointer-events: none; user-select: none"
+              >
+                C
+              </text>
+            </g>
+          </g>
+
+          <g id="precipice-hex-overlay" pointer-events="none">
+            <g v-for="entry in activePrecipiceHexEntries" :key="entry.key">
+              <polygon :points="entry.points" fill="rgba(201, 84, 50, 0.32)" stroke="#8b2f16" stroke-width="1.5" />
+              <text
+                :x="entry.cx"
+                :y="entry.cy + 4"
+                text-anchor="middle"
+                font-size="9"
+                font-weight="bold"
+                fill="#5a1d0d"
+                style="pointer-events: none; user-select: none"
+              >
+                P
+              </text>
+            </g>
+          </g>
+
+          <g id="ruin-hex-overlay" pointer-events="none">
+            <g v-for="entry in activeRuinHexEntries" :key="entry.key">
+              <polygon :points="entry.points" fill="rgba(90, 90, 90, 0.35)" stroke="#333333" stroke-width="1.5" />
+              <text
+                :x="entry.cx"
+                :y="entry.cy + 4"
+                text-anchor="middle"
+                font-size="8"
+                font-weight="bold"
+                fill="#1f1f1f"
+                style="pointer-events: none; user-select: none"
+              >
+                Ru
+              </text>
+            </g>
+          </g>
         </svg>
       </section>
     </div>
@@ -203,7 +275,13 @@ import { computed, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import { deserializeReturnRoute } from "../../utils/returnRoute.js";
 import { useSystemStore } from "../../stores/systemStore.js";
-import { pickRandomHexInTriangle, resolveStarterTriangle, rollD46 } from "../../utils/worldTerrainStartTriangle.js";
+import {
+  normalizeFaceTopologyId,
+  pickRandomHexInTriangle,
+  resolveStarterTriangle,
+  rollD46,
+} from "../../utils/worldTerrainStartTriangle.js";
+import { canonicalizeHexId } from "../../utils/worldMapHexTopology.js";
 const route = useRoute();
 const systemStore = useSystemStore();
 
@@ -275,23 +353,43 @@ const selectedWorld = computed(() => {
   return boundSystem.value.planets[selectedWorldIndex.value] ?? null;
 });
 
-const worldInfo = computed(() => ({
-  name: String(selectedWorld.value?.name || route.query.worldName || "Unknown World"),
-  uwp: String(selectedWorld.value?.uwp || "—"),
-  size: String(selectedWorld.value?.size ?? "—"),
-  atmosphere: String(selectedWorld.value?.atmosphereDesc || selectedWorld.value?.atmosphere || "—"),
-  hydrographics: String(selectedWorld.value?.hydrographics ?? selectedWorld.value?.hydro ?? "—"),
-  population: String(selectedWorld.value?.population ?? "—"),
-  resourceRating: String(
-    selectedWorld.value?.economics?.resourceRating ||
-      selectedWorld.value?.resourceRating ||
-      boundSystem.value?.resourceRating ||
-      route.query.resourceRating ||
-      "—",
-  ),
-}));
+const DEFAULT_WORLD_INFO = Object.freeze({
+  name: "Unknown World",
+  uwp: "—",
+  size: "—",
+  atmosphere: "—",
+  hydrographics: "—",
+  population: "—",
+  resourceRating: "—",
+});
+
+const worldInfo = computed(() => {
+  const world = selectedWorld.value;
+  if (!world && !route.query.worldName && !route.query.resourceRating) {
+    return DEFAULT_WORLD_INFO;
+  }
+
+  return {
+    name: String(world?.name || route.query.worldName || DEFAULT_WORLD_INFO.name),
+    uwp: String(world?.uwp || DEFAULT_WORLD_INFO.uwp),
+    size: String(world?.size ?? DEFAULT_WORLD_INFO.size),
+    atmosphere: String(world?.atmosphereDesc || world?.atmosphere || DEFAULT_WORLD_INFO.atmosphere),
+    hydrographics: String(world?.hydrographics ?? world?.hydro ?? DEFAULT_WORLD_INFO.hydrographics),
+    population: String(world?.population ?? DEFAULT_WORLD_INFO.population),
+    resourceRating: String(
+      world?.economics?.resourceRating ||
+        world?.resourceRating ||
+        boundSystem.value?.resourceRating ||
+        route.query.resourceRating ||
+        DEFAULT_WORLD_INFO.resourceRating,
+    ),
+  };
+});
 
 const systemInfo = computed(() => {
+  const system = boundSystem.value;
+  const world = selectedWorld.value;
+
   const x = boundSystem.value?.hexCoordinates?.x;
   const y = boundSystem.value?.hexCoordinates?.y;
   const hex =
@@ -300,25 +398,19 @@ const systemInfo = computed(() => {
       : String(route.query.hex || "—");
 
   const primaryStar =
-    String(boundSystem.value?.primaryStar?.spectralClass || "").trim() ||
-    String(boundSystem.value?.stars?.[0]?.spectralClass || "").trim() ||
+    String(system?.primaryStar?.spectralClass || "").trim() ||
+    String(system?.stars?.[0]?.spectralClass || "").trim() ||
     String(route.query.star || "—");
 
-  const ggRaw = boundSystem.value?.gasGiants ?? boundSystem.value?.objectCounts?.gasGiants ?? null;
-  const beltsRaw =
-    boundSystem.value?.belts ??
-    boundSystem.value?.objectCounts?.belts ??
-    boundSystem.value?.objectCounts?.planetoidBelts ??
-    null;
+  const ggRaw = system?.gasGiants ?? system?.objectCounts?.gasGiants ?? null;
+  const beltsRaw = system?.belts ?? system?.objectCounts?.belts ?? system?.objectCounts?.planetoidBelts ?? null;
 
   return {
-    systemName: String(
-      boundSystem.value?.name || boundSystem.value?.systemName || route.query.systemName || "Unknown System",
-    ),
+    systemName: String(system?.name || system?.systemName || route.query.systemName || "Unknown System"),
     hex,
     primaryStar,
-    orbit: String(selectedWorld.value?.orbitAU ?? route.query.orbitAU ?? "—"),
-    zone: String(selectedWorld.value?.zone || route.query.zone || "—"),
+    orbit: String(world?.orbitAU ?? route.query.orbitAU ?? "—"),
+    zone: String(world?.zone || route.query.zone || "—"),
     gasGiants: ggRaw !== null && ggRaw !== undefined ? Number(ggRaw) || 0 : "—",
     belts: beltsRaw !== null && beltsRaw !== undefined ? Number(beltsRaw) || 0 : "—",
   };
@@ -470,19 +562,6 @@ watch(
   { immediate: true },
 );
 
-watch(
-  activeFaceIds,
-  () => {
-    rollStarterTriangle();
-    placeResourceHexes();
-  },
-  { immediate: true },
-);
-
-watch(resourceHexCount, () => {
-  placeResourceHexes();
-});
-
 const waterHexesBySize = ref(new Map());
 
 const activeWaterHexEntries = computed(() => {
@@ -549,11 +628,14 @@ function extractHexCells(templateContent) {
         return null;
       }
 
-      const hexId = String(poly.getAttribute("data-hex-id") || "").trim();
+      const logicalHexId = String(poly.getAttribute("data-logical-hex-id") || "").trim();
+      const hexId = String(poly.getAttribute("data-hex-id") || poly.getAttribute("hex-id") || "").trim();
+      const canonicalHexId = canonicalizeHexId(logicalHexId || hexId);
       const c = centroid(points);
       return {
-        key: hexId || points,
+        key: canonicalHexId || points,
         hexId,
+        canonicalHexId,
         points,
         cx: c.x,
         cy: c.y,
@@ -762,6 +844,84 @@ const resourceHexCount = computed(() => {
 });
 
 const resourceHexesBySize = ref(new Map());
+const mountainHexesBySize = ref(new Map());
+const chasmHexesBySize = ref(new Map());
+const precipiceHexesBySize = ref(new Map());
+const ruinHexesBySize = ref(new Map());
+
+const worldTradeCodes = computed(() => {
+  const fromWorld = Array.isArray(selectedWorld.value?.tradeCodes) ? selectedWorld.value.tradeCodes : [];
+  const fromRouteRaw = String(route.query.tradeCodes || route.query.tradeCode || "");
+  const fromRoute = fromRouteRaw
+    .split(/[\s,|/]+/)
+    .map((token) => String(token || "").trim())
+    .filter(Boolean);
+
+  return [
+    ...new Set(
+      [...fromWorld, ...fromRoute].map((token) =>
+        String(token || "")
+          .trim()
+          .toUpperCase(),
+      ),
+    ),
+  ];
+});
+
+const isDieBackWorld = computed(() => {
+  const explicit = String(route.query.tradeClassification || route.query.tradeClass || "")
+    .trim()
+    .toUpperCase();
+  if (explicit === "DI" || explicit === "DIE-BACK" || explicit === "DIEBACK") {
+    return true;
+  }
+  return worldTradeCodes.value.includes("DI");
+});
+
+const activeMountainHexEntries = computed(() => {
+  const mapForSize = mountainHexesBySize.value.get(activeTerrainTemplateSize.value);
+  if (!mapForSize) return [];
+  return Array.from(mapForSize.entries()).map(([key, data]) => ({ key, ...data }));
+});
+
+const activeChasmHexEntries = computed(() => {
+  const mapForSize = chasmHexesBySize.value.get(activeTerrainTemplateSize.value);
+  if (!mapForSize) return [];
+  return Array.from(mapForSize.entries()).map(([key, data]) => ({ key, ...data }));
+});
+
+const activePrecipiceHexEntries = computed(() => {
+  const mapForSize = precipiceHexesBySize.value.get(activeTerrainTemplateSize.value);
+  if (!mapForSize) return [];
+  return Array.from(mapForSize.entries()).map(([key, data]) => ({ key, ...data }));
+});
+
+const activeRuinHexEntries = computed(() => {
+  const mapForSize = ruinHexesBySize.value.get(activeTerrainTemplateSize.value);
+  if (!mapForSize) return [];
+  return Array.from(mapForSize.entries()).map(([key, data]) => ({ key, ...data }));
+});
+
+watch(
+  activeFaceIds,
+  () => {
+    rollStarterTriangle();
+    placeMountainHexes();
+    placeChasmHexes();
+    placePrecipiceHexes();
+    placeRuinHexes();
+    placeResourceHexes();
+  },
+  { immediate: true },
+);
+
+watch(resourceHexCount, () => {
+  placeResourceHexes();
+});
+
+watch(isDieBackWorld, () => {
+  placeRuinHexes();
+});
 
 const activeResourceHexEntries = computed(() => {
   const mapForSize = resourceHexesBySize.value.get(activeTerrainTemplateSize.value);
@@ -782,7 +942,7 @@ function placeResourceHexes(rng = Math.random) {
   // Group hex cells by triangle faceId
   const byFace = new Map();
   for (const cell of cells) {
-    const faceId = String(cell.faceId || "");
+    const faceId = normalizeFaceTopologyId(cell.faceId);
     if (!faceId) continue;
     if (!byFace.has(faceId)) byFace.set(faceId, []);
     byFace.get(faceId).push(cell);
@@ -811,6 +971,178 @@ function placeResourceHexes(rng = Math.random) {
   resourceHexesBySize.value = nextBySize;
 }
 
+function placeMountainHexes(rng = Math.random) {
+  const cells = activeHexCells.value;
+  if (!cells.length) {
+    const nextBySize = new Map(mountainHexesBySize.value);
+    nextBySize.delete(activeTerrainTemplateSize.value);
+    mountainHexesBySize.value = nextBySize;
+    return;
+  }
+
+  const size = activeTerrainTemplateSize.value;
+
+  const byFace = new Map();
+  for (const cell of cells) {
+    const faceId = normalizeFaceTopologyId(cell.faceId);
+    if (!faceId) continue;
+    if (!byFace.has(faceId)) byFace.set(faceId, []);
+    byFace.get(faceId).push(cell);
+  }
+
+  const placed = new Map();
+  for (const faceCells of byFace.values()) {
+    if (!faceCells.length) continue;
+
+    const target = Math.min(faceCells.length, 1 + Math.floor(rng() * 6));
+    const pool = [...faceCells];
+
+    for (let i = 0; i < target && pool.length; i += 1) {
+      const pickIndex = Math.floor(rng() * pool.length);
+      const pick = pool.splice(pickIndex, 1)[0];
+      placed.set(pick.key, { points: pick.points, cx: pick.cx, cy: pick.cy });
+    }
+  }
+
+  const nextBySize = new Map(mountainHexesBySize.value);
+  if (placed.size === 0) {
+    nextBySize.delete(size);
+  } else {
+    nextBySize.set(size, placed);
+  }
+  mountainHexesBySize.value = nextBySize;
+}
+
+function placeChasmHexes(rng = Math.random) {
+  const cells = activeHexCells.value;
+  const size = activeTerrainTemplateSize.value;
+  const worldSize = Math.max(0, Number(size) || 0);
+
+  if (!cells.length || worldSize <= 0) {
+    const nextBySize = new Map(chasmHexesBySize.value);
+    nextBySize.delete(size);
+    chasmHexesBySize.value = nextBySize;
+    return;
+  }
+
+  const byFace = new Map();
+  for (const cell of cells) {
+    const faceId = normalizeFaceTopologyId(cell.faceId);
+    if (!faceId) continue;
+    if (!byFace.has(faceId)) byFace.set(faceId, []);
+    byFace.get(faceId).push(cell);
+  }
+
+  const placed = new Map();
+  for (const faceCells of byFace.values()) {
+    if (!faceCells.length) continue;
+
+    let target = 0;
+    for (let setIndex = 0; setIndex < worldSize; setIndex += 1) {
+      target += 1 + Math.floor(rng() * 6);
+    }
+
+    target = Math.min(target, faceCells.length);
+    const pool = [...faceCells];
+    for (let i = 0; i < target && pool.length; i += 1) {
+      const pickIndex = Math.floor(rng() * pool.length);
+      const pick = pool.splice(pickIndex, 1)[0];
+      placed.set(pick.key, { points: pick.points, cx: pick.cx, cy: pick.cy });
+    }
+  }
+
+  const nextBySize = new Map(chasmHexesBySize.value);
+  if (placed.size === 0) {
+    nextBySize.delete(size);
+  } else {
+    nextBySize.set(size, placed);
+  }
+  chasmHexesBySize.value = nextBySize;
+}
+
+function placePrecipiceHexes(rng = Math.random) {
+  const cells = activeHexCells.value;
+  const size = activeTerrainTemplateSize.value;
+  const worldSize = Math.max(0, Number(size) || 0);
+
+  if (!cells.length || worldSize <= 0) {
+    const nextBySize = new Map(precipiceHexesBySize.value);
+    nextBySize.delete(size);
+    precipiceHexesBySize.value = nextBySize;
+    return;
+  }
+
+  const byFace = new Map();
+  for (const cell of cells) {
+    const faceId = normalizeFaceTopologyId(cell.faceId);
+    if (!faceId) continue;
+    if (!byFace.has(faceId)) byFace.set(faceId, []);
+    byFace.get(faceId).push(cell);
+  }
+
+  const placed = new Map();
+  for (const faceCells of byFace.values()) {
+    if (!faceCells.length) continue;
+
+    const target = Math.min(worldSize, faceCells.length);
+    const pool = [...faceCells];
+    for (let i = 0; i < target && pool.length; i += 1) {
+      const pickIndex = Math.floor(rng() * pool.length);
+      const pick = pool.splice(pickIndex, 1)[0];
+      placed.set(pick.key, { points: pick.points, cx: pick.cx, cy: pick.cy });
+    }
+  }
+
+  const nextBySize = new Map(precipiceHexesBySize.value);
+  if (placed.size === 0) {
+    nextBySize.delete(size);
+  } else {
+    nextBySize.set(size, placed);
+  }
+  precipiceHexesBySize.value = nextBySize;
+}
+
+function placeRuinHexes(rng = Math.random) {
+  const cells = activeHexCells.value;
+  const size = activeTerrainTemplateSize.value;
+
+  if (!isDieBackWorld.value || !cells.length) {
+    const nextBySize = new Map(ruinHexesBySize.value);
+    nextBySize.delete(size);
+    ruinHexesBySize.value = nextBySize;
+    return;
+  }
+
+  const byFace = new Map();
+  for (const cell of cells) {
+    const faceId = normalizeFaceTopologyId(cell.faceId);
+    if (!faceId) continue;
+    if (!byFace.has(faceId)) byFace.set(faceId, []);
+    byFace.get(faceId).push(cell);
+  }
+
+  const placed = new Map();
+  for (const faceCells of byFace.values()) {
+    if (!faceCells.length) continue;
+
+    const target = Math.min(faceCells.length, 1 + Math.floor(rng() * 6));
+    const pool = [...faceCells];
+    for (let i = 0; i < target && pool.length; i += 1) {
+      const pickIndex = Math.floor(rng() * pool.length);
+      const pick = pool.splice(pickIndex, 1)[0];
+      placed.set(pick.key, { points: pick.points, cx: pick.cx, cy: pick.cy });
+    }
+  }
+
+  const nextBySize = new Map(ruinHexesBySize.value);
+  if (placed.size === 0) {
+    nextBySize.delete(size);
+  } else {
+    nextBySize.set(size, placed);
+  }
+  ruinHexesBySize.value = nextBySize;
+}
+
 function hashString(input) {
   let hash = 2166136261;
   for (let i = 0; i < input.length; i += 1) {
@@ -834,6 +1166,10 @@ function clearWaterHexes() {
   const nextBySize = new Map(waterHexesBySize.value);
   nextBySize.delete(activeTerrainTemplateSize.value);
   waterHexesBySize.value = nextBySize;
+  placeMountainHexes();
+  placeChasmHexes();
+  placePrecipiceHexes();
+  placeRuinHexes();
 }
 
 function sleep(ms) {
@@ -857,6 +1193,18 @@ async function animateGeneration() {
   const nextResource = new Map(resourceHexesBySize.value);
   nextResource.delete(activeTerrainTemplateSize.value);
   resourceHexesBySize.value = nextResource;
+  const nextMountains = new Map(mountainHexesBySize.value);
+  nextMountains.delete(activeTerrainTemplateSize.value);
+  mountainHexesBySize.value = nextMountains;
+  const nextChasms = new Map(chasmHexesBySize.value);
+  nextChasms.delete(activeTerrainTemplateSize.value);
+  chasmHexesBySize.value = nextChasms;
+  const nextPrecipices = new Map(precipiceHexesBySize.value);
+  nextPrecipices.delete(activeTerrainTemplateSize.value);
+  precipiceHexesBySize.value = nextPrecipices;
+  const nextRuins = new Map(ruinHexesBySize.value);
+  nextRuins.delete(activeTerrainTemplateSize.value);
+  ruinHexesBySize.value = nextRuins;
   await sleep(400);
 
   // Step 2: roll and show the starter triangle
@@ -894,7 +1242,8 @@ async function animateGeneration() {
     .map((cell) => {
       const latNorm = Math.abs(cell.cy - yMid) / (yRange / 2);
       const equatorBias = 1 - clamp(latNorm, 0, 1);
-      const starterBias = starterFaceId && cell.faceId === starterFaceId ? 0.32 : 0;
+      const starterBias =
+        starterFaceId && normalizeFaceTopologyId(cell.faceId) === normalizeFaceTopologyId(starterFaceId) ? 0.32 : 0;
       const starterHexBias = starterHexKey && String(cell.key) === starterHexKey ? 0.25 : 0;
       const score = rand() * 0.78 + equatorBias * 0.22 + starterBias + starterHexBias;
       return { ...cell, score };
@@ -918,9 +1267,33 @@ async function animateGeneration() {
     await sleep(60);
   }
 
-  // Step 6: place resource hexes
-  animationStepLabel.value = "Placing resource hexes…";
+  // Step 6: place mountain hexes
+  animationStepLabel.value = "Placing mountain hexes…";
   await sleep(500);
+  placeMountainHexes(rand);
+  await sleep(400);
+
+  // Step 7: place chasm hexes
+  animationStepLabel.value = "Placing chasm hexes…";
+  await sleep(300);
+  placeChasmHexes(rand);
+  await sleep(400);
+
+  // Step 8: place precipice hexes
+  animationStepLabel.value = "Placing precipice hexes…";
+  await sleep(300);
+  placePrecipiceHexes(rand);
+  await sleep(400);
+
+  // Step 9: place ruin hexes (Di worlds only)
+  animationStepLabel.value = "Placing ruins…";
+  await sleep(300);
+  placeRuinHexes(rand);
+  await sleep(400);
+
+  // Step 10: place resource hexes
+  animationStepLabel.value = "Placing resource hexes…";
+  await sleep(300);
   placeResourceHexes();
   await sleep(400);
 
@@ -964,7 +1337,8 @@ function generateTerrain() {
     .map((cell) => {
       const latNorm = Math.abs(cell.cy - yMid) / (yRange / 2);
       const equatorBias = 1 - clamp(latNorm, 0, 1);
-      const starterBias = starterFaceId && cell.faceId === starterFaceId ? 0.32 : 0;
+      const starterBias =
+        starterFaceId && normalizeFaceTopologyId(cell.faceId) === normalizeFaceTopologyId(starterFaceId) ? 0.32 : 0;
       const starterHexBias = starterHexKey && String(cell.key) === starterHexKey ? 0.25 : 0;
       const score = rand() * 0.78 + equatorBias * 0.22 + starterBias + starterHexBias;
       return { ...cell, score };
@@ -976,6 +1350,10 @@ function generateTerrain() {
   nextBySize.set(activeTerrainTemplateSize.value, new Map(ranked.map((cell) => [cell.key, cell.points])));
   waterHexesBySize.value = nextBySize;
 
+  placeMountainHexes(rand);
+  placeChasmHexes(rand);
+  placePrecipiceHexes(rand);
+  placeRuinHexes(rand);
   placeResourceHexes();
 }
 
@@ -994,8 +1372,10 @@ function handleMapClick(event) {
     return;
   }
 
-  const hexId = String(el.getAttribute("data-hex-id") || "").trim();
-  const key = hexId || points;
+  const hexId = String(
+    el.getAttribute("data-logical-hex-id") || el.getAttribute("data-hex-id") || el.getAttribute("hex-id") || "",
+  ).trim();
+  const key = canonicalizeHexId(hexId) || points;
   const size = activeTerrainTemplateSize.value;
 
   const nextBySize = new Map(waterHexesBySize.value);
@@ -1014,6 +1394,10 @@ function handleMapClick(event) {
   }
 
   waterHexesBySize.value = nextBySize;
+  placeMountainHexes();
+  placeChasmHexes();
+  placePrecipiceHexes();
+  placeRuinHexes();
 }
 </script>
 

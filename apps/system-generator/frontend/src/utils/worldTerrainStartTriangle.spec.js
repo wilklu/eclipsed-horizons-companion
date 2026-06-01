@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   D46_TRIANGLE_TABLE,
+  normalizeFaceTopologyId,
   pickRandomHexInTriangle,
   resolveStarterTriangle,
   rollD46,
@@ -33,6 +34,10 @@ describe("worldTerrainStartTriangle", () => {
     expect(resolveStarterTriangle("Upper-9", ["Upper-1", "Upper-2", "Upper-3"], rng)).toBe("Upper-2");
   });
 
+  it("resolves to lateral partner when rolled edge face is unavailable by exact id", () => {
+    expect(resolveStarterTriangle("Upper-0L", ["Upper-0R", "Upper-1"])).toBe("Upper-0R");
+  });
+
   it("picks a random hex from the active triangle", () => {
     const rng = vi.fn().mockReturnValue(0.5);
     const picked = pickRandomHexInTriangle(
@@ -50,5 +55,24 @@ describe("worldTerrainStartTriangle", () => {
 
   it("returns null when no hexes are available for the active triangle", () => {
     expect(pickRandomHexInTriangle([{ key: "a", faceId: "Upper-1" }], "Lower-4")).toBeNull();
+  });
+
+  it("treats lateral partner faces as equivalent when picking random hexes", () => {
+    const picked = pickRandomHexInTriangle(
+      [
+        { key: "a", faceId: "Upper-0L" },
+        { key: "b", faceId: "Upper-0R" },
+      ],
+      "Upper-0L",
+      () => 0.9,
+    );
+
+    expect(picked?.key).toBe("b");
+  });
+
+  it("normalizes L/R face suffixes to shared topology ids", () => {
+    expect(normalizeFaceTopologyId("Upper-0L")).toBe("Upper-0");
+    expect(normalizeFaceTopologyId("Upper-0R")).toBe("Upper-0");
+    expect(normalizeFaceTopologyId("Middle-7")).toBe("Middle-7");
   });
 });

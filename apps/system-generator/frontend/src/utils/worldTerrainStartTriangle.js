@@ -25,6 +25,17 @@ const D46_TRIANGLE_TABLE = Object.freeze({
   46: "Middle-0R",
 });
 
+export function normalizeFaceTopologyId(faceId = "") {
+  const normalized = String(faceId || "").trim();
+  if (!normalized) {
+    return "";
+  }
+
+  // L/R suffixed edge IDs represent lateral partners of the same triangle when folded.
+  const match = normalized.match(/^(.*-\d+)[LR]$/);
+  return match ? match[1] : normalized;
+}
+
 export function rollD46(rng = Math.random) {
   const d4 = Math.floor(rng() * 4) + 1;
   const d6 = Math.floor(rng() * 6) + 1;
@@ -52,6 +63,14 @@ export function resolveStarterTriangle(rolledFaceId, availableFaceIds = [], rng 
     return normalizedRoll;
   }
 
+  const topologyRoll = normalizeFaceTopologyId(normalizedRoll);
+  if (topologyRoll) {
+    const lateralPartner = available.find((entry) => normalizeFaceTopologyId(entry) === topologyRoll);
+    if (lateralPartner) {
+      return lateralPartner;
+    }
+  }
+
   const idx = Math.floor(rng() * available.length);
   return available[Math.max(0, Math.min(available.length - 1, idx))] || null;
 }
@@ -62,8 +81,10 @@ export function pickRandomHexInTriangle(hexCells = [], faceId = "", rng = Math.r
     return null;
   }
 
+  const topologyFaceId = normalizeFaceTopologyId(normalizedFaceId);
+
   const eligible = Array.isArray(hexCells)
-    ? hexCells.filter((cell) => String(cell?.faceId || "").trim() === normalizedFaceId)
+    ? hexCells.filter((cell) => normalizeFaceTopologyId(String(cell?.faceId || "").trim()) === topologyFaceId)
     : [];
 
   if (!eligible.length) {

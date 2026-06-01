@@ -4,148 +4,148 @@
 <g id="map-hexes">
 
 <!-- Hex Column 001 -->
-<polygon hex-id="001001" points="58,172 74,179 74,200 58,207 42,200 42,179" style="stroke:black;stroke-width:.75;fill:none"></polygon>
+<polygon hex-id="001001" points="58,172 74,179 74,200 58,207 42,200 42,179" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="001001" data-seam="true" data-seam-group="001001" data-seam-direction="west" data-seam-partners="016001"></polygon>
 <!-- Hex Column 002 -->
-<polygon hex-id="002002" points="74,200 90,207 90,228 74,235 58,228 58,207" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="002003" points="58,228 74,235 74,256 58,263 42,256 42,235" style="stroke:black;stroke-width:.75;fill:none"></polygon>
+<polygon hex-id="002002" points="74,200 90,207 90,228 74,235 58,228 58,207" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="002002"></polygon>
+<polygon hex-id="002003" points="58,228 74,235 74,256 58,263 42,256 42,235" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="002003"></polygon>
 <!-- Hex Column 003 -->
-<polygon hex-id="003003" points="90,228 106,235 106,256 90,263 74,256 74,235" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="003004" points="74,256 90,263 90,284 74,291 58,284 58,263" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="003005" points="58,284 74,291 74,312 58,319 42,312 42,291" style="stroke:black;stroke-width:.75;fill:none"></polygon>
+<polygon hex-id="003003" points="90,228 106,235 106,256 90,263 74,256 74,235" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="003003"></polygon>
+<polygon hex-id="003004" points="74,256 90,263 90,284 74,291 58,284 58,263" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="003004"></polygon>
+<polygon hex-id="003005" points="58,284 74,291 74,312 58,319 42,312 42,291" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="003005"></polygon>
 <!-- Hex Column 004 -->
-<polygon hex-id="004001" points="154,172 170,179 170,200 154,207 138,200 138,179" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="004002" points="138,200 154,207 154,228 138,235 122,228 122,207" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="004003" points="122,228 138,235 138,256 122,263 106,256 106,235" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="004004" points="106,256 122,263 122,284 106,291 90,284 90,263" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="004005" points="90,284 106,291 106,312 90,319 74,312 74,291" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="004006" points="74,312 90,319 90,340 74,347 58,340 58,319" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="004007" points="58,340 74,347 74,368 58,375 42,368 42,347" style="stroke:black;stroke-width:.75;fill:none"></polygon>
+<polygon hex-id="004001" points="154,172 170,179 170,200 154,207 138,200 138,179" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="004001"></polygon>
+<polygon hex-id="004002" points="138,200 154,207 154,228 138,235 122,228 122,207" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="004002"></polygon>
+<polygon hex-id="004003" points="122,228 138,235 138,256 122,263 106,256 106,235" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="004003"></polygon>
+<polygon hex-id="004004" points="106,256 122,263 122,284 106,291 90,284 90,263" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="004004"></polygon>
+<polygon hex-id="004005" points="90,284 106,291 106,312 90,319 74,312 74,291" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="004005"></polygon>
+<polygon hex-id="004006" points="74,312 90,319 90,340 74,347 58,340 58,319" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="004006"></polygon>
+<polygon hex-id="004007" points="58,340 74,347 74,368 58,375 42,368 42,347" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="004007"></polygon>
 <!-- Hex Column 005 -->
-<polygon hex-id="005002" points="170,200 186,207 186,228 170,235 154,228 154,207" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="005003" points="154,228 170,235 170,256 154,263 138,256 138,235" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="005004" points="138,256 154,263 154,284 138,291 122,284 122,263" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="005005" points="122,284 138,291 138,312 122,319 106,312 106,291" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="005006" points="106,312 122,319 122,340 106,347 90,340 90,319" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="005007" points="90,340 106,347 106,368 90,375 74,368 74,347" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="005008" points="74,368 90,375 90,396 74,403 58,396 58,375" style="stroke:black;stroke-width:.75;fill:none"></polygon>
+<polygon hex-id="005002" points="170,200 186,207 186,228 170,235 154,228 154,207" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="005002"></polygon>
+<polygon hex-id="005003" points="154,228 170,235 170,256 154,263 138,256 138,235" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="005003"></polygon>
+<polygon hex-id="005004" points="138,256 154,263 154,284 138,291 122,284 122,263" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="005004"></polygon>
+<polygon hex-id="005005" points="122,284 138,291 138,312 122,319 106,312 106,291" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="005005"></polygon>
+<polygon hex-id="005006" points="106,312 122,319 122,340 106,347 90,340 90,319" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="005006"></polygon>
+<polygon hex-id="005007" points="90,340 106,347 106,368 90,375 74,368 74,347" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="005007"></polygon>
+<polygon hex-id="005008" points="74,368 90,375 90,396 74,403 58,396 58,375" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="005008"></polygon>
 <!-- Hex Column 006 -->
-<polygon hex-id="006003" points="186,228 202,235 202,256 186,263 170,256 170,235" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="006004" points="170,256 186,263 186,284 170,291 154,284 154,263" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="006005" points="154,284 170,291 170,312 154,319 138,312 138,291" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="006006" points="138,312 154,319 154,340 138,347 122,340 122,319" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="006007" points="122,340 138,347 138,368 122,375 106,368 106,347" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="006008" points="106,368 122,375 122,396 106,403 90,396 90,375" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="006009" points="90,396 106,403 106,424 90,431 74,424 74,403" style="stroke:black;stroke-width:.75;fill:none"></polygon>
+<polygon hex-id="006003" points="186,228 202,235 202,256 186,263 170,256 170,235" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="006003"></polygon>
+<polygon hex-id="006004" points="170,256 186,263 186,284 170,291 154,284 154,263" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="006004"></polygon>
+<polygon hex-id="006005" points="154,284 170,291 170,312 154,319 138,312 138,291" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="006005"></polygon>
+<polygon hex-id="006006" points="138,312 154,319 154,340 138,347 122,340 122,319" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="006006"></polygon>
+<polygon hex-id="006007" points="122,340 138,347 138,368 122,375 106,368 106,347" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="006007"></polygon>
+<polygon hex-id="006008" points="106,368 122,375 122,396 106,403 90,396 90,375" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="006008"></polygon>
+<polygon hex-id="006009" points="90,396 106,403 106,424 90,431 74,424 74,403" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="006009"></polygon>
 <!-- Hex Column 007 -->
-<polygon hex-id="007001" points="250,172 266,179 266,200 250,207 234,200 234,179" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="007002" points="234,200 250,207 250,228 234,235 218,228 218,207" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="007003" points="218,228 234,235 234,256 218,263 202,256 202,235" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="007004" points="202,256 218,263 218,284 202,291 186,284 186,263" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="007005" points="186,284 202,291 202,312 186,319 170,312 170,291" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="007006" points="170,312 186,319 186,340 170,347 154,340 154,319" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="007007" points="154,340 170,347 170,368 154,375 138,368 138,347" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="007008" points="138,368 154,375 154,396 138,403 122,396 122,375" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="007009" points="122,396 138,403 138,424 122,431 106,424 106,403" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="007010" points="106,424 122,431 122,452 106,459 90,452 90,431" style="stroke:black;stroke-width:.75;fill:none"></polygon>
+<polygon hex-id="007001" points="250,172 266,179 266,200 250,207 234,200 234,179" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="007001"></polygon>
+<polygon hex-id="007002" points="234,200 250,207 250,228 234,235 218,228 218,207" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="007002"></polygon>
+<polygon hex-id="007003" points="218,228 234,235 234,256 218,263 202,256 202,235" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="007003"></polygon>
+<polygon hex-id="007004" points="202,256 218,263 218,284 202,291 186,284 186,263" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="007004"></polygon>
+<polygon hex-id="007005" points="186,284 202,291 202,312 186,319 170,312 170,291" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="007005"></polygon>
+<polygon hex-id="007006" points="170,312 186,319 186,340 170,347 154,340 154,319" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="007006"></polygon>
+<polygon hex-id="007007" points="154,340 170,347 170,368 154,375 138,368 138,347" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="007007"></polygon>
+<polygon hex-id="007008" points="138,368 154,375 154,396 138,403 122,396 122,375" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="007008"></polygon>
+<polygon hex-id="007009" points="122,396 138,403 138,424 122,431 106,424 106,403" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="007009"></polygon>
+<polygon hex-id="007010" points="106,424 122,431 122,452 106,459 90,452 90,431" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="007010"></polygon>
 <!-- Hex Column 008 -->
-<polygon hex-id="008002" points="266,200 282,207 282,228 266,235 250,228 250,207" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="008003" points="250,228 266,235 266,256 250,263 234,256 234,235" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="008004" points="234,256 250,263 250,284 234,291 218,284 218,263" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="008005" points="218,284 234,291 234,312 218,319 202,312 202,291" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="008006" points="202,312 218,319 218,340 202,347 186,340 186,319" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="008007" points="186,340 202,347 202,368 186,375 170,368 170,347" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="008008" points="170,368 186,375 186,396 170,403 154,396 154,375" style="stroke:black;stroke-width:.75;fill:none"></polygon>
+<polygon hex-id="008002" points="266,200 282,207 282,228 266,235 250,228 250,207" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="008002"></polygon>
+<polygon hex-id="008003" points="250,228 266,235 266,256 250,263 234,256 234,235" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="008003"></polygon>
+<polygon hex-id="008004" points="234,256 250,263 250,284 234,291 218,284 218,263" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="008004"></polygon>
+<polygon hex-id="008005" points="218,284 234,291 234,312 218,319 202,312 202,291" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="008005"></polygon>
+<polygon hex-id="008006" points="202,312 218,319 218,340 202,347 186,340 186,319" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="008006"></polygon>
+<polygon hex-id="008007" points="186,340 202,347 202,368 186,375 170,368 170,347" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="008007"></polygon>
+<polygon hex-id="008008" points="170,368 186,375 186,396 170,403 154,396 154,375" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="008008"></polygon>
 <!-- Hex Column 009 -->
-<polygon hex-id="009003" points="282,228 298,235 298,256 282,263 266,256 266,235" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="009004" points="266,256 282,263 282,284 266,291 250,284 250,263" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="009005" points="250,284 266,291 266,312 250,319 234,312 234,291" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="009006" points="234,312 250,319 250,340 234,347 218,340 218,319" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="009007" points="218,340 234,347 234,368 218,375 202,368 202,347" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="009008" points="202,368 218,375 218,396 202,403 186,396 186,375" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="009009" points="186,396 202,403 202,424 186,431 170,424 170,403" style="stroke:black;stroke-width:.75;fill:none"></polygon>
+<polygon hex-id="009003" points="282,228 298,235 298,256 282,263 266,256 266,235" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="009003"></polygon>
+<polygon hex-id="009004" points="266,256 282,263 282,284 266,291 250,284 250,263" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="009004"></polygon>
+<polygon hex-id="009005" points="250,284 266,291 266,312 250,319 234,312 234,291" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="009005"></polygon>
+<polygon hex-id="009006" points="234,312 250,319 250,340 234,347 218,340 218,319" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="009006"></polygon>
+<polygon hex-id="009007" points="218,340 234,347 234,368 218,375 202,368 202,347" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="009007"></polygon>
+<polygon hex-id="009008" points="202,368 218,375 218,396 202,403 186,396 186,375" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="009008"></polygon>
+<polygon hex-id="009009" points="186,396 202,403 202,424 186,431 170,424 170,403" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="009009"></polygon>
 <!-- Hex Column 010 -->
-<polygon hex-id="010001" points="346,172 362,179 362,200 346,207 330,200 330,179" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="010002" points="330,200 346,207 346,228 330,235 314,228 314,207" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="010003" points="314,228 330,235 330,256 314,263 298,256 298,235" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="010004" points="298,256 314,263 314,284 298,291 282,284 282,263" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="010005" points="282,284 298,291 298,312 282,319 266,312 266,291" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="010006" points="266,312 282,319 282,340 266,347 250,340 250,319" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="010007" points="250,340 266,347 266,368 250,375 234,368 234,347" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="010008" points="234,368 250,375 250,396 234,403 218,396 218,375" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="010009" points="218,396 234,403 234,424 218,431 202,424 202,403" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="010010" points="202,424 218,431 218,452 202,459 186,452 186,431" style="stroke:black;stroke-width:.75;fill:none"></polygon>
+<polygon hex-id="010001" points="346,172 362,179 362,200 346,207 330,200 330,179" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="010001"></polygon>
+<polygon hex-id="010002" points="330,200 346,207 346,228 330,235 314,228 314,207" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="010002"></polygon>
+<polygon hex-id="010003" points="314,228 330,235 330,256 314,263 298,256 298,235" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="010003"></polygon>
+<polygon hex-id="010004" points="298,256 314,263 314,284 298,291 282,284 282,263" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="010004"></polygon>
+<polygon hex-id="010005" points="282,284 298,291 298,312 282,319 266,312 266,291" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="010005"></polygon>
+<polygon hex-id="010006" points="266,312 282,319 282,340 266,347 250,340 250,319" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="010006"></polygon>
+<polygon hex-id="010007" points="250,340 266,347 266,368 250,375 234,368 234,347" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="010007"></polygon>
+<polygon hex-id="010008" points="234,368 250,375 250,396 234,403 218,396 218,375" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="010008"></polygon>
+<polygon hex-id="010009" points="218,396 234,403 234,424 218,431 202,424 202,403" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="010009"></polygon>
+<polygon hex-id="010010" points="202,424 218,431 218,452 202,459 186,452 186,431" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="010010"></polygon>
 <!-- Hex Column 011 -->
-<polygon hex-id="011002" points="362,200 378,207 378,228 362,235 346,228 346,207" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="011003" points="346,228 362,235 362,256 346,263 330,256 330,235" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="011004" points="330,256 346,263 346,284 330,291 314,284 314,263" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="011005" points="314,284 330,291 330,312 314,319 298,312 298,291" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="011006" points="298,312 314,319 314,340 298,347 282,340 282,319" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="011007" points="282,340 298,347 298,368 282,375 266,368 266,347" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="011008" points="266,368 282,375 282,396 266,403 250,396 250,375" style="stroke:black;stroke-width:.75;fill:none"></polygon>
+<polygon hex-id="011002" points="362,200 378,207 378,228 362,235 346,228 346,207" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="011002"></polygon>
+<polygon hex-id="011003" points="346,228 362,235 362,256 346,263 330,256 330,235" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="011003"></polygon>
+<polygon hex-id="011004" points="330,256 346,263 346,284 330,291 314,284 314,263" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="011004"></polygon>
+<polygon hex-id="011005" points="314,284 330,291 330,312 314,319 298,312 298,291" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="011005"></polygon>
+<polygon hex-id="011006" points="298,312 314,319 314,340 298,347 282,340 282,319" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="011006"></polygon>
+<polygon hex-id="011007" points="282,340 298,347 298,368 282,375 266,368 266,347" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="011007"></polygon>
+<polygon hex-id="011008" points="266,368 282,375 282,396 266,403 250,396 250,375" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="011008"></polygon>
 <!-- Hex Column 012 -->
-<polygon hex-id="012003" points="378,228 394,235 394,256 378,263 362,256 362,235" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="012004" points="362,256 378,263 378,284 362,291 346,284 346,263" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="012005" points="346,284 362,291 362,312 346,319 330,312 330,291" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="012006" points="330,312 346,319 346,340 330,347 314,340 314,319" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="012007" points="314,340 330,347 330,368 314,375 298,368 298,347" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="012008" points="298,368 314,375 314,396 298,403 282,396 282,375" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="012009" points="282,396 298,403 298,424 282,431 266,424 266,403" style="stroke:black;stroke-width:.75;fill:none"></polygon>
+<polygon hex-id="012003" points="378,228 394,235 394,256 378,263 362,256 362,235" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="012003"></polygon>
+<polygon hex-id="012004" points="362,256 378,263 378,284 362,291 346,284 346,263" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="012004"></polygon>
+<polygon hex-id="012005" points="346,284 362,291 362,312 346,319 330,312 330,291" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="012005"></polygon>
+<polygon hex-id="012006" points="330,312 346,319 346,340 330,347 314,340 314,319" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="012006"></polygon>
+<polygon hex-id="012007" points="314,340 330,347 330,368 314,375 298,368 298,347" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="012007"></polygon>
+<polygon hex-id="012008" points="298,368 314,375 314,396 298,403 282,396 282,375" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="012008"></polygon>
+<polygon hex-id="012009" points="282,396 298,403 298,424 282,431 266,424 266,403" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="012009"></polygon>
 <!-- Hex Column 013 -->
-<polygon hex-id="013001" points="442,172 458,179 458,200 442,207 426,200 426,179" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="013002" points="426,200 442,207 442,228 426,235 410,228 410,207" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="013003" points="410,228 426,235 426,256 410,263 394,256 394,235" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="013004" points="394,256 410,263 410,284 394,291 378,284 378,263" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="013005" points="378,284 394,291 394,312 378,319 362,312 362,291" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="013006" points="362,312 378,319 378,340 362,347 346,340 346,319" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="013007" points="346,340 362,347 362,368 346,375 330,368 330,347" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="013008" points="330,368 346,375 346,396 330,403 314,396 314,375" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="013009" points="314,396 330,403 330,424 314,431 298,424 298,403" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="013010" points="298,424 314,431 314,452 298,459 282,452 282,431" style="stroke:black;stroke-width:.75;fill:none"></polygon>
+<polygon hex-id="013001" points="442,172 458,179 458,200 442,207 426,200 426,179" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="013001"></polygon>
+<polygon hex-id="013002" points="426,200 442,207 442,228 426,235 410,228 410,207" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="013002"></polygon>
+<polygon hex-id="013003" points="410,228 426,235 426,256 410,263 394,256 394,235" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="013003"></polygon>
+<polygon hex-id="013004" points="394,256 410,263 410,284 394,291 378,284 378,263" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="013004"></polygon>
+<polygon hex-id="013005" points="378,284 394,291 394,312 378,319 362,312 362,291" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="013005"></polygon>
+<polygon hex-id="013006" points="362,312 378,319 378,340 362,347 346,340 346,319" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="013006"></polygon>
+<polygon hex-id="013007" points="346,340 362,347 362,368 346,375 330,368 330,347" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="013007"></polygon>
+<polygon hex-id="013008" points="330,368 346,375 346,396 330,403 314,396 314,375" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="013008"></polygon>
+<polygon hex-id="013009" points="314,396 330,403 330,424 314,431 298,424 298,403" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="013009"></polygon>
+<polygon hex-id="013010" points="298,424 314,431 314,452 298,459 282,452 282,431" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="013010"></polygon>
 <!-- Hex Column 014 -->
-<polygon hex-id="014002" points="458,200 474,207 474,228 458,235 442,228 442,207" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="014003" points="442,228 458,235 458,256 442,263 426,256 426,235" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="014004" points="426,256 442,263 442,284 426,291 410,284 410,263" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="014005" points="410,284 426,291 426,312 410,319 394,312 394,291" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="014006" points="394,312 410,319 410,340 394,347 378,340 378,319" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="014007" points="378,340 394,347 394,368 378,375 362,368 362,347" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="014008" points="362,368 378,375 378,396 362,403 346,396 346,375" style="stroke:black;stroke-width:.75;fill:none"></polygon>
+<polygon hex-id="014002" points="458,200 474,207 474,228 458,235 442,228 442,207" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="014002"></polygon>
+<polygon hex-id="014003" points="442,228 458,235 458,256 442,263 426,256 426,235" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="014003"></polygon>
+<polygon hex-id="014004" points="426,256 442,263 442,284 426,291 410,284 410,263" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="014004"></polygon>
+<polygon hex-id="014005" points="410,284 426,291 426,312 410,319 394,312 394,291" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="014005"></polygon>
+<polygon hex-id="014006" points="394,312 410,319 410,340 394,347 378,340 378,319" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="014006"></polygon>
+<polygon hex-id="014007" points="378,340 394,347 394,368 378,375 362,368 362,347" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="014007"></polygon>
+<polygon hex-id="014008" points="362,368 378,375 378,396 362,403 346,396 346,375" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="014008"></polygon>
 <!-- Hex Column 015 -->
-<polygon hex-id="015003" points="474,228 490,235 490,256 474,263 458,256 458,235" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="015004" points="458,256 474,263 474,284 458,291 442,284 442,263" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="015005" points="442,284 458,291 458,312 442,319 426,312 426,291" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="015006" points="426,312 442,319 442,340 426,347 410,340 410,319" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="015007" points="410,340 426,347 426,368 410,375 394,368 394,347" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="015008" points="394,368 410,375 410,396 394,403 378,396 378,375" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="015009" points="378,396 394,403 394,424 378,431 362,424 362,403" style="stroke:black;stroke-width:.75;fill:none"></polygon>
+<polygon hex-id="015003" points="474,228 490,235 490,256 474,263 458,256 458,235" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="015003"></polygon>
+<polygon hex-id="015004" points="458,256 474,263 474,284 458,291 442,284 442,263" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="015004"></polygon>
+<polygon hex-id="015005" points="442,284 458,291 458,312 442,319 426,312 426,291" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="015005"></polygon>
+<polygon hex-id="015006" points="426,312 442,319 442,340 426,347 410,340 410,319" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="015006"></polygon>
+<polygon hex-id="015007" points="410,340 426,347 426,368 410,375 394,368 394,347" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="015007"></polygon>
+<polygon hex-id="015008" points="394,368 410,375 410,396 394,403 378,396 378,375" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="015008"></polygon>
+<polygon hex-id="015009" points="378,396 394,403 394,424 378,431 362,424 362,403" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="015009"></polygon>
 <!-- Hex Column 016 -->
-<polygon hex-id="016001" points="538,172 554,179 554,200 538,207 522,200 522,179" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="016002" points="522,200 538,207 538,228 522,235 506,228 506,207" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="016003" points="506,228 522,235 522,256 506,263 490,256 490,235" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="016004" points="490,256 506,263 506,284 490,291 474,284 474,263" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="016005" points="474,284 490,291 490,312 474,319 458,312 458,291" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="016006" points="458,312 474,319 474,340 458,347 442,340 442,319" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="016007" points="442,340 458,347 458,368 442,375 426,368 426,347" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="016008" points="426,368 442,375 442,396 426,403 410,396 410,375" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="016009" points="410,396 426,403 426,424 410,431 394,424 394,403" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="016010" points="394,424 410,431 410,452 394,459 378,452 378,431" style="stroke:black;stroke-width:.75;fill:none"></polygon>
+<polygon hex-id="016001" points="538,172 554,179 554,200 538,207 522,200 522,179" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="001001" data-seam="true" data-seam-group="001001" data-seam-direction="east" data-seam-partners="001001"></polygon>
+<polygon hex-id="016002" points="522,200 538,207 538,228 522,235 506,228 506,207" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="016002"></polygon>
+<polygon hex-id="016003" points="506,228 522,235 522,256 506,263 490,256 490,235" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="016003"></polygon>
+<polygon hex-id="016004" points="490,256 506,263 506,284 490,291 474,284 474,263" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="016004"></polygon>
+<polygon hex-id="016005" points="474,284 490,291 490,312 474,319 458,312 458,291" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="016005"></polygon>
+<polygon hex-id="016006" points="458,312 474,319 474,340 458,347 442,340 442,319" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="016006"></polygon>
+<polygon hex-id="016007" points="442,340 458,347 458,368 442,375 426,368 426,347" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="016007"></polygon>
+<polygon hex-id="016008" points="426,368 442,375 442,396 426,403 410,396 410,375" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="016008"></polygon>
+<polygon hex-id="016009" points="410,396 426,403 426,424 410,431 394,424 394,403" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="016009"></polygon>
+<polygon hex-id="016010" points="394,424 410,431 410,452 394,459 378,452 378,431" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="016010"></polygon>
 <!-- Hex Column 017 -->
-<polygon hex-id="017003" points="538,228 554,235 554,256 538,263 522,256 522,235" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="017004" points="522,256 538,263 538,284 522,291 506,284 506,263" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="017005" points="506,284 522,291 522,312 506,319 490,312 490,291" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="017006" points="490,312 506,319 506,340 490,347 474,340 474,319" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="017007" points="474,340 490,347 490,368 474,375 458,368 458,347" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="017008" points="458,368 474,375 474,396 458,403 442,396 442,375" style="stroke:black;stroke-width:.75;fill:none"></polygon>
+<polygon hex-id="017003" points="538,228 554,235 554,256 538,263 522,256 522,235" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="017003"></polygon>
+<polygon hex-id="017004" points="522,256 538,263 538,284 522,291 506,284 506,263" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="017004"></polygon>
+<polygon hex-id="017005" points="506,284 522,291 522,312 506,319 490,312 490,291" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="017005"></polygon>
+<polygon hex-id="017006" points="490,312 506,319 506,340 490,347 474,340 474,319" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="017006"></polygon>
+<polygon hex-id="017007" points="474,340 490,347 490,368 474,375 458,368 458,347" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="017007"></polygon>
+<polygon hex-id="017008" points="458,368 474,375 474,396 458,403 442,396 442,375" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="017008"></polygon>
 <!-- Hex Column 018 -->
-<polygon hex-id="018005" points="538,284 554,291 554,312 538,319 522,312 522,291" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="018006" points="522,312 538,319 538,340 522,347 506,340 506,319" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="018007" points="506,340 522,347 522,368 506,375 490,368 490,347" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="018008" points="490,368 506,375 506,396 490,403 474,396 474,375" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="018009" points="474,396 490,403 490,424 474,431 458,424 458,403" style="stroke:black;stroke-width:.75;fill:none"></polygon>
+<polygon hex-id="018005" points="538,284 554,291 554,312 538,319 522,312 522,291" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="018005"></polygon>
+<polygon hex-id="018006" points="522,312 538,319 538,340 522,347 506,340 506,319" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="018006"></polygon>
+<polygon hex-id="018007" points="506,340 522,347 522,368 506,375 490,368 490,347" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="018007"></polygon>
+<polygon hex-id="018008" points="490,368 506,375 506,396 490,403 474,396 474,375" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="018008"></polygon>
+<polygon hex-id="018009" points="474,396 490,403 490,424 474,431 458,424 458,403" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="018009"></polygon>
 <!-- Hex Column 019 -->
-<polygon hex-id="019007" points="538,340 554,347 554,368 538,375 522,368 522,347" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="019008" points="522,368 538,375 538,396 522,403 506,396 506,375" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="019009" points="506,396 522,403 522,424 506,431 490,424 490,403" style="stroke:black;stroke-width:.75;fill:none"></polygon>
-<polygon hex-id="019010" points="490,424 506,431 506,452 490,459 474,452 474,431" style="stroke:black;stroke-width:.75;fill:none"></polygon>
+<polygon hex-id="019007" points="538,340 554,347 554,368 538,375 522,368 522,347" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="019007"></polygon>
+<polygon hex-id="019008" points="522,368 538,375 538,396 522,403 506,396 506,375" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="019008"></polygon>
+<polygon hex-id="019009" points="506,396 522,403 522,424 506,431 490,424 490,403" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="019009"></polygon>
+<polygon hex-id="019010" points="490,424 506,431 506,452 490,459 474,452 474,431" style="stroke:black;stroke-width:.75;fill:none" data-logical-hex-id="019010"></polygon>
 
 </g>
 
