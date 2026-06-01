@@ -34,6 +34,10 @@
               <dt>Population</dt>
               <dd>{{ worldInfo.population }}</dd>
             </div>
+            <div class="info-row">
+              <dt>Resources</dt>
+              <dd>{{ worldInfo.resourceRating }}</dd>
+            </div>
           </dl>
         </div>
 
@@ -61,6 +65,14 @@
               <dd>{{ systemInfo.zone }}</dd>
             </div>
             <div class="info-row">
+              <dt>GG / Belts</dt>
+              <dd>{{ systemInfo.gasGiants }} / {{ systemInfo.belts }}</dd>
+            </div>
+            <div class="info-row">
+              <dt>Resource Hexes</dt>
+              <dd>{{ resourceHexCount }}</dd>
+            </div>
+            <div class="info-row">
               <dt>Map Profile</dt>
               <dd>{{ mapProfileLabel }}</dd>
             </div>
@@ -75,13 +87,41 @@
         </div>
 
         <div class="map-controls">
-          <button type="button" class="map-button" @click="generateTerrain" :disabled="!activeHexCells.length">
+          <button
+            type="button"
+            class="map-button"
+            @click="generateTerrain"
+            :disabled="!activeHexCells.length || isAnimating"
+          >
             Generate Terrain
+          </button>
+          <button
+            type="button"
+            class="map-button map-button-accent"
+            @click="animateGeneration"
+            :disabled="!activeHexCells.length || isAnimating"
+          >
+            {{ isAnimating ? animationStepLabel : "Walk Through Generation" }}
+          </button>
+          <button
+            type="button"
+            class="map-button map-button-secondary"
+            @click="rollStarterTriangle"
+            :disabled="isAnimating"
+          >
+            Roll d46 Start Triangle
+          </button>
+          <button type="button" class="map-button map-button-secondary" @click="rollStarterHexInTriangle">
+            Roll Random Hex in Triangle
           </button>
           <button type="button" class="map-button map-button-secondary" @click="clearWaterHexes">Clear Water</button>
           <span class="map-controls-note">Target water: {{ Math.round(hydroTargetRatio * 100) }}%</span>
+          <span class="map-controls-note" v-if="starterTriangleResultLabel">{{ starterTriangleResultLabel }}</span>
+          <span class="map-controls-note" v-if="starterHexResultLabel">{{ starterHexResultLabel }}</span>
+          <span class="map-controls-note" v-if="resourceHexCount > 0"
+            >Resource Hexes: {{ resourceHexCount }} ({{ activeResourceHexEntries.length }} placed)</span
+          >
         </div>
-
         <svg
           id="blankMapSVG"
           class="terrain-map"
@@ -104,6 +144,27 @@
             </text>
           </g>
 
+          <g id="starter-triangle-overlay" pointer-events="none" v-if="activeStarterTrianglePoints">
+            <polygon
+              :points="activeStarterTrianglePoints"
+              fill="rgba(255, 208, 0, 0.18)"
+              stroke="#d18900"
+              stroke-width="2"
+              stroke-dasharray="8 4"
+            />
+          </g>
+
+          <g id="starter-hex-overlay" pointer-events="none" v-if="activeStarterHexPick">
+            <circle
+              :cx="activeStarterHexPick.cx"
+              :cy="activeStarterHexPick.cy"
+              r="6"
+              fill="#ffd300"
+              stroke="#8a5a00"
+              stroke-width="2"
+            />
+          </g>
+
           <g id="water-hex-overlay" pointer-events="none">
             <polygon
               v-for="entry in activeWaterHexEntries"
@@ -113,6 +174,23 @@
               stroke="black"
               stroke-width="1"
             />
+          </g>
+
+          <g id="resource-hex-overlay" pointer-events="none">
+            <g v-for="entry in activeResourceHexEntries" :key="entry.key">
+              <polygon :points="entry.points" fill="rgba(34, 139, 34, 0.35)" stroke="#145214" stroke-width="1.5" />
+              <text
+                :x="entry.cx"
+                :y="entry.cy + 4"
+                text-anchor="middle"
+                font-size="9"
+                font-weight="bold"
+                fill="#145214"
+                style="pointer-events: none; user-select: none"
+              >
+                R
+              </text>
+            </g>
           </g>
         </svg>
       </section>
@@ -125,7 +203,7 @@ import { computed, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import { deserializeReturnRoute } from "../../utils/returnRoute.js";
 import { useSystemStore } from "../../stores/systemStore.js";
-
+import { pickRandomHexInTriangle, resolveStarterTriangle, rollD46 } from "../../utils/worldTerrainStartTriangle.js";
 const route = useRoute();
 const systemStore = useSystemStore();
 
@@ -204,6 +282,13 @@ const worldInfo = computed(() => ({
   atmosphere: String(selectedWorld.value?.atmosphereDesc || selectedWorld.value?.atmosphere || "—"),
   hydrographics: String(selectedWorld.value?.hydrographics ?? selectedWorld.value?.hydro ?? "—"),
   population: String(selectedWorld.value?.population ?? "—"),
+  resourceRating: String(
+    selectedWorld.value?.economics?.resourceRating ||
+      selectedWorld.value?.resourceRating ||
+      boundSystem.value?.resourceRating ||
+      route.query.resourceRating ||
+      "—",
+  ),
 }));
 
 const systemInfo = computed(() => {
@@ -219,6 +304,13 @@ const systemInfo = computed(() => {
     String(boundSystem.value?.stars?.[0]?.spectralClass || "").trim() ||
     String(route.query.star || "—");
 
+  const ggRaw = boundSystem.value?.gasGiants ?? boundSystem.value?.objectCounts?.gasGiants ?? null;
+  const beltsRaw =
+    boundSystem.value?.belts ??
+    boundSystem.value?.objectCounts?.belts ??
+    boundSystem.value?.objectCounts?.planetoidBelts ??
+    null;
+
   return {
     systemName: String(
       boundSystem.value?.name || boundSystem.value?.systemName || route.query.systemName || "Unknown System",
@@ -227,6 +319,8 @@ const systemInfo = computed(() => {
     primaryStar,
     orbit: String(selectedWorld.value?.orbitAU ?? route.query.orbitAU ?? "—"),
     zone: String(selectedWorld.value?.zone || route.query.zone || "—"),
+    gasGiants: ggRaw !== null && ggRaw !== undefined ? Number(ggRaw) || 0 : "—",
+    belts: beltsRaw !== null && beltsRaw !== undefined ? Number(beltsRaw) || 0 : "—",
   };
 });
 
@@ -376,6 +470,19 @@ watch(
   { immediate: true },
 );
 
+watch(
+  activeFaceIds,
+  () => {
+    rollStarterTriangle();
+    placeResourceHexes();
+  },
+  { immediate: true },
+);
+
+watch(resourceHexCount, () => {
+  placeResourceHexes();
+});
+
 const waterHexesBySize = ref(new Map());
 
 const activeWaterHexEntries = computed(() => {
@@ -455,7 +562,125 @@ function extractHexCells(templateContent) {
     .filter(Boolean);
 }
 
-const activeHexCells = computed(() => extractHexCells(activeTemplateContent.value));
+function extractFaceTriangles(templateContent) {
+  if (!templateContent) {
+    return [];
+  }
+
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(`<svg>${templateContent}</svg>`, "image/svg+xml");
+  const polys = Array.from(doc.querySelectorAll("polygon[face-id]"));
+
+  return polys
+    .map((poly) => {
+      const faceId = String(poly.getAttribute("face-id") || "").trim();
+      const points = normalizePoints(poly.getAttribute("points"));
+      const coords = parsePoints(points);
+      if (!faceId || coords.length !== 3) {
+        return null;
+      }
+
+      return {
+        faceId,
+        points,
+        vertices: coords,
+      };
+    })
+    .filter(Boolean);
+}
+
+function isPointInTriangle(px, py, vertices) {
+  const [[x1, y1], [x2, y2], [x3, y3]] = vertices;
+  const denom = (y2 - y3) * (x1 - x3) + (x3 - x2) * (y1 - y3);
+  if (!Number.isFinite(denom) || Math.abs(denom) < 1e-8) {
+    return false;
+  }
+
+  const a = ((y2 - y3) * (px - x3) + (x3 - x2) * (py - y3)) / denom;
+  const b = ((y3 - y1) * (px - x3) + (x1 - x3) * (py - y3)) / denom;
+  const c = 1 - a - b;
+
+  return a >= -1e-6 && b >= -1e-6 && c >= -1e-6;
+}
+
+const activeFaceTriangles = computed(() => extractFaceTriangles(activeTemplateContent.value));
+const activeFaceIds = computed(() => [...new Set(activeFaceTriangles.value.map((face) => face.faceId))]);
+
+const activeHexCells = computed(() => {
+  const baseHexes = extractHexCells(activeTemplateContent.value);
+  const faces = activeFaceTriangles.value;
+  if (!baseHexes.length || !faces.length) {
+    return baseHexes;
+  }
+
+  return baseHexes.map((hex) => {
+    const matchedFace = faces.find((face) => isPointInTriangle(hex.cx, hex.cy, face.vertices));
+    return {
+      ...hex,
+      faceId: matchedFace?.faceId || null,
+    };
+  });
+});
+
+const starterTriangleRoll = ref(null);
+const starterHexPick = ref(null);
+
+const activeStarterTrianglePoints = computed(() => {
+  const resolvedFaceId = String(starterTriangleRoll.value?.resolvedFaceId || "").trim();
+  if (!resolvedFaceId) {
+    return "";
+  }
+
+  return activeFaceTriangles.value.find((face) => face.faceId === resolvedFaceId)?.points || "";
+});
+
+const starterTriangleResultLabel = computed(() => {
+  const roll = starterTriangleRoll.value;
+  if (!roll?.resolvedFaceId) {
+    return "";
+  }
+
+  return `Start Triangle: ${roll.resolvedFaceId} (d46 ${roll.roll})`;
+});
+
+const activeStarterHexPick = computed(() => {
+  const targetKey = String(starterHexPick.value?.key || "").trim();
+  if (!targetKey) {
+    return null;
+  }
+
+  return activeHexCells.value.find((entry) => String(entry?.key || "") === targetKey) || null;
+});
+
+const starterHexResultLabel = computed(() => {
+  const pick = activeStarterHexPick.value;
+  if (!pick) {
+    return "";
+  }
+
+  return `Start Hex: ${pick.hexId || pick.key}`;
+});
+
+function rollStarterTriangle() {
+  const rolled = rollD46();
+  const resolvedFaceId = resolveStarterTriangle(rolled.faceId, activeFaceIds.value);
+  starterTriangleRoll.value = {
+    ...rolled,
+    resolvedFaceId,
+  };
+  starterHexPick.value = null;
+  rollStarterHexInTriangle();
+}
+
+function rollStarterHexInTriangle() {
+  const resolvedFaceId = String(starterTriangleRoll.value?.resolvedFaceId || "").trim();
+  if (!resolvedFaceId) {
+    starterHexPick.value = null;
+    return;
+  }
+
+  starterHexPick.value = pickRandomHexInTriangle(activeHexCells.value, resolvedFaceId);
+}
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -485,6 +710,107 @@ function parseHydrographicsToRatio(value) {
 
 const hydroTargetRatio = computed(() => parseHydrographicsToRatio(worldInfo.value.hydrographics));
 
+const TRAVELLER_PSEUDO_HEX = new Map([
+  ["A", 10],
+  ["B", 11],
+  ["C", 12],
+  ["D", 13],
+  ["E", 14],
+  ["F", 15],
+]);
+
+function parseResourceRatingToNumber(value) {
+  const raw = String(value || "")
+    .trim()
+    .toUpperCase();
+  if (!raw || raw === "—") return null;
+
+  // Numeric first
+  const asInt = Number.parseInt(raw, 10);
+  if (Number.isFinite(asInt) && String(asInt) === raw) return Math.max(2, Math.min(12, asInt));
+
+  // Pseudo-hex letter (A–F = 10–15, capped at 12)
+  if (TRAVELLER_PSEUDO_HEX.has(raw)) return Math.min(12, TRAVELLER_PSEUDO_HEX.get(raw));
+
+  // Descriptive strings — use representative mid-range numeric
+  switch (raw) {
+    case "NONE":
+      return 2;
+    case "SCARCE":
+      return 3;
+    case "SPARSE":
+      return 4;
+    case "MODERATE":
+      return 7;
+    case "GOOD":
+      return 9;
+    case "ABUNDANT":
+      return 11;
+    case "RICH":
+      return 12;
+    default:
+      return null;
+  }
+}
+
+const resourceHexCount = computed(() => {
+  const rating = parseResourceRatingToNumber(worldInfo.value.resourceRating);
+  if (rating === null) return 0;
+  const gg = typeof systemInfo.value.gasGiants === "number" ? systemInfo.value.gasGiants : 0;
+  const belts = typeof systemInfo.value.belts === "number" ? systemInfo.value.belts : 0;
+  return Math.max(0, rating - gg - belts);
+});
+
+const resourceHexesBySize = ref(new Map());
+
+const activeResourceHexEntries = computed(() => {
+  const mapForSize = resourceHexesBySize.value.get(activeTerrainTemplateSize.value);
+  if (!mapForSize) return [];
+  return Array.from(mapForSize.entries()).map(([key, data]) => ({ key, ...data }));
+});
+
+function placeResourceHexes(rng = Math.random) {
+  const count = resourceHexCount.value;
+  const cells = activeHexCells.value;
+  if (count === 0 || !cells.length) {
+    const nextBySize = new Map(resourceHexesBySize.value);
+    nextBySize.delete(activeTerrainTemplateSize.value);
+    resourceHexesBySize.value = nextBySize;
+    return;
+  }
+
+  // Group hex cells by triangle faceId
+  const byFace = new Map();
+  for (const cell of cells) {
+    const faceId = String(cell.faceId || "");
+    if (!faceId) continue;
+    if (!byFace.has(faceId)) byFace.set(faceId, []);
+    byFace.get(faceId).push(cell);
+  }
+
+  const faceIds = [...byFace.keys()];
+  if (!faceIds.length) return;
+
+  // Shuffle face order so distribution is unbiased
+  for (let i = faceIds.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [faceIds[i], faceIds[j]] = [faceIds[j], faceIds[i]];
+  }
+
+  const placed = new Map();
+  for (let i = 0; i < count; i++) {
+    const faceId = faceIds[i % faceIds.length];
+    const eligible = (byFace.get(faceId) || []).filter((c) => !placed.has(c.key));
+    if (!eligible.length) continue;
+    const pick = eligible[Math.floor(rng() * eligible.length)];
+    placed.set(pick.key, { points: pick.points, cx: pick.cx, cy: pick.cy });
+  }
+
+  const nextBySize = new Map(resourceHexesBySize.value);
+  nextBySize.set(activeTerrainTemplateSize.value, placed);
+  resourceHexesBySize.value = nextBySize;
+}
+
 function hashString(input) {
   let hash = 2166136261;
   for (let i = 0; i < input.length; i += 1) {
@@ -510,11 +836,112 @@ function clearWaterHexes() {
   waterHexesBySize.value = nextBySize;
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+const isAnimating = ref(false);
+const animationStepLabel = ref("");
+
+async function animateGeneration() {
+  const cells = activeHexCells.value;
+  if (!cells.length || isAnimating.value) return;
+
+  isAnimating.value = true;
+
+  // Step 1: clear everything so we start fresh
+  animationStepLabel.value = "Clearing…";
+  clearWaterHexes();
+  starterTriangleRoll.value = null;
+  starterHexPick.value = null;
+  const nextResource = new Map(resourceHexesBySize.value);
+  nextResource.delete(activeTerrainTemplateSize.value);
+  resourceHexesBySize.value = nextResource;
+  await sleep(400);
+
+  // Step 2: roll and show the starter triangle
+  animationStepLabel.value = "Rolling starter triangle…";
+  rollStarterTriangle();
+  await sleep(900);
+
+  // Step 3: pick and show the starter hex
+  animationStepLabel.value = "Picking starter hex…";
+  rollStarterHexInTriangle();
+  await sleep(900);
+
+  // Step 4: score all hexes exactly as generateTerrain does
+  animationStepLabel.value = "Scoring hexes…";
+  const starterFaceId = String(starterTriangleRoll.value?.resolvedFaceId || "").trim();
+  const starterHexKey = String(starterHexPick.value?.key || "").trim();
+  const targetCount = clamp(Math.round(cells.length * hydroTargetRatio.value), 0, cells.length);
+
+  if (targetCount === 0) {
+    isAnimating.value = false;
+    animationStepLabel.value = "";
+    return;
+  }
+
+  const ys = cells.map((c) => c.cy);
+  const minY = Math.min(...ys);
+  const maxY = Math.max(...ys);
+  const yRange = Math.max(1, maxY - minY);
+  const yMid = (minY + maxY) / 2;
+  const seed = hashString(
+    `${worldInfo.value.name}|${systemInfo.value.hex}|${activeTerrainTemplateSize.value}|${worldInfo.value.hydrographics}`,
+  );
+  const rand = mulberry32(seed);
+  const ranked = cells
+    .map((cell) => {
+      const latNorm = Math.abs(cell.cy - yMid) / (yRange / 2);
+      const equatorBias = 1 - clamp(latNorm, 0, 1);
+      const starterBias = starterFaceId && cell.faceId === starterFaceId ? 0.32 : 0;
+      const starterHexBias = starterHexKey && String(cell.key) === starterHexKey ? 0.25 : 0;
+      const score = rand() * 0.78 + equatorBias * 0.22 + starterBias + starterHexBias;
+      return { ...cell, score };
+    })
+    .sort((a, b) => b.score - a.score)
+    .slice(0, targetCount);
+  await sleep(400);
+
+  // Step 5: reveal water hexes in animated batches
+  const size = activeTerrainTemplateSize.value;
+  const batchSize = Math.max(1, Math.ceil(ranked.length / 20)); // ~20 frames total
+  const currentMap = new Map();
+
+  for (let i = 0; i < ranked.length; i += batchSize) {
+    const batch = ranked.slice(i, i + batchSize);
+    for (const cell of batch) currentMap.set(cell.key, cell.points);
+    const nextBySize = new Map(waterHexesBySize.value);
+    nextBySize.set(size, new Map(currentMap));
+    waterHexesBySize.value = nextBySize;
+    animationStepLabel.value = `Placing water ${Math.min(i + batchSize, ranked.length)} / ${ranked.length}…`;
+    await sleep(60);
+  }
+
+  // Step 6: place resource hexes
+  animationStepLabel.value = "Placing resource hexes…";
+  await sleep(500);
+  placeResourceHexes();
+  await sleep(400);
+
+  animationStepLabel.value = "";
+  isAnimating.value = false;
+}
+
 function generateTerrain() {
   const cells = activeHexCells.value;
   if (!cells.length) {
     return;
   }
+
+  if (!starterTriangleRoll.value?.resolvedFaceId) {
+    rollStarterTriangle();
+  }
+  const starterFaceId = String(starterTriangleRoll.value?.resolvedFaceId || "").trim();
+  if (!starterHexPick.value?.key) {
+    rollStarterHexInTriangle();
+  }
+  const starterHexKey = String(starterHexPick.value?.key || "").trim();
 
   const targetCount = clamp(Math.round(cells.length * hydroTargetRatio.value), 0, cells.length);
   if (targetCount === 0) {
@@ -537,7 +964,9 @@ function generateTerrain() {
     .map((cell) => {
       const latNorm = Math.abs(cell.cy - yMid) / (yRange / 2);
       const equatorBias = 1 - clamp(latNorm, 0, 1);
-      const score = rand() * 0.78 + equatorBias * 0.22;
+      const starterBias = starterFaceId && cell.faceId === starterFaceId ? 0.32 : 0;
+      const starterHexBias = starterHexKey && String(cell.key) === starterHexKey ? 0.25 : 0;
+      const score = rand() * 0.78 + equatorBias * 0.22 + starterBias + starterHexBias;
       return { ...cell, score };
     })
     .sort((a, b) => b.score - a.score)
@@ -546,6 +975,8 @@ function generateTerrain() {
   const nextBySize = new Map(waterHexesBySize.value);
   nextBySize.set(activeTerrainTemplateSize.value, new Map(ranked.map((cell) => [cell.key, cell.points])));
   waterHexesBySize.value = nextBySize;
+
+  placeResourceHexes();
 }
 
 function handleMapClick(event) {
@@ -716,6 +1147,21 @@ function handleMapClick(event) {
 .map-button-secondary {
   background: #fff;
   color: #111;
+}
+
+.map-button-accent {
+  background: #1a5c1a;
+  color: #fff;
+  border-color: #0e3b0e;
+}
+
+.map-button-accent:hover:not(:disabled) {
+  background: #0e3b0e;
+}
+
+.map-button-accent:disabled {
+  background: #5a8a5a;
+  border-color: #3a6a3a;
 }
 
 .map-controls-note {
