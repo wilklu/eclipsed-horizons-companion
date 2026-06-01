@@ -1,4 +1,5 @@
 import { classifyPlanetaryBody } from "../systemWorldClassification.js";
+import { buildBeltObjectDesignation, buildMoonDesignation, buildRingDesignation } from "../astroNaming.js";
 import { calculatePlanetaryOrbitalPeriod, fractionalOrbitToAu } from "./systemGenerationWbh.js";
 import { generateMainworldTerrainComposition } from "./mainworldMappingWbh.js";
 
@@ -384,37 +385,6 @@ const SURFACE_DISTRIBUTION_TABLE = Object.freeze([
   { code: 10, label: "Extremely Concentrated", majorShare: "95%+" },
 ]);
 const GAS_GIANT_SIZE_CLASS_CODES = Object.freeze(["GS", "GM", "GL"]);
-const CLOSE_MOON_PHONETIC_SUFFIXES = Object.freeze([
-  "Ay",
-  "Bee",
-  "Cee",
-  "Dee",
-  "Ee",
-  "Eff",
-  "Gee",
-  "Aitch",
-  "Eye",
-  "Jay",
-  "Kay",
-  "Ell",
-  "Em",
-]);
-
-const FAR_MOON_PHONETIC_SUFFIXES = Object.freeze([
-  "En",
-  "Oh",
-  "Pee",
-  "Que",
-  "Arr",
-  "Ess",
-  "Tee",
-  "Yu",
-  "Vee",
-  "Dub",
-  "Ex",
-  "Wye",
-  "Zee",
-]);
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
@@ -845,22 +815,15 @@ export function determineSignificantMoonQuantity({
   };
 }
 
-function resolveMoonOrdinal(index) {
-  const normalizedIndex = Math.max(0, Math.trunc(Number(index) || 0));
-  const ordinal = normalizedIndex + 1;
-  if (ordinal <= CLOSE_MOON_PHONETIC_SUFFIXES.length) {
-    return CLOSE_MOON_PHONETIC_SUFFIXES[ordinal - 1];
+function buildMoonName(parentName, index) {
+  const normalizedParent = String(parentName || "").trim() || "World";
+  const ordinal = Math.max(0, Math.trunc(Number(index) || 0)) + 1;
+
+  if (/^[A-Z]+$/.test(normalizedParent)) {
+    return buildBeltObjectDesignation(normalizedParent, ordinal);
   }
 
-  const farOrdinal = ordinal - CLOSE_MOON_PHONETIC_SUFFIXES.length;
-  const farIndex = (farOrdinal - 1) % FAR_MOON_PHONETIC_SUFFIXES.length;
-  const farCycle = Math.floor((farOrdinal - 1) / FAR_MOON_PHONETIC_SUFFIXES.length) + 1;
-  const base = FAR_MOON_PHONETIC_SUFFIXES[farIndex];
-  return farCycle > 1 ? `${base} ${farCycle}` : base;
-}
-
-function buildMoonName(parentName, index) {
-  return `${parentName} ${resolveMoonOrdinal(index)}`;
+  return buildMoonDesignation(normalizedParent, ordinal);
 }
 
 function resolveGasGiantSpecialMoonSize({ parentDiameterTerran, rollDie = createRandomRoller() } = {}) {
@@ -2112,6 +2075,7 @@ export function determineWorldMoons({
   }
 
   const moons = [];
+  let ringOrdinal = 1;
   const moonQuantity = determineSignificantMoonQuantity({
     sizeCode,
     orbitNumber,
@@ -2129,8 +2093,8 @@ export function determineWorldMoons({
   });
 
   sizeResults.forEach((sizeResult, index) => {
-    const name = buildMoonName(parentName, index);
     const isRing = sizeResult === "R";
+    const name = isRing ? buildRingDesignation(parentName, ringOrdinal++) : buildMoonName(parentName, index);
     const sizeCategory = isRing ? "R" : sizeResult;
     const worldProfile =
       !isRing && typeof moonProfileFactory === "function"
@@ -2150,7 +2114,7 @@ export function determineWorldMoons({
 
   if (moonQuantity.hasRingOnly) {
     moons.push({
-      name: `${parentName} ring`,
+      name: buildRingDesignation(parentName, ringOrdinal),
       type: "significant",
       size: "R",
       sizeCode: "R",
@@ -2165,10 +2129,11 @@ export function determineWorldMoons({
     ? Math.max(0, Math.round((Number(gasGiantProfile?.diameterTerran || 0) * 8) / 10))
     : Math.max(0, sizeCodeToNumeric(sizeCode));
   const minorCount = Math.max(0, Math.round(baseMinorCount / 4 + Math.floor(significantNonRingCount / 2)));
+  let minorOrdinal = sizeResults.length + 1;
   for (let index = 0; index < minorCount; index += 1) {
     const slot = moons.length + index + 1;
     moons.push({
-      name: `${parentName} ${slot}`,
+      name: buildMoonName(parentName, minorOrdinal++),
       type: "insignificant",
       size: clamp(Math.round((rollSingleDie(rollDie, 6) - 1) / 2), 0, 5),
       orbitalSlot: slot,

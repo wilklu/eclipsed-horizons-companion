@@ -211,8 +211,10 @@ function isSurveyStarRow(star) {
 
 function stripSystemNameFromStarDesignation(value) {
   const text = String(value || "").trim();
-  const match = text.match(/\b(Primus|Proximus|Proximum|Procul|Procol)\s+(Major|Minor)\s*$/i);
-  return match ? `${match[1]} ${match[2]}` : text;
+  const match = text.match(
+    /\b(Alpha|Beta|Gamma|Delta|Epsilon|Zeta|Eta|Theta|Iota|Kappa|Lambda|Mu|Nu|Xi|Omicron|Pi|Rho|Sigma|Tau|Upsilon|Phi|Chi|Psi|Omega|Primus|Proximus|Proximum|Procul|Procol)(?:\s+(Major|Minor))?\s*$/i,
+  );
+  return match ? `${match[1]}${match[2] ? ` ${match[2]}` : ""}` : text;
 }
 
 function parseSpectralClass(spectralClass) {

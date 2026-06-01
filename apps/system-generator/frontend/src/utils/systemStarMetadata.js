@@ -1,4 +1,5 @@
-import { resolveStarDescriptorToken } from "./starDisplay.js";
+﻿import { resolveStarDescriptorToken } from "./starDisplay.js";
+import { buildStarDesignation, stripSystemSuffix } from "./astroNaming.js";
 
 const SPECTRAL_TYPES = {
   O: { mass: 40, lum: 100000, temp: 40000 },
@@ -169,7 +170,9 @@ function extractSystemBaseNameFromDesignation(value) {
     return "";
   }
 
-  const designationMatch = text.match(/^(.*?)\s+(?:Primus|Proximus|Proximum|Procul|Procol)\s+(?:Major|Minor)\s*$/i);
+  const designationMatch = text.match(
+    /^(.*?)\s+(?:Alpha|Beta|Gamma|Delta|Epsilon|Zeta|Eta|Theta|Iota|Kappa|Lambda|Mu|Nu|Xi|Omicron|Pi|Rho|Sigma|Tau|Upsilon|Phi|Chi|Psi|Omega|Primus|Proximus|Proximum|Procul|Procol)(?:\s+(?:Major|Minor))?\s*$/i,
+  );
   return designationMatch?.[1] ? extractDirectSystemBaseName(designationMatch[1]) : "";
 }
 
@@ -223,51 +226,45 @@ function normalizeStarOrbitCategory(star = {}, index = 0) {
 }
 
 export function applySystemBasedStarDesignations(stars = [], system = {}) {
-  const baseName = typeof system === "string" ? extractSystemBaseName(system) : resolveSystemBaseName(system);
+  const baseName = typeof system === "string" ? extractDirectSystemBaseName(system) : resolveSystemBaseName(system);
   const starList = (Array.isArray(stars) ? stars : []).map((star) => ({ ...star }));
 
   if (!baseName || !starList.length) {
     return starList;
   }
 
-  const groups = new Map();
-  starList.forEach((star, index) => {
-    const category = normalizeStarOrbitCategory(star, index);
-    if (!groups.has(category)) {
-      groups.set(category, []);
+  const rankedEntries = starList
+    .map((star, index) => ({
+      index,
+      star,
+      mass: Number(star?.massInSolarMasses ?? star?.mass ?? 0),
+    }))
+    .sort((left, right) => {
+      const massDelta = (Number(right.mass) || 0) - (Number(left.mass) || 0);
+      if (massDelta !== 0) return massDelta;
+      return left.index - right.index;
+    });
+
+  const resolvedBaseName = stripSystemSuffix(baseName) || baseName;
+
+  rankedEntries.forEach((entry, rankIndex) => {
+    const alreadyNamed = [entry.star?.name, entry.star?.label, entry.star?.starKey, entry.star?.designation].some(
+      (value) => hasMeaningfulStarDesignation(value),
+    );
+    const isAnomalyStar = Boolean(entry.star?.isAnomaly || entry.star?.anomalyType);
+    if (alreadyNamed && !isAnomalyStar) {
+      return;
     }
-    groups.get(category).push({ index, star });
+
+    starList[entry.index] = {
+      ...starList[entry.index],
+      designation: buildStarDesignation({
+        systemName: resolvedBaseName,
+        starIndex: rankIndex,
+        totalStars: starList.length,
+      }),
+    };
   });
-
-  const prefixes = { primary: "Primus", close: "Proximus", near: "Proximum", far: "Procul" };
-
-  for (const [category, entries] of groups.entries()) {
-    let majorEntry = entries[0];
-    if (category === "primary") {
-      majorEntry = entries.find((entry) => entry.index === 0) || entries[0];
-    } else {
-      majorEntry = entries.reduce((best, current) => {
-        const bestMass = Number(best.star?.massInSolarMasses ?? best.star?.mass ?? 0);
-        const currentMass = Number(current.star?.massInSolarMasses ?? current.star?.mass ?? 0);
-        return currentMass > bestMass ? current : best;
-      }, entries[0]);
-    }
-
-    for (const entry of entries) {
-      const alreadyNamed = [entry.star?.name, entry.star?.label, entry.star?.starKey, entry.star?.designation].some(
-        (value) => hasMeaningfulStarDesignation(value),
-      );
-      if (alreadyNamed) {
-        continue;
-      }
-
-      const suffix = entry === majorEntry ? "Major" : "Minor";
-      starList[entry.index] = {
-        ...starList[entry.index],
-        designation: `${baseName} ${prefixes[category] || "Procul"} ${suffix}`.trim(),
-      };
-    }
-  }
 
   return starList;
 }

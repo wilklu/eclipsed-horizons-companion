@@ -57,7 +57,9 @@ function inferSystemNameFromPrimaryDesignation(...values) {
     const designation = String(value || "").trim();
     if (!designation) continue;
 
-    const match = designation.match(/^(.*?)\s+(?:Primus|Proximus|Proximum|Procul|Procol)\s+(?:Major|Minor)\s*$/i);
+    const match = designation.match(
+      /^(.*?)\s+(?:Alpha|Beta|Gamma|Delta|Epsilon|Zeta|Eta|Theta|Iota|Kappa|Lambda|Mu|Nu|Xi|Omicron|Pi|Rho|Sigma|Tau|Upsilon|Phi|Chi|Psi|Omega|Primus|Proximus|Proximum|Procul|Procol)(?:\s+(?:Major|Minor))?\s*$/i,
+    );
     if (match?.[1]) {
       return ensureSystemSuffixLabel(match[1]);
     }

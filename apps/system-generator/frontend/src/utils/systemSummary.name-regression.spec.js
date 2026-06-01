@@ -33,7 +33,7 @@ describe("systemSummary naming regressions", () => {
         },
         fallbackHex: "0101",
       }),
-    ).toBe("Aster System · Aster Primus Major");
+    ).toBe("Aster System · Aster");
   });
 
   it("exposes the saved system name in stellar hex summaries for Sector Survey cards", () => {
@@ -127,7 +127,7 @@ describe("systemSummary naming regressions", () => {
         },
         fallbackHex: "0101",
       }),
-    ).toBe("Aster System · Aster Primus Major");
+    ).toBe("Aster System · Aster Alpha");
   });
 
   it("builds system-based stellar labels from the saved system name when stars only have generic placeholders", () => {
@@ -143,7 +143,7 @@ describe("systemSummary naming regressions", () => {
         },
         fallbackHex: "0101",
       }),
-    ).toBe("Aster System · Aster Primus Major");
+    ).toBe("Aster System · Aster Alpha");
   });
 
   it("preserves named stellar designations for preview cards", () => {

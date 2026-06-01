@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildHexStarTypeMetadata,
+  applySystemBasedStarDesignations,
   normalizeHexStarTypeRecord,
   normalizeHexStarTypesMap,
   resolveGeneratedStarsFromHex,
@@ -71,23 +72,23 @@ describe("systemStarMetadata", () => {
 
   it("prefers persisted designation names over raw spectral codes when summarizing generated stars", () => {
     const summary = summarizeGeneratedStars([
-      { designation: "Aster Primus Major", spectralClass: "G2 V" },
-      { designation: "Aster Proximus Major", spectralClass: "K7 V" },
-      { designation: "Aster Procul Minor", spectralClass: "M4 V" },
+      { designation: "Aster Alpha", spectralClass: "G2 V" },
+      { designation: "Aster Beta", spectralClass: "K7 V" },
+      { designation: "Aster Gamma", spectralClass: "M4 V" },
     ]);
 
-    expect(summary.primaryDesignation).toBe("Aster Primus Major");
-    expect(summary.secondaryStars).toEqual(["Aster Proximus Major", "Aster Procul Minor"]);
+    expect(summary.primaryDesignation).toBe("Aster Alpha");
+    expect(summary.secondaryStars).toEqual(["Aster Beta", "Aster Gamma"]);
   });
 
   it("prefers legacy starKey designation names over generic spectral-code placeholders", () => {
     const summary = summarizeGeneratedStars([
-      { designation: "G2 V", starKey: "Aster Primus Major", spectralClass: "G2 V" },
-      { designation: "K7 V", starKey: "Aster Proximus Major", spectralClass: "K7 V" },
+      { designation: "G2 V", starKey: "Aster Alpha", spectralClass: "G2 V" },
+      { designation: "K7 V", starKey: "Aster Beta", spectralClass: "K7 V" },
     ]);
 
-    expect(summary.primaryDesignation).toBe("Aster Primus Major");
-    expect(summary.secondaryStars).toEqual(["Aster Proximus Major"]);
+    expect(summary.primaryDesignation).toBe("Aster Alpha");
+    expect(summary.secondaryStars).toEqual(["Aster Beta"]);
   });
 
   it("ignores generic Star-0 placeholder keys when no saved designation exists", () => {
@@ -100,7 +101,7 @@ describe("systemStarMetadata", () => {
     expect(summary.secondaryStars).toEqual(["K7 V"]);
   });
 
-  it("derives system-based Primus and Proximus designations when saved stars only have generic labels", () => {
+  it("derives system-based Alpha and Beta designations when saved stars only have generic labels", () => {
     const stars = resolveGeneratedStarsFromSystem({
       name: "Aster System",
       stars: [
@@ -110,11 +111,11 @@ describe("systemStarMetadata", () => {
     });
     const summary = summarizeGeneratedStars(stars);
 
-    expect(summary.primaryDesignation).toBe("Aster Primus Major");
-    expect(summary.secondaryStars).toEqual(["Aster Proximus Major"]);
+    expect(summary.primaryDesignation).toBe("Aster Alpha");
+    expect(summary.secondaryStars).toEqual(["Aster Beta"]);
   });
 
-  it("derives system-based Primus and Proximus designations when saved stars only have generic labels", () => {
+  it("derives system-based Alpha and Beta designations when saved stars only have generic labels", () => {
     const stars = resolveGeneratedStarsFromSystem({
       name: "Aster System",
       stars: [
@@ -124,8 +125,8 @@ describe("systemStarMetadata", () => {
     });
     const summary = summarizeGeneratedStars(stars);
 
-    expect(summary.primaryDesignation).toBe("Aster Primus Major");
-    expect(summary.secondaryStars).toEqual(["Aster Proximus Major"]);
+    expect(summary.primaryDesignation).toBe("Aster Alpha");
+    expect(summary.secondaryStars).toEqual(["Aster Beta"]);
   });
 
   it("preserves anomaly labels in hex star metadata while keeping rich anomaly stars", () => {
@@ -138,6 +139,22 @@ describe("systemStarMetadata", () => {
     expect(metadata.starType).toBe("Black Hole");
     expect(metadata.generatedStars[0].designation).toBe("BH");
     expect(metadata.secondaryStars).toEqual(["K7 V"]);
+  });
+
+  it("applies system-based designations to anomaly stars when a saved system name exists", () => {
+    const stars = applySystemBasedStarDesignations(
+      [
+        {
+          designation: "BH",
+          spectralClass: "Black Hole",
+          anomalyType: "Black Hole",
+          isAnomaly: true,
+        },
+      ],
+      "Aster System",
+    );
+
+    expect(stars[0].designation).toBe("Aster");
   });
 
   it("normalizes legacy hex star records into canonical generated-star metadata", () => {

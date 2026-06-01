@@ -229,7 +229,7 @@ describe("StarSystemBuilder page", () => {
       galaxyId: "gal-1",
       stars: [
         {
-          designation: "Aster Primus Major",
+          designation: "Aster Alpha",
           spectralClass: "G2V",
           massInSolarMasses: 1,
           luminosity: 1,
@@ -500,7 +500,7 @@ describe("StarSystemBuilder page", () => {
       stars: [
         {
           designation: "",
-          starKey: "Aster Primus Major",
+          starKey: "Aster Alpha",
           typeSubtype: "G2 V",
           massInSolarMasses: 1,
           luminosity: 1,
@@ -533,7 +533,7 @@ describe("StarSystemBuilder page", () => {
     await flushPromises();
 
     expect(wrapper.text()).toContain("Aster System");
-    expect(wrapper.text()).toContain("Aster Primus Major");
+    expect(wrapper.text()).toContain("Aster Alpha");
   });
 
   it("shows saved legacy starKey names even when designation is only a spectral placeholder", async () => {
@@ -549,7 +549,7 @@ describe("StarSystemBuilder page", () => {
       stars: [
         {
           designation: "G2 V",
-          starKey: "Aster Primus Major",
+          starKey: "Aster Alpha",
           spectralClass: "G2 V",
           massInSolarMasses: 1,
           luminosity: 1,
@@ -581,7 +581,7 @@ describe("StarSystemBuilder page", () => {
 
     await flushPromises();
 
-    expect(wrapper.text()).toContain("Aster Primus Major");
+    expect(wrapper.text()).toContain("Aster Alpha");
   });
 
   it("does not fall back to hex names or Star-0 placeholders for legacy saved surveys", async () => {
@@ -597,7 +597,7 @@ describe("StarSystemBuilder page", () => {
       name: "0101",
       stars: [
         {
-          designation: "Aster Primus Major",
+          designation: "Aster Alpha",
           starKey: "Star-0",
           spectralClass: "G2 V",
           massInSolarMasses: 1,
@@ -633,11 +633,11 @@ describe("StarSystemBuilder page", () => {
     await flushPromises();
 
     expect(wrapper.text()).toContain("Aster System");
-    expect(wrapper.text()).toContain("Aster Primus Major");
+    expect(wrapper.text()).toContain("Aster Alpha");
     expect(wrapper.text()).not.toContain("Star-0");
   });
 
-  it("uses the system name to build Primus and Proximus designations for generic saved stars", async () => {
+  it("uses the system name to build Alpha and Beta designations for generic saved stars", async () => {
     const autoNamedSystem = {
       systemId: "gal-1:1,2:0101",
       sectorId: "gal-1:1,2",
@@ -689,11 +689,11 @@ describe("StarSystemBuilder page", () => {
 
     await flushPromises();
 
-    expect(wrapper.text()).toContain("Aster Primus Major");
-    expect(wrapper.text()).toContain("Aster Proximus Major");
+    expect(wrapper.text()).toContain("Aster Alpha");
+    expect(wrapper.text()).toContain("Aster Beta");
   });
 
-  it("uses the system name to build Primus and Proximus designations for generic saved stars", async () => {
+  it("uses the system name to build Alpha and Beta designations for generic saved stars", async () => {
     const autoNamedSystem = {
       systemId: "gal-1:1,2:0101",
       sectorId: "gal-1:1,2",
@@ -745,8 +745,8 @@ describe("StarSystemBuilder page", () => {
 
     await flushPromises();
 
-    expect(wrapper.text()).toContain("Aster Primus Major");
-    expect(wrapper.text()).toContain("Aster Proximus Major");
+    expect(wrapper.text()).toContain("Aster Alpha");
+    expect(wrapper.text()).toContain("Aster Beta");
   });
 
   it("renders clickable planet markers on the habitable-zone bar", async () => {
@@ -799,7 +799,8 @@ describe("StarSystemBuilder page", () => {
     await markers[2].trigger("click");
     await flushPromises();
 
-    expect(wrapper.text()).toContain("Selected world: Outer · Terrestrial Planet · cold");
+    expect(wrapper.text()).toContain("Click a planet marker to select it.");
+    expect(wrapper.text()).toContain("OuterTerrestrial Planet");
   });
 
   it("shows the quick action controls above the Planetary Catalog", async () => {
@@ -841,10 +842,11 @@ describe("StarSystemBuilder page", () => {
 
     await flushPromises();
 
-    const pageHtml = wrapper.html();
-    expect(pageHtml.indexOf("Selected world:")).toBeGreaterThan(-1);
-    expect(pageHtml.indexOf("Open System Survey")).toBeLessThan(pageHtml.indexOf("🪐 Planetary Catalog"));
-    expect(pageHtml.indexOf("Build Selected World")).toBeLessThan(pageHtml.indexOf("🪐 Planetary Catalog"));
+    const pageText = wrapper.text();
+    expect(pageText.indexOf("Open System Survey")).toBeGreaterThan(-1);
+    expect(pageText.indexOf("Build Selected World")).toBeGreaterThan(-1);
+    expect(pageText.indexOf("Open System Survey")).toBeLessThan(pageText.indexOf("Planetary Catalog"));
+    expect(pageText.indexOf("Build Selected World")).toBeLessThan(pageText.indexOf("Planetary Catalog"));
   });
 
   it("renders the Planetary Catalog from the closest orbit to the farthest", async () => {

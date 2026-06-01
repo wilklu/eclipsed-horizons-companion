@@ -171,7 +171,7 @@ describe("systemSummary", () => {
         },
         fallbackHex: "0101",
       }),
-    ).toBe("Aramis · Aramis Primus Major");
+    ).toBe("Aramis · Aramis");
 
     expect(
       buildSystemSummaryLabel({

@@ -319,6 +319,7 @@ import {
 } from "../../utils/speechSynthesis.js";
 import { generatePrimaryStar } from "../../utils/primaryStarGenerator.js";
 import {
+  applySystemBasedStarDesignations,
   buildHexStarTypeMetadata,
   resolveGeneratedStarsFromSystem,
   resolvePreferredStarLabel,
@@ -331,9 +332,9 @@ import {
   sortSystemPlanetsByOrbit,
 } from "../../utils/systemWorldGeneration.js";
 import { starDescriptorToCssClass } from "../../utils/starDisplay.js";
+import { buildBeltDesignation, buildPlanetDesignation } from "../../utils/astroNaming.js";
 import { inferSystemNameFromSystemRecord } from "../../utils/systemSummary.js";
 import { formatTemperatureFromKelvin } from "../../utils/temperatureFormatting.js";
-import { toRomanNumeral } from "../../utils/worldProfileGenerator.js";
 import { generateMultipleStarSystemWbh } from "../../utils/wbh/starGenerationWbh.js";
 
 const props = defineProps({
@@ -1263,6 +1264,41 @@ const hzPlanetMarkers = computed(() => {
   });
 });
 
+function buildCreatePlanetName(nextSystemName, stars = []) {
+  let beltOrdinal = 0;
+  const orbitByGroup = new Map();
+  const groupSequence = [];
+
+  return ({ body, index, type }) => {
+    if (type === "Planetoid Belt") {
+      beltOrdinal += 1;
+      return buildBeltDesignation(beltOrdinal);
+    }
+
+    const groupKey =
+      String(body?.groupKey || body?.orbitType || "primary")
+        .trim()
+        .toLowerCase() || "primary";
+    if (!orbitByGroup.has(groupKey)) {
+      orbitByGroup.set(groupKey, 0);
+      groupSequence.push(groupKey);
+    }
+
+    const nextOrbitIndex = orbitByGroup.get(groupKey) ?? 0;
+    orbitByGroup.set(groupKey, nextOrbitIndex + 1);
+
+    const totalStars = Array.isArray(stars) ? stars.length : 1;
+    const hostStarOrdinal = totalStars <= 1 ? 1 : groupSequence.indexOf(groupKey) + 1;
+
+    return buildPlanetDesignation({
+      systemName: nextSystemName,
+      orbitIndex: nextOrbitIndex,
+      totalStars,
+      hostStarOrdinal,
+    });
+  };
+}
+
 // ── Actions ───────────────────────────────────────────────────────────────────
 async function buildSystem() {
   const requestedPrimary = normalizePrimarySelection(primarySpectral.value);
@@ -1300,82 +1336,20 @@ async function buildSystem() {
   );
   systemName.value = nextSystemName;
 
-  // Assign system-based designations using the system name.
-  // Naming rules: Primary => Primus Major / Primus Minor for companions; Close => Proximus Major/Minor;
-  // Near => Proximum Major/Minor; Far => Procul Major / Procol Minor.
-  (function applySystemStarDesignations() {
-    const baseName = String(nextSystemName)
-      .replace(/\s+System$/i, "")
-      .trim();
+  const resolvedStars = applySystemBasedStarDesignations(stars, nextSystemName);
 
-    const groups = {};
-    stars.forEach((star, idx) => {
-      let cat =
-        idx === 0
-          ? "primary"
-          : String(star.orbitType || "far")
-              .trim()
-              .toLowerCase();
-      if (cat === "distant") cat = "far";
-      if (!["primary", "close", "near", "far"].includes(cat)) cat = "far";
-      if (!groups[cat]) groups[cat] = [];
-      groups[cat].push({ idx, star });
-    });
-
-    const majorPrefix = { primary: "Primus", close: "Proximus", near: "Proximum", far: "Procul" };
-    const minorPrefix = { primary: "Primus", close: "Proximus", near: "Proximum", far: "Procul" };
-
-    Object.keys(groups).forEach((cat) => {
-      const list = groups[cat];
-
-      // pick the most massive member as Major; for primary prefer index 0
-      let majorEntry = list[0];
-      if (cat === "primary") {
-        majorEntry = list.find((e) => e.idx === 0) || list[0];
-      } else {
-        majorEntry = list.reduce((best, cur) => {
-          const bestMass = Number(best.star?.massInSolarMasses ?? best.star?.mass ?? 0);
-          const curMass = Number(cur.star?.massInSolarMasses ?? cur.star?.mass ?? 0);
-          return curMass > bestMass ? cur : best;
-        }, list[0]);
-      }
-
-      list.forEach((entry) => {
-        const isMajor = entry === majorEntry;
-        const prefix = isMajor ? majorPrefix[cat] : minorPrefix[cat];
-        const suffix = isMajor ? "Major" : "Minor";
-        const designation = `${baseName} ${prefix} ${suffix}`.trim();
-        stars[entry.idx].designation = designation;
-      });
-    });
-  })();
-
-  const hz = calculateSystemHabitableZone(stars);
+  const hz = calculateSystemHabitableZone(resolvedStars);
   const planets = sortSystemPlanetsByOrbit(
     buildProfiledWbhSystemPlanets({
-      stars,
+      stars: resolvedStars,
       habitableZone: hz,
-      createPlanetName: ({ type, index }) =>
-        type === "Planetoid Belt"
-          ? generateObjectName({
-              mode: String(preferencesStore.asteroidBeltNameMode || "phonotactic")
-                .trim()
-                .toLowerCase(),
-              objectType: "asteroid-belt",
-              mythicTheme: String(preferencesStore.galaxyMythicTheme || "all")
-                .trim()
-                .toLowerCase(),
-              lineageSeed: `${props.sectorId || "sector"}:${nextSystemName}`,
-              seed: `${props.sectorId || "sector"}:${hexCoord.value || "0000"}:belt:${index}`,
-              parentName: nextSystemName,
-            })
-          : `${nextSystemName} ${toRomanNumeral(index + 1)}`,
+      createPlanetName: buildCreatePlanetName(nextSystemName, resolvedStars),
     }),
   );
 
   const nextSystem = {
     systemId: hexCoord.value || "0000",
-    stars,
+    stars: resolvedStars,
     habitableZone: hz,
     planets,
     name: nextSystemName,
@@ -1439,7 +1413,10 @@ async function generateWorlds() {
   const existingStars = resolveGeneratedStarsFromSystem(system.value);
   if (!existingStars.length) return;
 
-  const stars = existingStars.map((star) => ({ ...star }));
+  const stars = applySystemBasedStarDesignations(
+    existingStars.map((star) => ({ ...star })),
+    String(systemName.value || system.value?.name || "").trim() || generateSystemName(),
+  );
   const nextSystemName = ensureSystemSuffix(
     String(systemName.value || system.value?.name || "").trim() || generateSystemName(),
   );
@@ -1449,21 +1426,7 @@ async function generateWorlds() {
     buildProfiledWbhSystemPlanets({
       stars,
       habitableZone: hz,
-      createPlanetName: ({ type, index }) =>
-        type === "Planetoid Belt"
-          ? generateObjectName({
-              mode: String(preferencesStore.asteroidBeltNameMode || "phonotactic")
-                .trim()
-                .toLowerCase(),
-              objectType: "asteroid-belt",
-              mythicTheme: String(preferencesStore.galaxyMythicTheme || "all")
-                .trim()
-                .toLowerCase(),
-              lineageSeed: `${props.sectorId || "sector"}:${nextSystemName}`,
-              seed: `${props.sectorId || "sector"}:${hexCoord.value || "0000"}:belt:${index}`,
-              parentName: nextSystemName,
-            })
-          : `${nextSystemName} ${toRomanNumeral(index + 1)}`,
+      createPlanetName: buildCreatePlanetName(nextSystemName, stars),
     }),
   );
 

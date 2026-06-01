@@ -447,6 +447,7 @@
               hovered: star.key === hoveredHexKey,
             }"
             @click.stop="onStarClick(star)"
+            @dblclick.stop="openStarSystem"
             @mouseenter="hoveredHexKey = star.key"
             @mouseleave="hoveredHexKey = null"
           >
@@ -631,28 +632,86 @@
         <button class="inspector-close" @click="clearSelection">✕</button>
 
         <!-- Sector card -->
-        <div v-if="inspectorMode === 'sector'" class="inspector-content">
-          <h2 class="inspector-title">{{ inspectorData.name }}</h2>
-          <div class="inspector-subtitle">Galaxy {{ inspectorData.galaxyName }}</div>
-          <div class="inspector-badge">Sector {{ inspectorData.coords }}</div>
-          <p v-if="inspectorData.activeHeatFilterSummary" class="inspector-note inspector-note--compact">
-            {{ inspectorData.activeHeatFilterSummary }}
-          </p>
-          <div class="inspector-actions">
-            <button class="btn btn-primary" @click="focusSectorFromInspector">🔍 Zoom to Sector</button>
-            <button class="btn btn-primary" @click="openSectorSurvey">🧭 Sector Survey</button>
-            <button class="btn btn-secondary" @click="openSubsectorSurvey">🧭 Subsector Survey</button>
-          </div>
-          <div class="inspector-generation-panel">
-            <div class="inspector-generation-row">
-              <div class="inspector-field">
-                <label class="inspector-field-label">Area</label>
-                <select v-model="atlasGenerationArea" class="inspector-select">
-                  <option v-for="option in atlasGenerationAreaOptions" :key="option.id" :value="option.id">
-                    {{ option.label }}
-                  </option>
-                </select>
+        <div v-if="inspectorMode === 'sector'" class="inspector-content inspector-content--split">
+          <section class="inspector-nav-panel">
+            <h2 class="inspector-title">{{ inspectorData.name }}</h2>
+            <div class="inspector-subtitle">Galaxy {{ inspectorData.galaxyName }}</div>
+            <div class="inspector-badge">Sector {{ inspectorData.coords }}</div>
+            <p v-if="inspectorData.activeHeatFilterSummary" class="inspector-note inspector-note--compact">
+              {{ inspectorData.activeHeatFilterSummary }}
+            </p>
+            <div class="inspector-actions">
+              <button class="btn btn-primary" @click="focusSectorFromInspector">🔍 Zoom to Sector</button>
+              <button class="btn btn-primary" @click="openSectorSurvey">🧭 Sector Survey</button>
+              <button class="btn btn-secondary" @click="openSubsectorSurvey">🧭 Subsector Survey</button>
+            </div>
+            <div class="inspector-generation-panel">
+              <div class="inspector-generation-row">
+                <div class="inspector-field">
+                  <label class="inspector-field-label">Area</label>
+                  <select v-model="atlasGenerationArea" class="inspector-select">
+                    <option v-for="option in atlasGenerationAreaOptions" :key="option.id" :value="option.id">
+                      {{ option.label }}
+                    </option>
+                  </select>
+                </div>
+                <div class="inspector-field">
+                  <label class="inspector-field-label">Generate</label>
+                  <select v-model="atlasGenerationMode" class="inspector-select">
+                    <option v-for="option in atlasGenerationModeOptions" :key="option.id" :value="option.id">
+                      {{ option.label }}
+                    </option>
+                  </select>
+                </div>
               </div>
+              <div class="inspector-field-help">{{ atlasGenerationAction.description }}</div>
+              <div class="inspector-tier-policy" :class="`inspector-tier-policy--${atlasGenerationPolicyBadge.tier}`">
+                <span class="inspector-tier-policy__tier">{{ atlasGenerationPolicyBadge.tierLabel }}</span>
+                <span class="inspector-tier-policy__rule">{{ atlasGenerationPolicyBadge.rule }}</span>
+                <span class="inspector-tier-policy__mode">{{ atlasGenerationPolicyBadge.modeLabel }}</span>
+              </div>
+              <button
+                class="btn btn-primary"
+                :disabled="isGeneratingInspectorSector"
+                @click="runInspectorGenerationAction"
+              >
+                {{ isGeneratingInspectorSector ? "Generating..." : atlasGenerationAction.label }}
+              </button>
+            </div>
+          </section>
+          <section class="inspector-info-panel">
+            <div class="detail-grid">
+              <div class="dr">
+                <span class="dl">Density</span><span class="dv">{{ inspectorData.densityLabel }}</span>
+              </div>
+              <div class="dr">
+                <span class="dl">Systems</span><span class="dv">{{ inspectorData.systemCount }}</span>
+              </div>
+              <div class="dr">
+                <span class="dl">Status</span><span class="dv">{{ inspectorData.status }}</span>
+              </div>
+              <div v-if="inspectorData.legacyReconstructedCount" class="dr">
+                <span class="dl">Legacy Trees</span><span class="dv">{{ inspectorData.legacyReconstructedCount }}</span>
+              </div>
+              <div v-if="inspectorData.legacyHierarchyUnknownCount" class="dr">
+                <span class="dl">Inferred Links</span
+                ><span class="dv">{{ inspectorData.legacyHierarchyUnknownCount }}</span>
+              </div>
+              <div v-if="inspectorData.politicalHeatLabel" class="dr">
+                <span class="dl">Political Heat</span><span class="dv">{{ inspectorData.politicalHeatLabel }}</span>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div v-else-if="inspectorMode === 'hierarchy'" class="inspector-content inspector-content--split">
+          <section class="inspector-nav-panel">
+            <h2 class="inspector-title">{{ inspectorData.name }}</h2>
+            <div class="inspector-badge">{{ inspectorData.coords }}</div>
+            <div class="inspector-actions">
+              <button class="btn btn-primary" @click="focusHierarchyInspector">🔍 Zoom to Area</button>
+            </div>
+            <div class="inspector-generation-panel">
               <div class="inspector-field">
                 <label class="inspector-field-label">Generate</label>
                 <select v-model="atlasGenerationMode" class="inspector-select">
@@ -661,625 +720,329 @@
                   </option>
                 </select>
               </div>
+              <div class="inspector-field-help">{{ hierarchyGenerationAction.description }}</div>
+              <div
+                class="inspector-tier-policy"
+                :class="`inspector-tier-policy--${hierarchyGenerationPolicyBadge.tier}`"
+              >
+                <span class="inspector-tier-policy__tier">{{ hierarchyGenerationPolicyBadge.tierLabel }}</span>
+                <span class="inspector-tier-policy__rule">{{ hierarchyGenerationPolicyBadge.rule }}</span>
+                <span class="inspector-tier-policy__mode">{{ hierarchyGenerationPolicyBadge.modeLabel }}</span>
+              </div>
+              <button
+                class="btn btn-primary"
+                :disabled="isGeneratingInspectorSector"
+                @click="runHierarchyGenerationAction"
+              >
+                {{ isGeneratingInspectorSector ? "Generating..." : hierarchyGenerationAction.label }}
+              </button>
             </div>
-            <div class="inspector-field-help">{{ atlasGenerationAction.description }}</div>
-            <div class="inspector-tier-policy" :class="`inspector-tier-policy--${atlasGenerationPolicyBadge.tier}`">
-              <span class="inspector-tier-policy__tier">{{ atlasGenerationPolicyBadge.tierLabel }}</span>
-              <span class="inspector-tier-policy__rule">{{ atlasGenerationPolicyBadge.rule }}</span>
-              <span class="inspector-tier-policy__mode">{{ atlasGenerationPolicyBadge.modeLabel }}</span>
+          </section>
+          <section class="inspector-info-panel">
+            <div class="detail-grid">
+              <div class="dr">
+                <span class="dl">Area Type</span><span class="dv">{{ inspectorData.areaType }}</span>
+              </div>
+              <div class="dr">
+                <span class="dl">Sector Span</span><span class="dv">{{ inspectorData.areaSpan }}</span>
+              </div>
             </div>
-            <button
-              class="btn btn-primary"
-              :disabled="isGeneratingInspectorSector"
-              @click="runInspectorGenerationAction"
-            >
-              {{ isGeneratingInspectorSector ? "Generating..." : atlasGenerationAction.label }}
-            </button>
-          </div>
-          <div class="detail-grid">
-            <div class="dr">
-              <span class="dl">Density</span><span class="dv">{{ inspectorData.densityLabel }}</span>
-            </div>
-            <div class="dr">
-              <span class="dl">Systems</span><span class="dv">{{ inspectorData.systemCount }}</span>
-            </div>
-            <div class="dr">
-              <span class="dl">Status</span><span class="dv">{{ inspectorData.status }}</span>
-            </div>
-            <div v-if="inspectorData.legacyReconstructedCount" class="dr">
-              <span class="dl">Legacy Trees</span><span class="dv">{{ inspectorData.legacyReconstructedCount }}</span>
-            </div>
-            <div v-if="inspectorData.legacyHierarchyUnknownCount" class="dr">
-              <span class="dl">Inferred Links</span
-              ><span class="dv">{{ inspectorData.legacyHierarchyUnknownCount }}</span>
-            </div>
-            <div v-if="inspectorData.politicalHeatLabel" class="dr">
-              <span class="dl">Political Heat</span><span class="dv">{{ inspectorData.politicalHeatLabel }}</span>
-            </div>
-          </div>
-        </div>
-
-        <div v-else-if="inspectorMode === 'hierarchy'" class="inspector-content">
-          <h2 class="inspector-title">{{ inspectorData.name }}</h2>
-          <div class="inspector-badge">{{ inspectorData.coords }}</div>
-          <div class="inspector-actions">
-            <button class="btn btn-primary" @click="focusHierarchyInspector">🔍 Zoom to Area</button>
-          </div>
-          <div class="inspector-generation-panel">
-            <div class="inspector-field">
-              <label class="inspector-field-label">Generate</label>
-              <select v-model="atlasGenerationMode" class="inspector-select">
-                <option v-for="option in atlasGenerationModeOptions" :key="option.id" :value="option.id">
-                  {{ option.label }}
-                </option>
-              </select>
-            </div>
-            <div class="inspector-field-help">{{ hierarchyGenerationAction.description }}</div>
-            <div class="inspector-tier-policy" :class="`inspector-tier-policy--${hierarchyGenerationPolicyBadge.tier}`">
-              <span class="inspector-tier-policy__tier">{{ hierarchyGenerationPolicyBadge.tierLabel }}</span>
-              <span class="inspector-tier-policy__rule">{{ hierarchyGenerationPolicyBadge.rule }}</span>
-              <span class="inspector-tier-policy__mode">{{ hierarchyGenerationPolicyBadge.modeLabel }}</span>
-            </div>
-            <button
-              class="btn btn-primary"
-              :disabled="isGeneratingInspectorSector"
-              @click="runHierarchyGenerationAction"
-            >
-              {{ isGeneratingInspectorSector ? "Generating..." : hierarchyGenerationAction.label }}
-            </button>
-          </div>
-          <div class="detail-grid">
-            <div class="dr">
-              <span class="dl">Area Type</span><span class="dv">{{ inspectorData.areaType }}</span>
-            </div>
-            <div class="dr">
-              <span class="dl">Sector Span</span><span class="dv">{{ inspectorData.areaSpan }}</span>
-            </div>
-          </div>
+          </section>
         </div>
 
         <!-- Star / system card -->
-        <div v-else-if="inspectorMode === 'star'" class="inspector-content">
-          <h2 class="inspector-title">{{ inspectorData.name }}</h2>
-          <div class="inspector-badge">{{ inspectorData.coord }} · {{ inspectorData.sectorName }}</div>
+        <div v-else-if="inspectorMode === 'star'" class="inspector-content inspector-content--split">
+          <section class="inspector-nav-panel">
+            <h2 class="inspector-title">{{ inspectorData.name }}</h2>
+            <div class="inspector-badge">{{ inspectorData.coord }} · {{ inspectorData.sectorName }}</div>
 
-          <div class="star-inline">
-            <svg width="44" height="44" class="star-swatch" overflow="visible">
-              <circle
-                v-if="!inspectorData.presenceOnly"
-                cx="22"
-                cy="22"
-                :r="inspectorStarSvgR * inspectorStarProfile.haloScale"
-                :fill="starHaloFill(inspectorData)"
-                class="star-halo"
-              />
-              <line
-                v-for="(spoke, index) in inspectorData.presenceOnly
-                  ? []
-                  : buildStarSpikeSegments(22, 22, inspectorStarSvgR, inspectorStarProfile)"
-                :key="`inspector-spike-${index}`"
-                :x1="spoke.x1"
-                :y1="spoke.y1"
-                :x2="spoke.x2"
-                :y2="spoke.y2"
-                :stroke="spoke.stroke"
-                :stroke-opacity="spoke.opacity"
-                :stroke-width="spoke.width"
-                class="star-spike"
-              />
-              <circle
-                v-if="!inspectorData.presenceOnly && inspectorStarProfile.ring"
-                cx="22"
-                cy="22"
-                :r="inspectorStarSvgR * 1.7"
-                class="star-ring"
-              />
-              <circle
-                v-if="!inspectorData.presenceOnly"
-                cx="22"
-                cy="22"
-                :r="inspectorStarSvgR"
-                :fill="inspectorData.color"
-                filter="url(#softglow)"
-              />
-              <circle
-                v-else
-                cx="22"
-                cy="22"
-                :r="Math.max(3, inspectorStarSvgR - 1.5)"
-                fill="none"
-                stroke="#b8c0cc"
-                stroke-width="1.4"
-              />
-              <circle v-if="inspectorData.presenceOnly" cx="22" cy="22" r="1.5" fill="#8f98a6" opacity="0.9" />
-              <circle
-                v-if="!inspectorData.presenceOnly && inspectorData.hasSecondary"
-                :cx="22 + inspectorStarSvgR * 1.9"
-                :cy="22 - inspectorStarSvgR"
-                :r="inspectorStarSvgR * 0.55"
-                :fill="inspectorData.compColor"
-              />
-              <circle
-                v-if="!inspectorData.presenceOnly && inspectorData.hasSecondary"
-                cx="22"
-                cy="22"
-                :r="inspectorStarSvgR * 1.55"
-                class="star-companion-orbit"
-              />
-            </svg>
-            <div>
-              <div class="star-type-big">{{ inspectorData.starType }}</div>
-              <div class="star-class-chip-row">
-                <span class="star-class-chip">{{ inspectorStarProfile.label }}</span>
-                <span v-if="!inspectorData.presenceOnly" class="star-class-chip star-class-chip--accent">
-                  {{ inspectorStarProfile.token }} spectrum
-                </span>
-              </div>
-              <div v-if="inspectorData.hasSecondary" class="star-companion-hint">+ companion</div>
-            </div>
-          </div>
-
-          <div class="detail-grid detail-grid--system">
-            <div class="dr">
-              <span class="dl">Survey</span><span class="dv">{{ inspectorData.surveyStatus }}</span>
-            </div>
-            <div v-if="inspectorData.ecologyBadges?.length" class="dr">
-              <span class="dl">Ecology</span><span class="dv">{{ inspectorData.ecologyBadges.join(" ") }}</span>
-            </div>
-            <div class="dr">
-              <span class="dl">UWP</span><span class="dv dv--mono">{{ inspectorData.uwp }}</span>
-            </div>
-            <div class="dr">
-              <span class="dl">Starport</span><span class="dv">{{ inspectorData.starport }}</span>
-            </div>
-            <div class="dr">
-              <span class="dl">Gas Giants</span><span class="dv">{{ inspectorData.gasGiants }}</span>
-            </div>
-            <div class="dr">
-              <span class="dl">Bases</span
-              ><span class="dv">{{ inspectorData.bases?.length ? inspectorData.bases.join(", ") : "—" }}</span>
-            </div>
-            <div class="dr">
-              <span class="dl">Importance</span><span class="dv">{{ inspectorData.importance }}</span>
-            </div>
-            <div class="dr">
-              <span class="dl">Travel Zone</span><span class="dv">{{ inspectorData.travelZone }}</span>
-            </div>
-            <div class="dr">
-              <span class="dl">Corridor</span><span class="dv">{{ inspectorData.routeCorridorLabel || "—" }}</span>
-            </div>
-            <div class="dr">
-              <span class="dl">Minimum TL</span
-              ><span class="dv">{{ inspectorData.minimumSustainableTechLevel || "—" }}</span>
-            </div>
-            <div class="dr">
-              <span class="dl">Settlement</span
-              ><span class="dv">{{ inspectorData.populationConcentration || "—" }}</span>
-            </div>
-            <div class="dr">
-              <span class="dl">Urbanization</span><span class="dv">{{ inspectorData.urbanization || "—" }}</span>
-            </div>
-            <div class="dr">
-              <span class="dl">Major Cities</span><span class="dv">{{ inspectorData.majorCities || "—" }}</span>
-            </div>
-            <div class="dr">
-              <span class="dl">Government</span><span class="dv">{{ inspectorData.governmentProfile || "—" }}</span>
-            </div>
-            <div class="dr">
-              <span class="dl">Justice</span><span class="dv">{{ inspectorData.justiceProfile || "—" }}</span>
-            </div>
-            <div class="dr">
-              <span class="dl">Law</span><span class="dv">{{ inspectorData.lawProfile || "—" }}</span>
-            </div>
-            <div class="dr">
-              <span class="dl">Appeals</span><span class="dv">{{ inspectorData.appealProfile || "—" }}</span>
-            </div>
-            <div class="dr">
-              <span class="dl">Private Law</span><span class="dv">{{ inspectorData.privateLawProfile || "—" }}</span>
-            </div>
-            <div class="dr">
-              <span class="dl">Personal Rights</span
-              ><span class="dv">{{ inspectorData.personalRightsProfile || "—" }}</span>
-            </div>
-            <div class="dr">
-              <span class="dl">Secondary Worlds</span
-              ><span class="dv">{{ inspectorData.secondaryProfiles || "—" }}</span>
-            </div>
-            <div class="dr">
-              <span class="dl">Factions</span><span class="dv">{{ inspectorData.factionsProfile || "—" }}</span>
-            </div>
-            <div class="dr">
-              <span class="dl">Mainworld</span><span class="dv">{{ inspectorData.mainworldName || "—" }}</span>
-            </div>
-            <div class="dr">
-              <span class="dl">Mainworld Type</span><span class="dv">{{ inspectorData.mainworldType || "—" }}</span>
-            </div>
-            <div class="dr">
-              <span class="dl">Parent World</span><span class="dv">{{ inspectorData.mainworldParent || "—" }}</span>
-            </div>
-            <div class="dr">
-              <span class="dl">Habitability</span><span class="dv">{{ inspectorData.habitability }}</span>
-            </div>
-            <div class="dr">
-              <span class="dl">Resources</span><span class="dv">{{ inspectorData.resourceRating }}</span>
-            </div>
-          </div>
-
-          <div v-if="inspectorData.bases?.length" class="base-code-strip">
-            <span v-for="base in inspectorData.bases" :key="base" class="base-code-chip">{{ base }}</span>
-          </div>
-
-          <p v-if="inspectorData.routeCorridorDetail" class="inspector-note inspector-note--compact">
-            {{ inspectorData.routeCorridorDetail }}
-          </p>
-
-          <div
-            v-if="inspectorData.legacyReconstructed || inspectorData.legacyHierarchyUnknown"
-            class="legacy-code-strip"
-          >
-            <span v-if="inspectorData.legacyReconstructed" class="legacy-code-chip">Legacy Star Tree</span>
-            <span v-if="inspectorData.legacyHierarchyUnknown" class="legacy-code-chip">Hierarchy Inferred</span>
-          </div>
-
-          <div v-if="inspectorData.linkedEcologySignals?.length" class="trade-code-strip">
-            <span
-              v-for="signal in inspectorData.linkedEcologySignals"
-              :key="`${signal.kind}-${signal.scientificName}`"
-              class="trade-code-chip"
-            >
-              {{ signal.icon }} {{ signal.scientificName }}
-            </span>
-          </div>
-
-          <div v-if="inspectorData.tradeCodes?.length" class="trade-code-strip">
-            <span v-for="code in inspectorData.tradeCodes" :key="code" class="trade-code-chip">{{ code }}</span>
-          </div>
-          <p v-else-if="!inspectorData.hasSavedSystem" class="inspector-note">
-            Generate or save a system survey to populate UWP, starport, bases, importance, gas giants, and trade codes
-            here.
-          </p>
-          <p v-if="inspectorData.legacyReconstructed" class="inspector-note">
-            This system’s star hierarchy was reconstructed from older flat-label metadata. Companion ordering is
-            preserved, but original WBH hierarchy detail was not stored.
-          </p>
-          <p v-if="inspectorData.legacyHierarchyUnknown" class="inspector-note">
-            Legacy import data did not retain explicit hierarchy links, so near/far relationships were inferred during
-            normalization.
-          </p>
-          <p v-if="inspectorData.presenceOnly" class="inspector-note">
-            This marker is a detected stellar presence only. Atlas can show it as a known object, but it is not yet a
-            generated system survey.
-          </p>
-
-          <div class="atlas-key-panel">
-            <div class="atlas-key-title">Atlas Key</div>
-            <div class="atlas-key-grid">
-              <div class="atlas-key-row">
-                <span class="legend-route-sample legend-route-sample--major"></span>
-                <span class="atlas-key-copy">Major route</span>
-              </div>
-              <div class="atlas-key-row">
-                <span class="legend-route-sample legend-route-sample--pressure"></span>
-                <span class="atlas-key-copy">Faction pressure route</span>
-              </div>
-              <div class="atlas-key-row">
-                <span class="legend-route-sample legend-route-sample--hazard"></span>
-                <span class="atlas-key-copy">Hazard or interdicted route</span>
-              </div>
-              <div class="atlas-key-row">
-                <span class="legend-chip-sample legend-chip-sample--zone">A</span>
-                <span class="atlas-key-copy">Amber or red zone badge</span>
-              </div>
-              <div class="atlas-key-row">
-                <span class="legend-chip-sample legend-chip-sample--base">B2</span>
-                <span class="atlas-key-copy">Base count badge</span>
-              </div>
-              <div class="atlas-key-row">
-                <span class="legend-chip-sample legend-chip-sample--habitability">H6</span>
-                <span class="atlas-key-copy">Habitability badge</span>
-              </div>
-              <div class="atlas-key-row">
-                <span class="legend-polity-sample">
-                  <span class="legend-polity-staff"></span>
-                  <span class="legend-polity-banner">G</span>
-                  <span class="legend-polity-pips">
-                    <span></span>
-                    <span></span>
+            <div class="star-inline">
+              <svg width="44" height="44" class="star-swatch" overflow="visible">
+                <circle
+                  v-if="!inspectorData.presenceOnly"
+                  cx="22"
+                  cy="22"
+                  :r="inspectorStarSvgR * inspectorStarProfile.haloScale"
+                  :fill="starHaloFill(inspectorData)"
+                  class="star-halo"
+                />
+                <line
+                  v-for="(spoke, index) in inspectorData.presenceOnly
+                    ? []
+                    : buildStarSpikeSegments(22, 22, inspectorStarSvgR, inspectorStarProfile)"
+                  :key="`inspector-spike-${index}`"
+                  :x1="spoke.x1"
+                  :y1="spoke.y1"
+                  :x2="spoke.x2"
+                  :y2="spoke.y2"
+                  :stroke="spoke.stroke"
+                  :stroke-opacity="spoke.opacity"
+                  :stroke-width="spoke.width"
+                  class="star-spike"
+                />
+                <circle
+                  v-if="!inspectorData.presenceOnly && inspectorStarProfile.ring"
+                  cx="22"
+                  cy="22"
+                  :r="inspectorStarSvgR * 1.7"
+                  class="star-ring"
+                />
+                <circle
+                  v-if="!inspectorData.presenceOnly"
+                  cx="22"
+                  cy="22"
+                  :r="inspectorStarSvgR"
+                  :fill="inspectorData.color"
+                  filter="url(#softglow)"
+                />
+                <circle
+                  v-else
+                  cx="22"
+                  cy="22"
+                  :r="Math.max(3, inspectorStarSvgR - 1.5)"
+                  fill="none"
+                  stroke="#b8c0cc"
+                  stroke-width="1.4"
+                />
+                <circle v-if="inspectorData.presenceOnly" cx="22" cy="22" r="1.5" fill="#8f98a6" opacity="0.9" />
+                <circle
+                  v-if="!inspectorData.presenceOnly && inspectorData.hasSecondary"
+                  :cx="22 + inspectorStarSvgR * 1.9"
+                  :cy="22 - inspectorStarSvgR"
+                  :r="inspectorStarSvgR * 0.55"
+                  :fill="inspectorData.compColor"
+                />
+                <circle
+                  v-if="!inspectorData.presenceOnly && inspectorData.hasSecondary"
+                  cx="22"
+                  cy="22"
+                  :r="inspectorStarSvgR * 1.55"
+                  class="star-companion-orbit"
+                />
+              </svg>
+              <div>
+                <div class="star-type-big">{{ inspectorData.starType }}</div>
+                <div class="star-class-chip-row">
+                  <span class="star-class-chip">{{ inspectorStarProfile.label }}</span>
+                  <span v-if="!inspectorData.presenceOnly" class="star-class-chip star-class-chip--accent">
+                    {{ inspectorStarProfile.token }} spectrum
                   </span>
-                </span>
-                <span class="atlas-key-copy">Government pennant with faction pips</span>
+                </div>
+                <div v-if="inspectorData.hasSecondary" class="star-companion-hint">+ companion</div>
               </div>
             </div>
-          </div>
 
-          <!-- Orbital diagram -->
-          <div class="orbital-section">
-            <div class="orbital-header">
-              <span class="orbital-title">Orbital Map</span>
+            <div class="inspector-actions">
+              <button class="btn btn-primary" @click="openStarSystem">🪐 Star System</button>
+              <button class="btn btn-primary" @click="focusStarInspector">🔍 Zoom to Star</button>
+              <button class="btn btn-primary" :disabled="inspectorData.presenceOnly" @click="openOrbitalView">
+                🛰 Orbital View
+              </button>
+              <button class="btn btn-primary" @click="openSectorSurvey">🧭 Sector Survey</button>
+              <button class="btn btn-secondary" @click="openSubsectorSurvey">🧭 Subsector Survey</button>
             </div>
-            <svg class="orbital-svg" viewBox="-78 -78 156 156" overflow="visible">
-              <!-- Background -->
-              <rect x="-78" y="-78" width="156" height="156" fill="#060a1a" rx="6" />
-              <rect x="-78" y="-78" width="156" height="156" fill="url(#dustfield)" rx="6" opacity="0.35" />
-              <!-- Orbit rings -->
-              <ellipse
-                v-for="(orb, i) in inspectorOrbits"
-                :key="`ring-${i}`"
-                cx="0"
-                cy="0"
-                :rx="orb.rx"
-                :ry="orb.ry"
-                fill="none"
-                :stroke="orb.zoneColor"
-                stroke-width="0.7"
-                opacity="0.60"
-                stroke-dasharray="3 2"
-              />
-              <!-- Star glow + body -->
-              <circle cx="0" cy="0" :r="inspectorStarSvgR * 2.2" :fill="inspectorData.color" opacity="0.10" />
-              <circle cx="0" cy="0" :r="inspectorStarSvgR" :fill="inspectorData.color" filter="url(#orbitglow)" />
-              <!-- Planets -->
-              <g v-for="(orb, i) in inspectorOrbits" :key="`planet-${i}`">
-                <circle :cx="orb.px" :cy="orb.py" :r="orb.pr" :fill="orb.color" class="orbit-planet" />
-                <text :x="orb.px + orb.pr + 2" :y="orb.py + 3" class="orbit-label">{{ orb.label }}</text>
-              </g>
-            </svg>
-          </div>
 
-          <div class="inspector-actions">
-            <button class="btn btn-primary" @click="openSectorSurvey">🧭 Sector Survey</button>
-            <button class="btn btn-secondary" @click="openSubsectorSurvey">🧭 Subsector Survey</button>
-            <button
-              class="btn btn-primary"
-              :disabled="inspectorData.presenceOnly"
-              :title="inspectorData.presenceOnly ? 'Orbital View is only available after system survey generation' : ''"
-              @click="openOrbitalView"
-            >
-              🪐 Orbital View
-            </button>
-            <button class="btn btn-primary" @click="openStarSystem">⭐ System Survey</button>
-          </div>
-          <div class="inspector-generation-panel">
-            <div class="inspector-generation-row">
-              <div class="inspector-field">
-                <label class="inspector-field-label">Area</label>
-                <select v-model="atlasGenerationArea" class="inspector-select">
-                  <option v-for="option in atlasGenerationAreaOptions" :key="option.id" :value="option.id">
-                    {{ option.label }}
-                  </option>
-                </select>
+            <div class="inspector-generation-panel">
+              <div class="inspector-generation-row">
+                <div class="inspector-field">
+                  <label class="inspector-field-label">Area</label>
+                  <select v-model="atlasGenerationArea" class="inspector-select">
+                    <option v-for="option in atlasGenerationAreaOptions" :key="option.id" :value="option.id">
+                      {{ option.label }}
+                    </option>
+                  </select>
+                </div>
+                <div class="inspector-field">
+                  <label class="inspector-field-label">Generate</label>
+                  <select v-model="atlasGenerationMode" class="inspector-select">
+                    <option v-for="option in atlasGenerationModeOptions" :key="option.id" :value="option.id">
+                      {{ option.label }}
+                    </option>
+                  </select>
+                </div>
               </div>
-              <div class="inspector-field">
-                <label class="inspector-field-label">Generate</label>
-                <select v-model="atlasGenerationMode" class="inspector-select">
-                  <option v-for="option in atlasGenerationModeOptions" :key="option.id" :value="option.id">
-                    {{ option.label }}
-                  </option>
-                </select>
+              <div class="inspector-field-help">{{ atlasGenerationAction.description }}</div>
+              <div class="inspector-tier-policy" :class="`inspector-tier-policy--${atlasGenerationPolicyBadge.tier}`">
+                <span class="inspector-tier-policy__tier">{{ atlasGenerationPolicyBadge.tierLabel }}</span>
+                <span class="inspector-tier-policy__rule">{{ atlasGenerationPolicyBadge.rule }}</span>
+                <span class="inspector-tier-policy__mode">{{ atlasGenerationPolicyBadge.modeLabel }}</span>
+              </div>
+              <button
+                class="btn btn-primary"
+                :disabled="isGeneratingInspectorSector"
+                @click="runInspectorGenerationAction"
+              >
+                {{ isGeneratingInspectorSector ? "Generating..." : atlasGenerationAction.label }}
+              </button>
+            </div>
+          </section>
+
+          <section class="inspector-info-panel">
+            <div class="detail-grid detail-grid--system">
+              <div class="dr">
+                <span class="dl">Survey</span><span class="dv">{{ inspectorData.surveyStatus }}</span>
+              </div>
+              <div v-if="inspectorData.ecologyBadges?.length" class="dr">
+                <span class="dl">Ecology</span><span class="dv">{{ inspectorData.ecologyBadges.join(" ") }}</span>
+              </div>
+              <div class="dr">
+                <span class="dl">UWP</span><span class="dv dv--mono">{{ inspectorData.uwp }}</span>
+              </div>
+              <div class="dr">
+                <span class="dl">Starport</span><span class="dv">{{ inspectorData.starport }}</span>
+              </div>
+              <div class="dr">
+                <span class="dl">Gas Giants</span><span class="dv">{{ inspectorData.gasGiants }}</span>
+              </div>
+              <div class="dr">
+                <span class="dl">Bases</span
+                ><span class="dv">{{ inspectorData.bases?.length ? inspectorData.bases.join(", ") : "—" }}</span>
+              </div>
+              <div class="dr">
+                <span class="dl">Importance</span><span class="dv">{{ inspectorData.importance }}</span>
+              </div>
+              <div class="dr">
+                <span class="dl">Travel Zone</span><span class="dv">{{ inspectorData.travelZone }}</span>
+              </div>
+              <div class="dr">
+                <span class="dl">Corridor</span><span class="dv">{{ inspectorData.routeCorridorLabel || "—" }}</span>
+              </div>
+              <div class="dr">
+                <span class="dl">Minimum TL</span
+                ><span class="dv">{{ inspectorData.minimumSustainableTechLevel || "—" }}</span>
+              </div>
+              <div class="dr">
+                <span class="dl">Settlement</span
+                ><span class="dv">{{ inspectorData.populationConcentration || "—" }}</span>
+              </div>
+              <div class="dr">
+                <span class="dl">Urbanization</span><span class="dv">{{ inspectorData.urbanization || "—" }}</span>
+              </div>
+              <div class="dr">
+                <span class="dl">Major Cities</span><span class="dv">{{ inspectorData.majorCities || "—" }}</span>
+              </div>
+              <div class="dr">
+                <span class="dl">Government</span><span class="dv">{{ inspectorData.governmentProfile || "—" }}</span>
+              </div>
+              <div class="dr">
+                <span class="dl">Justice</span><span class="dv">{{ inspectorData.justiceProfile || "—" }}</span>
+              </div>
+              <div class="dr">
+                <span class="dl">Law</span><span class="dv">{{ inspectorData.lawProfile || "—" }}</span>
+              </div>
+              <div class="dr">
+                <span class="dl">Appeals</span><span class="dv">{{ inspectorData.appealProfile || "—" }}</span>
+              </div>
+              <div class="dr">
+                <span class="dl">Private Law</span><span class="dv">{{ inspectorData.privateLawProfile || "—" }}</span>
+              </div>
+              <div class="dr">
+                <span class="dl">Personal Rights</span
+                ><span class="dv">{{ inspectorData.personalRightsProfile || "—" }}</span>
+              </div>
+              <div class="dr">
+                <span class="dl">Secondary Worlds</span
+                ><span class="dv">{{ inspectorData.secondaryProfiles || "—" }}</span>
+              </div>
+              <div class="dr">
+                <span class="dl">Factions</span><span class="dv">{{ inspectorData.factionsProfile || "—" }}</span>
+              </div>
+              <div class="dr">
+                <span class="dl">Mainworld</span><span class="dv">{{ inspectorData.mainworldName || "—" }}</span>
+              </div>
+              <div class="dr">
+                <span class="dl">Mainworld Type</span><span class="dv">{{ inspectorData.mainworldType || "—" }}</span>
+              </div>
+              <div class="dr">
+                <span class="dl">Parent World</span><span class="dv">{{ inspectorData.mainworldParent || "—" }}</span>
+              </div>
+              <div class="dr">
+                <span class="dl">Habitability</span><span class="dv">{{ inspectorData.habitability }}</span>
+              </div>
+              <div class="dr">
+                <span class="dl">Resources</span><span class="dv">{{ inspectorData.resourceRating }}</span>
               </div>
             </div>
-            <div class="inspector-field-help">{{ atlasGenerationAction.description }}</div>
-            <div class="inspector-tier-policy" :class="`inspector-tier-policy--${atlasGenerationPolicyBadge.tier}`">
-              <span class="inspector-tier-policy__tier">{{ atlasGenerationPolicyBadge.tierLabel }}</span>
-              <span class="inspector-tier-policy__rule">{{ atlasGenerationPolicyBadge.rule }}</span>
-              <span class="inspector-tier-policy__mode">{{ atlasGenerationPolicyBadge.modeLabel }}</span>
+
+            <div v-if="inspectorData.bases?.length" class="base-code-strip">
+              <span v-for="base in inspectorData.bases" :key="base" class="base-code-chip">{{ base }}</span>
             </div>
-            <button
-              class="btn btn-primary"
-              :disabled="isGeneratingInspectorSector"
-              @click="runInspectorGenerationAction"
+
+            <p v-if="inspectorData.routeCorridorDetail" class="inspector-note inspector-note--compact">
+              {{ inspectorData.routeCorridorDetail }}
+            </p>
+
+            <div
+              v-if="inspectorData.legacyReconstructed || inspectorData.legacyHierarchyUnknown"
+              class="legacy-code-strip"
             >
-              {{ isGeneratingInspectorSector ? "Generating..." : atlasGenerationAction.label }}
-            </button>
-          </div>
+              <span v-if="inspectorData.legacyReconstructed" class="legacy-code-chip">Legacy Star Tree</span>
+              <span v-if="inspectorData.legacyHierarchyUnknown" class="legacy-code-chip">Hierarchy Inferred</span>
+            </div>
+
+            <div v-if="inspectorData.linkedEcologySignals?.length" class="trade-code-strip">
+              <span
+                v-for="signal in inspectorData.linkedEcologySignals"
+                :key="`${signal.kind}-${signal.scientificName}`"
+                class="trade-code-chip"
+              >
+                {{ signal.icon }} {{ signal.scientificName }}
+              </span>
+            </div>
+
+            <div v-if="inspectorData.tradeCodes?.length" class="trade-code-strip">
+              <span v-for="code in inspectorData.tradeCodes" :key="code" class="trade-code-chip">{{ code }}</span>
+            </div>
+            <p v-else-if="!inspectorData.hasSavedSystem" class="inspector-note">
+              Generate or save a system survey to populate UWP, starport, bases, importance, gas giants, and trade codes
+              here.
+            </p>
+            <p v-if="inspectorData.legacyReconstructed" class="inspector-note">
+              This system’s star hierarchy was reconstructed from older flat-label metadata. Companion ordering is
+              preserved, but original WBH hierarchy detail was not stored.
+            </p>
+            <p v-if="inspectorData.legacyHierarchyUnknown" class="inspector-note">
+              Legacy import data did not retain explicit hierarchy links, so near/far relationships were inferred during
+              normalization.
+            </p>
+            <p v-if="inspectorData.presenceOnly" class="inspector-note">
+              This marker is a detected stellar presence only. Atlas can show it as a known object, but it is not yet a
+              generated system survey.
+            </p>
+
+            <div class="atlas-key-panel">
+              <div class="atlas-key-title">Atlas Key</div>
+              <div class="atlas-key-grid">
+                <div class="atlas-key-row">
+                  <span class="legend-route-sample legend-route-sample--major"></span>
+                  <span class="atlas-key-copy">Major route</span>
+                </div>
+                <div class="atlas-key-row">
+                  <span class="legend-route-sample legend-route-sample--pressure"></span>
+                  <span class="atlas-key-copy">Faction pressure route</span>
+                </div>
+                <div class="atlas-key-row">
+                  <span class="legend-route-sample legend-route-sample--hazard"></span>
+                  <span class="atlas-key-copy">Hazard or interdicted route</span>
+                </div>
+                <div class="atlas-key-row">
+                  <span class="legend-chip-sample legend-chip-sample--zone">A</span>
+                  <span class="atlas-key-copy">Amber or red zone badge</span>
+                </div>
+                <div class="atlas-key-row">
+                  <span class="legend-chip-sample legend-chip-sample--base">B2</span>
+                  <span class="atlas-key-copy">Base count badge</span>
+                </div>
+                <div class="atlas-key-row">
+                  <span class="legend-chip-sample legend-chip-sample--habitability">H6</span>
+                  <span class="atlas-key-copy">Habitability badge</span>
+                </div>
+              </div>
+            </div>
+          </section>
         </div>
       </aside>
     </transition>
-
-    <!-- ── Status bar ─────────────────────────────────────────────────────── -->
-    <footer class="atlas-status">
-      <span class="status-hex">
-        {{
-          hoveredHexKey
-            ? `Hex ${hoveredHexKey.split(":")[1] ?? hoveredHexKey}`
-            : "Pan: drag · Zoom: scroll wheel · Click a star to inspect"
-        }}
-      </span>
-      <div class="status-density" v-if="currentLod === 'galaxy' || currentLod === 'sector'">
-        <span v-for="band in DENSITY_SCALE" :key="band.label" class="density-chip">
-          <span class="density-swatch" :style="{ background: band.color }"></span>
-          {{ band.label }} ({{ band.range }})
-        </span>
-      </div>
-      <div class="status-political-legend" v-if="showPoliticalHeat">
-        <button
-          class="political-legend-chip"
-          :class="{ active: !activePoliticalHeatFilter }"
-          :title="
-            legendDualShareTitle(
-              visiblePoliticalHeatTotal,
-              visiblePoliticalHeatTotal,
-              scopePoliticalHeatTotal,
-              scopePoliticalHeatTotal,
-              'sectors',
-            )
-          "
-          @click="activePoliticalHeatFilter = null"
-        >
-          <span class="political-legend-swatch political-legend-swatch--all"></span>
-          All
-          <span class="legend-count-badge">{{
-            formatLegendDualShare(
-              visiblePoliticalHeatTotal,
-              visiblePoliticalHeatTotal,
-              scopePoliticalHeatTotal,
-              scopePoliticalHeatTotal,
-            )
-          }}</span>
-        </button>
-        <button
-          v-for="entry in POLITICAL_HEAT_LEGEND"
-          :key="entry.level"
-          class="political-legend-chip"
-          :class="{ active: activePoliticalHeatFilter === entry.level }"
-          :title="
-            legendDualShareTitle(
-              politicalHeatCount(entry.level),
-              visiblePoliticalHeatTotal,
-              politicalHeatScopeCount(entry.level),
-              scopePoliticalHeatTotal,
-              `${entry.label} sectors`,
-            )
-          "
-          @click="togglePoliticalHeatFilter(entry.level)"
-        >
-          <span class="political-legend-swatch" :style="{ background: entry.tint }"></span>
-          {{ entry.label }}
-          <span class="legend-count-badge">{{
-            formatLegendDualShare(
-              politicalHeatCount(entry.level),
-              visiblePoliticalHeatTotal,
-              politicalHeatScopeCount(entry.level),
-              scopePoliticalHeatTotal,
-            )
-          }}</span>
-        </button>
-      </div>
-      <div class="status-star-legend" v-if="currentLod === 'hex' || currentLod === 'detail'">
-        <span v-for="entry in STAR_VISUAL_LEGEND" :key="entry.token" class="star-legend-chip">
-          <span class="star-legend-swatch" :style="starLegendSwatchStyle(entry)"></span>
-          {{ entry.label }}
-        </span>
-      </div>
-      <div class="status-route-legend" v-if="showRouteLegend">
-        <button
-          class="route-legend-chip"
-          :class="{ active: !activeRouteFilter }"
-          :title="
-            legendDualShareTitle(
-              visibleTradeRoutes.length,
-              visibleTradeRoutes.length,
-              scopeRouteTotal,
-              scopeRouteTotal,
-              'routes',
-            )
-          "
-          @click="activeRouteFilter = null"
-        >
-          <span class="route-legend-sample route-legend-sample--all"></span>
-          All Routes
-          <span class="legend-count-badge">{{
-            formatLegendDualShare(
-              visibleTradeRoutes.length,
-              visibleTradeRoutes.length,
-              scopeRouteTotal,
-              scopeRouteTotal,
-            )
-          }}</span>
-        </button>
-        <button
-          v-for="entry in ROUTE_VISUAL_LEGEND"
-          :key="entry.id"
-          class="route-legend-chip"
-          :class="{ active: activeRouteFilter === entry.id }"
-          :title="
-            legendDualShareTitle(
-              routeLegendCount(entry.id),
-              visibleTradeRoutes.length,
-              routeScopeCount(entry.id),
-              scopeRouteTotal,
-              `${entry.label} routes`,
-            )
-          "
-          @click="toggleRouteFilter(entry.id)"
-        >
-          <span class="route-legend-sample" :class="entry.sampleClass"></span>
-          {{ entry.label }}
-          <span class="legend-count-badge">{{
-            formatLegendDualShare(
-              routeLegendCount(entry.id),
-              visibleTradeRoutes.length,
-              routeScopeCount(entry.id),
-              scopeRouteTotal,
-            )
-          }}</span>
-        </button>
-      </div>
-      <span
-        v-if="showPoliticalHeat || showRouteLegend"
-        class="status-legend-key"
-        title="Legend badges show in-view totals on the left and loaded-scope totals on the right."
-      >
-        view|scope
-      </span>
-      <div class="status-space-tier" v-if="spaceTierCounts">
-        <span class="space-tier-label">Space Tiers:</span>
-        <span class="space-tier-chip space-tier-surveyed">
-          <span class="tier-badge tier-badge--surveyed">S</span>
-          Surveyed: {{ spaceTierCounts.surveyed }}
-        </span>
-        <span class="space-tier-chip space-tier-frontier">
-          <span class="tier-badge tier-badge--frontier">F</span>
-          Frontier: {{ spaceTierCounts.frontier }}
-        </span>
-        <span class="space-tier-chip space-tier-void">
-          <span class="tier-badge tier-badge--void">∞</span>
-          Void: Beyond
-        </span>
-      </div>
-      <div class="status-policy-legend" title="Generation policy by space tier.">
-        <span class="status-policy-label">Policy:</span>
-        <span class="status-policy-chip status-policy-chip--surveyed">
-          <span class="tier-badge tier-badge--surveyed">S</span>
-          Full systems
-        </span>
-        <span class="status-policy-chip status-policy-chip--frontier">
-          <span class="tier-badge tier-badge--frontier">F</span>
-          Selected mode
-        </span>
-        <span class="status-policy-chip status-policy-chip--void">
-          <span class="tier-badge tier-badge--void">∞</span>
-          Presence-safe
-        </span>
-      </div>
-      <div class="status-planning-window" v-if="planningRegionInfo && planningWindowCenter">
-        <span class="status-planning-window__label">
-          Planning [{{ planningWindowCenter.x }},{{ planningWindowCenter.y }}]
-        </span>
-        <span class="status-planning-window__stats">
-          {{ planningRegionInfo.surveyedInWindow.toLocaleString() }} /
-          {{ planningRegionInfo.totalCapacity.toLocaleString() }}
-          surveyed
-        </span>
-        <span class="status-planning-window__stats">{{ planningRegionInfo.remaining.toLocaleString() }} open</span>
-        <span class="status-planning-window__stats">{{ planningRegionInfo.percentUtilization }}%</span>
-        <span class="status-planning-window__meter" aria-hidden="true">
-          <span
-            class="status-planning-window__meter-fill"
-            :style="{ width: `${planningRegionInfo.percentUtilization}%` }"
-          ></span>
-        </span>
-      </div>
-      <div class="status-layer-controls" v-if="currentLod === 'hex' || currentLod === 'detail'">
-        <button class="status-toggle-chip" :class="{ active: layerRoutes }" @click="layerRoutes = !layerRoutes">
-          Routes
-        </button>
-        <button
-          class="status-toggle-chip"
-          :class="{ active: layerAnomalies }"
-          @click="layerAnomalies = !layerAnomalies"
-        >
-          Anomalies
-        </button>
-        <button class="status-toggle-chip" :class="{ active: layerBadges }" @click="layerBadges = !layerBadges">
-          Badges
-        </button>
-        <button class="status-toggle-chip" :class="{ active: layerPolity }" @click="layerPolity = !layerPolity">
-          Polity
-        </button>
-      </div>
-      <span class="status-right">{{ visibleStars.length }} stellar detections in view · {{ biasReadout }}</span>
-    </footer>
   </div>
 </template>
 
@@ -5212,35 +4975,72 @@ function openStarSystem() {
   if (!targetGalaxyId) return;
   const systemRecord = findSystemRecordForStar(star);
   const returnTo = serializeReturnRoute({
-    name: "TravellerAtlas",
-    query: selectedGalaxyId.value ? { galaxyId: String(selectedGalaxyId.value) } : {},
+    name: "SectorSurvey",
+    params: { galaxyId: String(targetGalaxyId) },
+    query: {
+      sectorId: String(star.sectorId || ""),
+      viewScope: "sector",
+    },
   });
 
   if (systemRecord?.systemId) {
     systemStore.setCurrentSystem(systemRecord.systemId);
-    router.push({
-      name: "SystemSurvey",
-      params: {
-        galaxyId: targetGalaxyId,
-        sectorId: star.sectorId,
-        systemId: systemRecord.systemId,
-      },
-      query: {
-        systemId: systemRecord.systemId,
-        systemRecordId: systemRecord.systemId,
-        hex: star.coord,
-        star: star.starType,
-        ...(returnTo ? { returnTo } : {}),
-      },
-    });
-    return;
   }
+
+  const systemRecordId = String(
+    systemRecord?.systemId || `${star.sectorId || targetGalaxyId}:${star.coord || ""}`,
+  ).trim();
+  const anomalyType = String(star.anomalyType || star.starType || "").trim();
+  const anomalyMass = star.anomalyMass ?? star.anomalyMassSolar ?? star.massSolarMasses ?? null;
+  const anomalyActivity = star.anomalyActivity ?? star.activityIndex ?? null;
 
   router.push({
     name: "StarSystemBuilder",
-    params: { galaxyId: targetGalaxyId, sectorId: star.sectorId },
-    query: { hex: star.coord, star: star.starType, ...(returnTo ? { returnTo } : {}) },
+    params: {
+      galaxyId: targetGalaxyId,
+      sectorId: star.sectorId,
+    },
+    query: {
+      hex: star.coord,
+      star: star.starType,
+      systemRecordId,
+      ...(anomalyType ? { anomaly: anomalyType } : {}),
+      ...(Number.isFinite(Number(anomalyMass)) ? { anomalyMass: Number(anomalyMass) } : {}),
+      ...(Number.isFinite(Number(anomalyActivity)) ? { anomalyActivity: Number(anomalyActivity) } : {}),
+      ...(returnTo ? { returnTo } : {}),
+    },
   });
+}
+
+function focusStarInspector() {
+  const star = inspectorStar.value;
+  if (!star) return;
+
+  const sector = resolveInspectorSector();
+  const sectorX = Number(star.sectorX ?? sector?.coordinates?.x ?? sector?.metadata?.gridX);
+  const sectorY = Number(star.sectorY ?? sector?.coordinates?.y ?? sector?.metadata?.gridY);
+  const coordText = String(star.coord || "").trim();
+  const hexCol = Number(coordText.slice(0, 2));
+  const hexRow = Number(coordText.slice(2, 4));
+
+  let focusPoint = null;
+  if (Number.isFinite(Number(star.wx)) && Number.isFinite(Number(star.wy))) {
+    focusPoint = { x: Number(star.wx), y: Number(star.wy) };
+  } else if (
+    Number.isFinite(sectorX) &&
+    Number.isFinite(sectorY) &&
+    Number.isFinite(hexCol) &&
+    Number.isFinite(hexRow)
+  ) {
+    focusPoint = hexWorldCenter(Math.trunc(sectorX), Math.trunc(sectorY), Math.trunc(hexCol), Math.trunc(hexRow));
+  }
+
+  if (!focusPoint) return;
+
+  const targetZoom = Math.min(MAX_ZOOM, Math.max(LOD_HEX, zoom.value));
+  panX.value = svgW.value / 2 - focusPoint.x * targetZoom;
+  panY.value = svgH.value / 2 - focusPoint.y * targetZoom;
+  zoom.value = targetZoom;
 }
 
 function openOrbitalView() {
@@ -5997,9 +5797,10 @@ watch(
   position: absolute;
   top: 48px;
   right: 10px;
-  width: 276px;
+  width: min(860px, calc(100vw - 20px));
   max-height: calc(100% - 76px);
   overflow-y: auto;
+  overflow-x: hidden;
   background: rgba(8, 14, 32, 0.95);
   backdrop-filter: blur(10px);
   border: 1px solid #2c4a78;
@@ -6040,6 +5841,37 @@ watch(
   padding: 0.9rem;
 }
 
+.inspector-content--split {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.95fr) minmax(0, 1.25fr);
+  gap: 0.9rem;
+  align-items: start;
+}
+
+.inspector-nav-panel,
+.inspector-info-panel {
+  min-width: 0;
+}
+
+.inspector-nav-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.inspector-info-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  padding-left: 0.9rem;
+  border-left: 1px solid rgba(74, 112, 164, 0.28);
+}
+
+.inspector-nav-panel .inspector-actions,
+.inspector-nav-panel .inspector-generation-panel {
+  margin-top: 0;
+}
+
 .inspector-title {
   margin: 0 1.5rem 0.4rem 0;
   color: #8fe3ff;
@@ -6068,7 +5900,11 @@ watch(
   display: flex;
   flex-direction: column;
   gap: 0.42rem;
-  margin-bottom: 0.9rem;
+  margin-bottom: 0;
+}
+
+.detail-grid--system {
+  margin-bottom: 0;
 }
 
 .dr {

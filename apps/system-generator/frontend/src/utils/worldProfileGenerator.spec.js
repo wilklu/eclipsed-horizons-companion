@@ -103,7 +103,7 @@ describe("worldProfileGenerator", () => {
   });
 
   it("builds regenerated moon names from the parent world plus suffix", () => {
-    expect(buildMoonDisplayName("Tethys", 2)).toBe("Tethys Bee");
+    expect(buildMoonDisplayName("Tethys", 2)).toBe("Tethys/b");
     expect(
       generateAutomaticWorldName({
         mode: "list",
@@ -111,7 +111,7 @@ describe("worldProfileGenerator", () => {
         parentWorldName: "Tethys",
         moonOrdinal: 2,
       }),
-    ).toBe("Tethys Bee");
+    ).toBe("Tethys/b");
   });
 
   it("renames dependent moons when the parent world name changes", () => {
@@ -119,14 +119,14 @@ describe("worldProfileGenerator", () => {
       [
         { name: "Tethys", type: "Gas Giant" },
         {
-          name: "Tethys Ay",
+          name: "Tethys/a",
           type: "Gas Giant Moon",
           isMoon: true,
           parentWorldName: "Tethys",
           moonOrdinal: 1,
         },
         {
-          name: "Tethys Bee",
+          name: "Tethys/b",
           type: "Gas Giant Moon",
           isMoon: true,
           parentWorldName: "Tethys",
@@ -139,8 +139,8 @@ describe("worldProfileGenerator", () => {
 
     expect(renamed[0].name).toBe("Caledon");
     expect(renamed[1].parentWorldName).toBe("Caledon");
-    expect(renamed[1].name).toBe("Caledon Ay");
-    expect(renamed[2].name).toBe("Caledon Bee");
+    expect(renamed[1].name).toBe("Caledon/a");
+    expect(renamed[2].name).toBe("Caledon/b");
   });
 
   it("keeps unique moon names while updating their parent link", () => {
@@ -148,7 +148,7 @@ describe("worldProfileGenerator", () => {
       [
         { name: "Tethys", type: "Gas Giant" },
         {
-          name: "Tethys Ay",
+          name: "Tethys/a",
           type: "Gas Giant Moon",
           isMoon: true,
           parentWorldName: "Tethys",
@@ -166,7 +166,7 @@ describe("worldProfileGenerator", () => {
       "Caledon",
     );
 
-    expect(renamed[1].name).toBe("Caledon Ay");
+    expect(renamed[1].name).toBe("Caledon/a");
     expect(renamed[1].parentWorldName).toBe("Caledon");
     expect(renamed[2].name).toBe("Miranda");
     expect(renamed[2].parentWorldName).toBe("Caledon");
@@ -187,7 +187,7 @@ describe("worldProfileGenerator", () => {
         nativeLifeform: "2201",
         moonsData: [
           {
-            name: "Giant Alpha b",
+            name: "Giant Alpha/b",
             type: "significant",
             size: 6,
             orbitalSlot: 2,
@@ -206,7 +206,7 @@ describe("worldProfileGenerator", () => {
     ]);
 
     const gasGiant = worlds.find((world) => world.name === "Giant Alpha");
-    const moon = worlds.find((world) => world.name === "Giant Alpha b");
+    const moon = worlds.find((world) => world.name === "Giant Alpha/b");
 
     expect(gasGiant?.nativeSophontLife).toBe(false);
     expect(gasGiant?.populationCode).toBe(0);
@@ -252,7 +252,7 @@ describe("worldProfileGenerator", () => {
         hzco: 3.1,
         moonsData: [
           {
-            name: "Giant Alpha b",
+            name: "Giant Alpha/b",
             type: "significant",
             size: 6,
             orbitalSlot: 2,

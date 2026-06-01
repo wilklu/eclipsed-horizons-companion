@@ -1,6 +1,46 @@
-import { generateAutomaticWorldName, toRomanNumeral } from "./worldProfileGenerator.js";
+import { generateAutomaticWorldName } from "./worldProfileGenerator.js";
 import { buildProfiledWbhSystemPlanets, calculateSystemHabitableZone } from "./systemWorldGeneration.js";
-import { resolveGeneratedStarsFromHex, resolveStarRecord } from "./systemStarMetadata.js";
+import {
+  applySystemBasedStarDesignations,
+  resolveGeneratedStarsFromHex,
+  resolveStarRecord,
+} from "./systemStarMetadata.js";
+import { buildBeltDesignation, buildPlanetDesignation } from "./astroNaming.js";
+
+function buildCreatePlanetName(systemDesignation, stars = []) {
+  let beltOrdinal = 0;
+  const orbitByGroup = new Map();
+  const groupSequence = [];
+
+  return ({ body, index, type }) => {
+    if (type === "Planetoid Belt") {
+      beltOrdinal += 1;
+      return buildBeltDesignation(beltOrdinal);
+    }
+
+    const groupKey =
+      String(body?.groupKey || body?.orbitType || "primary")
+        .trim()
+        .toLowerCase() || "primary";
+    if (!orbitByGroup.has(groupKey)) {
+      orbitByGroup.set(groupKey, 0);
+      groupSequence.push(groupKey);
+    }
+
+    const nextOrbitIndex = orbitByGroup.get(groupKey) ?? 0;
+    orbitByGroup.set(groupKey, nextOrbitIndex + 1);
+
+    const totalStars = Array.isArray(stars) ? stars.length : 1;
+    const hostStarOrdinal = totalStars <= 1 ? 1 : groupSequence.indexOf(groupKey) + 1;
+
+    return buildPlanetDesignation({
+      systemName: systemDesignation,
+      orbitIndex: nextOrbitIndex,
+      totalStars,
+      hostStarOrdinal,
+    });
+  };
+}
 
 function buildSurveySystemShell({
   galaxyId,
@@ -93,13 +133,15 @@ export function buildPersistedSurveySystemFromHex({ galaxyId, sectorId, hex, nam
     });
 
   try {
-    habitableZone = calculateSystemHabitableZone(stars);
+    const namedStars = applySystemBasedStarDesignations(stars, systemDesignation);
+    habitableZone = calculateSystemHabitableZone(namedStars);
     planets = buildProfiledWbhSystemPlanets({
-      stars,
+      stars: namedStars,
       habitableZone,
-      createPlanetName: ({ index }) => `${systemDesignation} ${toRomanNumeral(index + 1)}`,
+      createPlanetName: buildCreatePlanetName(systemDesignation, namedStars),
     });
     mainworld = planets.find((world) => world?.isMainworld) ?? null;
+    stars.splice(0, stars.length, ...namedStars);
   } catch (error) {
     generationError = error instanceof Error ? error.message : String(error || "Unknown system generation error");
   }

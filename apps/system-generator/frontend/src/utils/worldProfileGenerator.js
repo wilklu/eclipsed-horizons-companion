@@ -1,4 +1,5 @@
 import { generateObjectName, generatePhonotacticName } from "./nameGenerator.js";
+import { buildMoonDesignation } from "./astroNaming.js";
 import { resolveStarDescriptorToken } from "./starDisplay.js";
 import { scoreMainworldCandidateWbh, selectMainworldCandidateWbh } from "./wbh/systemGenerationWbh.js";
 import {
@@ -3110,51 +3111,6 @@ function resolveWorldStarClass(starClass) {
   return RANDOM_WORLD_STARS[Math.floor(Math.random() * RANDOM_WORLD_STARS.length)];
 }
 
-const CLOSE_MOON_PHONETIC_SUFFIXES = Object.freeze([
-  "Ay",
-  "Bee",
-  "Cee",
-  "Dee",
-  "Ee",
-  "Eff",
-  "Gee",
-  "Aitch",
-  "Eye",
-  "Jay",
-  "Kay",
-  "Ell",
-  "Em",
-]);
-
-const FAR_MOON_PHONETIC_SUFFIXES = Object.freeze([
-  "En",
-  "Oh",
-  "Pee",
-  "Que",
-  "Arr",
-  "Ess",
-  "Tee",
-  "Yu",
-  "Vee",
-  "Dub",
-  "Ex",
-  "Wye",
-  "Zee",
-]);
-
-function resolveMoonPhoneticSuffix(ordinal = 1) {
-  const normalizedOrdinal = Math.max(1, Math.trunc(Number(ordinal) || 1));
-  if (normalizedOrdinal <= CLOSE_MOON_PHONETIC_SUFFIXES.length) {
-    return CLOSE_MOON_PHONETIC_SUFFIXES[normalizedOrdinal - 1];
-  }
-
-  const farOrdinal = normalizedOrdinal - CLOSE_MOON_PHONETIC_SUFFIXES.length;
-  const farIndex = (farOrdinal - 1) % FAR_MOON_PHONETIC_SUFFIXES.length;
-  const farCycle = Math.floor((farOrdinal - 1) / FAR_MOON_PHONETIC_SUFFIXES.length) + 1;
-  const base = FAR_MOON_PHONETIC_SUFFIXES[farIndex];
-  return farCycle > 1 ? `${base} ${farCycle}` : base;
-}
-
 function withRomanDuplicateSuffix(baseName, reserved) {
   const normalizedBase = String(baseName || "").trim() || "World";
   if (!reserved?.has(normalizedBase)) {
@@ -3175,12 +3131,10 @@ function withRomanDuplicateSuffix(baseName, reserved) {
 
 export function buildMoonDisplayName(parentWorldName = "", ordinal = 1) {
   const normalizedParent = String(parentWorldName || "").trim() || "Moon";
-  const suffix = resolveMoonPhoneticSuffix(ordinal);
-  return `${normalizedParent} ${suffix}`;
+  return buildMoonDesignation(normalizedParent, ordinal);
 }
 
-const AUTO_MOON_SUFFIX_PATTERN =
-  /^(?:[a-z]|\d+|ay|bee|cee|dee|ee|eff|gee|aitch|eye|jay|kay|ell|em|en|oh|pee|que|arr|ess|tee|yu|vee|dub|ex|wye|zee)(?:\s+\d+)?(?:\s+[ivxlcdm]+)?$/i;
+const AUTO_MOON_SUFFIX_PATTERN = /^(?:[a-z]+|r\d+|[ivxlcdm]+)$/i;
 
 function isAutoDerivedMoonName(name = "", parentName = "") {
   const normalizedName = String(name || "").trim();
@@ -3188,11 +3142,17 @@ function isAutoDerivedMoonName(name = "", parentName = "") {
   if (!normalizedName || !normalizedParent) {
     return false;
   }
-  if (!normalizedName.startsWith(`${normalizedParent} `)) {
+
+  const delimiter = normalizedName.startsWith(`${normalizedParent}/`)
+    ? "/"
+    : normalizedName.startsWith(`${normalizedParent} `)
+      ? " "
+      : "";
+  if (!delimiter) {
     return false;
   }
 
-  const suffix = normalizedName.slice(normalizedParent.length + 1).trim();
+  const suffix = normalizedName.slice(normalizedParent.length + delimiter.length).trim();
   return AUTO_MOON_SUFFIX_PATTERN.test(suffix);
 }
 

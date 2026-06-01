@@ -5,6 +5,7 @@ import { flushPromises, mount } from "@vue/test-utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as sectorApi from "../../api/sectorApi.js";
 import * as sectorLayoutGenerator from "../../utils/sectorLayoutGenerator.js";
+import { deserializeReturnRoute } from "../../utils/returnRoute.js";
 
 const hoisted = vi.hoisted(() => ({
   routerPush: vi.fn(),
@@ -338,7 +339,7 @@ describe("TravellerMap anomaly display", () => {
     expect(Number(planningOverlay.attributes("y"))).toBe(6);
   });
 
-  it("clears persisted systems when rerolling atlas sector presence", async () => {
+  it("replaces persisted systems when rerolling atlas sector presence", async () => {
     const baseSector = createAnomalySector();
     sectorStoreState.sectors = [baseSector];
     sectorApi.getSectors.mockResolvedValue([baseSector]);
@@ -362,6 +363,105 @@ describe("TravellerMap anomaly display", () => {
     await wrapper.vm.$.setupState.generateInspectorSector();
 
     expect(sectorApi.upsertSector).toHaveBeenCalled();
-    expect(systemStoreState.replaceSectorSystems).toHaveBeenCalledWith("gal-1:0,0", []);
+    expect(systemStoreState.replaceSectorSystems).toHaveBeenCalledWith(
+      "gal-1:0,0",
+      expect.arrayContaining([
+        expect.objectContaining({
+          metadata: expect.objectContaining({ anomalyType: "Black Hole" }),
+          primaryStar: expect.objectContaining({ spectralClass: "Black Hole" }),
+        }),
+      ]),
+    );
+  });
+
+  it("opens the Star System Builder page from a selected star", async () => {
+    const wrapper = mount(TravellerMap, {
+      global: {
+        stubs: {
+          LoadingSpinner: { template: "<div data-test='loading-spinner' />" },
+        },
+      },
+    });
+
+    await flushPromises();
+    await flushPromises();
+
+    wrapper.vm.$.setupState.onStarClick({
+      key: "1619",
+      coord: "1619",
+      sectorId: "gal-1:0,0",
+      galaxyId: "gal-1",
+      starType: "B2V",
+      anomalyType: "Black Hole",
+      anomalyMass: 2186442144,
+      anomalyActivity: 0.5,
+      sectorName: "Core Sector",
+      sectorX: 0,
+      sectorY: 0,
+    });
+
+    wrapper.vm.$.setupState.openStarSystem();
+
+    expect(hoisted.routerPush).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "StarSystemBuilder",
+        params: expect.objectContaining({ galaxyId: "gal-1", sectorId: "gal-1:0,0" }),
+        query: expect.objectContaining({
+          hex: "1619",
+          star: "B2V",
+          systemRecordId: "gal-1:0,0:1619",
+          anomaly: "Black Hole",
+          anomalyMass: 2186442144,
+          anomalyActivity: 0.5,
+        }),
+      }),
+    );
+
+    const routePayload = hoisted.routerPush.mock.calls.at(-1)?.[0];
+    const returnTo = deserializeReturnRoute(routePayload?.query?.returnTo);
+    expect(returnTo).toEqual(
+      expect.objectContaining({
+        name: "SectorSurvey",
+        params: expect.objectContaining({ galaxyId: "gal-1" }),
+        query: expect.objectContaining({ sectorId: "gal-1:0,0", viewScope: "sector" }),
+      }),
+    );
+  });
+
+  it("double-clicks a star marker to open the Star System Builder page", async () => {
+    const wrapper = mount(TravellerMap, {
+      global: {
+        stubs: {
+          LoadingSpinner: { template: "<div data-test='loading-spinner' />" },
+        },
+      },
+    });
+
+    await flushPromises();
+    await flushPromises();
+
+    const markers = wrapper.vm.$.setupState.loadedRouteStarMarkers;
+    const targetMarkerIndex = markers.findIndex((entry) => entry.coord === "1619");
+    expect(targetMarkerIndex).toBeGreaterThanOrEqual(0);
+
+    const starGroups = wrapper.findAll(".star-group");
+    expect(starGroups[targetMarkerIndex]).toBeTruthy();
+
+    await starGroups[targetMarkerIndex].trigger("click");
+    hoisted.routerPush.mockReset();
+    await starGroups[targetMarkerIndex].trigger("dblclick");
+
+    expect(hoisted.routerPush).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "StarSystemBuilder",
+        params: expect.objectContaining({ galaxyId: "gal-1", sectorId: "gal-1:0,0" }),
+        query: expect.objectContaining({
+          hex: "1619",
+          star: expect.any(String),
+          systemRecordId: expect.any(String),
+          returnTo: expect.any(String),
+        }),
+      }),
+    );
   });
 });
