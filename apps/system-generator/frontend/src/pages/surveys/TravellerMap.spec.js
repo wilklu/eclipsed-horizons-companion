@@ -421,9 +421,8 @@ describe("TravellerMap anomaly display", () => {
     const returnTo = deserializeReturnRoute(routePayload?.query?.returnTo);
     expect(returnTo).toEqual(
       expect.objectContaining({
-        name: "SectorSurvey",
-        params: expect.objectContaining({ galaxyId: "gal-1" }),
-        query: expect.objectContaining({ sectorId: "gal-1:0,0", viewScope: "sector" }),
+        name: "TravellerAtlas",
+        query: expect.objectContaining({ galaxyId: "gal-1" }),
       }),
     );
   });
@@ -450,6 +449,41 @@ describe("TravellerMap anomaly display", () => {
     await starGroups[targetMarkerIndex].trigger("click");
     hoisted.routerPush.mockReset();
     await starGroups[targetMarkerIndex].trigger("dblclick");
+
+    expect(hoisted.routerPush).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "StarSystemBuilder",
+        params: expect.objectContaining({ galaxyId: "gal-1", sectorId: "gal-1:0,0" }),
+        query: expect.objectContaining({
+          hex: "1619",
+          star: expect.any(String),
+          systemRecordId: expect.any(String),
+          returnTo: expect.any(String),
+        }),
+      }),
+    );
+  });
+
+  it("double-clicks an occupied hex to open the Star System Builder page", async () => {
+    const wrapper = mount(TravellerMap, {
+      global: {
+        stubs: {
+          LoadingSpinner: { template: "<div data-test='loading-spinner' />" },
+        },
+      },
+    });
+
+    await flushPromises();
+    await flushPromises();
+
+    const occupiedHex = wrapper
+      .findAll(".hex-cell")
+      .find((entry) => entry.classes().includes("occupied") && !entry.classes().includes("hex-cell--guide"));
+    expect(occupiedHex).toBeTruthy();
+
+    await occupiedHex.trigger("click");
+    hoisted.routerPush.mockReset();
+    await occupiedHex.trigger("dblclick");
 
     expect(hoisted.routerPush).toHaveBeenCalledWith(
       expect.objectContaining({

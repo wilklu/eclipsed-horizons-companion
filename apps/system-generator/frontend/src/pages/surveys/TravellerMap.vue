@@ -419,6 +419,7 @@
               hovered: hex.key === hoveredHexKey,
             }"
             @click.stop="onHexClick(hex)"
+            @dblclick.stop="onHexDoubleClick(hex)"
             @mouseenter="hoveredHexKey = hex.key"
             @mouseleave="hoveredHexKey = null"
           />
@@ -4019,6 +4020,15 @@ function onHexClick(hex) {
   if (star) onStarClick(star);
 }
 
+function onHexDoubleClick(hex) {
+  if (dragging.value) return;
+  if (!hex?.occupied) return;
+  const star = starMarkerByKey.value.get(hex.key);
+  if (!star) return;
+  onStarClick(star);
+  openStarSystem();
+}
+
 function onStarClick(star) {
   if (dragging.value) return;
   setAtlasGenerationDefaultsForScope("sector");
@@ -4975,11 +4985,9 @@ function openStarSystem() {
   if (!targetGalaxyId) return;
   const systemRecord = findSystemRecordForStar(star);
   const returnTo = serializeReturnRoute({
-    name: "SectorSurvey",
-    params: { galaxyId: String(targetGalaxyId) },
+    name: "TravellerAtlas",
     query: {
-      sectorId: String(star.sectorId || ""),
-      viewScope: "sector",
+      galaxyId: String(targetGalaxyId),
     },
   });
 
