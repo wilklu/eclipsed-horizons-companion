@@ -1,0 +1,630 @@
+<template>
+  <div class="world-svg-map-form">
+    <div class="map-meta">
+      <span>SVG template map</span>
+      <span>Size {{ activeSizeCode }} ({{ templateStatus }})</span>
+    </div>
+
+    <div class="terrain-controls">
+      <div class="terrain-palette">
+        <button
+          v-for="terrain in TERRAIN_TYPES"
+          :key="terrain.id"
+          type="button"
+          class="terrain-btn"
+          :class="{ active: selectedTerrain === terrain.id }"
+          :style="{ backgroundColor: terrain.color }"
+          :title="terrain.name"
+          @click="selectedTerrain = terrain.id"
+        >
+          {{ terrain.symbol }}
+        </button>
+        <button
+          type="button"
+          class="terrain-btn erase-btn"
+          :class="{ active: selectedTerrain === null }"
+          title="Erase"
+          @click="selectedTerrain = null"
+        >
+          ✕
+        </button>
+      </div>
+
+      <div class="control-actions">
+        <button type="button" class="action-btn" @click="autoSeedTerrain" :disabled="!activeHexCells.length">
+          Auto-seed
+        </button>
+        <button type="button" class="action-btn action-btn--secondary" @click="clearAllTerrain">Clear All</button>
+      </div>
+    </div>
+
+    <svg
+      class="world-map-svg"
+      xmlns="http://www.w3.org/2000/svg"
+      xmlns:xlink="http://www.w3.org/1999/xlink"
+      xml:space="preserve"
+      width="100%"
+      height="100%"
+      :viewBox="activeViewBox"
+      @click="handleMapClick"
+    >
+      <g v-if="activeTemplateBaseContent" v-html="activeTemplateBaseContent"></g>
+      <g v-else>
+        <text x="40" y="80" style="font-size: 1em; font-family: Arial, sans-serif; fill: black">
+          Missing SVG template for size {{ activeSizeCode }}
+        </text>
+        <text x="40" y="110" style="font-size: 0.9em; font-family: Arial, sans-serif; fill: #444">
+          Expected file: {{ expectedTemplateFilename }}
+        </text>
+      </g>
+
+      <g id="terrain-overlay" pointer-events="none">
+        <polygon
+          v-for="entry in activeTerrainEntries"
+          :key="entry.key"
+          :points="entry.points"
+          :fill="terrainFillColor(entry.terrain)"
+          stroke="black"
+          stroke-width="1"
+          opacity="0.8"
+        />
+      </g>
+
+      <g
+        v-if="activeTemplateMaskContent"
+        id="terrain-mask-overlay"
+        pointer-events="none"
+        v-html="activeTemplateMaskContent"
+      ></g>
+
+      <g
+        v-if="activeTemplateFrontContent"
+        id="terrain-front-overlay"
+        pointer-events="none"
+        v-html="activeTemplateFrontContent"
+      ></g>
+    </svg>
+
+    <div class="stats-row">
+      <span>Painted: {{ paintedCount }} / {{ activeHexCells.length }} hexes</span>
+      <span v-if="activeHexCells.length"
+        >({{ ((paintedCount / activeHexCells.length) * 100).toFixed(1) }}% coverage)</span
+      >
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { computed, ref, watch } from "vue";
+
+const props = defineProps({
+  terrainSeed: { type: Object, default: null },
+  seedWorldName: { type: String, default: "" },
+  seedUwp: { type: String, default: "" },
+  seedWorldSize: { type: [String, Number], default: null },
+  seedTerrainOverlay: { type: Object, default: null },
+});
+
+const emit = defineEmits(["terrain-overlay-change"]);
+
+const TERRAIN_TYPES = [
+  { id: "water", name: "Water", color: "#4167b7", symbol: "💧" },
+  { id: "plains", name: "Plains", color: "#7ec850", symbol: "🌾" },
+  { id: "forest", name: "Forest", color: "#2e7d32", symbol: "🌲" },
+  { id: "mountain", name: "Mountain", color: "#8d6e63", symbol: "⛰️" },
+  { id: "desert", name: "Desert", color: "#f5c842", symbol: "🏜️" },
+  { id: "tundra", name: "Tundra", color: "#b2ebf2", symbol: "❄️" },
+  { id: "swamp", name: "Swamp", color: "#558b2f", symbol: "🌿" },
+  { id: "urban", name: "Urban", color: "#9e9e9e", symbol: "🏙️" },
+];
+
+const TYPE_TO_TERRAIN = {
+  Wetland: "swamp",
+  "Wet Woods": "swamp",
+  Shore: "water",
+  Ocean: "water",
+  Islands: "plains",
+  River: "water",
+  Lake: "water",
+  Icecap: "tundra",
+  Glacier: "tundra",
+  "Ice Field": "tundra",
+  "Frozen Lands": "tundra",
+  Mountain: "mountain",
+  Rough: "mountain",
+  Volcano: "mountain",
+  Desert: "desert",
+  "Baked lands": "desert",
+  Woods: "forest",
+  "Rough Woods": "forest",
+  Exotic: "desert",
+  Clear: "plains",
+};
+
+const RAW_MAP_MODULES = import.meta.glob("../../assets/maps/*.svg", {
+  query: "?raw",
+  import: "default",
+});
+
+const TRAVELLER_EXTENDED_HEX = new Map([
+  ["A", 10],
+  ["B", 11],
+  ["C", 12],
+  ["D", 13],
+  ["E", 14],
+  ["F", 15],
+  ["G", 16],
+  ["H", 17],
+  ["J", 18],
+  ["K", 19],
+  ["L", 20],
+]);
+
+function parseWorldSizeCode(value) {
+  const normalized = String(value ?? "")
+    .trim()
+    .toUpperCase();
+  if (!normalized) {
+    return 5;
+  }
+
+  if (/^[A-Z]$/.test(normalized)) {
+    return TRAVELLER_EXTENDED_HEX.get(normalized) ?? 5;
+  }
+
+  const parsed = Number.parseInt(normalized, 10);
+  if (Number.isFinite(parsed)) {
+    return parsed;
+  }
+
+  return 5;
+}
+
+const activeSize = computed(() => parseWorldSizeCode(props.seedWorldSize));
+const activeSizeCode = computed(() => String(props.seedWorldSize ?? activeSize.value));
+
+function buildTemplateFilename(size) {
+  return `Blank World Map Size ${size}.svg`;
+}
+
+const expectedTemplateFilename = computed(() => buildTemplateFilename(activeSize.value));
+
+const selectedTerrain = ref("water");
+
+function parseSvgTemplate(rawSvg) {
+  if (!rawSvg) {
+    return { viewBox: "0 0 1066 998", baseContent: "", maskContent: "", frontContent: "" };
+  }
+
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(rawSvg, "image/svg+xml");
+  const svgEl = doc.querySelector("svg");
+
+  if (!svgEl) {
+    return { viewBox: "0 0 1066 998", baseContent: rawSvg, maskContent: "", frontContent: "" };
+  }
+
+  const maskIds = ["map-icosahedral-mask", "map-border-mask"];
+  const maskChunks = [];
+  for (const id of maskIds) {
+    const maskEl = svgEl.querySelector(`#${id}`);
+    if (!maskEl) {
+      continue;
+    }
+    maskChunks.push(maskEl.outerHTML);
+    maskEl.remove();
+  }
+
+  const frontIds = ["map-lines", "map-reference", "map-references", "map-reference-lines", "map-text"];
+  const frontChunks = [];
+  for (const id of frontIds) {
+    const frontEl = svgEl.querySelector(`#${id}`);
+    if (!frontEl) {
+      continue;
+    }
+    frontChunks.push(frontEl.outerHTML);
+    frontEl.remove();
+  }
+
+  return {
+    viewBox: svgEl.getAttribute("viewBox") || "0 0 1066 998",
+    baseContent: svgEl.innerHTML || "",
+    maskContent: maskChunks.join(""),
+    frontContent: frontChunks.join(""),
+  };
+}
+
+const activeViewBox = ref("0 0 1066 998");
+const activeTemplateBaseContent = ref("");
+const activeTemplateMaskContent = ref("");
+const activeTemplateFrontContent = ref("");
+const templateStatus = ref("loading");
+let requestId = 0;
+
+const terrainBySize = ref(new Map());
+
+function deserializeTerrainOverlay(serialized) {
+  const next = new Map();
+  if (!serialized || typeof serialized !== "object") {
+    return next;
+  }
+
+  for (const [sizeKey, entries] of Object.entries(serialized)) {
+    const size = Number.parseInt(String(sizeKey), 10);
+    if (!Number.isFinite(size) || !Array.isArray(entries)) {
+      continue;
+    }
+
+    const perSize = new Map();
+    for (const entry of entries) {
+      if (!entry || typeof entry !== "object") {
+        continue;
+      }
+      const key = String(entry.key || "").trim();
+      const points = normalizePoints(entry.points);
+      const terrain = String(entry.terrain || "").trim();
+      if (!key || !points || !terrain) {
+        continue;
+      }
+      perSize.set(key, { points, terrain });
+    }
+
+    if (perSize.size) {
+      next.set(size, perSize);
+    }
+  }
+
+  return next;
+}
+
+function serializeTerrainOverlay(mapBySize) {
+  const out = {};
+  for (const [size, entries] of mapBySize.entries()) {
+    if (!entries?.size) {
+      continue;
+    }
+    out[String(size)] = Array.from(entries.entries()).map(([key, value]) => ({
+      key,
+      points: value.points,
+      terrain: value.terrain,
+    }));
+  }
+  return out;
+}
+
+function commitTerrainMap(nextMap) {
+  terrainBySize.value = nextMap;
+  emit("terrain-overlay-change", serializeTerrainOverlay(nextMap));
+}
+
+function normalizePoints(points) {
+  return String(points || "")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+function parsePoints(points) {
+  return normalizePoints(points)
+    .split(" ")
+    .map((pair) => pair.split(",").map(Number))
+    .filter(([x, y]) => Number.isFinite(x) && Number.isFinite(y));
+}
+
+function isHexPolygonElement(poly) {
+  const points = normalizePoints(poly.getAttribute("points"));
+  if (!points) {
+    return false;
+  }
+
+  const coords = parsePoints(points);
+  if (coords.length !== 6) {
+    return false;
+  }
+
+  const style = String(poly.getAttribute("style") || "").toLowerCase();
+  if (style.includes("fill: white") || style.includes("fill:white") || style.includes("stroke: none")) {
+    return false;
+  }
+
+  return true;
+}
+
+function extractHexCells(templateContent) {
+  if (!templateContent) {
+    return [];
+  }
+
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(`<svg>${templateContent}</svg>`, "image/svg+xml");
+  const polys = Array.from(doc.querySelectorAll("polygon"));
+
+  return polys
+    .filter((poly) => isHexPolygonElement(poly))
+    .map((poly) => {
+      const points = normalizePoints(poly.getAttribute("points"));
+      const hexId = String(poly.getAttribute("data-hex-id") || "").trim();
+      return {
+        key: hexId || points,
+        points,
+      };
+    });
+}
+
+const activeHexCells = computed(() => extractHexCells(activeTemplateBaseContent.value));
+
+const activeTerrainEntries = computed(() => {
+  const current = terrainBySize.value.get(activeSize.value);
+  if (!current) {
+    return [];
+  }
+  return Array.from(current.entries()).map(([key, value]) => ({ key, ...value }));
+});
+
+const paintedCount = computed(() => activeTerrainEntries.value.length);
+
+function terrainFillColor(id) {
+  return TERRAIN_TYPES.find((t) => t.id === id)?.color || "#cccccc";
+}
+
+function clearAllTerrain() {
+  const next = new Map(terrainBySize.value);
+  next.delete(activeSize.value);
+  commitTerrainMap(next);
+}
+
+function hashString(input) {
+  let hash = 2166136261;
+  for (let i = 0; i < input.length; i += 1) {
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function mulberry32(seed) {
+  let t = seed >>> 0;
+  return () => {
+    t += 0x6d2b79f5;
+    let r = Math.imul(t ^ (t >>> 15), 1 | t);
+    r ^= r + Math.imul(r ^ (r >>> 7), 61 | r);
+    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function terrainForSurveyType(type) {
+  return TYPE_TO_TERRAIN[String(type || "").trim()] || "plains";
+}
+
+function buildTerrainWeightsFromSeed(seed) {
+  const counts = Array.isArray(seed?.hexCounts) ? seed.hexCounts : [];
+  if (!counts.length) {
+    return [];
+  }
+
+  const merged = new Map();
+  for (const entry of counts) {
+    const terrain = terrainForSurveyType(entry?.type);
+    const hexes = Number(entry?.hexes || 0);
+    const percent = Number.parseFloat(String(entry?.percent || "0").replace("%", ""));
+    const weight = Number.isFinite(hexes) && hexes > 0 ? hexes : Number.isFinite(percent) && percent > 0 ? percent : 0;
+    if (weight <= 0) {
+      continue;
+    }
+    merged.set(terrain, (merged.get(terrain) || 0) + weight);
+  }
+
+  return Array.from(merged.entries()).map(([terrain, weight]) => ({ terrain, weight }));
+}
+
+function autoSeedTerrain() {
+  const cells = activeHexCells.value;
+  if (!cells.length) {
+    return;
+  }
+
+  const weighted = buildTerrainWeightsFromSeed(props.terrainSeed);
+  if (!weighted.length) {
+    return;
+  }
+
+  const seedValue = hashString(`${props.seedWorldName}|${props.seedUwp}|${activeSize.value}|terrain`);
+  const rand = mulberry32(seedValue);
+  const totalWeight = weighted.reduce((sum, entry) => sum + entry.weight, 0);
+
+  const nextForSize = new Map();
+  for (const cell of cells) {
+    let roll = rand() * totalWeight;
+    let picked = weighted[0].terrain;
+    for (const entry of weighted) {
+      roll -= entry.weight;
+      if (roll <= 0) {
+        picked = entry.terrain;
+        break;
+      }
+    }
+    nextForSize.set(cell.key, { points: cell.points, terrain: picked });
+  }
+
+  const next = new Map(terrainBySize.value);
+  next.set(activeSize.value, nextForSize);
+  commitTerrainMap(next);
+}
+
+function handleMapClick(event) {
+  const el = event.target;
+  if (!el || String(el.tagName).toLowerCase() !== "polygon") {
+    return;
+  }
+
+  if (el.closest("#terrain-overlay")) {
+    return;
+  }
+
+  if (!isHexPolygonElement(el)) {
+    return;
+  }
+
+  const points = normalizePoints(el.getAttribute("points"));
+  if (!points) {
+    return;
+  }
+
+  const hexId = String(el.getAttribute("data-hex-id") || "").trim();
+  const key = hexId || points;
+
+  const next = new Map(terrainBySize.value);
+  const nextForSize = new Map(next.get(activeSize.value) ?? []);
+
+  if (selectedTerrain.value === null) {
+    nextForSize.delete(key);
+  } else {
+    nextForSize.set(key, { points, terrain: selectedTerrain.value });
+  }
+
+  if (nextForSize.size) {
+    next.set(activeSize.value, nextForSize);
+  } else {
+    next.delete(activeSize.value);
+  }
+
+  commitTerrainMap(next);
+}
+
+async function loadTemplateForSize(size) {
+  const currentRequest = ++requestId;
+  templateStatus.value = "loading";
+
+  const filename = buildTemplateFilename(size);
+  const moduleKey = `../../assets/maps/${filename}`;
+  const loadRawSvg = RAW_MAP_MODULES[moduleKey];
+
+  if (!loadRawSvg) {
+    if (currentRequest !== requestId) return;
+    activeTemplateBaseContent.value = "";
+    activeTemplateMaskContent.value = "";
+    activeTemplateFrontContent.value = "";
+    activeViewBox.value = "0 0 1066 998";
+    templateStatus.value = "missing";
+    return;
+  }
+
+  try {
+    const rawSvg = await loadRawSvg();
+    if (currentRequest !== requestId) return;
+
+    const parsed = parseSvgTemplate(rawSvg);
+    activeTemplateBaseContent.value = parsed.baseContent;
+    activeTemplateMaskContent.value = parsed.maskContent;
+    activeTemplateFrontContent.value = parsed.frontContent;
+    activeViewBox.value = parsed.viewBox;
+    templateStatus.value = parsed.baseContent ? "loaded" : "missing";
+  } catch {
+    if (currentRequest !== requestId) return;
+    activeTemplateBaseContent.value = "";
+    activeTemplateMaskContent.value = "";
+    activeTemplateFrontContent.value = "";
+    activeViewBox.value = "0 0 1066 998";
+    templateStatus.value = "missing";
+  }
+}
+
+watch(
+  activeSize,
+  (size) => {
+    void loadTemplateForSize(size);
+  },
+  { immediate: true },
+);
+
+watch(
+  () => props.seedTerrainOverlay,
+  (nextOverlay) => {
+    terrainBySize.value = deserializeTerrainOverlay(nextOverlay);
+  },
+  { immediate: true, deep: true },
+);
+</script>
+
+<style scoped>
+.world-svg-map-form {
+  width: 100%;
+}
+
+.map-meta {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+  font-size: 0.85rem;
+  color: #444;
+}
+
+.terrain-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.55rem;
+}
+
+.terrain-palette {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+}
+
+.terrain-btn {
+  border: 1px solid #222;
+  border-radius: 3px;
+  width: 30px;
+  height: 30px;
+  cursor: pointer;
+}
+
+.terrain-btn.active {
+  outline: 2px solid #111;
+  outline-offset: 1px;
+}
+
+.erase-btn {
+  background: #fff;
+}
+
+.control-actions {
+  display: flex;
+  gap: 0.45rem;
+}
+
+.action-btn {
+  border: 1px solid #111;
+  background: #111;
+  color: #fff;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.action-btn--secondary {
+  background: #fff;
+  color: #111;
+}
+
+.world-map-svg {
+  width: 100%;
+  border: 2px solid #111;
+  background: #fff;
+}
+
+.stats-row {
+  margin-top: 0.45rem;
+  display: flex;
+  gap: 0.6rem;
+  font-size: 0.82rem;
+  color: #333;
+}
+</style>

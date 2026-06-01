@@ -362,10 +362,10 @@
 
 <g id="map-border-mask">
 
-<rect border-id="Left" x="0" y="165" width="90" height="470" style="fill:white;stroke-width:0;stroke:none"></rect>
-<rect border-id="Right" x="890" y="165" width="90" height="470" style="fill:white;stroke-width:0;stroke:none"></rect>
-<rect border-id="Top" x="0" y="165" width="980" height="25" style="fill:white;stroke-width:0;stroke:none"></rect>
-<rect border-id="Bottom" x="0" y="610" width="980" height="25" style="fill:white;stroke-width:0;stroke:none"></rect>
+<rect border-id="Left" x="0" y="166" width="90" height="470" style="fill:white;stroke-width:1;stroke:white"></rect>
+<rect border-id="Right" x="890" y="165" width="90" height="470" style="fill:white;stroke-width:1;stroke:white"></rect>
+<rect border-id="Top" x="0" y="165" width="980" height="25" style="fill:white;stroke-width:1;stroke:white"></rect>
+<rect border-id="Bottom" x="0" y="609" width="980" height="25" style="fill:white;stroke-width:1;stroke:white"></rect>
 
 </g>
 

@@ -74,6 +74,14 @@
           <span>Template size {{ activeTerrainTemplateSize }} ({{ templateStatusLabel }})</span>
         </div>
 
+        <div class="map-controls">
+          <button type="button" class="map-button" @click="generateTerrain" :disabled="!activeHexCells.length">
+            Generate Terrain
+          </button>
+          <button type="button" class="map-button map-button-secondary" @click="clearWaterHexes">Clear Water</button>
+          <span class="map-controls-note">Target water: {{ Math.round(hydroTargetRatio * 100) }}%</span>
+        </div>
+
         <svg
           id="blankMapSVG"
           class="terrain-map"
@@ -385,6 +393,161 @@ function normalizePoints(points) {
     .replace(/\s+/g, " ");
 }
 
+function parsePoints(points) {
+  return normalizePoints(points)
+    .split(" ")
+    .map((pair) => pair.split(",").map(Number))
+    .filter(([x, y]) => Number.isFinite(x) && Number.isFinite(y));
+}
+
+function centroid(points) {
+  const coords = parsePoints(points);
+  if (!coords.length) {
+    return { x: 0, y: 0 };
+  }
+
+  let sumX = 0;
+  let sumY = 0;
+  for (const [x, y] of coords) {
+    sumX += x;
+    sumY += y;
+  }
+
+  return { x: sumX / coords.length, y: sumY / coords.length };
+}
+
+function extractHexCells(templateContent) {
+  if (!templateContent) {
+    return [];
+  }
+
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(`<svg>${templateContent}</svg>`, "image/svg+xml");
+  const polys = Array.from(doc.querySelectorAll("polygon"));
+
+  return polys
+    .map((poly) => {
+      const points = normalizePoints(poly.getAttribute("points"));
+      if (!points) {
+        return null;
+      }
+
+      const coords = parsePoints(points);
+      if (coords.length !== 6) {
+        return null;
+      }
+
+      const style = String(poly.getAttribute("style") || "").toLowerCase();
+      if (style.includes("fill: white") || style.includes("fill:white") || style.includes("stroke: none")) {
+        return null;
+      }
+
+      const hexId = String(poly.getAttribute("data-hex-id") || "").trim();
+      const c = centroid(points);
+      return {
+        key: hexId || points,
+        hexId,
+        points,
+        cx: c.x,
+        cy: c.y,
+      };
+    })
+    .filter(Boolean);
+}
+
+const activeHexCells = computed(() => extractHexCells(activeTemplateContent.value));
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function parseHydrographicsToRatio(value) {
+  const raw = String(value ?? "")
+    .trim()
+    .toUpperCase();
+  if (!raw || raw === "—") {
+    return 0.5;
+  }
+
+  const exactInt = Number.parseInt(raw, 10);
+  if (Number.isFinite(exactInt) && String(exactInt) === raw) {
+    return clamp(exactInt / 10, 0, 1);
+  }
+
+  const token = raw.match(/[0-9A-F]/)?.[0];
+  if (!token) {
+    return 0.5;
+  }
+
+  const score = /^[0-9]$/.test(token) ? Number.parseInt(token, 10) : 10;
+  return clamp(score / 10, 0, 1);
+}
+
+const hydroTargetRatio = computed(() => parseHydrographicsToRatio(worldInfo.value.hydrographics));
+
+function hashString(input) {
+  let hash = 2166136261;
+  for (let i = 0; i < input.length; i += 1) {
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function mulberry32(seed) {
+  let t = seed >>> 0;
+  return () => {
+    t += 0x6d2b79f5;
+    let r = Math.imul(t ^ (t >>> 15), 1 | t);
+    r ^= r + Math.imul(r ^ (r >>> 7), 61 | r);
+    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function clearWaterHexes() {
+  const nextBySize = new Map(waterHexesBySize.value);
+  nextBySize.delete(activeTerrainTemplateSize.value);
+  waterHexesBySize.value = nextBySize;
+}
+
+function generateTerrain() {
+  const cells = activeHexCells.value;
+  if (!cells.length) {
+    return;
+  }
+
+  const targetCount = clamp(Math.round(cells.length * hydroTargetRatio.value), 0, cells.length);
+  if (targetCount === 0) {
+    clearWaterHexes();
+    return;
+  }
+
+  const ys = cells.map((cell) => cell.cy);
+  const minY = Math.min(...ys);
+  const maxY = Math.max(...ys);
+  const yRange = Math.max(1, maxY - minY);
+  const yMid = (minY + maxY) / 2;
+
+  const seed = hashString(
+    `${worldInfo.value.name}|${systemInfo.value.hex}|${activeTerrainTemplateSize.value}|${worldInfo.value.hydrographics}`,
+  );
+  const rand = mulberry32(seed);
+
+  const ranked = cells
+    .map((cell) => {
+      const latNorm = Math.abs(cell.cy - yMid) / (yRange / 2);
+      const equatorBias = 1 - clamp(latNorm, 0, 1);
+      const score = rand() * 0.78 + equatorBias * 0.22;
+      return { ...cell, score };
+    })
+    .sort((a, b) => b.score - a.score)
+    .slice(0, targetCount);
+
+  const nextBySize = new Map(waterHexesBySize.value);
+  nextBySize.set(activeTerrainTemplateSize.value, new Map(ranked.map((cell) => [cell.key, cell.points])));
+  waterHexesBySize.value = nextBySize;
+}
+
 function handleMapClick(event) {
   const el = event.target;
   if (!el || String(el.tagName).toLowerCase() !== "polygon") {
@@ -525,6 +688,39 @@ function handleMapClick(event) {
   justify-content: space-between;
   margin-bottom: 0.6rem;
   font-size: 0.9rem;
+  color: #333;
+}
+
+.map-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin-bottom: 0.75rem;
+}
+
+.map-button {
+  border: 2px solid #111;
+  background: #111;
+  color: #fff;
+  padding: 0.3rem 0.65rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.map-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.map-button-secondary {
+  background: #fff;
+  color: #111;
+}
+
+.map-controls-note {
+  margin-left: auto;
+  font-size: 0.85rem;
   color: #333;
 }
 
