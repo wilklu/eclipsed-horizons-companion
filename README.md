@@ -38,8 +38,7 @@ npm run build           # Production build → dist/
 ### System Generator From Repo Root
 
 ```bash
-npm run api:dev         # Backend API at http://localhost:3100/api
-npm run dev             # Frontend dev server at http://localhost:5173
+npm run dev             # Starts backend API and frontend dev server together
 ```
 
 ### Data Validation

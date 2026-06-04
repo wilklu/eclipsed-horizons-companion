@@ -220,7 +220,7 @@
               </div>
             </div>
 
-            <div v-if="currentViewMode !== 'subsector'" class="control-group control-group--span-2">
+            <div class="control-group control-group--span-2">
               <label>Survey Generation</label>
               <div class="survey-option-grid" role="radiogroup" aria-label="Sector survey options">
                 <button

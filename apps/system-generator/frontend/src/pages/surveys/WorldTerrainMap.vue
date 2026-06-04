@@ -88,38 +88,15 @@
         </div>
 
         <div class="map-controls">
-          <button
-            type="button"
-            class="map-button"
-            @click="generateTerrain"
-            :disabled="!(activeHexCells?.length ?? 0) || isAnimating"
-          >
+          <button type="button" class="map-button" @click="generateTerrain" :disabled="!(activeHexCells?.length ?? 0)">
             Generate Terrain
-          </button>
-          <button
-            type="button"
-            class="map-button map-button-accent"
-            @click="animateGeneration"
-            :disabled="!(activeHexCells?.length ?? 0) || isAnimating"
-          >
-            {{ isAnimating ? animationStepLabel : "Walk Through Generation" }}
-          </button>
-          <button
-            type="button"
-            class="map-button map-button-secondary"
-            @click="rollStarterTriangle"
-            :disabled="isAnimating"
-          >
-            Roll d46 Start Triangle
-          </button>
-          <button type="button" class="map-button map-button-secondary" @click="rollStarterHexInTriangle">
-            Roll Random Hex in Triangle
           </button>
           <button type="button" class="map-button map-button-secondary" @click="clearWaterHexes">Clear Water</button>
           <span class="map-controls-note">Target water: {{ Math.round(hydroTargetRatio * 100) }}%</span>
-          <span class="map-controls-note" v-if="starterTriangleResultLabel">{{ starterTriangleResultLabel }}</span>
-          <span class="map-controls-note" v-if="starterHexResultLabel">{{ starterHexResultLabel }}</span>
           <span class="map-controls-note">Mountains: {{ activeMountainHexEntries?.length ?? 0 }}</span>
+          <span class="map-controls-note">Hills: {{ activeHillsHexEntries?.length ?? 0 }}</span>
+          <span class="map-controls-note">Rainforest: {{ activeForestBiomeHexEntries?.length ?? 0 }}</span>
+          <span class="map-controls-note">Tundra: {{ activeTundraHexEntries?.length ?? 0 }}</span>
           <span class="map-controls-note">Chasms: {{ activeChasmHexEntries?.length ?? 0 }}</span>
           <span class="map-controls-note">Precipices: {{ activePrecipiceHexEntries?.length ?? 0 }}</span>
           <span class="map-controls-note" v-if="isVacuumWorld">Craters: {{ activeCraterHexEntries?.length ?? 0 }}</span>
@@ -176,6 +153,9 @@
           <span class="map-controls-note" v-if="(activeNobleLandHexEntries?.length ?? 0) > 0"
             >Noble Lands: {{ activeNobleLandHexEntries?.length ?? 0 }}</span
           >
+          <span class="map-controls-note" v-if="tectonicPlateCount > 0"
+            >Tectonics: {{ tectonicPlateCount }} plates / {{ activeTectonicLineSegments.length }} segments</span
+          >
         </div>
 
         <WorldTerrainHexInspector
@@ -191,13 +171,12 @@
           xmlns="http://www.w3.org/2000/svg"
           xmlns:xlink="http://www.w3.org/1999/xlink"
           xml:space="preserve"
-          height="100%"
           width="100%"
           :viewBox="activeViewBox"
           @click="handleMapClick"
           @mousemove="handleMapHover"
           @mouseleave="clearMapHover"
-          style="cursor: crosshair"
+          :style="{ cursor: 'crosshair', aspectRatio: activeViewBoxAspectRatio }"
         >
           <g v-if="activeTemplateContent" id="terrain-template-loaded" v-html="activeTemplateContent"></g>
           <g v-else id="terrain-template-missing">
@@ -207,27 +186,6 @@
             <text style="font-size: 0.95em; font-family: Arial, sans-serif; fill: #444" x="40" y="120">
               Expected file: {{ expectedTemplateFilename }}
             </text>
-          </g>
-
-          <g id="starter-triangle-overlay" pointer-events="none" v-if="activeStarterTrianglePoints">
-            <polygon
-              :points="activeStarterTrianglePoints"
-              fill="rgba(255, 208, 0, 0.18)"
-              stroke="#d18900"
-              stroke-width="2"
-              stroke-dasharray="8 4"
-            />
-          </g>
-
-          <g id="starter-hex-overlay" pointer-events="none" v-if="activeStarterHexPick">
-            <circle
-              :cx="activeStarterHexPick.cx"
-              :cy="activeStarterHexPick.cy"
-              r="6"
-              fill="#ffd300"
-              stroke="#8a5a00"
-              stroke-width="2"
-            />
           </g>
 
           <g id="selected-hex-overlay" pointer-events="none" v-if="selectedTerrainHexEntry">
@@ -250,12 +208,73 @@
             />
           </g>
 
+          <g id="flatland-hex-overlay" pointer-events="none">
+            <polygon
+              v-for="entry in activeFlatlandHexEntries"
+              :key="entry.key"
+              :points="entry.points"
+              fill="#D2B48C"
+              stroke="black"
+              stroke-width="0.25"
+            />
+          </g>
+
+          <g id="hills-hex-overlay" pointer-events="none">
+            <g v-for="entry in activeHillsHexEntries" :key="entry.key">
+              <polygon :points="entry.points" fill="#A0825C" stroke="#6C563B" stroke-width="1.2" />
+              <text
+                :x="entry.cx"
+                :y="entry.cy + 4"
+                text-anchor="middle"
+                font-size="8"
+                font-weight="bold"
+                fill="#4A3B27"
+                style="pointer-events: none; user-select: none"
+              >
+                H
+              </text>
+            </g>
+          </g>
+
+          <g id="rainforest-hex-overlay" pointer-events="none">
+            <polygon
+              v-for="entry in activeForestBiomeHexEntries"
+              :key="entry.key"
+              :points="entry.points"
+              fill="rgba(34, 128, 72, 0.32)"
+              stroke="#1D6A3C"
+              stroke-width="0.8"
+            />
+          </g>
+
+          <g id="swamp-hex-overlay" pointer-events="none">
+            <polygon
+              v-for="entry in activeSwampBiomeHexEntries"
+              :key="entry.key"
+              :points="entry.points"
+              fill="rgba(95, 122, 66, 0.30)"
+              stroke="#4B5F31"
+              stroke-width="0.8"
+            />
+          </g>
+
+          <g id="tundra-hex-overlay" pointer-events="none">
+            <polygon
+              v-for="entry in activeTundraHexEntries"
+              :key="entry.key"
+              :points="entry.points"
+              fill="rgba(188, 199, 208, 0.30)"
+              stroke="#7A8894"
+              stroke-width="0.8"
+            />
+          </g>
+
           <g id="water-hex-overlay" pointer-events="none">
             <polygon
               v-for="entry in activeWaterHexEntries"
               :key="entry.key"
               :points="entry.points"
-              fill="rgb(65,103,183)"
+              fill="#04529D"
               stroke="black"
               stroke-width="1"
             />
@@ -586,14 +605,14 @@
 
           <g id="mountain-hex-overlay" pointer-events="none">
             <g v-for="entry in activeMountainHexEntries" :key="entry.key">
-              <polygon :points="entry.points" fill="rgba(122, 94, 63, 0.35)" stroke="#5c4125" stroke-width="1.5" />
+              <polygon :points="entry.points" fill="#778899" stroke="#4a5a6a" stroke-width="1.5" />
               <text
                 :x="entry.cx"
                 :y="entry.cy + 4"
                 text-anchor="middle"
                 font-size="9"
                 font-weight="bold"
-                fill="#4a321b"
+                fill="#1a2a3a"
                 style="pointer-events: none; user-select: none"
               >
                 M
@@ -682,6 +701,29 @@
               stroke-linecap="round"
             />
           </g>
+
+          <g id="tectonic-line-overlay" pointer-events="none">
+            <line
+              v-for="segment in activeTectonicLineSegments"
+              :key="segment.key"
+              :x1="segment.x1"
+              :y1="segment.y1"
+              :x2="segment.x2"
+              :y2="segment.y2"
+              stroke="#9a3412"
+              stroke-width="1.8"
+              stroke-linecap="butt"
+              stroke-dasharray="4 3"
+              opacity="0.9"
+            />
+          </g>
+
+          <g
+            v-if="activeTemplateMaskContent"
+            id="terrain-template-mask"
+            pointer-events="none"
+            v-html="activeTemplateMaskContent"
+          ></g>
         </svg>
       </section>
     </div>
@@ -693,12 +735,7 @@ import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import { deserializeReturnRoute } from "../../utils/returnRoute.js";
 import { useSystemStore } from "../../stores/systemStore.js";
-import {
-  normalizeFaceTopologyId,
-  pickRandomHexInTriangle,
-  resolveStarterTriangle,
-  rollD46,
-} from "../../utils/worldTerrainStartTriangle.js";
+import { normalizeFaceTopologyId } from "../../utils/worldTerrainStartTriangle.js";
 import { canonicalizeHexId } from "../../utils/worldMapHexTopology.js";
 import {
   WORLD_HEX_TAGS,
@@ -918,7 +955,7 @@ const expectedTemplateFilename = computed(() => buildTemplateFilename(activeTerr
 
 function parseSvgTemplate(rawSvg) {
   if (!rawSvg) {
-    return { viewBox: "0 0 1066 998", content: "" };
+    return { viewBox: "0 0 1066 998", content: "", maskContent: "" };
   }
 
   const parser = new DOMParser();
@@ -926,19 +963,56 @@ function parseSvgTemplate(rawSvg) {
   const svgEl = doc.querySelector("svg");
 
   if (!svgEl) {
-    return { viewBox: "0 0 1066 998", content: rawSvg };
+    return { viewBox: "0 0 1066 998", content: rawSvg, maskContent: "" };
+  }
+
+  // Groups that must render above terrain overlays (masks, outlines, labels)
+  const MASK_GROUP_IDS = [
+    "map-icosahedral-mask",
+    "map-border-mask",
+    "map-faces",
+    "map-lines",
+    "map-references",
+    "map-text",
+  ];
+  const maskParts = [];
+  for (const id of MASK_GROUP_IDS) {
+    const el = svgEl.querySelector(`#${id}`);
+    if (el) {
+      maskParts.push(el.outerHTML);
+      el.remove();
+    }
   }
 
   return {
     viewBox: svgEl.getAttribute("viewBox") || "0 0 1066 998",
     content: svgEl.innerHTML || "",
+    maskContent: maskParts.join(""),
   };
 }
 
 const activeViewBox = ref("0 0 1066 998");
 const activeTemplateContent = ref("");
+const activeTemplateMaskContent = ref("");
 const templateStatusLabel = ref("loading");
 let templateLoadRequestId = 0;
+
+const activeViewBoxAspectRatio = computed(() => {
+  const parts = String(activeViewBox.value || "")
+    .trim()
+    .split(/\s+/);
+  if (parts.length !== 4) {
+    return "1066 / 998";
+  }
+
+  const width = Number.parseFloat(parts[2]);
+  const height = Number.parseFloat(parts[3]);
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+    return "1066 / 998";
+  }
+
+  return `${width} / ${height}`;
+});
 
 async function loadTemplateForSize(size) {
   const requestId = ++templateLoadRequestId;
@@ -953,6 +1027,7 @@ async function loadTemplateForSize(size) {
       return;
     }
     activeTemplateContent.value = "";
+    activeTemplateMaskContent.value = "";
     activeViewBox.value = "0 0 1066 998";
     templateStatusLabel.value = "missing";
     return;
@@ -966,6 +1041,7 @@ async function loadTemplateForSize(size) {
 
     const parsed = parseSvgTemplate(rawSvg);
     activeTemplateContent.value = parsed.content;
+    activeTemplateMaskContent.value = parsed.maskContent;
     activeViewBox.value = parsed.viewBox;
     templateStatusLabel.value = parsed.content ? "loaded" : "missing";
   } catch {
@@ -973,6 +1049,7 @@ async function loadTemplateForSize(size) {
       return;
     }
     activeTemplateContent.value = "";
+    activeTemplateMaskContent.value = "";
     activeViewBox.value = "0 0 1066 998";
     templateStatusLabel.value = "missing";
   }
@@ -991,6 +1068,11 @@ const shoreHexesBySize = ref(new Map());
 
 const activeWaterHexEntries = computed(() => {
   const mapForSize = waterHexesBySize.value.get(activeTerrainTemplateSize.value);
+  return toLayerEntries(mapForSize);
+});
+
+const activeFlatlandHexEntries = computed(() => {
+  const mapForSize = flatlandHexesBySize.value.get(activeTerrainTemplateSize.value);
   return toLayerEntries(mapForSize);
 });
 
@@ -1228,8 +1310,10 @@ function isPointInTriangle(px, py, vertices) {
   return a >= -1e-6 && b >= -1e-6 && c >= -1e-6;
 }
 
-const activeFaceTriangles = computed(() => extractFaceTriangles(activeTemplateContent.value));
-const activeFaceIds = computed(() => [...new Set(activeFaceTriangles.value.map((face) => face.faceId))]);
+const activeFaceTriangles = computed(() => {
+  const topologySource = `${activeTemplateContent.value || ""}${activeTemplateMaskContent.value || ""}`;
+  return extractFaceTriangles(topologySource);
+});
 
 const activeHexCells = computed(() => {
   const baseHexes = extractHexCells(activeTemplateContent.value);
@@ -1302,66 +1386,6 @@ function toLayerEntries(mapForSize) {
   }
 
   return entries;
-}
-
-const starterTriangleRoll = ref(null);
-const starterHexPick = ref(null);
-
-const activeStarterTrianglePoints = computed(() => {
-  const resolvedFaceId = String(starterTriangleRoll.value?.resolvedFaceId || "").trim();
-  if (!resolvedFaceId) {
-    return "";
-  }
-
-  return activeFaceTriangles.value.find((face) => face.faceId === resolvedFaceId)?.points || "";
-});
-
-const starterTriangleResultLabel = computed(() => {
-  const roll = starterTriangleRoll.value;
-  if (!roll?.resolvedFaceId) {
-    return "";
-  }
-
-  return `Start Triangle: ${roll.resolvedFaceId} (d46 ${roll.roll})`;
-});
-
-const activeStarterHexPick = computed(() => {
-  const targetKey = String(starterHexPick.value?.key || "").trim();
-  if (!targetKey) {
-    return null;
-  }
-
-  return activeHexCells.value.find((entry) => String(entry?.key || "") === targetKey) || null;
-});
-
-const starterHexResultLabel = computed(() => {
-  const pick = activeStarterHexPick.value;
-  if (!pick) {
-    return "";
-  }
-
-  return `Start Hex: ${pick.hexId || pick.key}`;
-});
-
-function rollStarterTriangle() {
-  const rolled = rollD46();
-  const resolvedFaceId = resolveStarterTriangle(rolled.faceId, activeFaceIds.value);
-  starterTriangleRoll.value = {
-    ...rolled,
-    resolvedFaceId,
-  };
-  starterHexPick.value = null;
-  rollStarterHexInTriangle();
-}
-
-function rollStarterHexInTriangle() {
-  const resolvedFaceId = String(starterTriangleRoll.value?.resolvedFaceId || "").trim();
-  if (!resolvedFaceId) {
-    starterHexPick.value = null;
-    return;
-  }
-
-  starterHexPick.value = pickRandomHexInTriangle(activeHexCells.value, resolvedFaceId);
 }
 
 function clamp(value, min, max) {
@@ -1598,6 +1622,46 @@ const resourceHexCount = computed(() => {
   return Math.max(0, rating - gg - belts);
 });
 
+function parseNonNegativeInteger(value) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return null;
+  if (num < 0) return 0;
+  return Math.round(num);
+}
+
+const tectonicPlateCount = computed(() => {
+  const world = selectedWorld.value;
+  const values = [
+    world?.majorTectonicPlates,
+    world?.temperature?.majorTectonicPlates,
+    world?.seismology?.majorTectonicPlates,
+    route.query.majorTectonicPlates,
+    route.query.tectonicPlates,
+  ];
+  for (const value of values) {
+    const parsed = parseNonNegativeInteger(value);
+    if (parsed !== null) return parsed;
+  }
+  return 0;
+});
+
+const tectonicStressScore = computed(() => {
+  const world = selectedWorld.value;
+  const values = [
+    world?.seismology?.totalSeismicStress,
+    world?.seismology?.residualSeismicStress,
+    route.query.totalSeismicStress,
+    route.query.seismicStress,
+  ];
+
+  for (const value of values) {
+    const parsed = parseNonNegativeInteger(value);
+    if (parsed !== null) return parsed;
+  }
+
+  return 0;
+});
+
 function getNormalizedTradeCodes() {
   const fromWorld = Array.isArray(selectedWorld.value?.tradeCodes) ? selectedWorld.value.tradeCodes : [];
   const fromRouteRaw = String(route.query.tradeCodes || route.query.tradeCode || "");
@@ -1634,6 +1698,12 @@ const nobleLandHexesBySize = ref(new Map());
 const twilightFrozenLandHexesBySize = ref(new Map());
 const twilightOceanDesertHexesBySize = ref(new Map());
 const twilightOceanIceFieldHexesBySize = ref(new Map());
+const flatlandHexesBySize = ref(new Map());
+const hillsHexesBySize = ref(new Map());
+const volcanicHexesBySize = ref(new Map());
+const forestBiomeHexesBySize = ref(new Map());
+const swampBiomeHexesBySize = ref(new Map());
+const arcticBiomeHexesBySize = ref(new Map());
 const mountainHexesBySize = ref(new Map());
 const iceCapHexesBySize = ref(new Map());
 const chasmHexesBySize = ref(new Map());
@@ -1644,6 +1714,7 @@ const ruinHexesBySize = ref(new Map());
 const oceanTrianglesBySize = ref(new Map());
 const oceanGroupsBySize = ref(new Map());
 const shoreSegmentsBySize = ref(new Map());
+const tectonicLineSegmentsBySize = ref(new Map());
 
 const activeTopologyGraph = computed(() => buildFaceTopologyGraph(activeFaceTriangles.value));
 const activeTopologyTriangles = computed(() => activeTopologyGraph.value.triangles);
@@ -1658,6 +1729,9 @@ const activeOceanTriangleEntries = computed(() => {
 });
 
 const activeShoreSegments = computed(() => shoreSegmentsBySize.value.get(activeTerrainTemplateSize.value) || []);
+const activeTectonicLineSegments = computed(
+  () => tectonicLineSegmentsBySize.value.get(activeTerrainTemplateSize.value) || [],
+);
 const activeOceanTriangleCount = computed(() => activeOceanSet.value.size);
 const activeOceanGroupCount = computed(
   () => (oceanGroupsBySize.value.get(activeTerrainTemplateSize.value) || []).length,
@@ -1682,9 +1756,15 @@ const activeHexTagIndex = computed(() => {
       return getNormalizedTradeCodes().includes("FR");
     })(),
     layerHexMaps: [
+      [flatlandHexesBySize.value.get(size), WORLD_HEX_TAGS.FLATLANDS],
+      [hillsHexesBySize.value.get(size), WORLD_HEX_TAGS.HILLS],
+      [volcanicHexesBySize.value.get(size), WORLD_HEX_TAGS.VOLCANIC],
       [waterHexesBySize.value.get(size), WORLD_HEX_TAGS.WATER],
       [shoreHexesBySize.value.get(size), WORLD_HEX_TAGS.SHORELINE],
       [iceCapHexesBySize.value.get(size), WORLD_HEX_TAGS.ICE_CAP],
+      [forestBiomeHexesBySize.value.get(size), WORLD_HEX_TAGS.FOREST],
+      [swampBiomeHexesBySize.value.get(size), WORLD_HEX_TAGS.SWAMP],
+      [arcticBiomeHexesBySize.value.get(size), WORLD_HEX_TAGS.ARCTIC],
       [croplandHexesBySize.value.get(size), WORLD_HEX_TAGS.CROPLAND],
       [townHexesBySize.value.get(size), WORLD_HEX_TAGS.TOWN],
       [cityHexesBySize.value.get(size), WORLD_HEX_TAGS.CITY],
@@ -1757,6 +1837,9 @@ const activeTerrainTaggedHexCount = computed(
 const activeFeatureTaggedHexCount = computed(
   () => activeHexTagEntries.value.filter((entry) => entry.hasFeatureTags).length,
 );
+const activeBiomeTaggedHexCount = computed(
+  () => activeHexTagEntries.value.filter((entry) => entry.hasBiomeTags).length,
+);
 const selectedTerrainHexKey = ref("");
 const selectedTerrainHexEntry = computed(() => activeHexTagsByKey.value.get(selectedTerrainHexKey.value) ?? null);
 const hoveredHexInfo = ref(null);
@@ -1786,6 +1869,7 @@ const terrainHexInspectorSummary = computed(() => ({
   taggedHexCount: activeHexTagEntries.value.length,
   terrainTaggedHexCount: activeTerrainTaggedHexCount.value,
   featureTaggedHexCount: activeFeatureTaggedHexCount.value,
+  biomeTaggedHexCount: activeBiomeTaggedHexCount.value,
   shorelineTriangleCount: activeShorelineTriangleIds.value.length,
 }));
 const terrainHexTagPersistTimer = ref(null);
@@ -2146,12 +2230,44 @@ const activeMountainHexEntries = computed(() => {
   );
 });
 
+const activeHillsHexEntries = computed(() => {
+  const mapForSize = hillsHexesBySize.value.get(activeTerrainTemplateSize.value);
+  return toLayerEntries(mapForSize).filter((entry) =>
+    activeHexTagsByKey.value
+      .get(String(entry.logicalKey || entry.key || ""))
+      ?.terrainTags?.includes(WORLD_HEX_TAGS.HILLS),
+  );
+});
+
 const activeIslandHexEntries = computed(() => {
   const mapForSize = mountainHexesBySize.value.get(activeTerrainTemplateSize.value);
   return toLayerEntries(mapForSize).filter((entry) =>
     activeHexTagsByKey.value
       .get(String(entry.logicalKey || entry.key || ""))
       ?.terrainTags?.includes(WORLD_HEX_TAGS.ISLAND),
+  );
+});
+
+const activeForestBiomeHexEntries = computed(() => {
+  const mapForSize = forestBiomeHexesBySize.value.get(activeTerrainTemplateSize.value);
+  return toLayerEntries(mapForSize).filter((entry) =>
+    activeHexTagsByKey.value.get(String(entry.logicalKey || entry.key || ""))?.biomeTags?.includes("Forest"),
+  );
+});
+
+const activeSwampBiomeHexEntries = computed(() => {
+  const mapForSize = swampBiomeHexesBySize.value.get(activeTerrainTemplateSize.value);
+  return toLayerEntries(mapForSize).filter((entry) =>
+    activeHexTagsByKey.value.get(String(entry.logicalKey || entry.key || ""))?.biomeTags?.includes("Swamp"),
+  );
+});
+
+const activeTundraHexEntries = computed(() => {
+  const mapForSize = arcticBiomeHexesBySize.value.get(activeTerrainTemplateSize.value);
+  return toLayerEntries(mapForSize).filter((entry) =>
+    activeHexTagsByKey.value
+      .get(String(entry.logicalKey || entry.key || ""))
+      ?.terrainTags?.includes(WORLD_HEX_TAGS.ARCTIC),
   );
 });
 
@@ -2303,10 +2419,10 @@ const activeRuinHexEntries = computed(() => {
 });
 
 watch(
-  activeFaceIds,
+  activeFaceTriangles,
   () => {
-    rollStarterTriangle();
     placeMountainHexes();
+    placeHillsHexes();
     placeChasmHexes();
     placePrecipiceHexes();
     placeCraterHexes();
@@ -2314,8 +2430,11 @@ watch(
     placeResourceHexes();
     placeDesertHexes();
     placeOceanTriangles();
+    placeTectonicLines();
     placeSeaHexes();
     placeIceCapHexes();
+    placeBaselineLandHexes();
+    placeLatitudeBiomes();
     placeCroplandHexes();
     placeCityHexes();
     placeArcologyHexes();
@@ -2329,6 +2448,18 @@ watch(
   },
   { immediate: true },
 );
+
+watch(tectonicPlateCount, () => {
+  placeMountainHexes();
+  placeHillsHexes();
+  placeTectonicLines();
+});
+
+watch(tectonicStressScore, () => {
+  placeMountainHexes();
+  placeHillsHexes();
+  placeTectonicLines();
+});
 
 watch(resourceHexCount, () => {
   placeResourceHexes();
@@ -2380,6 +2511,7 @@ watch(isDesertWorld, () => {
 
 watch(isIceCappedWorld, () => {
   placeIceCapHexes();
+  placeBaselineLandHexes();
   placeWorldPortHexes();
   placeRuralHexes();
   placeTwilightZoneHexes();
@@ -2476,6 +2608,7 @@ watch(
 watch(
   () => worldInfo.value.atmosphere,
   () => {
+    placeBaselineLandHexes();
     placeCityHexes();
     placeArcologyHexes();
     placeWorldPortHexes();
@@ -2505,8 +2638,11 @@ watch(
   () => worldInfo.value.hydrographics,
   () => {
     placeOceanTriangles();
+    placeTectonicLines();
     placeSeaHexes();
     placeIceCapHexes();
+    placeBaselineLandHexes();
+    placeLatitudeBiomes();
     placeCroplandHexes();
     placeTownHexes();
     placeCityHexes();
@@ -2518,6 +2654,13 @@ watch(
     placeWastelandHexes();
     placeExoticHexes();
     placeNobleLandHexes();
+  },
+);
+
+watch(
+  () => [systemInfo.value.zone, route.query.zone],
+  () => {
+    placeBaselineLandHexes();
   },
 );
 
@@ -2572,6 +2715,8 @@ const activeResourceHexEntries = computed(() => {
 });
 
 function placeResourceHexes(rng = Math.random) {
+  // TODO: re-enable when step-terrain generation is implemented
+  return;
   const count = resourceHexCount.value;
   const cells = activeHexCells.value;
   if (count === 0 || !cells.length) {
@@ -2614,6 +2759,8 @@ function placeResourceHexes(rng = Math.random) {
 }
 
 function placeCroplandHexes(rng = Math.random) {
+  // TODO: re-enable when step-terrain generation is implemented
+  return;
   const cells = activeHexCells.value;
   const size = activeTerrainTemplateSize.value;
   const dicePerContinent = croplandDicePerContinent.value;
@@ -2667,6 +2814,8 @@ function placeCroplandHexes(rng = Math.random) {
 }
 
 function placeTownHexes(rng = null) {
+  // TODO: re-enable when step-terrain generation is implemented
+  return;
   const cells = activeHexCells.value;
   const size = activeTerrainTemplateSize.value;
 
@@ -2721,6 +2870,8 @@ function placeTownHexes(rng = null) {
 }
 
 function placeCityHexes(rng = null) {
+  // TODO: re-enable when step-terrain generation is implemented
+  return;
   const cells = activeHexCells.value;
   const size = activeTerrainTemplateSize.value;
   const requested = cityHexTargetCount.value;
@@ -2789,6 +2940,8 @@ function placeCityHexes(rng = null) {
 }
 
 function placeArcologyHexes(rng = null) {
+  // TODO: re-enable when step-terrain generation is implemented
+  return;
   const cells = activeHexCells.value;
   const size = activeTerrainTemplateSize.value;
   const requested = arcologyHexTargetCount.value;
@@ -2866,6 +3019,8 @@ function placeArcologyHexes(rng = null) {
 }
 
 function placeRuralHexes() {
+  // TODO: re-enable when step-terrain generation is implemented
+  return;
   const cells = activeHexCells.value;
   const size = activeTerrainTemplateSize.value;
   const cityMap = cityHexesBySize.value.get(size);
@@ -2940,6 +3095,8 @@ function placeRuralHexes() {
 }
 
 function placeWorldPortHexes(rng = null) {
+  // TODO: re-enable when step-terrain generation is implemented
+  return;
   const cells = activeHexCells.value;
   const size = activeTerrainTemplateSize.value;
 
@@ -3020,6 +3177,8 @@ function placeWorldPortHexes(rng = null) {
 }
 
 function placePenalColonyHexes(rng = null) {
+  // TODO: re-enable when step-terrain generation is implemented
+  return;
   const cells = activeHexCells.value;
   const size = activeTerrainTemplateSize.value;
   const requested = Math.max(0, Number(penalColonyHexTargetCount.value) || 0);
@@ -3098,6 +3257,8 @@ function placePenalColonyHexes(rng = null) {
 }
 
 function placeWastelandHexes(rng = null) {
+  // TODO: re-enable when step-terrain generation is implemented
+  return;
   const cells = activeHexCells.value;
   const size = activeTerrainTemplateSize.value;
   const techLevel = Math.max(0, Number(techLevelCode.value) || 0);
@@ -3215,6 +3376,8 @@ function placeWastelandHexes(rng = null) {
 }
 
 function placeExoticHexes(rng = null) {
+  // TODO: re-enable when step-terrain generation is implemented
+  return;
   const cells = activeHexCells.value;
   const size = activeTerrainTemplateSize.value;
 
@@ -3284,6 +3447,8 @@ function placeExoticHexes(rng = null) {
 }
 
 function placeNobleLandHexes(rng = null) {
+  // TODO: re-enable when step-terrain generation is implemented
+  return;
   const cells = activeHexCells.value;
   const size = activeTerrainTemplateSize.value;
 
@@ -3377,6 +3542,8 @@ function clearTwilightHemisphereHexes(size) {
 }
 
 function placeTwilightHemisphereHexes(rng = null) {
+  // TODO: re-enable when step-terrain generation is implemented
+  return;
   const cells = activeHexCells.value;
   const size = activeTerrainTemplateSize.value;
   const twilightMap = twilightZoneHexesBySize.value.get(size);
@@ -3458,6 +3625,8 @@ function placeTwilightHemisphereHexes(rng = null) {
 }
 
 function placeTwilightZoneHexes(rng = null) {
+  // TODO: re-enable when step-terrain generation is implemented
+  return;
   const cells = activeHexCells.value;
   const size = activeTerrainTemplateSize.value;
 
@@ -3558,26 +3727,66 @@ function placeMountainHexes(rng = Math.random) {
   }
 
   const size = activeTerrainTemplateSize.value;
+  const waterSet = new Set(waterHexesBySize.value.get(size)?.keys() || []);
 
-  const byFace = new Map();
-  for (const cell of cells) {
-    const faceId = normalizeFaceTopologyId(cell.faceId);
-    if (!faceId) continue;
-    if (!byFace.has(faceId)) byFace.set(faceId, []);
-    byFace.get(faceId).push(cell);
+  const eligibleCells = cells.filter((cell) => !waterSet.has(cell.key));
+  if (!eligibleCells.length) {
+    const nextBySize = new Map(mountainHexesBySize.value);
+    nextBySize.delete(size);
+    mountainHexesBySize.value = nextBySize;
+    return;
   }
 
+  const adjacency = buildHexAdjacencyGraph(eligibleCells);
+  const eligibleByKey = new Map(eligibleCells.map((cell) => [cell.key, cell]));
+  const seedPool = [...eligibleByKey.keys()];
+
+  for (let i = seedPool.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(rng() * (i + 1));
+    [seedPool[i], seedPool[j]] = [seedPool[j], seedPool[i]];
+  }
+
+  const seedCount = Math.min(seedPool.length, Math.max(1, 1 + Math.floor(rng() * 6) + tectonicPlateCount.value));
+  const initialSeeds = seedPool.slice(0, seedCount);
   const placed = new Map();
-  for (const faceCells of byFace.values()) {
-    if (!faceCells.length) continue;
+  const frontier = [...initialSeeds];
+  const visitedSeeds = new Set(initialSeeds);
 
-    const target = Math.min(faceCells.length, 1 + Math.floor(rng() * 6));
-    const pool = [...faceCells];
+  const sizeBand = Number(worldInfo.value.size) || 0;
+  const threshold = clamp(
+    10 -
+      Math.min(3, Math.floor(sizeBand / 2)) -
+      Math.min(2, Math.floor(tectonicPlateCount.value / 3)) -
+      Math.min(2, Math.floor(tectonicStressScore.value / 10)),
+    4,
+    11,
+  );
 
-    for (let i = 0; i < target && pool.length; i += 1) {
-      const pickIndex = Math.floor(rng() * pool.length);
-      const pick = pool.splice(pickIndex, 1)[0];
-      placed.set(pick.key, { points: pick.points, cx: pick.cx, cy: pick.cy });
+  while (frontier.length > 0) {
+    const currentKey = frontier.shift();
+    if (!currentKey || placed.has(currentKey)) {
+      continue;
+    }
+
+    const currentCell = eligibleByKey.get(currentKey);
+    if (!currentCell) continue;
+
+    placed.set(currentKey, { points: currentCell.points, cx: currentCell.cx, cy: currentCell.cy });
+
+    const neighbors = [...(adjacency.byId.get(currentKey)?.neighbors || [])].filter(
+      (neighborKey) => eligibleByKey.has(neighborKey) && !placed.has(neighborKey),
+    );
+    if (!neighbors.length) {
+      continue;
+    }
+
+    const expansionRoll = 2 + Math.floor(rng() * 6) + Math.floor(rng() * 6);
+    if (expansionRoll > threshold) {
+      const nextKey = neighbors[Math.floor(rng() * neighbors.length)];
+      if (nextKey && !visitedSeeds.has(nextKey)) {
+        visitedSeeds.add(nextKey);
+        frontier.push(nextKey);
+      }
     }
   }
 
@@ -3590,10 +3799,255 @@ function placeMountainHexes(rng = Math.random) {
   mountainHexesBySize.value = nextBySize;
 }
 
+const HILLS_SPREAD_CONFIG = Object.freeze({
+  // Higher ratio/minimum grows broader hill belts around mountains.
+  additionalCoverageRatio: 0.25,
+  minimumAdditionalHexes: 3,
+  // Lower threshold increases outward expansion frequency.
+  baseExpandThreshold: 16,
+  stressBonusDivisor: 5,
+  plateBonusDivisor: 4,
+  maxStressBonus: 2,
+  maxPlateBonus: 1,
+  thresholdMin: 4,
+  thresholdMax: 10,
+});
+
+function placeHillsHexes(rng = Math.random) {
+  const cells = activeHexCells.value;
+  const size = activeTerrainTemplateSize.value;
+  const mountainMap = mountainHexesBySize.value.get(size);
+
+  if (!cells.length || !mountainMap?.size) {
+    const nextBySize = new Map(hillsHexesBySize.value);
+    nextBySize.delete(size);
+    hillsHexesBySize.value = nextBySize;
+    return;
+  }
+
+  const waterSet = new Set(waterHexesBySize.value.get(size)?.keys() || []);
+  const oceanSet = new Set(oceanTrianglesBySize.value.get(size) || []);
+  const mountainSet = new Set(mountainMap.keys());
+  const adjacency = buildHexAdjacencyGraph(cells);
+  const byKey = new Map(cells.map((cell) => [cell.key, cell]));
+
+  const canPlaceHill = (key) => {
+    if (!key || mountainSet.has(key) || waterSet.has(key)) return false;
+    const cell = byKey.get(key);
+    if (!cell) return false;
+    const faceId = normalizeFaceTopologyId(cell.faceId);
+    if (faceId && oceanSet.has(faceId)) return false;
+    return true;
+  };
+
+  const placed = new Map();
+  const frontier = [];
+  const queued = new Set();
+
+  // First ring: every eligible neighbor around every mountain hex becomes hills.
+  for (const mountainKey of mountainSet) {
+    const neighbors = adjacency.byId.get(mountainKey)?.neighbors || [];
+    for (const neighborKey of neighbors) {
+      if (!canPlaceHill(neighborKey) || placed.has(neighborKey)) continue;
+      const neighbor = byKey.get(neighborKey);
+      placed.set(neighborKey, { points: neighbor.points, cx: neighbor.cx, cy: neighbor.cy });
+      if (!queued.has(neighborKey)) {
+        frontier.push(neighborKey);
+        queued.add(neighborKey);
+      }
+    }
+  }
+
+  if (!placed.size) {
+    const nextBySize = new Map(hillsHexesBySize.value);
+    nextBySize.delete(size);
+    hillsHexesBySize.value = nextBySize;
+    return;
+  }
+
+  const eligibleCount = cells.filter((cell) => canPlaceHill(cell.key)).length;
+  const maxHills = Math.max(
+    placed.size,
+    Math.min(
+      eligibleCount,
+      placed.size +
+        Math.max(
+          HILLS_SPREAD_CONFIG.minimumAdditionalHexes,
+          Math.floor(eligibleCount * HILLS_SPREAD_CONFIG.additionalCoverageRatio),
+        ),
+    ),
+  );
+  const expandThreshold = clamp(
+    HILLS_SPREAD_CONFIG.baseExpandThreshold -
+      Math.min(
+        HILLS_SPREAD_CONFIG.maxStressBonus,
+        Math.floor(tectonicStressScore.value / HILLS_SPREAD_CONFIG.stressBonusDivisor),
+      ) -
+      Math.min(
+        HILLS_SPREAD_CONFIG.maxPlateBonus,
+        Math.floor(tectonicPlateCount.value / HILLS_SPREAD_CONFIG.plateBonusDivisor),
+      ),
+    HILLS_SPREAD_CONFIG.thresholdMin,
+    HILLS_SPREAD_CONFIG.thresholdMax,
+  );
+
+  while (frontier.length && placed.size < maxHills) {
+    const currentKey = frontier.shift();
+    if (!currentKey) continue;
+
+    const neighbors = [...(adjacency.byId.get(currentKey)?.neighbors || [])].filter(
+      (neighborKey) => canPlaceHill(neighborKey) && !placed.has(neighborKey),
+    );
+
+    for (let i = neighbors.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(rng() * (i + 1));
+      [neighbors[i], neighbors[j]] = [neighbors[j], neighbors[i]];
+    }
+
+    for (const neighborKey of neighbors) {
+      if (placed.size >= maxHills) break;
+      const expansionRoll = 2 + Math.floor(rng() * 6) + Math.floor(rng() * 6);
+      if (expansionRoll < expandThreshold) continue;
+
+      const neighbor = byKey.get(neighborKey);
+      if (!neighbor) continue;
+      placed.set(neighborKey, { points: neighbor.points, cx: neighbor.cx, cy: neighbor.cy });
+      if (!queued.has(neighborKey)) {
+        frontier.push(neighborKey);
+        queued.add(neighborKey);
+      }
+    }
+  }
+
+  const nextBySize = new Map(hillsHexesBySize.value);
+  nextBySize.set(size, placed);
+  hillsHexesBySize.value = nextBySize;
+}
+
+function clearLatitudeBiomes(size) {
+  const nextForest = new Map(forestBiomeHexesBySize.value);
+  nextForest.delete(size);
+  forestBiomeHexesBySize.value = nextForest;
+
+  const nextSwamp = new Map(swampBiomeHexesBySize.value);
+  nextSwamp.delete(size);
+  swampBiomeHexesBySize.value = nextSwamp;
+
+  const nextArctic = new Map(arcticBiomeHexesBySize.value);
+  nextArctic.delete(size);
+  arcticBiomeHexesBySize.value = nextArctic;
+}
+
+function placeLatitudeBiomes(rng = null) {
+  const cells = activeHexCells.value;
+  const size = activeTerrainTemplateSize.value;
+  const roller =
+    typeof rng === "function"
+      ? rng
+      : mulberry32(
+          hashString(
+            `${worldInfo.value.name}|${systemInfo.value.hex}|${size}|${worldInfo.value.hydrographics}|biomes-latitude`,
+          ),
+        );
+
+  if (!cells.length) {
+    clearLatitudeBiomes(size);
+    return;
+  }
+
+  const ys = cells.map((cell) => Number(cell.cy)).filter(Number.isFinite);
+  if (!ys.length) {
+    clearLatitudeBiomes(size);
+    return;
+  }
+
+  const minY = Math.min(...ys);
+  const maxY = Math.max(...ys);
+  const halfSpan = Math.max(1, (maxY - minY) / 2);
+  const midY = (maxY + minY) / 2;
+  const hydro = clamp(hydroTargetRatio.value, 0, 1);
+
+  // Treat equator-centered lines at +/-23.5deg as tropical boundaries.
+  const tropicLatitudeAbs = 23.5 / 90;
+  // Above/below tropics is temperate until high-latitude tundra begins.
+  const tundraStart = clamp(0.72 - hydro * 0.05, 0.6, 0.8);
+  const rainforestChance = clamp(0.45 + hydro * 0.4, 0.35, 0.9);
+  const swampChance = clamp(0.08 + hydro * 0.22, 0.06, 0.32);
+
+  const waterSet = new Set(waterHexesBySize.value.get(size)?.keys() || []);
+  const oceanSet = new Set(oceanTrianglesBySize.value.get(size) || []);
+  const mountainSet = new Set(mountainHexesBySize.value.get(size)?.keys() || []);
+  const blockedSet = new Set([
+    ...mountainSet,
+    ...(chasmHexesBySize.value.get(size)?.keys() || []),
+    ...(precipiceHexesBySize.value.get(size)?.keys() || []),
+    ...(craterHexesBySize.value.get(size)?.keys() || []),
+    ...(iceCapHexesBySize.value.get(size)?.keys() || []),
+  ]);
+
+  const adjacency = buildHexAdjacencyGraph(cells);
+  const byKey = new Map(cells.map((cell) => [cell.key, cell]));
+  const forestPlaced = new Map();
+  const swampPlaced = new Map();
+  const tundraPlaced = new Map();
+
+  for (const cell of cells) {
+    const key = cell.key;
+    if (!key || blockedSet.has(key) || waterSet.has(key)) continue;
+    const faceId = normalizeFaceTopologyId(cell.faceId);
+    if (faceId && oceanSet.has(faceId)) continue;
+
+    const latitudeAbs = Math.abs((Number(cell.cy) - midY) / halfSpan);
+    if (!Number.isFinite(latitudeAbs)) continue;
+
+    const isTropical = latitudeAbs <= tropicLatitudeAbs;
+    const isTemperate = latitudeAbs > tropicLatitudeAbs && latitudeAbs < tundraStart;
+
+    if (latitudeAbs >= tundraStart) {
+      tundraPlaced.set(key, { points: cell.points, cx: cell.cx, cy: cell.cy });
+      continue;
+    }
+
+    if (isTropical && roller() < rainforestChance) {
+      forestPlaced.set(key, { points: cell.points, cx: cell.cx, cy: cell.cy });
+      continue;
+    }
+
+    const nearWater = [...(adjacency.byId.get(key)?.neighbors || [])].some((neighborKey) => {
+      if (waterSet.has(neighborKey)) return true;
+      const neighbor = byKey.get(neighborKey);
+      const neighborFace = normalizeFaceTopologyId(neighbor?.faceId);
+      return Boolean(neighborFace && oceanSet.has(neighborFace));
+    });
+
+    if (nearWater && (isTropical || isTemperate) && roller() < swampChance) {
+      swampPlaced.set(key, { points: cell.points, cx: cell.cx, cy: cell.cy });
+    }
+  }
+
+  const nextForest = new Map(forestBiomeHexesBySize.value);
+  if (forestPlaced.size) nextForest.set(size, forestPlaced);
+  else nextForest.delete(size);
+  forestBiomeHexesBySize.value = nextForest;
+
+  const nextSwamp = new Map(swampBiomeHexesBySize.value);
+  if (swampPlaced.size) nextSwamp.set(size, swampPlaced);
+  else nextSwamp.delete(size);
+  swampBiomeHexesBySize.value = nextSwamp;
+
+  const nextArctic = new Map(arcticBiomeHexesBySize.value);
+  if (tundraPlaced.size) nextArctic.set(size, tundraPlaced);
+  else nextArctic.delete(size);
+  arcticBiomeHexesBySize.value = nextArctic;
+}
+
 function placeChasmHexes(rng = Math.random) {
+  // TODO: re-enable when step-terrain generation is implemented
+  return;
   const cells = activeHexCells.value;
   const size = activeTerrainTemplateSize.value;
   const worldSize = Math.max(0, Number(size) || 0);
+  const waterSet = new Set(waterHexesBySize.value.get(size)?.keys() || []);
 
   if (!cells.length || worldSize <= 0) {
     const nextBySize = new Map(chasmHexesBySize.value);
@@ -3604,6 +4058,7 @@ function placeChasmHexes(rng = Math.random) {
 
   const byFace = new Map();
   for (const cell of cells) {
+    if (waterSet.has(cell.key)) continue;
     const faceId = normalizeFaceTopologyId(cell.faceId);
     if (!faceId) continue;
     if (!byFace.has(faceId)) byFace.set(faceId, []);
@@ -3638,9 +4093,12 @@ function placeChasmHexes(rng = Math.random) {
 }
 
 function placePrecipiceHexes(rng = Math.random) {
+  // TODO: re-enable when step-terrain generation is implemented
+  return;
   const cells = activeHexCells.value;
   const size = activeTerrainTemplateSize.value;
   const worldSize = Math.max(0, Number(size) || 0);
+  const waterSet = new Set(waterHexesBySize.value.get(size)?.keys() || []);
 
   if (!cells.length || worldSize <= 0) {
     const nextBySize = new Map(precipiceHexesBySize.value);
@@ -3651,6 +4109,7 @@ function placePrecipiceHexes(rng = Math.random) {
 
   const byFace = new Map();
   for (const cell of cells) {
+    if (waterSet.has(cell.key)) continue;
     const faceId = normalizeFaceTopologyId(cell.faceId);
     if (!faceId) continue;
     if (!byFace.has(faceId)) byFace.set(faceId, []);
@@ -3680,9 +4139,12 @@ function placePrecipiceHexes(rng = Math.random) {
 }
 
 function placeCraterHexes(rng = Math.random) {
+  // TODO: re-enable when step-terrain generation is implemented
+  return;
   const cells = activeHexCells.value;
   const size = activeTerrainTemplateSize.value;
   const worldSize = Math.max(0, Number(size) || 0);
+  const waterSet = new Set(waterHexesBySize.value.get(size)?.keys() || []);
 
   if (!isVacuumWorld.value || !cells.length || worldSize <= 0) {
     const nextBySize = new Map(craterHexesBySize.value);
@@ -3693,6 +4155,7 @@ function placeCraterHexes(rng = Math.random) {
 
   const byFace = new Map();
   for (const cell of cells) {
+    if (waterSet.has(cell.key)) continue;
     const faceId = normalizeFaceTopologyId(cell.faceId);
     if (!faceId) continue;
     if (!byFace.has(faceId)) byFace.set(faceId, []);
@@ -3721,7 +4184,91 @@ function placeCraterHexes(rng = Math.random) {
   craterHexesBySize.value = nextBySize;
 }
 
+function placeBaselineLandHexes() {
+  const cells = activeHexCells.value;
+  const size = activeTerrainTemplateSize.value;
+
+  if (!cells.length) {
+    const nextFlat = new Map(flatlandHexesBySize.value);
+    nextFlat.delete(size);
+    flatlandHexesBySize.value = nextFlat;
+
+    const nextHills = new Map(hillsHexesBySize.value);
+    nextHills.delete(size);
+    hillsHexesBySize.value = nextHills;
+
+    const nextVolcanic = new Map(volcanicHexesBySize.value);
+    nextVolcanic.delete(size);
+    volcanicHexesBySize.value = nextVolcanic;
+
+    const nextForest = new Map(forestBiomeHexesBySize.value);
+    nextForest.delete(size);
+    forestBiomeHexesBySize.value = nextForest;
+
+    const nextSwamp = new Map(swampBiomeHexesBySize.value);
+    nextSwamp.delete(size);
+    swampBiomeHexesBySize.value = nextSwamp;
+
+    const nextArctic = new Map(arcticBiomeHexesBySize.value);
+    nextArctic.delete(size);
+    arcticBiomeHexesBySize.value = nextArctic;
+    return;
+  }
+
+  const waterSet = new Set(waterHexesBySize.value.get(size)?.keys() || []);
+  const oceanSet = new Set(oceanTrianglesBySize.value.get(size) || []);
+
+  const flatMap = new Map();
+
+  for (const cell of cells) {
+    const faceId = normalizeFaceTopologyId(cell.faceId);
+    if (waterSet.has(cell.key) || (faceId && oceanSet.has(faceId))) {
+      continue;
+    }
+    flatMap.set(cell.key, { points: cell.points, cx: cell.cx, cy: cell.cy });
+  }
+
+  const nextFlat = new Map(flatlandHexesBySize.value);
+  if (flatMap.size) nextFlat.set(size, flatMap);
+  else nextFlat.delete(size);
+  flatlandHexesBySize.value = nextFlat;
+
+  const nextVolcanic = new Map(volcanicHexesBySize.value);
+  nextVolcanic.delete(size);
+  volcanicHexesBySize.value = nextVolcanic;
+
+  const nextForest = new Map(forestBiomeHexesBySize.value);
+  nextForest.delete(size);
+  forestBiomeHexesBySize.value = nextForest;
+
+  const nextSwamp = new Map(swampBiomeHexesBySize.value);
+  nextSwamp.delete(size);
+  swampBiomeHexesBySize.value = nextSwamp;
+
+  const nextArctic = new Map(arcticBiomeHexesBySize.value);
+  nextArctic.delete(size);
+  arcticBiomeHexesBySize.value = nextArctic;
+
+  placeLatitudeBiomes();
+}
+
+function buildRandomWaterCells(cells, targetCount, rng = Math.random) {
+  if (!Array.isArray(cells) || cells.length === 0 || targetCount <= 0) {
+    return [];
+  }
+
+  const pool = [...cells];
+  for (let i = pool.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(rng() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+
+  return pool.slice(0, Math.min(targetCount, pool.length));
+}
+
 function placeDesertHexes() {
+  // TODO: re-enable when step-terrain generation is implemented
+  return;
   const cells = activeHexCells.value;
   const size = activeTerrainTemplateSize.value;
 
@@ -3766,6 +4313,8 @@ function placeDesertHexes() {
 }
 
 function placeSeaHexes(rng = Math.random) {
+  // TODO: re-enable when step-terrain generation is implemented
+  return;
   const cells = activeHexCells.value;
   const size = activeTerrainTemplateSize.value;
   const faceIds = [...new Set(cells.map((cell) => normalizeFaceTopologyId(cell.faceId)).filter(Boolean))];
@@ -3831,10 +4380,14 @@ function placeSeaHexes(rng = Math.random) {
   }
 
   const nextWater = new Map(waterHexesBySize.value);
-  if (seaCells.size === 0) {
+  const existingWater = new Map(nextWater.get(size) || []);
+  for (const [key, value] of seaCells.entries()) {
+    existingWater.set(key, value);
+  }
+  if (existingWater.size === 0) {
     nextWater.delete(size);
   } else {
-    nextWater.set(size, seaCells);
+    nextWater.set(size, existingWater);
   }
   waterHexesBySize.value = nextWater;
 
@@ -3848,6 +4401,8 @@ function placeSeaHexes(rng = Math.random) {
 }
 
 function placeIceCapHexes(rng = null) {
+  // TODO: re-enable when step-terrain generation is implemented
+  return;
   const cells = activeHexCells.value;
   const size = activeTerrainTemplateSize.value;
   const baseBandCount = Math.floor(hydroTriangleScore.value / 2);
@@ -3881,6 +4436,8 @@ function placeIceCapHexes(rng = null) {
 }
 
 function placeOceanTriangles(rng = Math.random) {
+  // TODO: re-enable when step-terrain generation is implemented
+  return;
   const size = activeTerrainTemplateSize.value;
   const graph = activeTopologyGraph.value;
   const triangles = graph.triangles;
@@ -3989,9 +4546,636 @@ function placeOceanTriangles(rng = Math.random) {
   shoreSegmentsBySize.value = nextShore;
 }
 
+function computeTriangleCentroid(vertices = []) {
+  if (!Array.isArray(vertices) || vertices.length !== 3) {
+    return { x: 0, y: 0 };
+  }
+
+  const x = (Number(vertices[0]?.[0]) + Number(vertices[1]?.[0]) + Number(vertices[2]?.[0])) / 3;
+  const y = (Number(vertices[0]?.[1]) + Number(vertices[1]?.[1]) + Number(vertices[2]?.[1])) / 3;
+  return {
+    x: Number.isFinite(x) ? x : 0,
+    y: Number.isFinite(y) ? y : 0,
+  };
+}
+
+function parseViewBoxRect(viewBox) {
+  const fallback = { minX: 0, minY: 0, maxX: 1066, maxY: 998 };
+  const parts = String(viewBox || "")
+    .trim()
+    .split(/\s+/)
+    .map((part) => Number.parseFloat(part));
+
+  if (parts.length !== 4 || parts.some((part) => !Number.isFinite(part))) {
+    return fallback;
+  }
+
+  const [x, y, width, height] = parts;
+  if (width <= 0 || height <= 0) {
+    return fallback;
+  }
+
+  return {
+    minX: x,
+    minY: y,
+    maxX: x + width,
+    maxY: y + height,
+  };
+}
+
+function findSegmentIntersectionPoint(a, b, epsilon = 1e-6) {
+  const x1 = Number(a?.x1);
+  const y1 = Number(a?.y1);
+  const x2 = Number(a?.x2);
+  const y2 = Number(a?.y2);
+  const x3 = Number(b?.x1);
+  const y3 = Number(b?.y1);
+  const x4 = Number(b?.x2);
+  const y4 = Number(b?.y2);
+
+  if (![x1, y1, x2, y2, x3, y3, x4, y4].every(Number.isFinite)) {
+    return null;
+  }
+
+  const denominator = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
+  if (Math.abs(denominator) <= epsilon) {
+    return null;
+  }
+
+  const t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / denominator;
+  const u = ((x1 - x3) * (y1 - y2) - (y1 - y3) * (x1 - x2)) / denominator;
+
+  if (t < -epsilon || t > 1 + epsilon || u < -epsilon || u > 1 + epsilon) {
+    return null;
+  }
+
+  return {
+    x: x1 + t * (x2 - x1),
+    y: y1 + t * (y2 - y1),
+  };
+}
+
+function findClosestSegmentIntersection(segment, existingSegments, epsilon = 1e-3) {
+  let closestPoint = null;
+  let closestDistance = Number.POSITIVE_INFINITY;
+
+  for (const existing of existingSegments || []) {
+    const intersection = findSegmentIntersectionPoint(segment, existing);
+    if (!intersection) continue;
+
+    const distance = Math.hypot(intersection.x - segment.x1, intersection.y - segment.y1);
+    if (distance <= epsilon || distance >= closestDistance) continue;
+
+    closestPoint = intersection;
+    closestDistance = distance;
+  }
+
+  return closestPoint;
+}
+
+function extendRayToViewBoxBoundary(start, direction, bounds, epsilon = 1e-6) {
+  const sx = Number(start?.x);
+  const sy = Number(start?.y);
+  const dxRaw = Number(direction?.x);
+  const dyRaw = Number(direction?.y);
+  if (![sx, sy, dxRaw, dyRaw].every(Number.isFinite)) {
+    return null;
+  }
+
+  const magnitude = Math.hypot(dxRaw, dyRaw);
+  if (!Number.isFinite(magnitude) || magnitude <= epsilon) {
+    return null;
+  }
+
+  const dx = dxRaw / magnitude;
+  const dy = dyRaw / magnitude;
+  const candidates = [];
+  const minY = bounds.minY - epsilon;
+  const maxY = bounds.maxY + epsilon;
+  const minX = bounds.minX - epsilon;
+  const maxX = bounds.maxX + epsilon;
+
+  if (Math.abs(dx) > epsilon) {
+    const tMinX = (bounds.minX - sx) / dx;
+    const yAtMinX = sy + tMinX * dy;
+    if (tMinX > epsilon && yAtMinX >= minY && yAtMinX <= maxY) {
+      candidates.push({ t: tMinX, x: bounds.minX, y: yAtMinX });
+    }
+
+    const tMaxX = (bounds.maxX - sx) / dx;
+    const yAtMaxX = sy + tMaxX * dy;
+    if (tMaxX > epsilon && yAtMaxX >= minY && yAtMaxX <= maxY) {
+      candidates.push({ t: tMaxX, x: bounds.maxX, y: yAtMaxX });
+    }
+  }
+
+  if (Math.abs(dy) > epsilon) {
+    const tMinY = (bounds.minY - sy) / dy;
+    const xAtMinY = sx + tMinY * dx;
+    if (tMinY > epsilon && xAtMinY >= minX && xAtMinY <= maxX) {
+      candidates.push({ t: tMinY, x: xAtMinY, y: bounds.minY });
+    }
+
+    const tMaxY = (bounds.maxY - sy) / dy;
+    const xAtMaxY = sx + tMaxY * dx;
+    if (tMaxY > epsilon && xAtMaxY >= minX && xAtMaxY <= maxX) {
+      candidates.push({ t: tMaxY, x: xAtMaxY, y: bounds.maxY });
+    }
+  }
+
+  if (!candidates.length) {
+    return null;
+  }
+
+  candidates.sort((left, right) => left.t - right.t);
+  return candidates[0];
+}
+
+function findClosestRayBoundaryHit(start, direction, boundarySegments, bounds, epsilon = 1e-3) {
+  const fallbackHit = extendRayToViewBoxBoundary(start, direction, bounds);
+  if (!fallbackHit) {
+    return null;
+  }
+
+  const raySegment = {
+    x1: Number(start?.x),
+    y1: Number(start?.y),
+    x2: Number(fallbackHit.x),
+    y2: Number(fallbackHit.y),
+  };
+
+  let closestPoint = null;
+  let closestDistance = Number.POSITIVE_INFINITY;
+
+  for (const boundarySegment of boundarySegments || []) {
+    const intersection = findSegmentIntersectionPoint(raySegment, boundarySegment);
+    if (!intersection) continue;
+
+    const distance = Math.hypot(intersection.x - raySegment.x1, intersection.y - raySegment.y1);
+    if (distance <= epsilon || distance >= closestDistance) continue;
+
+    closestPoint = intersection;
+    closestDistance = distance;
+  }
+
+  return closestPoint || { x: fallbackHit.x, y: fallbackHit.y };
+}
+
+function nudgeBoundaryEndpoint(start, boundaryHit, distance = 0.9, epsilon = 1e-6) {
+  const sx = Number(start?.x);
+  const sy = Number(start?.y);
+  const bx = Number(boundaryHit?.x);
+  const by = Number(boundaryHit?.y);
+  if (![sx, sy, bx, by].every(Number.isFinite)) {
+    return boundaryHit;
+  }
+
+  const dx = bx - sx;
+  const dy = by - sy;
+  const magnitude = Math.hypot(dx, dy);
+  if (!Number.isFinite(magnitude) || magnitude <= epsilon) {
+    return boundaryHit;
+  }
+
+  return {
+    x: bx + (dx / magnitude) * distance,
+    y: by + (dy / magnitude) * distance,
+  };
+}
+
+function pickNextTectonicNeighbor(current, previousId, byId, visitedIds, rng = Math.random) {
+  const neighbors = [...(current?.neighbors || [])].filter((id) => id !== previousId && byId.has(id));
+  if (!neighbors.length) {
+    return null;
+  }
+
+  const unvisited = neighbors.filter((id) => !visitedIds.has(id));
+  const pool = unvisited.length ? unvisited : neighbors;
+  return pool[Math.floor(rng() * pool.length)] || null;
+}
+
+function placeTectonicLines(rng = Math.random) {
+  const size = activeTerrainTemplateSize.value;
+  const triangles = activeTopologyTriangles.value;
+  const lineCountTarget = Math.max(0, Number(tectonicPlateCount.value) || 0);
+
+  if (!triangles.length || lineCountTarget <= 0) {
+    const nextBySize = new Map(tectonicLineSegmentsBySize.value);
+    nextBySize.delete(size);
+    tectonicLineSegmentsBySize.value = nextBySize;
+    return;
+  }
+
+  const byId = new Map(triangles.map((triangle) => [triangle.id, triangle]));
+  const triangleIds = [...byId.keys()];
+  const bounds = parseViewBoxRect(activeViewBox.value);
+  const edgeOwners = activeTopologyGraph.value?.edgeOwners;
+  const boundarySegments = [];
+  const boundaryEdgeKeys = new Set();
+  const boundaryTriangleIds = new Set();
+
+  if (edgeOwners instanceof Map) {
+    for (const triangle of triangles) {
+      if (!Array.isArray(triangle?.edges)) continue;
+      let hasExteriorEdge = false;
+      for (const edge of triangle.edges) {
+        const isExterior = (edgeOwners.get(edge.key) || []).length === 1;
+        if (isExterior) {
+          hasExteriorEdge = true;
+          if (!boundaryEdgeKeys.has(edge.key)) {
+            boundarySegments.push({
+              key: `boundary-${edge.key}`,
+              x1: Number(edge.a?.[0]),
+              y1: Number(edge.a?.[1]),
+              x2: Number(edge.b?.[0]),
+              y2: Number(edge.b?.[1]),
+            });
+            boundaryEdgeKeys.add(edge.key);
+          }
+        }
+      }
+      if (hasExteriorEdge) {
+        boundaryTriangleIds.add(triangle.id);
+      }
+    }
+  }
+
+  for (let i = triangleIds.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(rng() * (i + 1));
+    [triangleIds[i], triangleIds[j]] = [triangleIds[j], triangleIds[i]];
+  }
+
+  const segments = [];
+  const committedSegments = [];
+  const lineCount = Math.min(lineCountTarget, triangleIds.length);
+
+  function normalizeSegmentGeometry(segment) {
+    const x1 = Number(segment?.x1);
+    const y1 = Number(segment?.y1);
+    const x2 = Number(segment?.x2);
+    const y2 = Number(segment?.y2);
+    if (![x1, y1, x2, y2].every(Number.isFinite)) {
+      return null;
+    }
+
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const length = Math.hypot(dx, dy);
+    if (!Number.isFinite(length) || length <= 0) {
+      return null;
+    }
+
+    let ux = dx / length;
+    let uy = dy / length;
+    if (ux < 0 || (Math.abs(ux) < 1e-6 && uy < 0)) {
+      ux *= -1;
+      uy *= -1;
+    }
+
+    return {
+      x1,
+      y1,
+      x2,
+      y2,
+      length,
+      ux,
+      uy,
+      midX: (x1 + x2) / 2,
+      midY: (y1 + y2) / 2,
+      minX: Math.min(x1, x2),
+      maxX: Math.max(x1, x2),
+      minY: Math.min(y1, y2),
+      maxY: Math.max(y1, y2),
+    };
+  }
+
+  function segmentsLookMirroredOrDuplicate(candidate, existing) {
+    const a = normalizeSegmentGeometry(candidate);
+    const b = normalizeSegmentGeometry(existing);
+    if (!a || !b) {
+      return false;
+    }
+
+    const directionSimilarity = Math.abs(a.ux * b.ux + a.uy * b.uy);
+    if (directionSimilarity < 0.985) {
+      return false;
+    }
+
+    const midDistance = Math.hypot(a.midX - b.midX, a.midY - b.midY);
+    const minLen = Math.min(a.length, b.length);
+
+    // Direct near-duplicate in same area.
+    if (midDistance <= 9 && minLen >= 10) {
+      return true;
+    }
+
+    // Common mirror artifact: nearly vertical twins sharing the same Y span.
+    const bothMostlyVertical = Math.abs(a.ux) < 0.25 && Math.abs(b.ux) < 0.25;
+    if (bothMostlyVertical) {
+      const xDelta = Math.abs(a.midX - b.midX);
+      const overlapY = Math.max(0, Math.min(a.maxY, b.maxY) - Math.max(a.minY, b.minY));
+      if (xDelta <= 12 && overlapY >= minLen * 0.6) {
+        return true;
+      }
+    }
+
+    // Common mirror artifact: nearly horizontal twins sharing the same X span.
+    const bothMostlyHorizontal = Math.abs(a.uy) < 0.25 && Math.abs(b.uy) < 0.25;
+    if (bothMostlyHorizontal) {
+      const yDelta = Math.abs(a.midY - b.midY);
+      const overlapX = Math.max(0, Math.min(a.maxX, b.maxX) - Math.max(a.minX, b.minX));
+      if (yDelta <= 12 && overlapX >= minLen * 0.6) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  function segmentRunsAlongBorder(candidate) {
+    const geometry = normalizeSegmentGeometry(candidate);
+    if (!geometry) {
+      return false;
+    }
+
+    const spanX = Math.max(1, bounds.maxX - bounds.minX);
+    const spanY = Math.max(1, bounds.maxY - bounds.minY);
+    const edgeBufferX = Math.max(10, spanX * 0.025);
+    const edgeBufferY = Math.max(10, spanY * 0.025);
+
+    const nearTop =
+      Math.abs(geometry.y1 - bounds.minY) <= edgeBufferY && Math.abs(geometry.y2 - bounds.minY) <= edgeBufferY;
+    const nearBottom =
+      Math.abs(geometry.y1 - bounds.maxY) <= edgeBufferY && Math.abs(geometry.y2 - bounds.maxY) <= edgeBufferY;
+    const nearLeft =
+      Math.abs(geometry.x1 - bounds.minX) <= edgeBufferX && Math.abs(geometry.x2 - bounds.minX) <= edgeBufferX;
+    const nearRight =
+      Math.abs(geometry.x1 - bounds.maxX) <= edgeBufferX && Math.abs(geometry.x2 - bounds.maxX) <= edgeBufferX;
+
+    const mostlyHorizontal = Math.abs(geometry.uy) < 0.25;
+    const mostlyVertical = Math.abs(geometry.ux) < 0.25;
+
+    if ((nearTop || nearBottom) && mostlyHorizontal) {
+      return true;
+    }
+
+    if ((nearLeft || nearRight) && mostlyVertical) {
+      return true;
+    }
+
+    return false;
+  }
+
+  function maybePushSegment(target, candidate) {
+    const boundedCandidate = {
+      ...candidate,
+      x1: clamp(Number(candidate?.x1), bounds.minX, bounds.maxX),
+      y1: clamp(Number(candidate?.y1), bounds.minY, bounds.maxY),
+      x2: clamp(Number(candidate?.x2), bounds.minX, bounds.maxX),
+      y2: clamp(Number(candidate?.y2), bounds.minY, bounds.maxY),
+    };
+
+    const length = Math.hypot(
+      Number(boundedCandidate?.x2) - Number(boundedCandidate?.x1),
+      Number(boundedCandidate?.y2) - Number(boundedCandidate?.y1),
+    );
+    if (!Number.isFinite(length) || length < 4) {
+      return;
+    }
+
+    if (segmentRunsAlongBorder(boundedCandidate)) {
+      return;
+    }
+
+    const existing = [...committedSegments, ...target];
+    if (existing.some((segment) => segmentsLookMirroredOrDuplicate(boundedCandidate, segment))) {
+      return;
+    }
+
+    target.push(boundedCandidate);
+  }
+
+  function appendIrregularSegment(target, candidate, keyPrefix) {
+    const x1 = Number(candidate?.x1);
+    const y1 = Number(candidate?.y1);
+    const x2 = Number(candidate?.x2);
+    const y2 = Number(candidate?.y2);
+    const length = Math.hypot(x2 - x1, y2 - y1);
+
+    if (!Number.isFinite(length) || length < 4) {
+      return;
+    }
+
+    // Keep very short links straight to avoid noisy jitter at triangle boundaries.
+    if (length < 18) {
+      maybePushSegment(target, {
+        ...candidate,
+        key: `${keyPrefix}-straight`,
+      });
+      return;
+    }
+
+    const ux = (x2 - x1) / length;
+    const uy = (y2 - y1) / length;
+    const px = -uy;
+    const py = ux;
+    const midpointT = 0.35 + rng() * 0.3;
+    const jitter = Math.min(10, length * 0.2) * (0.45 + rng() * 0.55) * (rng() < 0.5 ? -1 : 1);
+    const mid = {
+      x: clamp(x1 + (x2 - x1) * midpointT + px * jitter, bounds.minX, bounds.maxX),
+      y: clamp(y1 + (y2 - y1) * midpointT + py * jitter, bounds.minY, bounds.maxY),
+    };
+
+    const pieces = [
+      {
+        key: `${keyPrefix}-a`,
+        x1,
+        y1,
+        x2: mid.x,
+        y2: mid.y,
+      },
+      {
+        key: `${keyPrefix}-b`,
+        x1: mid.x,
+        y1: mid.y,
+        x2,
+        y2,
+      },
+    ];
+
+    for (let i = 0; i < pieces.length; i += 1) {
+      const piece = pieces[i];
+      const intersection = findClosestSegmentIntersection(piece, committedSegments);
+      if (intersection) {
+        maybePushSegment(target, {
+          ...piece,
+          key: `${keyPrefix}-hit-${i}`,
+          x2: intersection.x,
+          y2: intersection.y,
+        });
+        return;
+      }
+
+      maybePushSegment(target, piece);
+    }
+  }
+
+  for (let lineIndex = 0; lineIndex < lineCount; lineIndex += 1) {
+    let currentId = triangleIds[lineIndex];
+    let previousId = "";
+    let previousPoint = null;
+    const visitedIds = new Set([currentId]);
+    const lineSegments = [];
+    const maxSteps = Math.max(8, triangles.length * 2);
+    let terminated = false;
+
+    for (let step = 0; step < maxSteps; step += 1) {
+      const current = byId.get(currentId);
+      if (!current) break;
+      const currentCentroid = computeTriangleCentroid(current.vertices);
+
+      const nextId = pickNextTectonicNeighbor(current, previousId, byId, visitedIds, rng);
+      if (!nextId) {
+        const direction = previousPoint
+          ? { x: currentCentroid.x - previousPoint.x, y: currentCentroid.y - previousPoint.y }
+          : { x: Math.cos(rng() * Math.PI * 2), y: Math.sin(rng() * Math.PI * 2) };
+
+        const boundaryHit = findClosestRayBoundaryHit(currentCentroid, direction, boundarySegments, bounds);
+        if (boundaryHit) {
+          const nudgedBoundaryHit = nudgeBoundaryEndpoint(currentCentroid, boundaryHit);
+          const boundarySegment = {
+            key: `tectonic-${lineIndex}-${step}-boundary-stop`,
+            x1: currentCentroid.x,
+            y1: currentCentroid.y,
+            x2: nudgedBoundaryHit.x,
+            y2: nudgedBoundaryHit.y,
+          };
+          const intersection = findClosestSegmentIntersection(boundarySegment, committedSegments);
+          if (intersection) {
+            maybePushSegment(lineSegments, {
+              ...boundarySegment,
+              key: `tectonic-${lineIndex}-${step}-intersection-stop`,
+              x2: intersection.x,
+              y2: intersection.y,
+            });
+          } else {
+            appendIrregularSegment(lineSegments, boundarySegment, `tectonic-${lineIndex}-${step}-boundary-stop`);
+          }
+        }
+        terminated = true;
+        break;
+      }
+
+      const nextTriangle = byId.get(nextId);
+      const nextCentroid = computeTriangleCentroid(nextTriangle?.vertices);
+      const candidate = {
+        key: `tectonic-${lineIndex}-${step}-${currentId}|${nextId}`,
+        x1: currentCentroid.x,
+        y1: currentCentroid.y,
+        x2: nextCentroid.x,
+        y2: nextCentroid.y,
+      };
+
+      const intersection = findClosestSegmentIntersection(candidate, committedSegments);
+      if (intersection) {
+        maybePushSegment(lineSegments, {
+          ...candidate,
+          key: `tectonic-${lineIndex}-${step}-intersection-hit`,
+          x2: intersection.x,
+          y2: intersection.y,
+        });
+        terminated = true;
+        break;
+      }
+
+      appendIrregularSegment(lineSegments, candidate, `tectonic-${lineIndex}-${step}`);
+      previousPoint = currentCentroid;
+      previousId = currentId;
+      currentId = nextId;
+      visitedIds.add(currentId);
+
+      if (boundaryTriangleIds.has(currentId)) {
+        const direction = previousPoint
+          ? { x: nextCentroid.x - previousPoint.x, y: nextCentroid.y - previousPoint.y }
+          : { x: Math.cos(rng() * Math.PI * 2), y: Math.sin(rng() * Math.PI * 2) };
+        const boundaryHit = findClosestRayBoundaryHit(nextCentroid, direction, boundarySegments, bounds);
+        if (boundaryHit) {
+          const nudgedBoundaryHit = nudgeBoundaryEndpoint(nextCentroid, boundaryHit);
+          const boundarySegment = {
+            key: `tectonic-${lineIndex}-${step}-boundary-hit`,
+            x1: nextCentroid.x,
+            y1: nextCentroid.y,
+            x2: nudgedBoundaryHit.x,
+            y2: nudgedBoundaryHit.y,
+          };
+          const boundaryIntersection = findClosestSegmentIntersection(boundarySegment, committedSegments);
+          if (boundaryIntersection) {
+            maybePushSegment(lineSegments, {
+              ...boundarySegment,
+              key: `tectonic-${lineIndex}-${step}-boundary-intersection`,
+              x2: boundaryIntersection.x,
+              y2: boundaryIntersection.y,
+            });
+          } else {
+            appendIrregularSegment(lineSegments, boundarySegment, `tectonic-${lineIndex}-${step}-boundary-hit`);
+          }
+        }
+        terminated = true;
+        break;
+      }
+    }
+
+    if (!terminated && lineSegments.length) {
+      const tail = lineSegments[lineSegments.length - 1];
+      const direction = {
+        x: Number(tail.x2) - Number(tail.x1),
+        y: Number(tail.y2) - Number(tail.y1),
+      };
+      const boundaryHit = findClosestRayBoundaryHit({ x: tail.x2, y: tail.y2 }, direction, boundarySegments, bounds);
+      if (boundaryHit) {
+        const nudgedBoundaryHit = nudgeBoundaryEndpoint({ x: tail.x2, y: tail.y2 }, boundaryHit);
+        const boundarySegment = {
+          key: `tectonic-${lineIndex}-tail-boundary`,
+          x1: Number(tail.x2),
+          y1: Number(tail.y2),
+          x2: nudgedBoundaryHit.x,
+          y2: nudgedBoundaryHit.y,
+        };
+        const boundaryIntersection = findClosestSegmentIntersection(boundarySegment, committedSegments);
+        if (boundaryIntersection) {
+          maybePushSegment(lineSegments, {
+            ...boundarySegment,
+            key: `tectonic-${lineIndex}-tail-intersection`,
+            x2: boundaryIntersection.x,
+            y2: boundaryIntersection.y,
+          });
+        } else {
+          appendIrregularSegment(lineSegments, boundarySegment, `tectonic-${lineIndex}-tail`);
+        }
+      }
+    }
+
+    if (lineSegments.length) {
+      segments.push(...lineSegments);
+      committedSegments.push(...lineSegments);
+    }
+  }
+
+  const nextBySize = new Map(tectonicLineSegmentsBySize.value);
+  if (segments.length === 0) {
+    nextBySize.delete(size);
+  } else {
+    nextBySize.set(size, segments);
+  }
+  tectonicLineSegmentsBySize.value = nextBySize;
+}
+
 function placeRuinHexes(rng = Math.random) {
+  // TODO: re-enable when step-terrain generation is implemented
+  return;
   const cells = activeHexCells.value;
   const size = activeTerrainTemplateSize.value;
+  const waterSet = new Set(waterHexesBySize.value.get(size)?.keys() || []);
 
   if (!isDieBackWorld.value || !cells.length) {
     const nextBySize = new Map(ruinHexesBySize.value);
@@ -4002,6 +5186,7 @@ function placeRuinHexes(rng = Math.random) {
 
   const byFace = new Map();
   for (const cell of cells) {
+    if (waterSet.has(cell.key)) continue;
     const faceId = normalizeFaceTopologyId(cell.faceId);
     if (!faceId) continue;
     if (!byFace.has(faceId)) byFace.set(faceId, []);
@@ -4095,16 +5280,42 @@ function clearWaterHexes() {
   const nextTwilightLines = new Map(twilightZoneGuideLinesBySize.value);
   nextTwilightLines.delete(activeTerrainTemplateSize.value);
   twilightZoneGuideLinesBySize.value = nextTwilightLines;
+  const nextFlat = new Map(flatlandHexesBySize.value);
+  nextFlat.delete(activeTerrainTemplateSize.value);
+  flatlandHexesBySize.value = nextFlat;
+  const nextHills = new Map(hillsHexesBySize.value);
+  nextHills.delete(activeTerrainTemplateSize.value);
+  hillsHexesBySize.value = nextHills;
+  const nextVolcanic = new Map(volcanicHexesBySize.value);
+  nextVolcanic.delete(activeTerrainTemplateSize.value);
+  volcanicHexesBySize.value = nextVolcanic;
+  const nextForest = new Map(forestBiomeHexesBySize.value);
+  nextForest.delete(activeTerrainTemplateSize.value);
+  forestBiomeHexesBySize.value = nextForest;
+  const nextSwamp = new Map(swampBiomeHexesBySize.value);
+  nextSwamp.delete(activeTerrainTemplateSize.value);
+  swampBiomeHexesBySize.value = nextSwamp;
+  const nextArctic = new Map(arcticBiomeHexesBySize.value);
+  nextArctic.delete(activeTerrainTemplateSize.value);
+  arcticBiomeHexesBySize.value = nextArctic;
+  const nextTectonics = new Map(tectonicLineSegmentsBySize.value);
+  nextTectonics.delete(activeTerrainTemplateSize.value);
+  tectonicLineSegmentsBySize.value = nextTectonics;
   clearTwilightHemisphereHexes(activeTerrainTemplateSize.value);
   placeMountainHexes();
+  placeHillsHexes();
   placeChasmHexes();
   placePrecipiceHexes();
   placeCraterHexes();
   placeRuinHexes();
   placeDesertHexes();
   placeOceanTriangles();
+  placeTectonicLines();
   placeSeaHexes();
   placeIceCapHexes();
+  placeBaselineLandHexes();
+  placeHillsHexes();
+  placeLatitudeBiomes();
   placeCroplandHexes();
   placeTownHexes();
   placeCityHexes();
@@ -4118,289 +5329,7 @@ function clearWaterHexes() {
   placeNobleLandHexes();
 }
 
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-const isAnimating = ref(false);
-const animationStepLabel = ref("");
-
-async function animateGeneration() {
-  const cells = activeHexCells.value;
-  if (!cells.length || isAnimating.value) return;
-
-  isAnimating.value = true;
-
-  // Step 1: clear everything so we start fresh
-  animationStepLabel.value = "Clearing…";
-  clearWaterHexes();
-  starterTriangleRoll.value = null;
-  starterHexPick.value = null;
-  const nextResource = new Map(resourceHexesBySize.value);
-  nextResource.delete(activeTerrainTemplateSize.value);
-  resourceHexesBySize.value = nextResource;
-  const nextMountains = new Map(mountainHexesBySize.value);
-  nextMountains.delete(activeTerrainTemplateSize.value);
-  mountainHexesBySize.value = nextMountains;
-  const nextChasms = new Map(chasmHexesBySize.value);
-  nextChasms.delete(activeTerrainTemplateSize.value);
-  chasmHexesBySize.value = nextChasms;
-  const nextPrecipices = new Map(precipiceHexesBySize.value);
-  nextPrecipices.delete(activeTerrainTemplateSize.value);
-  precipiceHexesBySize.value = nextPrecipices;
-  const nextCraters = new Map(craterHexesBySize.value);
-  nextCraters.delete(activeTerrainTemplateSize.value);
-  craterHexesBySize.value = nextCraters;
-  const nextDesert = new Map(desertHexesBySize.value);
-  nextDesert.delete(activeTerrainTemplateSize.value);
-  desertHexesBySize.value = nextDesert;
-  const nextOceans = new Map(oceanTrianglesBySize.value);
-  nextOceans.delete(activeTerrainTemplateSize.value);
-  oceanTrianglesBySize.value = nextOceans;
-  const nextOceanGroups = new Map(oceanGroupsBySize.value);
-  nextOceanGroups.delete(activeTerrainTemplateSize.value);
-  oceanGroupsBySize.value = nextOceanGroups;
-  const nextShoreSegments = new Map(shoreSegmentsBySize.value);
-  nextShoreSegments.delete(activeTerrainTemplateSize.value);
-  shoreSegmentsBySize.value = nextShoreSegments;
-  const nextRuins = new Map(ruinHexesBySize.value);
-  nextRuins.delete(activeTerrainTemplateSize.value);
-  ruinHexesBySize.value = nextRuins;
-  const nextCropland = new Map(croplandHexesBySize.value);
-  nextCropland.delete(activeTerrainTemplateSize.value);
-  croplandHexesBySize.value = nextCropland;
-  const nextTowns = new Map(townHexesBySize.value);
-  nextTowns.delete(activeTerrainTemplateSize.value);
-  townHexesBySize.value = nextTowns;
-  const nextCities = new Map(cityHexesBySize.value);
-  nextCities.delete(activeTerrainTemplateSize.value);
-  cityHexesBySize.value = nextCities;
-  const nextArcologies = new Map(arcologyHexesBySize.value);
-  nextArcologies.delete(activeTerrainTemplateSize.value);
-  arcologyHexesBySize.value = nextArcologies;
-  const nextRural = new Map(ruralHexesBySize.value);
-  nextRural.delete(activeTerrainTemplateSize.value);
-  ruralHexesBySize.value = nextRural;
-  const nextWorldPort = new Map(worldPortHexesBySize.value);
-  nextWorldPort.delete(activeTerrainTemplateSize.value);
-  worldPortHexesBySize.value = nextWorldPort;
-  const nextPenal = new Map(penalColonyHexesBySize.value);
-  nextPenal.delete(activeTerrainTemplateSize.value);
-  penalColonyHexesBySize.value = nextPenal;
-  const nextWasteland = new Map(wastelandHexesBySize.value);
-  nextWasteland.delete(activeTerrainTemplateSize.value);
-  wastelandHexesBySize.value = nextWasteland;
-  const nextExotic = new Map(exoticHexesBySize.value);
-  nextExotic.delete(activeTerrainTemplateSize.value);
-  exoticHexesBySize.value = nextExotic;
-  const nextNoble = new Map(nobleLandHexesBySize.value);
-  nextNoble.delete(activeTerrainTemplateSize.value);
-  nobleLandHexesBySize.value = nextNoble;
-  const nextTwilight = new Map(twilightZoneHexesBySize.value);
-  nextTwilight.delete(activeTerrainTemplateSize.value);
-  twilightZoneHexesBySize.value = nextTwilight;
-  const nextTwilightLines = new Map(twilightZoneGuideLinesBySize.value);
-  nextTwilightLines.delete(activeTerrainTemplateSize.value);
-  twilightZoneGuideLinesBySize.value = nextTwilightLines;
-  clearTwilightHemisphereHexes(activeTerrainTemplateSize.value);
-  await sleep(400);
-
-  // Step 2: roll and show the starter triangle
-  animationStepLabel.value = "Rolling starter triangle…";
-  rollStarterTriangle();
-  await sleep(900);
-
-  // Step 3: pick and show the starter hex
-  animationStepLabel.value = "Picking starter hex…";
-  rollStarterHexInTriangle();
-  await sleep(900);
-
-  // Step 4: score all hexes exactly as generateTerrain does
-  animationStepLabel.value = "Scoring hexes…";
-  const starterFaceId = String(starterTriangleRoll.value?.resolvedFaceId || "").trim();
-  const starterHexKey = String(starterHexPick.value?.key || "").trim();
-  const targetCount = clamp(Math.round(cells.length * hydroTargetRatio.value), 0, cells.length);
-
-  if (targetCount === 0) {
-    isAnimating.value = false;
-    animationStepLabel.value = "";
-    return;
-  }
-
-  const ys = cells.map((c) => c.cy);
-  const minY = Math.min(...ys);
-  const maxY = Math.max(...ys);
-  const yRange = Math.max(1, maxY - minY);
-  const yMid = (minY + maxY) / 2;
-  const seed = hashString(
-    `${worldInfo.value.name}|${systemInfo.value.hex}|${activeTerrainTemplateSize.value}|${worldInfo.value.hydrographics}`,
-  );
-  const rand = mulberry32(seed);
-  const ranked = cells
-    .map((cell) => {
-      const latNorm = Math.abs(cell.cy - yMid) / (yRange / 2);
-      const equatorBias = 1 - clamp(latNorm, 0, 1);
-      const starterBias =
-        starterFaceId && normalizeFaceTopologyId(cell.faceId) === normalizeFaceTopologyId(starterFaceId) ? 0.32 : 0;
-      const starterHexBias = starterHexKey && String(cell.key) === starterHexKey ? 0.25 : 0;
-      const score = rand() * 0.78 + equatorBias * 0.22 + starterBias + starterHexBias;
-      return { ...cell, score };
-    })
-    .sort((a, b) => b.score - a.score)
-    .slice(0, targetCount);
-  await sleep(400);
-
-  // Step 5: reveal water hexes in animated batches
-  const size = activeTerrainTemplateSize.value;
-  const batchSize = Math.max(1, Math.ceil(ranked.length / 20)); // ~20 frames total
-  const currentMap = new Map();
-
-  for (let i = 0; i < ranked.length; i += batchSize) {
-    const batch = ranked.slice(i, i + batchSize);
-    for (const cell of batch) currentMap.set(cell.key, cell.points);
-    const nextBySize = new Map(waterHexesBySize.value);
-    nextBySize.set(size, new Map(currentMap));
-    waterHexesBySize.value = nextBySize;
-    animationStepLabel.value = `Placing water ${Math.min(i + batchSize, ranked.length)} / ${ranked.length}…`;
-    await sleep(60);
-  }
-
-  // Step 6: place mountain hexes
-  animationStepLabel.value = "Placing mountain hexes…";
-  await sleep(500);
-  placeMountainHexes(rand);
-  await sleep(400);
-
-  // Step 7: place chasm hexes
-  animationStepLabel.value = "Placing chasm hexes…";
-  await sleep(300);
-  placeChasmHexes(rand);
-  await sleep(400);
-
-  // Step 8: place precipice hexes
-  animationStepLabel.value = "Placing precipice hexes…";
-  await sleep(300);
-  placePrecipiceHexes(rand);
-  await sleep(400);
-
-  // Step 9: place crater hexes (Va worlds only)
-  animationStepLabel.value = "Placing crater hexes…";
-  await sleep(300);
-  placeCraterHexes(rand);
-  await sleep(400);
-
-  // Step 10: place ruin hexes (Di worlds only)
-  animationStepLabel.value = "Placing ruins…";
-  await sleep(300);
-  placeRuinHexes(rand);
-  await sleep(400);
-
-  // Step 11: place resource hexes
-  animationStepLabel.value = "Placing resource hexes…";
-  await sleep(300);
-  placeResourceHexes();
-  await sleep(400);
-
-  // Step 12: mark all remaining hexes as desert (De worlds only)
-  animationStepLabel.value = "Marking desert hexes…";
-  await sleep(250);
-  placeDesertHexes();
-  await sleep(350);
-
-  // Step 13: select ocean triangles and draw shore lines
-  animationStepLabel.value = "Selecting oceans and shorelines…";
-  await sleep(250);
-  placeOceanTriangles(rand);
-  await sleep(350);
-
-  // Step 14: place enclosed seas and surrounding shoreline hexes
-  animationStepLabel.value = "Placing seas and shores…";
-  await sleep(250);
-  placeSeaHexes(rand);
-  await sleep(350);
-
-  // Step 15: place polar ice caps
-  animationStepLabel.value = "Placing ice caps…";
-  await sleep(250);
-  placeIceCapHexes(rand);
-  await sleep(300);
-
-  // Step 16: place croplands on agricultural/farming continents
-  animationStepLabel.value = "Placing croplands…";
-  await sleep(250);
-  placeCroplandHexes(rand);
-  await sleep(300);
-
-  // Step 17: place single town for low-pop/non-industrial worlds
-  animationStepLabel.value = "Placing town…";
-  await sleep(250);
-  placeTownHexes(rand);
-  await sleep(250);
-
-  // Step 20: place cities by population, one per continent
-  animationStepLabel.value = "Placing cities…";
-  await sleep(250);
-  placeCityHexes(rand);
-  await sleep(250);
-
-  // Step 21: high-pop worlds place Pop/2 arcologies
-  animationStepLabel.value = "Placing arcologies…";
-  await sleep(250);
-  placeArcologyHexes(rand);
-  await sleep(250);
-
-  // Step 22: mark clear hexes within Pop hexes of cities as rural
-  animationStepLabel.value = "Marking rural hexes…";
-  await sleep(250);
-  placeRuralHexes();
-  await sleep(250);
-
-  // Step 23: place the world starport or spaceport
-  animationStepLabel.value = "Placing world port…";
-  await sleep(250);
-  placeWorldPortHexes(rand);
-  placeRuralHexes();
-  await sleep(250);
-
-  // Step 24: create one-hex-wide twilight zone for tidally locked worlds
-  animationStepLabel.value = "Creating twilight zone…";
-  await sleep(250);
-  placeTwilightZoneHexes(rand);
-  await sleep(250);
-
-  // Step 25: split twilight world into baked and frozen hemispheres
-  animationStepLabel.value = "Applying twilight hemispheres…";
-  await sleep(250);
-  placeTwilightHemisphereHexes(rand);
-  await sleep(250);
-
-  // Step 26: mark penal colonies by population with one per triangle
-  animationStepLabel.value = "Marking penal colonies…";
-  await sleep(250);
-  placePenalColonyHexes(rand);
-  await sleep(250);
-
-  // Step 27: if TL > 5, mark 1D adjacent hexes in one triangle as wasteland
-  animationStepLabel.value = "Marking wasteland…";
-  await sleep(250);
-  placeWastelandHexes(rand);
-  await sleep(250);
-
-  // Step 28: place one exotic hex in one triangle
-  animationStepLabel.value = "Placing exotic hex…";
-  await sleep(250);
-  placeExoticHexes(rand);
-  await sleep(250);
-
-  // Step 29: place one noble lands estate
-  animationStepLabel.value = "Placing noble estate…";
-  await sleep(250);
-  placeNobleLandHexes(rand);
-  await sleep(250);
-
-  animationStepLabel.value = "";
-  isAnimating.value = false;
-}
+const terrainGenerationNonce = ref(0);
 
 function generateTerrain() {
   const cells = activeHexCells.value;
@@ -4408,50 +5337,29 @@ function generateTerrain() {
     return;
   }
 
-  if (!starterTriangleRoll.value?.resolvedFaceId) {
-    rollStarterTriangle();
-  }
-  const starterFaceId = String(starterTriangleRoll.value?.resolvedFaceId || "").trim();
-  if (!starterHexPick.value?.key) {
-    rollStarterHexInTriangle();
-  }
-  const starterHexKey = String(starterHexPick.value?.key || "").trim();
+  terrainGenerationNonce.value += 1;
+
+  const seed = hashString(
+    `${worldInfo.value.name}|${systemInfo.value.hex}|${activeTerrainTemplateSize.value}|${worldInfo.value.hydrographics}|${terrainGenerationNonce.value}`,
+  );
+  const rand = mulberry32(seed);
+  const tectonicRand = mulberry32(hashString(`${seed}|tectonic-lines`));
 
   const targetCount = clamp(Math.round(cells.length * hydroTargetRatio.value), 0, cells.length);
   if (targetCount === 0) {
     clearWaterHexes();
+    placeTectonicLines(tectonicRand);
     return;
   }
 
-  const ys = cells.map((cell) => cell.cy);
-  const minY = Math.min(...ys);
-  const maxY = Math.max(...ys);
-  const yRange = Math.max(1, maxY - minY);
-  const yMid = (minY + maxY) / 2;
-
-  const seed = hashString(
-    `${worldInfo.value.name}|${systemInfo.value.hex}|${activeTerrainTemplateSize.value}|${worldInfo.value.hydrographics}`,
-  );
-  const rand = mulberry32(seed);
-
-  const ranked = cells
-    .map((cell) => {
-      const latNorm = Math.abs(cell.cy - yMid) / (yRange / 2);
-      const equatorBias = 1 - clamp(latNorm, 0, 1);
-      const starterBias =
-        starterFaceId && normalizeFaceTopologyId(cell.faceId) === normalizeFaceTopologyId(starterFaceId) ? 0.32 : 0;
-      const starterHexBias = starterHexKey && String(cell.key) === starterHexKey ? 0.25 : 0;
-      const score = rand() * 0.78 + equatorBias * 0.22 + starterBias + starterHexBias;
-      return { ...cell, score };
-    })
-    .sort((a, b) => b.score - a.score)
-    .slice(0, targetCount);
+  const ranked = buildRandomWaterCells(cells, targetCount, rand);
 
   const nextBySize = new Map(waterHexesBySize.value);
   nextBySize.set(activeTerrainTemplateSize.value, new Map(ranked.map((cell) => [cell.key, cell.points])));
   waterHexesBySize.value = nextBySize;
 
   placeMountainHexes(rand);
+  placeHillsHexes(rand);
   placeChasmHexes(rand);
   placePrecipiceHexes(rand);
   placeCraterHexes(rand);
@@ -4459,19 +5367,12 @@ function generateTerrain() {
   placeResourceHexes();
   placeDesertHexes();
   placeOceanTriangles(rand);
+  placeTectonicLines(tectonicRand);
   placeSeaHexes(rand);
   placeIceCapHexes(rand);
-  placeCroplandHexes(rand);
-  placeTownHexes(rand);
-  placeCityHexes(rand);
-  placeArcologyHexes(rand);
-  placeWorldPortHexes(rand);
-  placeRuralHexes();
-  placeTwilightZoneHexes(rand);
-  placePenalColonyHexes(rand);
-  placeWastelandHexes(rand);
-  placeExoticHexes(rand);
-  placeNobleLandHexes(rand);
+  placeBaselineLandHexes();
+  placeHillsHexes(rand);
+  placeLatitudeBiomes(rand);
 }
 
 function handleMapClick(event) {
@@ -4500,11 +5401,15 @@ function handleMapClick(event) {
 
   waterHexesBySize.value = nextBySize;
   placeMountainHexes();
+  placeHillsHexes();
   placeChasmHexes();
   placePrecipiceHexes();
   placeCraterHexes();
   placeRuinHexes();
   placeDesertHexes();
+  placeBaselineLandHexes();
+  placeHillsHexes();
+  placeLatitudeBiomes();
   placeCityHexes();
   placeArcologyHexes();
   placeWorldPortHexes();
@@ -4570,16 +5475,19 @@ function clearMapHover() {
 
 <style scoped>
 .terrain-page {
-  height: 100vh;
+  min-height: 100vh;
+  height: auto;
   background: #f6f6f6;
   color: #0f0f0f;
   padding: 1rem;
-  overflow-y: scroll;
+  overflow-y: visible;
   overflow-x: hidden;
+  box-sizing: border-box;
 }
 
 .terrain-shell {
   max-width: 1200px;
+  width: 100%;
   margin: 0 auto;
   border: 4px solid #111;
   background: #ffffff;
@@ -4728,12 +5636,16 @@ function clearMapHover() {
 
 .terrain-map {
   width: 100%;
+  display: block;
+  height: auto;
+  aspect-ratio: auto;
   border: 3px solid #111;
   background: #fff;
+  overflow: visible;
 }
 
 .terrain-map #terrain-template-loaded polygon {
-  fill: #fff !important;
+  fill: #d2b48c !important;
   pointer-events: all;
 }
 

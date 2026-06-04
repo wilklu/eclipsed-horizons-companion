@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { WORLD_HEX_TAGS, buildWorldHexTagIndex, buildWorldTerrainHexTagSnapshot } from "./worldTerrainHexTags.js";
+import {
+  WORLD_HEX_BIOMES,
+  WORLD_HEX_TAGS,
+  WORLD_HEX_TERRAIN_CLASSES,
+  buildWorldHexTagIndex,
+  buildWorldTerrainHexTagSnapshot,
+} from "./worldTerrainHexTags.js";
 
 describe("worldTerrainHexTags", () => {
   it("splits terrain and feature tags while preserving the combined tag list", () => {
@@ -71,6 +77,8 @@ describe("worldTerrainHexTags", () => {
         WORLD_HEX_TAGS.TWILIGHT_ZONE,
         WORLD_HEX_TAGS.WASTELAND,
       ],
+      terrainClass: WORLD_HEX_TERRAIN_CLASSES.IMPASSABLE,
+      biomeTags: [WORLD_HEX_BIOMES.DESERT, WORLD_HEX_BIOMES.MOUNTAIN],
       featureTags: [
         WORLD_HEX_TAGS.ARCOLOGY,
         WORLD_HEX_TAGS.BAKED_LANDS,
@@ -87,30 +95,40 @@ describe("worldTerrainHexTags", () => {
       ],
       hasTerrainTags: true,
       hasFeatureTags: true,
+      hasBiomeTags: true,
     });
 
     expect(index.byKey.get("hex-b")).toMatchObject({
       tags: [WORLD_HEX_TAGS.OCEAN],
       terrainTags: [WORLD_HEX_TAGS.OCEAN],
+      terrainClass: WORLD_HEX_TERRAIN_CLASSES.AQUATIC,
+      biomeTags: [WORLD_HEX_BIOMES.AQUATIC],
       featureTags: [],
       hasTerrainTags: true,
       hasFeatureTags: false,
+      hasBiomeTags: true,
     });
 
     expect(index.byKey.get("hex-c")).toMatchObject({
       tags: [WORLD_HEX_TAGS.ISLAND],
       terrainTags: [WORLD_HEX_TAGS.ISLAND],
+      terrainClass: WORLD_HEX_TERRAIN_CLASSES.OPEN_FLAT,
+      biomeTags: [WORLD_HEX_BIOMES.PLAINS],
       featureTags: [],
       hasTerrainTags: true,
       hasFeatureTags: false,
+      hasBiomeTags: true,
     });
 
     expect(index.byKey.get("hex-d")).toMatchObject({
       tags: [WORLD_HEX_TAGS.ICE_CAP],
       terrainTags: [WORLD_HEX_TAGS.ICE_CAP],
+      terrainClass: WORLD_HEX_TERRAIN_CLASSES.OPEN_FLAT,
+      biomeTags: [WORLD_HEX_BIOMES.ARCTIC],
       featureTags: [],
       hasTerrainTags: true,
       hasFeatureTags: false,
+      hasBiomeTags: true,
     });
   });
 
@@ -137,6 +155,7 @@ describe("worldTerrainHexTags", () => {
       taggedHexCount: 1,
       terrainTaggedHexCount: 1,
       featureTaggedHexCount: 1,
+      biomeTaggedHexCount: 1,
       oceanTriangleIds: [],
       shorelineTriangleIds: [],
     });
@@ -165,23 +184,32 @@ describe("worldTerrainHexTags", () => {
     expect(index.byKey.get("hex-ocean")).toMatchObject({
       tags: [WORLD_HEX_TAGS.ICE_FIELD],
       terrainTags: [WORLD_HEX_TAGS.ICE_FIELD],
+      terrainClass: WORLD_HEX_TERRAIN_CLASSES.AQUATIC,
+      biomeTags: [WORLD_HEX_BIOMES.AQUATIC, WORLD_HEX_BIOMES.ARCTIC],
       hasTerrainTags: true,
+      hasBiomeTags: true,
     });
 
     expect(index.byKey.get("hex-land")).toMatchObject({
       tags: [WORLD_HEX_TAGS.FROZEN_LANDS, WORLD_HEX_TAGS.SHORELINE],
       terrainTags: [WORLD_HEX_TAGS.FROZEN_LANDS],
+      terrainClass: WORLD_HEX_TERRAIN_CLASSES.OPEN_FLAT,
+      biomeTags: [WORLD_HEX_BIOMES.ARCTIC],
       featureTags: [WORLD_HEX_TAGS.SHORELINE],
       hasTerrainTags: true,
       hasFeatureTags: true,
+      hasBiomeTags: true,
     });
 
     expect(index.byKey.get("hex-cap")).toMatchObject({
       tags: [WORLD_HEX_TAGS.ICE_CAP],
       terrainTags: [WORLD_HEX_TAGS.ICE_CAP],
+      terrainClass: WORLD_HEX_TERRAIN_CLASSES.OPEN_FLAT,
+      biomeTags: [WORLD_HEX_BIOMES.ARCTIC],
       featureTags: [],
       hasTerrainTags: true,
       hasFeatureTags: false,
+      hasBiomeTags: true,
     });
   });
 });

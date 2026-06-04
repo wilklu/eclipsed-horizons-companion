@@ -29,6 +29,10 @@
         <strong>{{ formatNumber(summary.featureTaggedHexCount) }}</strong>
       </div>
       <div class="world-terrain-hex-inspector-stat">
+        <span>Biomes</span>
+        <strong>{{ formatNumber(summary.biomeTaggedHexCount) }}</strong>
+      </div>
+      <div class="world-terrain-hex-inspector-stat">
         <span>Shorelines</span>
         <strong>{{ formatNumber(summary.shorelineTriangleCount) }}</strong>
       </div>
@@ -60,6 +64,10 @@
           </dd>
         </div>
         <div class="world-terrain-hex-inspector-item" v-if="selectedHex">
+          <dt>Terrain Class</dt>
+          <dd>{{ selectedHex.terrainClass || "None" }}</dd>
+        </div>
+        <div class="world-terrain-hex-inspector-item" v-if="selectedHex">
           <dt>Feature Tags</dt>
           <dd>
             <span v-if="selectedHex.featureTags.length" class="world-terrain-hex-inspector-tags">
@@ -67,6 +75,21 @@
                 v-for="tag in selectedHex.featureTags"
                 :key="`feature-${tag}`"
                 class="world-terrain-hex-inspector-tag world-terrain-hex-inspector-tag--feature"
+              >
+                {{ tag }}
+              </span>
+            </span>
+            <span v-else>None</span>
+          </dd>
+        </div>
+        <div class="world-terrain-hex-inspector-item" v-if="selectedHex">
+          <dt>Biome Tags</dt>
+          <dd>
+            <span v-if="selectedHex.biomeTags.length" class="world-terrain-hex-inspector-tags">
+              <span
+                v-for="tag in selectedHex.biomeTags"
+                :key="`biome-${tag}`"
+                class="world-terrain-hex-inspector-tag world-terrain-hex-inspector-tag--biome"
               >
                 {{ tag }}
               </span>
@@ -112,6 +135,7 @@ const props = defineProps({
       taggedHexCount: 0,
       terrainTaggedHexCount: 0,
       featureTaggedHexCount: 0,
+      biomeTaggedHexCount: 0,
       shorelineTriangleCount: 0,
     }),
   },
@@ -247,6 +271,11 @@ function formatNumber(value) {
 .world-terrain-hex-inspector-tag--feature {
   background: rgba(180, 83, 9, 0.12);
   color: #92400e;
+}
+
+.world-terrain-hex-inspector-tag--biome {
+  background: rgba(22, 163, 74, 0.12);
+  color: #166534;
 }
 
 .world-terrain-hex-inspector-all-tags {

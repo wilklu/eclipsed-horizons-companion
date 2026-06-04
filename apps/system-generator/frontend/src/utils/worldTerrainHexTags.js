@@ -1,4 +1,7 @@
 export const WORLD_HEX_TAGS = Object.freeze({
+  FLATLANDS: "Flatlands",
+  HILLS: "Hills",
+  VOLCANIC: "Volcanic",
   OCEAN: "Ocean",
   ICE_FIELD: "Ice Field",
   SHORELINE: "Shoreline",
@@ -28,14 +31,38 @@ export const WORLD_HEX_TAGS = Object.freeze({
   CRATER: "Crater",
   DESERT: "Desert",
   RUINS: "Ruins",
+  FOREST: "Forest",
+  SWAMP: "Swamp",
+  ARCTIC: "Arctic",
 });
 
 export const WORLD_HEX_TAG_GROUPS = Object.freeze({
   TERRAIN: "terrain",
   FEATURE: "feature",
+  BIOME: "biome",
+});
+
+export const WORLD_HEX_TERRAIN_CLASSES = Object.freeze({
+  OPEN_FLAT: "Open & Flat",
+  ELEVATED: "Elevated",
+  IMPASSABLE: "Impassable",
+  AQUATIC: "Aquatic",
+});
+
+export const WORLD_HEX_BIOMES = Object.freeze({
+  PLAINS: "Plains",
+  DESERT: "Desert",
+  MOUNTAIN: "Mountain",
+  ARCTIC: "Arctic",
+  AQUATIC: "Aquatic",
+  FOREST: "Forest",
+  SWAMP: "Swamp",
 });
 
 const TERRAIN_TAGS = new Set([
+  WORLD_HEX_TAGS.FLATLANDS,
+  WORLD_HEX_TAGS.HILLS,
+  WORLD_HEX_TAGS.VOLCANIC,
   WORLD_HEX_TAGS.OCEAN,
   WORLD_HEX_TAGS.ICE_FIELD,
   WORLD_HEX_TAGS.WATER,
@@ -45,11 +72,15 @@ const TERRAIN_TAGS = new Set([
   WORLD_HEX_TAGS.ICE_CAP,
   WORLD_HEX_TAGS.TWILIGHT_ZONE,
   WORLD_HEX_TAGS.MOUNTAIN,
+  WORLD_HEX_TAGS.CHASM,
+  WORLD_HEX_TAGS.PRECIPICE,
   WORLD_HEX_TAGS.DESERT,
   WORLD_HEX_TAGS.CRATER,
   WORLD_HEX_TAGS.WASTELAND,
   WORLD_HEX_TAGS.EXOTIC,
 ]);
+
+const BIOME_TAGS = new Set([WORLD_HEX_TAGS.FOREST, WORLD_HEX_TAGS.SWAMP, WORLD_HEX_TAGS.ARCTIC]);
 
 const FEATURE_TAGS = new Set([
   WORLD_HEX_TAGS.SHORELINE,
@@ -65,9 +96,56 @@ const FEATURE_TAGS = new Set([
   WORLD_HEX_TAGS.PENAL_COLONY,
   WORLD_HEX_TAGS.NOBLE_LANDS,
   WORLD_HEX_TAGS.RESOURCES,
-  WORLD_HEX_TAGS.CHASM,
-  WORLD_HEX_TAGS.PRECIPICE,
   WORLD_HEX_TAGS.RUINS,
+]);
+
+const TAG_TERRAIN_CLASS = new Map([
+  [WORLD_HEX_TAGS.FLATLANDS, WORLD_HEX_TERRAIN_CLASSES.OPEN_FLAT],
+  [WORLD_HEX_TAGS.HILLS, WORLD_HEX_TERRAIN_CLASSES.ELEVATED],
+  [WORLD_HEX_TAGS.VOLCANIC, WORLD_HEX_TERRAIN_CLASSES.IMPASSABLE],
+  [WORLD_HEX_TAGS.OCEAN, WORLD_HEX_TERRAIN_CLASSES.AQUATIC],
+  [WORLD_HEX_TAGS.WATER, WORLD_HEX_TERRAIN_CLASSES.AQUATIC],
+  [WORLD_HEX_TAGS.ICE_FIELD, WORLD_HEX_TERRAIN_CLASSES.AQUATIC],
+  [WORLD_HEX_TAGS.MOUNTAIN, WORLD_HEX_TERRAIN_CLASSES.IMPASSABLE],
+  [WORLD_HEX_TAGS.CHASM, WORLD_HEX_TERRAIN_CLASSES.IMPASSABLE],
+  [WORLD_HEX_TAGS.PRECIPICE, WORLD_HEX_TERRAIN_CLASSES.IMPASSABLE],
+  [WORLD_HEX_TAGS.CRATER, WORLD_HEX_TERRAIN_CLASSES.IMPASSABLE],
+  [WORLD_HEX_TAGS.CONTINENT, WORLD_HEX_TERRAIN_CLASSES.OPEN_FLAT],
+  [WORLD_HEX_TAGS.FROZEN_LANDS, WORLD_HEX_TERRAIN_CLASSES.OPEN_FLAT],
+  [WORLD_HEX_TAGS.ISLAND, WORLD_HEX_TERRAIN_CLASSES.OPEN_FLAT],
+  [WORLD_HEX_TAGS.ICE_CAP, WORLD_HEX_TERRAIN_CLASSES.OPEN_FLAT],
+  [WORLD_HEX_TAGS.DESERT, WORLD_HEX_TERRAIN_CLASSES.OPEN_FLAT],
+  [WORLD_HEX_TAGS.WASTELAND, WORLD_HEX_TERRAIN_CLASSES.OPEN_FLAT],
+  [WORLD_HEX_TAGS.TWILIGHT_ZONE, WORLD_HEX_TERRAIN_CLASSES.OPEN_FLAT],
+  [WORLD_HEX_TAGS.EXOTIC, WORLD_HEX_TERRAIN_CLASSES.ELEVATED],
+]);
+
+const TAG_BIOMES = new Map([
+  [WORLD_HEX_TAGS.FLATLANDS, [WORLD_HEX_BIOMES.PLAINS]],
+  [WORLD_HEX_TAGS.HILLS, [WORLD_HEX_BIOMES.PLAINS]],
+  [WORLD_HEX_TAGS.VOLCANIC, [WORLD_HEX_BIOMES.MOUNTAIN]],
+  [WORLD_HEX_TAGS.OCEAN, [WORLD_HEX_BIOMES.AQUATIC]],
+  [WORLD_HEX_TAGS.WATER, [WORLD_HEX_BIOMES.AQUATIC]],
+  [WORLD_HEX_TAGS.ICE_FIELD, [WORLD_HEX_BIOMES.AQUATIC, WORLD_HEX_BIOMES.ARCTIC]],
+  [WORLD_HEX_TAGS.ICE_CAP, [WORLD_HEX_BIOMES.ARCTIC]],
+  [WORLD_HEX_TAGS.FROZEN_LANDS, [WORLD_HEX_BIOMES.ARCTIC]],
+  [WORLD_HEX_TAGS.MOUNTAIN, [WORLD_HEX_BIOMES.MOUNTAIN]],
+  [WORLD_HEX_TAGS.CHASM, [WORLD_HEX_BIOMES.MOUNTAIN]],
+  [WORLD_HEX_TAGS.PRECIPICE, [WORLD_HEX_BIOMES.MOUNTAIN]],
+  [WORLD_HEX_TAGS.DESERT, [WORLD_HEX_BIOMES.DESERT]],
+  [WORLD_HEX_TAGS.BAKED_LANDS, [WORLD_HEX_BIOMES.DESERT]],
+  [WORLD_HEX_TAGS.CONTINENT, [WORLD_HEX_BIOMES.PLAINS]],
+  [WORLD_HEX_TAGS.ISLAND, [WORLD_HEX_BIOMES.PLAINS]],
+  [WORLD_HEX_TAGS.FOREST, [WORLD_HEX_BIOMES.FOREST]],
+  [WORLD_HEX_TAGS.SWAMP, [WORLD_HEX_BIOMES.SWAMP]],
+  [WORLD_HEX_TAGS.ARCTIC, [WORLD_HEX_BIOMES.ARCTIC]],
+]);
+
+const TERRAIN_CLASS_PRIORITY = new Map([
+  [WORLD_HEX_TERRAIN_CLASSES.IMPASSABLE, 4],
+  [WORLD_HEX_TERRAIN_CLASSES.AQUATIC, 3],
+  [WORLD_HEX_TERRAIN_CLASSES.ELEVATED, 2],
+  [WORLD_HEX_TERRAIN_CLASSES.OPEN_FLAT, 1],
 ]);
 
 function ensureHexEntry(tagMap, cell) {
@@ -81,6 +159,7 @@ function ensureHexEntry(tagMap, cell) {
       tags: new Set(),
       terrainTags: new Set(),
       featureTags: new Set(),
+      biomeTags: new Set(),
     });
   }
 
@@ -102,6 +181,15 @@ function addTag(tagMap, key, tag) {
   if (FEATURE_TAGS.has(tag)) {
     entry.featureTags.add(tag);
   }
+
+  if (BIOME_TAGS.has(tag)) {
+    entry.biomeTags.add(tag);
+  }
+
+  const biomeTags = TAG_BIOMES.get(tag) || [];
+  for (const biomeTag of biomeTags) {
+    entry.biomeTags.add(biomeTag);
+  }
 }
 
 function addLayerTags(tagMap, layerMap, tag) {
@@ -115,13 +203,35 @@ function addLayerTags(tagMap, layerMap, tag) {
 }
 
 function finalizeHexEntry(entry) {
+  let terrainClass = null;
+  for (const terrainTag of entry.terrainTags) {
+    const candidate = TAG_TERRAIN_CLASS.get(terrainTag);
+    if (!candidate) {
+      continue;
+    }
+
+    if (!terrainClass) {
+      terrainClass = candidate;
+      continue;
+    }
+
+    const currentPriority = TERRAIN_CLASS_PRIORITY.get(terrainClass) || 0;
+    const nextPriority = TERRAIN_CLASS_PRIORITY.get(candidate) || 0;
+    if (nextPriority > currentPriority) {
+      terrainClass = candidate;
+    }
+  }
+
   return {
     ...entry,
     tags: [...entry.tags].sort(),
     terrainTags: [...entry.terrainTags].sort(),
     featureTags: [...entry.featureTags].sort(),
+    biomeTags: [...entry.biomeTags].sort(),
+    terrainClass,
     hasTerrainTags: entry.terrainTags.size > 0,
     hasFeatureTags: entry.featureTags.size > 0,
+    hasBiomeTags: entry.biomeTags.size > 0,
   };
 }
 
@@ -243,6 +353,7 @@ export function buildWorldHexTagIndex({
     oceanTriangleIds: [...oceanSet].sort(),
     terrainTags: finalizedEntries.flatMap((entry) => entry.terrainTags),
     featureTags: finalizedEntries.flatMap((entry) => entry.featureTags),
+    biomeTags: finalizedEntries.flatMap((entry) => entry.biomeTags),
   };
 }
 
@@ -257,8 +368,11 @@ export function buildWorldTerrainHexTagSnapshot(
     tags: Array.isArray(entry?.tags) ? [...entry.tags] : [],
     terrainTags: Array.isArray(entry?.terrainTags) ? [...entry.terrainTags] : [],
     featureTags: Array.isArray(entry?.featureTags) ? [...entry.featureTags] : [],
+    biomeTags: Array.isArray(entry?.biomeTags) ? [...entry.biomeTags] : [],
+    terrainClass: String(entry?.terrainClass || "").trim() || null,
     hasTerrainTags: Boolean(entry?.hasTerrainTags),
     hasFeatureTags: Boolean(entry?.hasFeatureTags),
+    hasBiomeTags: Boolean(entry?.hasBiomeTags),
   }));
 
   const hexesByKey = normalizedEntries.reduce((accumulator, entry) => {
@@ -276,6 +390,7 @@ export function buildWorldTerrainHexTagSnapshot(
     taggedHexCount: normalizedEntries.length,
     terrainTaggedHexCount: normalizedEntries.filter((entry) => entry.hasTerrainTags).length,
     featureTaggedHexCount: normalizedEntries.filter((entry) => entry.hasFeatureTags).length,
+    biomeTaggedHexCount: normalizedEntries.filter((entry) => entry.hasBiomeTags).length,
     oceanTriangleIds: Array.isArray(index?.oceanTriangleIds) ? [...index.oceanTriangleIds].sort() : [],
     shorelineTriangleIds: Array.isArray(index?.shorelineTriangleIds) ? [...index.shorelineTriangleIds].sort() : [],
     hexesByKey,
@@ -290,6 +405,7 @@ export function buildWorldTerrainHexTagSnapshot(
       taggedHexCount: payload.taggedHexCount,
       terrainTaggedHexCount: payload.terrainTaggedHexCount,
       featureTaggedHexCount: payload.featureTaggedHexCount,
+      biomeTaggedHexCount: payload.biomeTaggedHexCount,
       oceanTriangleIds: payload.oceanTriangleIds,
       shorelineTriangleIds: payload.shorelineTriangleIds,
       hexesByKey: normalizedEntries,

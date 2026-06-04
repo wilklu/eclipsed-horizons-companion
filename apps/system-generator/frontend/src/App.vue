@@ -146,7 +146,7 @@ body {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
-  height: 100vh;
+  height: auto;
 }
 
 .app-header {
@@ -218,7 +218,7 @@ body {
   flex: 1;
   min-height: 0;
   display: flex;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .app-main > * {

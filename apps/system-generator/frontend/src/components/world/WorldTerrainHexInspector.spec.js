@@ -12,14 +12,17 @@ describe("WorldTerrainHexInspector", () => {
         selectedHex: {
           key: "hex-a",
           faceId: "Face-1",
-          tags: ["Mountain", "Shoreline"],
+          tags: ["Mountain", "Shoreline", "Arctic"],
           terrainTags: ["Mountain"],
           featureTags: ["Shoreline"],
+          biomeTags: ["Mountain", "Arctic"],
+          terrainClass: "Impassable",
         },
         summary: {
           taggedHexCount: 7,
           terrainTaggedHexCount: 4,
           featureTaggedHexCount: 3,
+          biomeTaggedHexCount: 2,
           shorelineTriangleCount: 2,
         },
       },
@@ -29,6 +32,9 @@ describe("WorldTerrainHexInspector", () => {
     expect(wrapper.text()).toContain("hex-a");
     expect(wrapper.text()).toContain("Mountain");
     expect(wrapper.text()).toContain("Shoreline");
+    expect(wrapper.text()).toContain("Impassable");
+    expect(wrapper.text()).toContain("Arctic");
+    expect(wrapper.text()).toContain("Biomes");
     expect(wrapper.text()).toContain("Tagged");
     expect(wrapper.text()).toContain("7");
 
