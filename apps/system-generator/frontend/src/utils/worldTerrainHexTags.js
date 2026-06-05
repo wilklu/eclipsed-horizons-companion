@@ -362,18 +362,30 @@ export function buildWorldTerrainHexTagSnapshot(
   { systemId = null, worldIndex = null, worldName = "", updatedAt = new Date().toISOString() } = {},
 ) {
   const entries = Array.isArray(index?.entries) ? index.entries : [];
-  const normalizedEntries = entries.map((entry) => ({
-    key: String(entry?.key || "").trim(),
-    faceId: String(entry?.faceId || "").trim() || null,
-    tags: Array.isArray(entry?.tags) ? [...entry.tags] : [],
-    terrainTags: Array.isArray(entry?.terrainTags) ? [...entry.terrainTags] : [],
-    featureTags: Array.isArray(entry?.featureTags) ? [...entry.featureTags] : [],
-    biomeTags: Array.isArray(entry?.biomeTags) ? [...entry.biomeTags] : [],
-    terrainClass: String(entry?.terrainClass || "").trim() || null,
-    hasTerrainTags: Boolean(entry?.hasTerrainTags),
-    hasFeatureTags: Boolean(entry?.hasFeatureTags),
-    hasBiomeTags: Boolean(entry?.hasBiomeTags),
-  }));
+  const normalizeTagList = (value) =>
+    (Array.isArray(value) ? [...value] : [])
+      .map((item) => String(item || "").trim())
+      .filter(Boolean)
+      .sort((left, right) => left.localeCompare(right));
+
+  const normalizedEntries = entries
+    .map((entry) => ({
+      key: String(entry?.key || "").trim(),
+      faceId: String(entry?.faceId || "").trim() || null,
+      tags: normalizeTagList(entry?.tags),
+      terrainTags: normalizeTagList(entry?.terrainTags),
+      featureTags: normalizeTagList(entry?.featureTags),
+      biomeTags: normalizeTagList(entry?.biomeTags),
+      terrainClass: String(entry?.terrainClass || "").trim() || null,
+      hasTerrainTags: Boolean(entry?.hasTerrainTags),
+      hasFeatureTags: Boolean(entry?.hasFeatureTags),
+      hasBiomeTags: Boolean(entry?.hasBiomeTags),
+    }))
+    .sort((left, right) => {
+      const keyCompare = left.key.localeCompare(right.key);
+      if (keyCompare !== 0) return keyCompare;
+      return String(left.faceId || "").localeCompare(String(right.faceId || ""));
+    });
 
   const hexesByKey = normalizedEntries.reduce((accumulator, entry) => {
     if (entry.key) {

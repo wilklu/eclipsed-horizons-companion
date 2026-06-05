@@ -377,6 +377,9 @@
           >
             <div class="section-header">
               <h3>🗺️ Terrain Map</h3>
+              <button class="btn btn-secondary section-reroll" type="button" @click="openTerrainMapPage">
+                Open Terrain Map Page
+              </button>
             </div>
             <WorldSvgMapForm
               :terrainSeed="world.terrainComposition"
@@ -384,7 +387,7 @@
               :seedUwp="world.uwp"
               :seedWorldSize="world.size"
               :seedTerrainOverlay="world.terrainOverlayBySize"
-              @terrain-overlay-change="handleTerrainOverlayChange"
+              :readOnly="true"
             />
           </section>
 

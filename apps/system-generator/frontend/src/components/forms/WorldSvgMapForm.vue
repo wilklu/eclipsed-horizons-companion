@@ -6,7 +6,7 @@
     </div>
 
     <div class="terrain-controls">
-      <div class="terrain-palette">
+      <div class="terrain-palette" v-if="!readOnly">
         <button
           v-for="terrain in TERRAIN_TYPES"
           :key="terrain.id"
@@ -29,8 +29,9 @@
           ✕
         </button>
       </div>
+      <div v-else class="read-only-note">Preview only. Edit terrain on the Terrain Map Page.</div>
 
-      <div class="control-actions">
+      <div class="control-actions" v-if="!readOnly">
         <button type="button" class="action-btn" @click="autoSeedTerrain" :disabled="!activeHexCells.length">
           Auto-seed
         </button>
@@ -46,7 +47,7 @@
       width="100%"
       height="100%"
       :viewBox="activeViewBox"
-      @click="handleMapClick"
+      @click="readOnly ? null : handleMapClick"
     >
       <g v-if="activeTemplateBaseContent" v-html="activeTemplateBaseContent"></g>
       <g v-else>
@@ -103,6 +104,7 @@ const props = defineProps({
   seedUwp: { type: String, default: "" },
   seedWorldSize: { type: [String, Number], default: null },
   seedTerrainOverlay: { type: Object, default: null },
+  readOnly: { type: Boolean, default: false },
 });
 
 const emit = defineEmits(["terrain-overlay-change"]);
@@ -190,6 +192,7 @@ function buildTemplateFilename(size) {
 const expectedTemplateFilename = computed(() => buildTemplateFilename(activeSize.value));
 
 const selectedTerrain = ref("water");
+const readOnly = computed(() => Boolean(props.readOnly));
 
 function parseSvgTemplate(rawSvg) {
   if (!rawSvg) {
@@ -293,6 +296,9 @@ function serializeTerrainOverlay(mapBySize) {
 }
 
 function commitTerrainMap(nextMap) {
+  if (readOnly.value) {
+    return;
+  }
   terrainBySize.value = nextMap;
   emit("terrain-overlay-change", serializeTerrainOverlay(nextMap));
 }
@@ -626,5 +632,11 @@ watch(
   gap: 0.6rem;
   font-size: 0.82rem;
   color: #333;
+}
+
+.read-only-note {
+  font-size: 0.8rem;
+  color: #444;
+  font-style: italic;
 }
 </style>
