@@ -1361,9 +1361,43 @@ function toLayerEntries(mapForSize) {
   }
 
   const variantsByKey = activeHexRenderVariantsByKey.value;
+  const canonicalByHexId = activeHexCanonicalByHexId.value;
+  const normalizedLayerMap = new Map();
+
+  for (const [rawKey, rawData] of mapForSize.entries()) {
+    const originalKey = String(rawKey || "").trim();
+    if (!originalKey) {
+      continue;
+    }
+
+    let resolvedKey = originalKey;
+    if (!variantsByKey.has(resolvedKey)) {
+      const mappedHexKey = canonicalByHexId.get(resolvedKey);
+      if (mappedHexKey && variantsByKey.has(mappedHexKey)) {
+        resolvedKey = mappedHexKey;
+      } else {
+        const canonicalKey = canonicalizeHexId(resolvedKey);
+        if (canonicalKey && variantsByKey.has(canonicalKey)) {
+          resolvedKey = canonicalKey;
+        }
+      }
+    }
+
+    if (!normalizedLayerMap.has(resolvedKey)) {
+      normalizedLayerMap.set(resolvedKey, rawData);
+      continue;
+    }
+
+    const existing = normalizedLayerMap.get(resolvedKey);
+    if (existing && typeof existing === "object") {
+      continue;
+    }
+    normalizedLayerMap.set(resolvedKey, rawData);
+  }
+
   const entries = [];
 
-  for (const [key, rawData] of mapForSize.entries()) {
+  for (const [key, rawData] of normalizedLayerMap.entries()) {
     const base = rawData && typeof rawData === "object" ? rawData : { points: rawData };
     const variants = variantsByKey.get(String(key));
 
