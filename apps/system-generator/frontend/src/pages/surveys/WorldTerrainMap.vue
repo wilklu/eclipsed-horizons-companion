@@ -88,10 +88,23 @@
         </div>
 
         <div class="map-controls">
-          <button type="button" class="map-button" @click="generateTerrain" :disabled="!(activeHexCells?.length ?? 0)">
+          <button
+            type="button"
+            class="map-button"
+            @click="generateTerrain"
+            :disabled="!(activeHexCells?.length ?? 0) || useSurveyOverlayHexes"
+          >
             Generate Terrain
           </button>
-          <button type="button" class="map-button map-button-secondary" @click="clearWaterHexes">Clear Water</button>
+          <button
+            type="button"
+            class="map-button map-button-secondary"
+            @click="clearWaterHexes"
+            :disabled="useSurveyOverlayHexes"
+          >
+            Clear Water
+          </button>
+          <span class="map-controls-note" v-if="useSurveyOverlayHexes">Using Terrain Survey hex overlay</span>
           <span class="map-controls-note">Target water: {{ Math.round(hydroTargetRatio * 100) }}%</span>
           <span class="map-controls-note">Mountains: {{ activeMountainHexEntries?.length ?? 0 }}</span>
           <span class="map-controls-note">Hills: {{ activeHillsHexEntries?.length ?? 0 }}</span>
@@ -208,7 +221,7 @@
             />
           </g>
 
-          <g id="flatland-hex-overlay" pointer-events="none">
+          <g v-if="!disableLegacyTerrainGeneration" id="flatland-hex-overlay" pointer-events="none">
             <polygon
               v-for="entry in activeFlatlandHexEntries"
               :key="entry.key"
@@ -699,6 +712,16 @@
               stroke="#1f4b87"
               stroke-width="2"
               stroke-linecap="round"
+            />
+          </g>
+
+          <g id="tectonic-plate-overlay" pointer-events="none">
+            <polygon
+              v-for="plate in activeTectonicPlateEntries"
+              :key="plate.key"
+              :points="plate.points"
+              :fill="plate.fill"
+              stroke="none"
             />
           </g>
 
@@ -1249,14 +1272,13 @@ function extractHexCells(templateContent) {
 
   return parsedCells.map((cell) => {
     const seamAliasHexId = seamAliasLookup.get(cell.hexId) || "";
-    const canonicalHexId =
-      canonicalizeHexId(seamAliasHexId) ||
-      deriveCanonicalHexKey({
-        logicalHexId: cell.logicalHexId,
-        seamGroupHexId: cell.seamGroupHexId,
-        hexId: cell.hexId,
-        seamPartnerHexIds: cell.seamPartnerHexIds,
-      });
+    const canonicalFromMetadata = deriveCanonicalHexKey({
+      logicalHexId: cell.logicalHexId,
+      seamGroupHexId: cell.seamGroupHexId,
+      hexId: cell.hexId,
+      seamPartnerHexIds: cell.seamPartnerHexIds,
+    });
+    const canonicalHexId = canonicalFromMetadata || canonicalizeHexId(seamAliasHexId);
 
     return {
       key: canonicalHexId || cell.points,
@@ -1748,6 +1770,7 @@ const ruinHexesBySize = ref(new Map());
 const oceanTrianglesBySize = ref(new Map());
 const oceanGroupsBySize = ref(new Map());
 const shoreSegmentsBySize = ref(new Map());
+const tectonicPlatePolygonsBySize = ref(new Map());
 const tectonicLineSegmentsBySize = ref(new Map());
 
 const activeTopologyGraph = computed(() => buildFaceTopologyGraph(activeFaceTriangles.value));
@@ -1763,6 +1786,9 @@ const activeOceanTriangleEntries = computed(() => {
 });
 
 const activeShoreSegments = computed(() => shoreSegmentsBySize.value.get(activeTerrainTemplateSize.value) || []);
+const activeTectonicPlateEntries = computed(
+  () => tectonicPlatePolygonsBySize.value.get(activeTerrainTemplateSize.value) || [],
+);
 const activeTectonicLineSegments = computed(
   () => tectonicLineSegmentsBySize.value.get(activeTerrainTemplateSize.value) || [],
 );
@@ -1773,6 +1799,211 @@ const activeOceanGroupCount = computed(
 const activeContinentTriangleCount = computed(() =>
   Math.max(0, activeTopologyTriangles.value.length - activeOceanTriangleCount.value),
 );
+
+const disableLegacyTerrainGeneration = true;
+const useSurveyOverlayHexes = ref(false);
+
+function setLayerMapForSize(layerRef, size, map) {
+  const next = new Map(layerRef.value);
+  if (map instanceof Map && map.size) {
+    next.set(size, map);
+  } else {
+    next.delete(size);
+  }
+  layerRef.value = next;
+}
+
+function clearLayerMapForSize(layerRef, size) {
+  const next = new Map(layerRef.value);
+  next.delete(size);
+  layerRef.value = next;
+}
+
+function resetTerrainLayersForSize(size) {
+  const refsToClear = [
+    waterHexesBySize,
+    shoreHexesBySize,
+    resourceHexesBySize,
+    croplandHexesBySize,
+    townHexesBySize,
+    cityHexesBySize,
+    arcologyHexesBySize,
+    ruralHexesBySize,
+    worldPortHexesBySize,
+    twilightZoneHexesBySize,
+    twilightZoneGuideLinesBySize,
+    bakedLandHexesBySize,
+    penalColonyHexesBySize,
+    wastelandHexesBySize,
+    exoticHexesBySize,
+    nobleLandHexesBySize,
+    twilightFrozenLandHexesBySize,
+    twilightOceanDesertHexesBySize,
+    twilightOceanIceFieldHexesBySize,
+    flatlandHexesBySize,
+    hillsHexesBySize,
+    volcanicHexesBySize,
+    forestBiomeHexesBySize,
+    swampBiomeHexesBySize,
+    arcticBiomeHexesBySize,
+    mountainHexesBySize,
+    iceCapHexesBySize,
+    chasmHexesBySize,
+    precipiceHexesBySize,
+    craterHexesBySize,
+    desertHexesBySize,
+    ruinHexesBySize,
+    oceanTrianglesBySize,
+    oceanGroupsBySize,
+    shoreSegmentsBySize,
+    tectonicPlatePolygonsBySize,
+    tectonicLineSegmentsBySize,
+  ];
+
+  for (const layerRef of refsToClear) {
+    clearLayerMapForSize(layerRef, size);
+  }
+}
+
+function normalizeOverlayEntriesByKey(rawEntries) {
+  if (!Array.isArray(rawEntries) || !rawEntries.length) {
+    return new Map();
+  }
+
+  const variantsByKey = activeHexRenderVariantsByKey.value;
+  const canonicalByHexId = activeHexCanonicalByHexId.value;
+  const cellsByPoints = new Map();
+  for (const cell of activeHexCells.value) {
+    const points = normalizePoints(cell?.points || "");
+    if (points && !cellsByPoints.has(points)) {
+      cellsByPoints.set(points, cell);
+    }
+  }
+
+  const out = new Map();
+  for (const entry of rawEntries) {
+    if (!entry || typeof entry !== "object") {
+      continue;
+    }
+
+    const rawPoints = normalizePoints(entry.points);
+    let key = String(entry.key || "").trim();
+
+    if (rawPoints) {
+      const pointsCell = cellsByPoints.get(rawPoints);
+      if (pointsCell?.key) {
+        key = String(pointsCell.key || key).trim();
+      }
+    }
+
+    if (key && !variantsByKey.has(key)) {
+      const mappedHexKey = canonicalByHexId.get(key);
+      if (mappedHexKey && variantsByKey.has(mappedHexKey)) {
+        key = mappedHexKey;
+      } else {
+        const canonicalKey = canonicalizeHexId(key);
+        if (canonicalKey && variantsByKey.has(canonicalKey)) {
+          key = canonicalKey;
+        }
+      }
+    }
+
+    if (!key) {
+      continue;
+    }
+
+    const terrain = String(entry.terrain || "")
+      .trim()
+      .toLowerCase();
+    if (!terrain) {
+      continue;
+    }
+
+    out.set(key, {
+      points: rawPoints || activeHexCells.value.find((cell) => String(cell?.key || "") === key)?.points || "",
+      terrain,
+    });
+  }
+
+  return out;
+}
+
+function applySurveyOverlayTerrainForSize(size, entriesByKey) {
+  resetTerrainLayersForSize(size);
+
+  const water = new Map();
+  const flatlands = new Map();
+  const forests = new Map();
+  const mountains = new Map();
+  const deserts = new Map();
+  const arctic = new Map();
+  const swamps = new Map();
+  const cities = new Map();
+
+  for (const [key, value] of entriesByKey.entries()) {
+    const payload = { points: value.points };
+    switch (value.terrain) {
+      case "water":
+        water.set(key, payload);
+        break;
+      case "plains":
+        flatlands.set(key, payload);
+        break;
+      case "forest":
+        forests.set(key, payload);
+        break;
+      case "mountain":
+        mountains.set(key, payload);
+        break;
+      case "desert":
+        deserts.set(key, payload);
+        break;
+      case "tundra":
+        arctic.set(key, payload);
+        break;
+      case "swamp":
+        swamps.set(key, payload);
+        break;
+      case "urban":
+        cities.set(key, payload);
+        break;
+      default:
+        flatlands.set(key, payload);
+        break;
+    }
+  }
+
+  setLayerMapForSize(waterHexesBySize, size, water);
+  setLayerMapForSize(flatlandHexesBySize, size, flatlands);
+  setLayerMapForSize(forestBiomeHexesBySize, size, forests);
+  setLayerMapForSize(mountainHexesBySize, size, mountains);
+  setLayerMapForSize(desertHexesBySize, size, deserts);
+  setLayerMapForSize(arcticBiomeHexesBySize, size, arctic);
+  setLayerMapForSize(swampBiomeHexesBySize, size, swamps);
+  setLayerMapForSize(cityHexesBySize, size, cities);
+}
+
+function tryApplySurveyOverlayTerrain() {
+  const size = activeTerrainTemplateSize.value;
+  const cells = activeHexCells.value;
+  const bySize = selectedWorld.value?.terrainOverlayBySize;
+  const serialized = bySize && typeof bySize === "object" ? bySize[String(size)] : null;
+  const entriesByKey = normalizeOverlayEntriesByKey(serialized);
+
+  if (!cells.length || !entriesByKey.size) {
+    useSurveyOverlayHexes.value = Boolean(disableLegacyTerrainGeneration);
+    if (disableLegacyTerrainGeneration) {
+      resetTerrainLayersForSize(size);
+      placeTectonicLines();
+    }
+    return false;
+  }
+
+  useSurveyOverlayHexes.value = true;
+  applySurveyOverlayTerrainForSize(size, entriesByKey);
+  placeTectonicLines();
+  return true;
+}
 
 const activeHexTagIndex = computed(() => {
   const size = activeTerrainTemplateSize.value;
@@ -2455,6 +2686,14 @@ const activeRuinHexEntries = computed(() => {
 watch(
   activeFaceTriangles,
   () => {
+    if (tryApplySurveyOverlayTerrain()) {
+      return;
+    }
+    if (disableLegacyTerrainGeneration) {
+      resetTerrainLayersForSize(activeTerrainTemplateSize.value);
+      placeTectonicLines();
+      return;
+    }
     placeMountainHexes();
     placeHillsHexes();
     placeChasmHexes();
@@ -2484,18 +2723,29 @@ watch(
 );
 
 watch(tectonicPlateCount, () => {
+  if (disableLegacyTerrainGeneration) {
+    placeTectonicLines();
+    return;
+  }
+  if (useSurveyOverlayHexes.value) return;
   placeMountainHexes();
   placeHillsHexes();
   placeTectonicLines();
 });
 
 watch(tectonicStressScore, () => {
+  if (disableLegacyTerrainGeneration) {
+    placeTectonicLines();
+    return;
+  }
+  if (useSurveyOverlayHexes.value) return;
   placeMountainHexes();
   placeHillsHexes();
   placeTectonicLines();
 });
 
 watch(resourceHexCount, () => {
+  if (useSurveyOverlayHexes.value) return;
   placeResourceHexes();
   placeCroplandHexes();
   placeDesertHexes();
@@ -2509,6 +2759,7 @@ watch(resourceHexCount, () => {
 });
 
 watch(isDieBackWorld, () => {
+  if (useSurveyOverlayHexes.value) return;
   placeRuinHexes();
   placeDesertHexes();
   placeWorldPortHexes();
@@ -2521,6 +2772,7 @@ watch(isDieBackWorld, () => {
 });
 
 watch(isVacuumWorld, () => {
+  if (useSurveyOverlayHexes.value) return;
   placeCraterHexes();
   placeDesertHexes();
   placeWorldPortHexes();
@@ -2533,6 +2785,7 @@ watch(isVacuumWorld, () => {
 });
 
 watch(isDesertWorld, () => {
+  if (useSurveyOverlayHexes.value) return;
   placeDesertHexes();
   placeWorldPortHexes();
   placeRuralHexes();
@@ -2544,6 +2797,7 @@ watch(isDesertWorld, () => {
 });
 
 watch(isIceCappedWorld, () => {
+  if (useSurveyOverlayHexes.value) return;
   placeIceCapHexes();
   placeBaselineLandHexes();
   placeWorldPortHexes();
@@ -2556,6 +2810,7 @@ watch(isIceCappedWorld, () => {
 });
 
 watch(isAgriculturalWorld, () => {
+  if (useSurveyOverlayHexes.value) return;
   placeCroplandHexes();
   placeWorldPortHexes();
   placeRuralHexes();
@@ -2567,6 +2822,7 @@ watch(isAgriculturalWorld, () => {
 });
 
 watch(isFarmingWorld, () => {
+  if (useSurveyOverlayHexes.value) return;
   placeCroplandHexes();
   placeWorldPortHexes();
   placeRuralHexes();
@@ -2578,6 +2834,7 @@ watch(isFarmingWorld, () => {
 });
 
 watch(isLowPopulationWorld, () => {
+  if (useSurveyOverlayHexes.value) return;
   placeTownHexes();
   placeCityHexes();
   placeArcologyHexes();
@@ -2591,6 +2848,7 @@ watch(isLowPopulationWorld, () => {
 });
 
 watch(isNonIndustrialWorld, () => {
+  if (useSurveyOverlayHexes.value) return;
   placeTownHexes();
   placeCityHexes();
   placeArcologyHexes();
@@ -2602,6 +2860,7 @@ watch(isNonIndustrialWorld, () => {
 });
 
 watch(isHighPopulationWorld, () => {
+  if (useSurveyOverlayHexes.value) return;
   placeArcologyHexes();
   placeWorldPortHexes();
   placeRuralHexes();
@@ -2611,12 +2870,14 @@ watch(isHighPopulationWorld, () => {
 });
 
 watch(isTwilightZoneWorld, () => {
+  if (useSurveyOverlayHexes.value) return;
   placeTwilightZoneHexes();
   placeExoticHexes();
   placeNobleLandHexes();
 });
 
 watch(isPenalColonyWorld, () => {
+  if (useSurveyOverlayHexes.value) return;
   placePenalColonyHexes();
   placeWastelandHexes();
   placeExoticHexes();
@@ -2626,6 +2887,7 @@ watch(isPenalColonyWorld, () => {
 watch(
   () => worldInfo.value.population,
   () => {
+    if (useSurveyOverlayHexes.value) return;
     placeTownHexes();
     placeCityHexes();
     placeArcologyHexes();
@@ -2642,6 +2904,7 @@ watch(
 watch(
   () => worldInfo.value.atmosphere,
   () => {
+    if (useSurveyOverlayHexes.value) return;
     placeBaselineLandHexes();
     placeCityHexes();
     placeArcologyHexes();
@@ -2658,6 +2921,7 @@ watch(
 watch(
   () => [selectedWorld.value?.starport, selectedWorld.value?.starportDesc, worldInfo.value.uwp],
   () => {
+    if (useSurveyOverlayHexes.value) return;
     placeWorldPortHexes();
     placeRuralHexes();
     placeTwilightZoneHexes();
@@ -2671,6 +2935,7 @@ watch(
 watch(
   () => worldInfo.value.hydrographics,
   () => {
+    if (useSurveyOverlayHexes.value) return;
     placeOceanTriangles();
     placeTectonicLines();
     placeSeaHexes();
@@ -2694,6 +2959,7 @@ watch(
 watch(
   () => [systemInfo.value.zone, route.query.zone],
   () => {
+    if (useSurveyOverlayHexes.value) return;
     placeBaselineLandHexes();
   },
 );
@@ -2701,10 +2967,19 @@ watch(
 watch(
   () => [selectedWorld.value?.techLevel, selectedWorld.value?.tl, selectedWorld.value?.technology, worldInfo.value.uwp],
   () => {
+    if (useSurveyOverlayHexes.value) return;
     placeWastelandHexes();
     placeExoticHexes();
     placeNobleLandHexes();
   },
+);
+
+watch(
+  () => [selectedWorld.value?.terrainOverlayBySize, activeTerrainTemplateSize.value, activeHexCells.value.length],
+  () => {
+    void tryApplySurveyOverlayTerrain();
+  },
+  { immediate: true, deep: true },
 );
 
 function estimateHexHorizontalStep(cells = []) {
@@ -4788,420 +5063,173 @@ function pickNextTectonicNeighbor(current, previousId, byId, visitedIds, rng = M
   return pool[Math.floor(rng() * pool.length)] || null;
 }
 
-function placeTectonicLines(rng = Math.random) {
+function placeTectonicLines(rng = null) {
   const size = activeTerrainTemplateSize.value;
   const triangles = activeTopologyTriangles.value;
-  const lineCountTarget = Math.max(0, Number(tectonicPlateCount.value) || 0);
+  const plateTarget = Math.max(0, Number(tectonicPlateCount.value) || 0);
+  const graph = activeTopologyGraph.value;
+  const edgeOwners = graph?.edgeOwners;
 
-  if (!triangles.length || lineCountTarget <= 0) {
-    const nextBySize = new Map(tectonicLineSegmentsBySize.value);
-    nextBySize.delete(size);
-    tectonicLineSegmentsBySize.value = nextBySize;
+  if (!triangles.length || plateTarget <= 0 || !(edgeOwners instanceof Map)) {
+    const nextPlates = new Map(tectonicPlatePolygonsBySize.value);
+    nextPlates.delete(size);
+    tectonicPlatePolygonsBySize.value = nextPlates;
+
+    const nextLines = new Map(tectonicLineSegmentsBySize.value);
+    nextLines.delete(size);
+    tectonicLineSegmentsBySize.value = nextLines;
     return;
   }
 
+  const seededRng =
+    typeof rng === "function"
+      ? rng
+      : mulberry32(
+          hashString(
+            `${worldInfo.value.name}|${systemInfo.value.hex}|${size}|plates|${plateTarget}|${tectonicStressScore.value}`,
+          ),
+        );
+
   const byId = new Map(triangles.map((triangle) => [triangle.id, triangle]));
-  const triangleIds = [...byId.keys()];
+  const centroids = new Map(triangles.map((triangle) => [triangle.id, computeTriangleCentroid(triangle.vertices)]));
   const bounds = parseViewBoxRect(activeViewBox.value);
-  const edgeOwners = activeTopologyGraph.value?.edgeOwners;
+  const spanX = Math.max(1, bounds.maxX - bounds.minX);
+  const spanY = Math.max(1, bounds.maxY - bounds.minY);
+  const insetX = Math.max(16, spanX * 0.05);
+  const insetY = Math.max(16, spanY * 0.05);
+
+  const interiorIds = triangles
+    .filter((triangle) => {
+      const c = centroids.get(triangle.id);
+      if (!c) return false;
+      return (
+        c.x > bounds.minX + insetX &&
+        c.x < bounds.maxX - insetX &&
+        c.y > bounds.minY + insetY &&
+        c.y < bounds.maxY - insetY
+      );
+    })
+    .map((triangle) => triangle.id);
+
+  const seedPool = interiorIds.length >= plateTarget ? interiorIds : triangles.map((triangle) => triangle.id);
+  const shuffledPool = [...seedPool];
+  for (let i = shuffledPool.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(seededRng() * (i + 1));
+    [shuffledPool[i], shuffledPool[j]] = [shuffledPool[j], shuffledPool[i]];
+  }
+
+  const plateCount = Math.min(Math.max(1, plateTarget), shuffledPool.length);
+  const seedIds = shuffledPool.slice(0, plateCount);
+
+  const plateAssignments = new Map();
+  const plateSizes = new Map();
+  const frontiers = new Map();
+
+  function addFrontierNeighbors(plateId, triangleId) {
+    const triangle = byId.get(triangleId);
+    if (!triangle) return;
+    if (!frontiers.has(plateId)) {
+      frontiers.set(plateId, new Set());
+    }
+    const frontier = frontiers.get(plateId);
+    for (const neighborId of triangle.neighbors || []) {
+      if (!plateAssignments.has(neighborId)) {
+        frontier.add(neighborId);
+      }
+    }
+    frontier.delete(triangleId);
+  }
+
+  function assignTriangle(plateId, triangleId) {
+    if (plateAssignments.has(triangleId)) {
+      return;
+    }
+    plateAssignments.set(triangleId, plateId);
+    plateSizes.set(plateId, (plateSizes.get(plateId) || 0) + 1);
+    addFrontierNeighbors(plateId, triangleId);
+  }
+
+  for (let plateId = 0; plateId < seedIds.length; plateId += 1) {
+    assignTriangle(plateId, seedIds[plateId]);
+  }
+
+  const allTriangleIds = triangles.map((triangle) => triangle.id);
+  while (plateAssignments.size < allTriangleIds.length) {
+    const candidatePlates = [...frontiers.entries()]
+      .filter(([, frontier]) => frontier.size > 0)
+      .map(([plateId]) => plateId);
+
+    if (!candidatePlates.length) {
+      const unassigned = allTriangleIds.filter((id) => !plateAssignments.has(id));
+      if (!unassigned.length) break;
+      const pickedTriangle = unassigned[Math.floor(seededRng() * unassigned.length)];
+      const smallestPlate = [...plateSizes.entries()].sort((a, b) => a[1] - b[1])[0]?.[0] ?? 0;
+      assignTriangle(smallestPlate, pickedTriangle);
+      continue;
+    }
+
+    const pickedPlate = candidatePlates[Math.floor(seededRng() * candidatePlates.length)];
+    const frontier = frontiers.get(pickedPlate);
+    const options = [...frontier];
+    const pickedTriangle = options[Math.floor(seededRng() * options.length)];
+    frontier.delete(pickedTriangle);
+
+    if (!plateAssignments.has(pickedTriangle)) {
+      assignTriangle(pickedPlate, pickedTriangle);
+    }
+  }
+
+  function plateFill(plateId) {
+    const hue = (plateId * 67 + size * 19) % 360;
+    return `hsla(${hue}, 72%, 48%, 0.14)`;
+  }
+
+  const plateEntries = [];
+  for (const triangle of triangles) {
+    const plateId = plateAssignments.get(triangle.id);
+    if (!Number.isInteger(plateId)) continue;
+    plateEntries.push({
+      key: `plate-${plateId}-${triangle.id}`,
+      points: triangle.points,
+      plateId,
+      fill: plateFill(plateId),
+    });
+  }
+
   const boundarySegments = [];
-  const boundaryEdgeKeys = new Set();
-  const boundaryTriangleIds = new Set();
+  const seenEdges = new Set();
+  for (const triangle of triangles) {
+    const ownPlateId = plateAssignments.get(triangle.id);
+    if (!Number.isInteger(ownPlateId)) continue;
 
-  if (edgeOwners instanceof Map) {
-    for (const triangle of triangles) {
-      if (!Array.isArray(triangle?.edges)) continue;
-      let hasExteriorEdge = false;
-      for (const edge of triangle.edges) {
-        const isExterior = (edgeOwners.get(edge.key) || []).length === 1;
-        if (isExterior) {
-          hasExteriorEdge = true;
-          if (!boundaryEdgeKeys.has(edge.key)) {
-            boundarySegments.push({
-              key: `boundary-${edge.key}`,
-              x1: Number(edge.a?.[0]),
-              y1: Number(edge.a?.[1]),
-              x2: Number(edge.b?.[0]),
-              y2: Number(edge.b?.[1]),
-            });
-            boundaryEdgeKeys.add(edge.key);
-          }
-        }
+    for (const edge of triangle.edges || []) {
+      if (seenEdges.has(edge.key)) continue;
+      seenEdges.add(edge.key);
+      const owners = edgeOwners.get(edge.key) || [];
+      if (owners.length !== 2) continue;
+      const [leftId, rightId] = owners;
+      const leftPlate = plateAssignments.get(leftId);
+      const rightPlate = plateAssignments.get(rightId);
+      if (!Number.isInteger(leftPlate) || !Number.isInteger(rightPlate) || leftPlate === rightPlate) {
+        continue;
       }
-      if (hasExteriorEdge) {
-        boundaryTriangleIds.add(triangle.id);
-      }
-    }
-  }
-
-  for (let i = triangleIds.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(rng() * (i + 1));
-    [triangleIds[i], triangleIds[j]] = [triangleIds[j], triangleIds[i]];
-  }
-
-  const segments = [];
-  const committedSegments = [];
-  const lineCount = Math.min(lineCountTarget, triangleIds.length);
-
-  function normalizeSegmentGeometry(segment) {
-    const x1 = Number(segment?.x1);
-    const y1 = Number(segment?.y1);
-    const x2 = Number(segment?.x2);
-    const y2 = Number(segment?.y2);
-    if (![x1, y1, x2, y2].every(Number.isFinite)) {
-      return null;
-    }
-
-    const dx = x2 - x1;
-    const dy = y2 - y1;
-    const length = Math.hypot(dx, dy);
-    if (!Number.isFinite(length) || length <= 0) {
-      return null;
-    }
-
-    let ux = dx / length;
-    let uy = dy / length;
-    if (ux < 0 || (Math.abs(ux) < 1e-6 && uy < 0)) {
-      ux *= -1;
-      uy *= -1;
-    }
-
-    return {
-      x1,
-      y1,
-      x2,
-      y2,
-      length,
-      ux,
-      uy,
-      midX: (x1 + x2) / 2,
-      midY: (y1 + y2) / 2,
-      minX: Math.min(x1, x2),
-      maxX: Math.max(x1, x2),
-      minY: Math.min(y1, y2),
-      maxY: Math.max(y1, y2),
-    };
-  }
-
-  function segmentsLookMirroredOrDuplicate(candidate, existing) {
-    const a = normalizeSegmentGeometry(candidate);
-    const b = normalizeSegmentGeometry(existing);
-    if (!a || !b) {
-      return false;
-    }
-
-    const directionSimilarity = Math.abs(a.ux * b.ux + a.uy * b.uy);
-    if (directionSimilarity < 0.985) {
-      return false;
-    }
-
-    const midDistance = Math.hypot(a.midX - b.midX, a.midY - b.midY);
-    const minLen = Math.min(a.length, b.length);
-
-    // Direct near-duplicate in same area.
-    if (midDistance <= 9 && minLen >= 10) {
-      return true;
-    }
-
-    // Common mirror artifact: nearly vertical twins sharing the same Y span.
-    const bothMostlyVertical = Math.abs(a.ux) < 0.25 && Math.abs(b.ux) < 0.25;
-    if (bothMostlyVertical) {
-      const xDelta = Math.abs(a.midX - b.midX);
-      const overlapY = Math.max(0, Math.min(a.maxY, b.maxY) - Math.max(a.minY, b.minY));
-      if (xDelta <= 12 && overlapY >= minLen * 0.6) {
-        return true;
-      }
-    }
-
-    // Common mirror artifact: nearly horizontal twins sharing the same X span.
-    const bothMostlyHorizontal = Math.abs(a.uy) < 0.25 && Math.abs(b.uy) < 0.25;
-    if (bothMostlyHorizontal) {
-      const yDelta = Math.abs(a.midY - b.midY);
-      const overlapX = Math.max(0, Math.min(a.maxX, b.maxX) - Math.max(a.minX, b.minX));
-      if (yDelta <= 12 && overlapX >= minLen * 0.6) {
-        return true;
-      }
-    }
-
-    return false;
-  }
-
-  function segmentRunsAlongBorder(candidate) {
-    const geometry = normalizeSegmentGeometry(candidate);
-    if (!geometry) {
-      return false;
-    }
-
-    const spanX = Math.max(1, bounds.maxX - bounds.minX);
-    const spanY = Math.max(1, bounds.maxY - bounds.minY);
-    const edgeBufferX = Math.max(10, spanX * 0.025);
-    const edgeBufferY = Math.max(10, spanY * 0.025);
-
-    const nearTop =
-      Math.abs(geometry.y1 - bounds.minY) <= edgeBufferY && Math.abs(geometry.y2 - bounds.minY) <= edgeBufferY;
-    const nearBottom =
-      Math.abs(geometry.y1 - bounds.maxY) <= edgeBufferY && Math.abs(geometry.y2 - bounds.maxY) <= edgeBufferY;
-    const nearLeft =
-      Math.abs(geometry.x1 - bounds.minX) <= edgeBufferX && Math.abs(geometry.x2 - bounds.minX) <= edgeBufferX;
-    const nearRight =
-      Math.abs(geometry.x1 - bounds.maxX) <= edgeBufferX && Math.abs(geometry.x2 - bounds.maxX) <= edgeBufferX;
-
-    const mostlyHorizontal = Math.abs(geometry.uy) < 0.25;
-    const mostlyVertical = Math.abs(geometry.ux) < 0.25;
-
-    if ((nearTop || nearBottom) && mostlyHorizontal) {
-      return true;
-    }
-
-    if ((nearLeft || nearRight) && mostlyVertical) {
-      return true;
-    }
-
-    return false;
-  }
-
-  function maybePushSegment(target, candidate) {
-    const boundedCandidate = {
-      ...candidate,
-      x1: clamp(Number(candidate?.x1), bounds.minX, bounds.maxX),
-      y1: clamp(Number(candidate?.y1), bounds.minY, bounds.maxY),
-      x2: clamp(Number(candidate?.x2), bounds.minX, bounds.maxX),
-      y2: clamp(Number(candidate?.y2), bounds.minY, bounds.maxY),
-    };
-
-    const length = Math.hypot(
-      Number(boundedCandidate?.x2) - Number(boundedCandidate?.x1),
-      Number(boundedCandidate?.y2) - Number(boundedCandidate?.y1),
-    );
-    if (!Number.isFinite(length) || length < 4) {
-      return;
-    }
-
-    if (segmentRunsAlongBorder(boundedCandidate)) {
-      return;
-    }
-
-    const existing = [...committedSegments, ...target];
-    if (existing.some((segment) => segmentsLookMirroredOrDuplicate(boundedCandidate, segment))) {
-      return;
-    }
-
-    target.push(boundedCandidate);
-  }
-
-  function appendIrregularSegment(target, candidate, keyPrefix) {
-    const x1 = Number(candidate?.x1);
-    const y1 = Number(candidate?.y1);
-    const x2 = Number(candidate?.x2);
-    const y2 = Number(candidate?.y2);
-    const length = Math.hypot(x2 - x1, y2 - y1);
-
-    if (!Number.isFinite(length) || length < 4) {
-      return;
-    }
-
-    // Keep very short links straight to avoid noisy jitter at triangle boundaries.
-    if (length < 18) {
-      maybePushSegment(target, {
-        ...candidate,
-        key: `${keyPrefix}-straight`,
+      boundarySegments.push({
+        key: `tectonic-boundary-${edge.key}`,
+        x1: Number(edge.a?.[0]),
+        y1: Number(edge.a?.[1]),
+        x2: Number(edge.b?.[0]),
+        y2: Number(edge.b?.[1]),
       });
-      return;
-    }
-
-    const ux = (x2 - x1) / length;
-    const uy = (y2 - y1) / length;
-    const px = -uy;
-    const py = ux;
-    const midpointT = 0.35 + rng() * 0.3;
-    const jitter = Math.min(10, length * 0.2) * (0.45 + rng() * 0.55) * (rng() < 0.5 ? -1 : 1);
-    const mid = {
-      x: clamp(x1 + (x2 - x1) * midpointT + px * jitter, bounds.minX, bounds.maxX),
-      y: clamp(y1 + (y2 - y1) * midpointT + py * jitter, bounds.minY, bounds.maxY),
-    };
-
-    const pieces = [
-      {
-        key: `${keyPrefix}-a`,
-        x1,
-        y1,
-        x2: mid.x,
-        y2: mid.y,
-      },
-      {
-        key: `${keyPrefix}-b`,
-        x1: mid.x,
-        y1: mid.y,
-        x2,
-        y2,
-      },
-    ];
-
-    for (let i = 0; i < pieces.length; i += 1) {
-      const piece = pieces[i];
-      const intersection = findClosestSegmentIntersection(piece, committedSegments);
-      if (intersection) {
-        maybePushSegment(target, {
-          ...piece,
-          key: `${keyPrefix}-hit-${i}`,
-          x2: intersection.x,
-          y2: intersection.y,
-        });
-        return;
-      }
-
-      maybePushSegment(target, piece);
     }
   }
 
-  for (let lineIndex = 0; lineIndex < lineCount; lineIndex += 1) {
-    let currentId = triangleIds[lineIndex];
-    let previousId = "";
-    let previousPoint = null;
-    const visitedIds = new Set([currentId]);
-    const lineSegments = [];
-    const maxSteps = Math.max(8, triangles.length * 2);
-    let terminated = false;
+  const nextPlates = new Map(tectonicPlatePolygonsBySize.value);
+  nextPlates.set(size, plateEntries);
+  tectonicPlatePolygonsBySize.value = nextPlates;
 
-    for (let step = 0; step < maxSteps; step += 1) {
-      const current = byId.get(currentId);
-      if (!current) break;
-      const currentCentroid = computeTriangleCentroid(current.vertices);
-
-      const nextId = pickNextTectonicNeighbor(current, previousId, byId, visitedIds, rng);
-      if (!nextId) {
-        const direction = previousPoint
-          ? { x: currentCentroid.x - previousPoint.x, y: currentCentroid.y - previousPoint.y }
-          : { x: Math.cos(rng() * Math.PI * 2), y: Math.sin(rng() * Math.PI * 2) };
-
-        const boundaryHit = findClosestRayBoundaryHit(currentCentroid, direction, boundarySegments, bounds);
-        if (boundaryHit) {
-          const nudgedBoundaryHit = nudgeBoundaryEndpoint(currentCentroid, boundaryHit);
-          const boundarySegment = {
-            key: `tectonic-${lineIndex}-${step}-boundary-stop`,
-            x1: currentCentroid.x,
-            y1: currentCentroid.y,
-            x2: nudgedBoundaryHit.x,
-            y2: nudgedBoundaryHit.y,
-          };
-          const intersection = findClosestSegmentIntersection(boundarySegment, committedSegments);
-          if (intersection) {
-            maybePushSegment(lineSegments, {
-              ...boundarySegment,
-              key: `tectonic-${lineIndex}-${step}-intersection-stop`,
-              x2: intersection.x,
-              y2: intersection.y,
-            });
-          } else {
-            appendIrregularSegment(lineSegments, boundarySegment, `tectonic-${lineIndex}-${step}-boundary-stop`);
-          }
-        }
-        terminated = true;
-        break;
-      }
-
-      const nextTriangle = byId.get(nextId);
-      const nextCentroid = computeTriangleCentroid(nextTriangle?.vertices);
-      const candidate = {
-        key: `tectonic-${lineIndex}-${step}-${currentId}|${nextId}`,
-        x1: currentCentroid.x,
-        y1: currentCentroid.y,
-        x2: nextCentroid.x,
-        y2: nextCentroid.y,
-      };
-
-      const intersection = findClosestSegmentIntersection(candidate, committedSegments);
-      if (intersection) {
-        maybePushSegment(lineSegments, {
-          ...candidate,
-          key: `tectonic-${lineIndex}-${step}-intersection-hit`,
-          x2: intersection.x,
-          y2: intersection.y,
-        });
-        terminated = true;
-        break;
-      }
-
-      appendIrregularSegment(lineSegments, candidate, `tectonic-${lineIndex}-${step}`);
-      previousPoint = currentCentroid;
-      previousId = currentId;
-      currentId = nextId;
-      visitedIds.add(currentId);
-
-      if (boundaryTriangleIds.has(currentId)) {
-        const direction = previousPoint
-          ? { x: nextCentroid.x - previousPoint.x, y: nextCentroid.y - previousPoint.y }
-          : { x: Math.cos(rng() * Math.PI * 2), y: Math.sin(rng() * Math.PI * 2) };
-        const boundaryHit = findClosestRayBoundaryHit(nextCentroid, direction, boundarySegments, bounds);
-        if (boundaryHit) {
-          const nudgedBoundaryHit = nudgeBoundaryEndpoint(nextCentroid, boundaryHit);
-          const boundarySegment = {
-            key: `tectonic-${lineIndex}-${step}-boundary-hit`,
-            x1: nextCentroid.x,
-            y1: nextCentroid.y,
-            x2: nudgedBoundaryHit.x,
-            y2: nudgedBoundaryHit.y,
-          };
-          const boundaryIntersection = findClosestSegmentIntersection(boundarySegment, committedSegments);
-          if (boundaryIntersection) {
-            maybePushSegment(lineSegments, {
-              ...boundarySegment,
-              key: `tectonic-${lineIndex}-${step}-boundary-intersection`,
-              x2: boundaryIntersection.x,
-              y2: boundaryIntersection.y,
-            });
-          } else {
-            appendIrregularSegment(lineSegments, boundarySegment, `tectonic-${lineIndex}-${step}-boundary-hit`);
-          }
-        }
-        terminated = true;
-        break;
-      }
-    }
-
-    if (!terminated && lineSegments.length) {
-      const tail = lineSegments[lineSegments.length - 1];
-      const direction = {
-        x: Number(tail.x2) - Number(tail.x1),
-        y: Number(tail.y2) - Number(tail.y1),
-      };
-      const boundaryHit = findClosestRayBoundaryHit({ x: tail.x2, y: tail.y2 }, direction, boundarySegments, bounds);
-      if (boundaryHit) {
-        const nudgedBoundaryHit = nudgeBoundaryEndpoint({ x: tail.x2, y: tail.y2 }, boundaryHit);
-        const boundarySegment = {
-          key: `tectonic-${lineIndex}-tail-boundary`,
-          x1: Number(tail.x2),
-          y1: Number(tail.y2),
-          x2: nudgedBoundaryHit.x,
-          y2: nudgedBoundaryHit.y,
-        };
-        const boundaryIntersection = findClosestSegmentIntersection(boundarySegment, committedSegments);
-        if (boundaryIntersection) {
-          maybePushSegment(lineSegments, {
-            ...boundarySegment,
-            key: `tectonic-${lineIndex}-tail-intersection`,
-            x2: boundaryIntersection.x,
-            y2: boundaryIntersection.y,
-          });
-        } else {
-          appendIrregularSegment(lineSegments, boundarySegment, `tectonic-${lineIndex}-tail`);
-        }
-      }
-    }
-
-    if (lineSegments.length) {
-      segments.push(...lineSegments);
-      committedSegments.push(...lineSegments);
-    }
-  }
-
-  const nextBySize = new Map(tectonicLineSegmentsBySize.value);
-  if (segments.length === 0) {
-    nextBySize.delete(size);
-  } else {
-    nextBySize.set(size, segments);
-  }
-  tectonicLineSegmentsBySize.value = nextBySize;
+  const nextLines = new Map(tectonicLineSegmentsBySize.value);
+  nextLines.set(size, boundarySegments);
+  tectonicLineSegmentsBySize.value = nextLines;
 }
 
 function placeRuinHexes(rng = Math.random) {
@@ -5269,6 +5297,10 @@ function mulberry32(seed) {
 }
 
 function clearWaterHexes() {
+  if (useSurveyOverlayHexes.value) {
+    return;
+  }
+
   const nextBySize = new Map(waterHexesBySize.value);
   nextBySize.delete(activeTerrainTemplateSize.value);
   waterHexesBySize.value = nextBySize;
@@ -5366,6 +5398,10 @@ function clearWaterHexes() {
 const terrainGenerationNonce = ref(0);
 
 function generateTerrain() {
+  if (useSurveyOverlayHexes.value) {
+    return;
+  }
+
   const cells = activeHexCells.value;
   if (!cells.length) {
     return;

@@ -458,6 +458,16 @@ describe("WorldBuilder", () => {
 
     const setupState = wrapper.vm.$.setupState;
     const currentWorld = setupState.world;
+    currentWorld.terrainOverlayBySize = {
+      2: {
+        water: ["010002"],
+      },
+    };
+    currentWorld.terrainHexTags = {
+      2: {
+        "010002": ["Ocean"],
+      },
+    };
 
     const physicalReroll = setupState.mergeWorldSection(
       currentWorld,
@@ -475,6 +485,12 @@ describe("WorldBuilder", () => {
         mainworldCandidateScore: 10,
         seismology: { totalSeismicStress: 7 },
         majorTectonicPlates: 9,
+        terrainComposition: {
+          assignedHexes: 42,
+          totalMapHexes: 42,
+          surfaceProfile: ["Hydrographics rebalanced"],
+          hexCounts: [{ type: "Ocean", hexes: 18, percent: "43" }],
+        },
         orbitalPeriodDays: 999,
         nativeSophontLife: false,
       },
@@ -484,6 +500,9 @@ describe("WorldBuilder", () => {
     expect(physicalReroll.atmosphereDesc).toBe("Dense");
     expect(physicalReroll.orbitalPeriodDays).toBe(240);
     expect(physicalReroll.populationCode).toBe(6);
+    expect(physicalReroll.terrainComposition?.assignedHexes).toBe(42);
+    expect(physicalReroll.terrainOverlayBySize).toEqual({});
+    expect(physicalReroll.terrainHexTags).toEqual({});
 
     const systemReroll = setupState.mergeWorldSection(
       currentWorld,

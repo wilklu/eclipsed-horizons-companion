@@ -2,9 +2,13 @@
  * Mainworld Mapping — WBH Chapter 6
  *
  * Derives a terrain hex composition for a terrestrial world using a standard
- * 490-hex icosahedron map (Method 1: standard map, variable hex size).
+ * icosahedral world map.
  *
- * Five hexes ≈ 1% of world surface area.
+ * Method 2 uses world-size-based hex totals (10*n^2+2 where n is world size).
+ * When size cannot be resolved, this falls back to Method 1's 490-hex map.
+ *
+ * NOTE: the old Method 1 simplification (5 hexes ≈ 1% of world surface area)
+ * does not apply once size-based map totals are in use.
  * References:
  *   WBH Chapter 6: Mainworld Mapping — Determining World Surface Features
  *   Beasts and Sophonts: Native Terrain and Locomotion table (terrain type names)
@@ -12,6 +16,17 @@
 
 /** Total hexes on a standard 490-hex world map (WBH Method 1). */
 const STANDARD_MAP_HEXES = 490;
+
+function resolveTotalMapHexes(sizeCode) {
+  const normalized = String(sizeCode ?? "")
+    .trim()
+    .toUpperCase();
+  const size = Number.parseInt(normalized, 16);
+  if (!Number.isFinite(size) || size <= 0) {
+    return STANDARD_MAP_HEXES;
+  }
+  return 10 * size * size + 2;
+}
 
 /**
  * Atmosphere codes that preclude liquid-water hydrographics or indicate an
@@ -124,6 +139,7 @@ function estimateVolcanoFraction(totalSeismicStress) {
  * @returns {MainworldTerrainComposition}
  */
 export function generateMainworldTerrainComposition(params = {}) {
+  const totalMapHexes = resolveTotalMapHexes(params.sizeCode);
   const atmCode = Number(params.atmosphereCode ?? 6);
   const hydro = clamp(Number(params.hydrographics ?? 5), 0, 10);
   const hydroPct = Number.isFinite(params.hydrographicsPercent)
@@ -137,8 +153,8 @@ export function generateMainworldTerrainComposition(params = {}) {
   // -----------------------------------------------------------------------
   // Step 1 — Water hexes
   // -----------------------------------------------------------------------
-  const totalWaterHexes = safeRound((hydroPct / 100) * STANDARD_MAP_HEXES);
-  const landHexes = STANDARD_MAP_HEXES - totalWaterHexes;
+  const totalWaterHexes = safeRound((hydroPct / 100) * totalMapHexes);
+  const landHexes = totalMapHexes - totalWaterHexes;
 
   // Atmosphere influences surface liquid type
   const isExoticAtm = EXOTIC_ATM_CODES.has(atmCode);
@@ -319,11 +335,11 @@ export function generateMainworldTerrainComposition(params = {}) {
   const assignedHexes = hexCounts.reduce((s, e) => s + e.hexes, 0);
   const withPercent = hexCounts.map((e) => ({
     ...e,
-    percent: Number(((e.hexes / STANDARD_MAP_HEXES) * 100).toFixed(1)),
+    percent: Number(((e.hexes / totalMapHexes) * 100).toFixed(1)),
   }));
 
   return {
-    totalMapHexes: STANDARD_MAP_HEXES,
+    totalMapHexes,
     assignedHexes,
     waterHexes: totalWaterHexes,
     landHexes,

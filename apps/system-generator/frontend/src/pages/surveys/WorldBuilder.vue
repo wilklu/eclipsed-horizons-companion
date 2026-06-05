@@ -778,6 +778,7 @@ const PHYSICAL_WORLD_FIELDS = [
   "atmosphereCode",
   "atmosphereDesc",
   "atmosphereComposition",
+  "atmosphereCompositionDetailed",
   "atmospherePressureBar",
   "atmospherePressureRangeBar",
   "atmosphereSurvivalGear",
@@ -790,9 +791,12 @@ const PHYSICAL_WORLD_FIELDS = [
   "hydrographicsPercent",
   "hydrosphereLiquid",
   "hydrosphereDescription",
+  "hydrographicsComposition",
+  "hydrographicsCompositionDetailed",
   "surfaceDistribution",
   "surfaceDistributionSummary",
   "dominantSurface",
+  "terrainComposition",
   "avgTempC",
   "tempCategory",
   "temperatureRawRoll",
@@ -803,6 +807,7 @@ const PHYSICAL_WORLD_FIELDS = [
   "mass",
   "density",
   "composition",
+  "compositionDetailed",
   "escapeVelocityMps",
   "surfaceOrbitalVelocityMps",
   "sizeProfile",
@@ -1278,6 +1283,12 @@ function mergeWorldSection(currentWorld, rerolledWorld, section) {
     ...pickWorldFields(rerolled, fieldGroups[section] || []),
     name: String(worldName.value || rerolled?.name || current?.name || "World").trim() || "World",
   };
+
+  if (section === "physical") {
+    // Physical rerolls can change terrain drivers (size/hydro/temperature); clear persisted map overlays and tags.
+    merged.terrainOverlayBySize = {};
+    merged.terrainHexTags = {};
+  }
 
   if (merged.nativeSophontLife === false) {
     merged.populationCode = 0;

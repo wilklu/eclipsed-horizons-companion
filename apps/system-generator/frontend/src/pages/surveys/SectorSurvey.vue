@@ -3264,23 +3264,27 @@ function buildGeneratedSystemHexFromSurveyHex(hex, existingTypes = activeSectorM
   }
 
   const saved = existingTypes[coord] ?? {};
-  const anomalyType = saved?.anomalyType ?? null;
+  const seed = {
+    ...(normalizedHex && typeof normalizedHex === "object" ? normalizedHex : {}),
+    ...(saved && typeof saved === "object" ? saved : {}),
+  };
+  const anomalyType = String(seed?.anomalyType || "").trim() || null;
   const generatedStars = buildSurveyGeneratedStars({
-    saved,
+    saved: seed,
     anomalyType,
-    fallbackStarType: saved?.starType || "",
+    fallbackStarType: seed?.starType || "",
   });
   const { primaryDesignation, primaryCode, secondaryStars } = summarizeGeneratedStars(generatedStars);
-  const starType = normalizeStarTypeValue(saved?.starType, primaryDesignation || "G2V");
+  const starType = normalizeStarTypeValue(seed?.starType, primaryDesignation || "G2V");
 
   return {
     coord,
     hasSystem: true,
     presenceOnly: false,
     starType,
-    starClass: String(saved?.starClass || spectralClassToCssClass(primaryDesignation || primaryCode || starType)),
+    starClass: String(seed?.starClass || spectralClassToCssClass(primaryDesignation || primaryCode || starType)),
     secondaryStars:
-      Array.isArray(saved?.secondaryStars) && saved.secondaryStars.length ? [...saved.secondaryStars] : secondaryStars,
+      Array.isArray(seed?.secondaryStars) && seed.secondaryStars.length ? [...seed.secondaryStars] : secondaryStars,
     generatedStars,
     anomalyType,
   };
@@ -3293,6 +3297,93 @@ function systemCoordFromRecord(system) {
     return "";
   }
   return hexCoord(Math.trunc(x), Math.trunc(y));
+}
+
+function cloneArrayObjects(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.map((entry) => (entry && typeof entry === "object" ? { ...entry } : entry));
+}
+
+function resolveGenerationLocks(system = {}) {
+  const metadataLocks =
+    system?.metadata?.generationLocks && typeof system.metadata.generationLocks === "object"
+      ? system.metadata.generationLocks
+      : {};
+
+  return {
+    stars: Boolean(metadataLocks.stars || system?.starGenerationLocked),
+    planets: Boolean(metadataLocks.planets || system?.planetGenerationLocked),
+  };
+}
+
+function applyLockedGenerationData(generatedSystem = {}, existingSystem = null) {
+  if (!existingSystem || typeof existingSystem !== "object") {
+    return generatedSystem;
+  }
+
+  const locks = resolveGenerationLocks(existingSystem);
+  if (!locks.stars && !locks.planets) {
+    return generatedSystem;
+  }
+
+  const mergedMetadata = {
+    ...(generatedSystem?.metadata && typeof generatedSystem.metadata === "object" ? generatedSystem.metadata : {}),
+    ...(existingSystem?.metadata && typeof existingSystem.metadata === "object"
+      ? { generationLocks: { ...(existingSystem.metadata.generationLocks || {}) } }
+      : {}),
+  };
+
+  let nextSystem = {
+    ...generatedSystem,
+    metadata: mergedMetadata,
+    starGenerationLocked: locks.stars,
+    planetGenerationLocked: locks.planets,
+  };
+
+  if (locks.stars) {
+    const lockedStars = cloneArrayObjects(existingSystem.stars);
+    nextSystem = {
+      ...nextSystem,
+      stars: lockedStars.length ? lockedStars : nextSystem.stars,
+      primaryStar:
+        existingSystem?.primaryStar && typeof existingSystem.primaryStar === "object"
+          ? { ...existingSystem.primaryStar }
+          : nextSystem.primaryStar,
+      companionStars: cloneArrayObjects(existingSystem.companionStars),
+      starCount: lockedStars.length || Number(nextSystem?.starCount || 0),
+      habitableZone:
+        existingSystem?.habitableZone && typeof existingSystem.habitableZone === "object"
+          ? { ...existingSystem.habitableZone }
+          : nextSystem.habitableZone,
+    };
+  }
+
+  if (locks.planets) {
+    const lockedPlanets = cloneArrayObjects(existingSystem.planets);
+    nextSystem = {
+      ...nextSystem,
+      planets: lockedPlanets,
+      mainworld:
+        existingSystem?.mainworld && typeof existingSystem.mainworld === "object"
+          ? { ...existingSystem.mainworld }
+          : null,
+      mainworldName: existingSystem?.mainworldName ?? nextSystem.mainworldName,
+      mainworldType: existingSystem?.mainworldType ?? nextSystem.mainworldType,
+      mainworldParentWorldName: existingSystem?.mainworldParentWorldName ?? nextSystem.mainworldParentWorldName,
+      mainworldUwp: existingSystem?.mainworldUwp ?? nextSystem.mainworldUwp,
+      nativeLifeform: existingSystem?.nativeLifeform ?? nextSystem.nativeLifeform,
+      habitability: existingSystem?.habitability ?? nextSystem.habitability,
+      resourceRating: existingSystem?.resourceRating ?? nextSystem.resourceRating,
+      tradeCodes: Array.isArray(existingSystem?.tradeCodes) ? [...existingSystem.tradeCodes] : nextSystem.tradeCodes,
+      mainworldRemarks: Array.isArray(existingSystem?.mainworldRemarks)
+        ? [...existingSystem.mainworldRemarks]
+        : nextSystem.mainworldRemarks,
+    };
+  }
+
+  return nextSystem;
 }
 
 function yieldToMainThread() {
@@ -3366,6 +3457,7 @@ async function replaceGeneratedSystemsForScope(sectorId, scopeHexes) {
   );
 
   const retainedSystems = persistedSystems.filter((system) => !scopeCoords.has(systemCoordFromRecord(system)));
+  const existingBySystemId = new Map(persistedSystems.map((system) => [String(system?.systemId || "").trim(), system]));
 
   const targetHexes = (Array.isArray(scopeHexes) ? scopeHexes : [])
     .map((hex) => normalizeHexToSectorCoord(hex))
@@ -3388,9 +3480,11 @@ async function replaceGeneratedSystemsForScope(sectorId, scopeHexes) {
         galaxyMythicTheme: preferencesStore.galaxyMythicTheme,
       },
     });
+    const existingSystem = existingBySystemId.get(String(generatedSystem?.systemId || "").trim());
+    const persistedSystem = applyLockedGenerationData(generatedSystem, existingSystem);
 
-    Object.assign(hex, buildSystemHexSummary(generatedSystem));
-    return generatedSystem;
+    Object.assign(hex, buildSystemHexSummary(persistedSystem));
+    return persistedSystem;
   });
 
   setGenerationStatus(
@@ -3419,6 +3513,11 @@ async function upsertGeneratedSystemsForScope(sectorId, scopeHexes) {
 
   setGenerationStatus(`Preparing systems for sector ${sectorId}.`, "info");
 
+  const existingSectorSystems = await getSystemsBySectorWithFallback(sectorId);
+  const existingBySystemId = new Map(
+    existingSectorSystems.map((system) => [String(system?.systemId || "").trim(), system]),
+  );
+
   const generatedSystems = await buildGeneratedSystemsForScope(
     sectorId,
     scopeHexes,
@@ -3443,7 +3542,9 @@ async function upsertGeneratedSystemsForScope(sectorId, scopeHexes) {
   const persistedSystems = [];
   for (const system of generatedSystems) {
     try {
-      const persisted = await upsertSystemWithFallback(system);
+      const existingSystem = existingBySystemId.get(String(system?.systemId || "").trim());
+      const persistedInput = applyLockedGenerationData(system, existingSystem);
+      const persisted = await upsertSystemWithFallback(persistedInput);
       persistedSystems.push(persisted);
       setGenerationStatus(
         `Saved ${persistedSystems.length.toLocaleString()} of ${generatedSystems.length.toLocaleString()} system(s). Latest: ${persisted.systemId}.`,
