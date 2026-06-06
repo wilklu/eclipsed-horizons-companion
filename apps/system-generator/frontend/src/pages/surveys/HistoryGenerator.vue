@@ -29,6 +29,10 @@
           </select>
         </div>
         <div class="control-group">
+          <label>Seed (optional):</label>
+          <input v-model="historySeed" placeholder="history-seed" class="text-input" />
+        </div>
+        <div class="control-group">
           <label>History Span (years ago):</label>
           <input v-model.number="eraStart" type="number" min="100" max="13000000000" step="1000" class="text-input" />
         </div>
@@ -153,13 +157,28 @@
         <div v-if="history.dynasties?.length" class="family-tree-panel">
           <div class="people-panel-header">
             <h3>Family Tree</h3>
-            <span class="meta-badge">{{ history.dynasties.length }} dynasties</span>
+            <div class="family-tree-header-actions">
+              <span class="meta-badge">{{ history.dynasties.length }} dynasties</span>
+              <button
+                v-if="focusedFamilyMember"
+                class="btn btn-secondary family-clear-button"
+                @click="clearFamilyFocus"
+              >
+                Clear Focus
+              </button>
+            </div>
+          </div>
+          <div v-if="focusedFamilyMember" class="family-focus-banner">
+            <strong>{{ focusedFamilyMember.name }}</strong>
+            <span>{{ focusedFamilyMember.dynasty }}</span>
+            <span>{{ focusedFamilyMember.familyRole }} · Gen {{ focusedFamilyMember.generation }}</span>
           </div>
           <div class="dynasty-grid">
             <details
               v-for="dynasty in history.dynasties"
               :key="dynasty.id"
               class="dynasty-card"
+              :class="familyTreeCardClass(dynasty.id)"
               :open="history.dynasties.length <= 2"
             >
               <summary class="dynasty-summary-row">
@@ -182,10 +201,36 @@
                   v-for="link in familyTreeLinksFor(dynasty.id)"
                   :key="`${dynasty.id}-${link.type}-${link.parent}-${link.child}`"
                   class="tree-link-row"
-                  :class="`link-${link.type}`"
+                  :class="[`link-${link.type}`, familyTreeLinkClass(dynasty.id, link)]"
                 >
                   <span>{{ relationGlyph(link.type) }}</span>
                   <span>{{ formatTreeLink(link) }}</span>
+                </div>
+              </div>
+              <div class="generation-board">
+                <div
+                  v-for="lane in familyTreeGenerationRows(dynasty.id)"
+                  :key="`${dynasty.id}-gen-${lane.generation}`"
+                  class="generation-lane"
+                >
+                  <div class="generation-lane-label">Gen {{ lane.generation }}</div>
+                  <div class="generation-lane-members">
+                    <div
+                      v-for="member in lane.members"
+                      :key="`${dynasty.id}-lane-${lane.generation}-${member.name}`"
+                      class="generation-member"
+                      :class="familyMemberClass(dynasty.id, member)"
+                      role="button"
+                      tabindex="0"
+                      @click="focusFamilyMember(dynasty.id, member.name)"
+                      @keydown.enter.prevent="focusFamilyMember(dynasty.id, member.name)"
+                      @keydown.space.prevent="focusFamilyMember(dynasty.id, member.name)"
+                    >
+                      <strong>{{ member.name }}</strong>
+                      <span>{{ member.familyRole }}</span>
+                      <span v-if="member.parentName">Child of {{ member.parentName }}</span>
+                    </div>
+                  </div>
                 </div>
               </div>
               <div class="lineage-list">
@@ -193,9 +238,17 @@
                   v-for="member in dynasty.members"
                   :key="`${dynasty.id}-${member.name}-${member.generation}`"
                   class="lineage-row"
+                  :class="familyMemberClass(dynasty.id, member)"
                 >
                   <div class="lineage-generation">Gen {{ member.generation }}</div>
-                  <div class="lineage-copy">
+                  <div
+                    class="lineage-copy"
+                    role="button"
+                    tabindex="0"
+                    @click="focusFamilyMember(dynasty.id, member.name)"
+                    @keydown.enter.prevent="focusFamilyMember(dynasty.id, member.name)"
+                    @keydown.space.prevent="focusFamilyMember(dynasty.id, member.name)"
+                  >
                     <strong>{{ member.name }}</strong>
                     <span>{{ member.role }} · {{ member.familyRole }} · {{ member.legendStatus }}</span>
                     <span v-if="member.parentName">Child of {{ member.parentName }}</span>
@@ -212,28 +265,119 @@
         </div>
 
         <!-- Timeline -->
-        <div class="timeline">
-          <div
-            v-for="(event, i) in history.events"
-            :key="i"
-            class="timeline-event"
-            :class="event.category.toLowerCase().replace(/\s+/g, '-')"
-          >
-            <div class="event-year">{{ formatYear(event) }}</div>
-            <div class="event-connector">
-              <div class="connector-dot"></div>
-              <div class="connector-line"></div>
-            </div>
-            <div class="event-content">
-              <div class="event-category">
-                {{ event.category }}<span v-if="event.subcategory"> · {{ event.subcategory }}</span> ·
-                {{ formatEra(event) }}
+        <div class="timeline-panel">
+          <div class="timeline-view-header">
+            <h3>Timeline View</h3>
+            <div class="timeline-view-controls">
+              <div class="timeline-era-filter-group" data-test="timeline-era-filter">
+                <span class="timeline-era-filter-label">Era</span>
+                <div class="timeline-era-chip-list" role="tablist" aria-label="Timeline era filter">
+                  <button
+                    class="timeline-era-chip"
+                    :class="{ 'timeline-era-chip-active': timelineEraFilter === 'all' }"
+                    role="tab"
+                    :aria-selected="timelineEraFilter === 'all'"
+                    @click="timelineEraFilter = 'all'"
+                  >
+                    All
+                  </button>
+                  <button
+                    v-for="era in timelineEraOptions"
+                    :key="era"
+                    class="timeline-era-chip"
+                    :class="{ 'timeline-era-chip-active': timelineEraFilter === era }"
+                    role="tab"
+                    :aria-selected="timelineEraFilter === era"
+                    @click="timelineEraFilter = era"
+                  >
+                    {{ era }}
+                  </button>
+                </div>
               </div>
-              <div class="event-title">{{ event.title }}</div>
-              <div class="event-description">{{ event.description }}</div>
-              <div v-if="event.causedBy" class="event-cause">Cause: {{ event.causedBy }}</div>
-              <div v-if="event.relatedDynasty" class="event-cause">House: {{ event.relatedDynasty }}</div>
-              <div v-if="event.consequence" class="event-consequence">➜ {{ event.consequence }}</div>
+
+              <div class="timeline-view-toggle" role="tablist" aria-label="Timeline view mode">
+                <button
+                  class="btn btn-secondary timeline-toggle-btn"
+                  :class="{ 'timeline-toggle-active': timelineViewMode === 'list' }"
+                  role="tab"
+                  :aria-selected="timelineViewMode === 'list'"
+                  @click="timelineViewMode = 'list'"
+                >
+                  List
+                </button>
+                <button
+                  class="btn btn-secondary timeline-toggle-btn"
+                  :class="{ 'timeline-toggle-active': timelineViewMode === 'track' }"
+                  role="tab"
+                  :aria-selected="timelineViewMode === 'track'"
+                  @click="timelineViewMode = 'track'"
+                >
+                  Track
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="timelineViewMode === 'track'" class="timeline-track" data-test="timeline-track-view">
+            <div v-if="!timelineTrackLanes.length" class="timeline-empty-state">
+              No recorded events for this era selection.
+            </div>
+            <div
+              v-for="lane in timelineTrackLanes"
+              :key="`lane-${lane.era}`"
+              class="timeline-track-lane"
+              :data-era="lane.era"
+            >
+              <div class="timeline-track-lane-label">{{ lane.era }}</div>
+              <div class="timeline-track-axis"></div>
+              <div
+                v-for="(event, index) in lane.events"
+                :key="`track-${lane.era}-${index}-${event.title}`"
+                class="timeline-track-node"
+                :class="[
+                  event.category.toLowerCase().replace(/\s+/g, '-'),
+                  index % 2 === 0 ? 'timeline-track-node-top' : 'timeline-track-node-bottom',
+                ]"
+                :style="{ left: `${event.positionPct}%` }"
+              >
+                <div class="timeline-track-dot"></div>
+                <div class="timeline-track-card">
+                  <div class="event-category">
+                    {{ event.category }}<span v-if="event.subcategory"> · {{ event.subcategory }}</span>
+                  </div>
+                  <div class="event-title">{{ event.title }}</div>
+                  <div class="event-year">{{ formatYear(event) }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div v-else class="timeline" data-test="timeline-list-view">
+            <div v-if="!filteredTimelineEvents.length" class="timeline-empty-state">
+              No recorded events for this era selection.
+            </div>
+            <div
+              v-for="(event, i) in filteredTimelineEvents"
+              :key="i"
+              class="timeline-event"
+              :class="event.category.toLowerCase().replace(/\s+/g, '-')"
+            >
+              <div class="event-year">{{ formatYear(event) }}</div>
+              <div class="event-connector">
+                <div class="connector-dot"></div>
+                <div class="connector-line"></div>
+              </div>
+              <div class="event-content">
+                <div class="event-category">
+                  {{ event.category }}<span v-if="event.subcategory"> · {{ event.subcategory }}</span> ·
+                  {{ formatEra(event) }}
+                </div>
+                <div class="event-title">{{ event.title }}</div>
+                <div class="event-description">{{ event.description }}</div>
+                <div v-if="event.causedBy" class="event-cause">Cause: {{ event.causedBy }}</div>
+                <div v-if="event.relatedDynasty" class="event-cause">House: {{ event.relatedDynasty }}</div>
+                <div v-if="event.consequence" class="event-consequence">➜ {{ event.consequence }}</div>
+              </div>
             </div>
           </div>
         </div>
@@ -243,17 +387,22 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from "vue";
-import { useRoute } from "vue-router";
+import { computed, onMounted, ref, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import LoadingSpinner from "../../components/common/LoadingSpinner.vue";
 import SurveyNavigation from "../../components/common/SurveyNavigation.vue";
 import { useArchiveTransfer } from "../../composables/useArchiveTransfer.js";
 import { useHistoryStore } from "../../stores/historyStore.js";
-import { EVENT_CATEGORY_DEFINITIONS, generateProceduralHistory } from "../../utils/history/proceduralHistory.js";
+import {
+  createHistorySeededRng,
+  EVENT_CATEGORY_DEFINITIONS,
+  generateProceduralHistory,
+} from "../../utils/history/proceduralHistory.js";
 import { deserializeReturnRoute } from "../../utils/returnRoute.js";
 import * as toastService from "../../utils/toast.js";
 
 const route = useRoute();
+const router = useRouter();
 const historyStore = useHistoryStore();
 const backRoute = computed(
   () => deserializeReturnRoute(String(route.query.returnTo || "")) || { name: "GalaxySurvey" },
@@ -304,6 +453,7 @@ const savedHistories = computed(() =>
     worldName: historyContext.value.worldName,
   }),
 );
+const focusedFamilyMemberKey = ref(String(route.query.familyFocus || "").trim());
 
 const CIV_PREFIXES = ["Vel", "Kra", "Shal", "Dun", "Mrak", "Oth", "Ix", "Cor"];
 const CIV_SUFFIXES = ["athi Empire", "an Compact", "ite Confederation", "ori League", "ak Dominion"];
@@ -311,7 +461,10 @@ const CIV_SUFFIXES = ["athi Empire", "an Compact", "ite Confederation", "ori Lea
 // ── State ─────────────────────────────────────────────────────────────────────
 const civName = ref(String(route.query.civilizationName || route.query.worldName || ""));
 const historyLength = ref(String(route.query.historyLength || "medium"));
+const historySeed = ref(String(route.query.seed || "").trim());
 const eraStart = ref(Number(route.query.eraStart || 5000));
+const timelineViewMode = ref(String(route.query.timelineView || "") === "track" ? "track" : "list");
+const timelineEraFilter = ref(String(route.query.timelineEra || "all"));
 const history = ref(null);
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -348,9 +501,95 @@ function formatSpan(events) {
   return `${Math.round(span).toLocaleString()} years`;
 }
 
+const timelineEraOptions = computed(() => {
+  const events = Array.isArray(history.value?.events) ? history.value.events : [];
+  return [...new Set(events.map((entry) => formatEra(entry)).filter(Boolean))];
+});
+
+const filteredTimelineEvents = computed(() => {
+  const events = Array.isArray(history.value?.events) ? [...history.value.events] : [];
+  if (timelineEraFilter.value === "all") {
+    return events;
+  }
+
+  return events.filter((event) => formatEra(event) === timelineEraFilter.value);
+});
+
+const timelineTrackLanes = computed(() => {
+  const events = filteredTimelineEvents.value;
+  if (!events.length) {
+    return [];
+  }
+
+  const laneMap = new Map();
+  for (const event of events) {
+    const era = formatEra(event);
+    if (!laneMap.has(era)) {
+      laneMap.set(era, []);
+    }
+    laneMap.get(era).push(event);
+  }
+
+  return timelineEraOptions.value
+    .filter((era) => laneMap.has(era))
+    .map((era) => {
+      const laneEvents = laneMap.get(era) || [];
+      const yearsAgoValues = laneEvents
+        .map((entry) => Number(entry?.yearsAgo ?? Math.abs(Number(entry?.year ?? 0))))
+        .filter((value) => Number.isFinite(value));
+      const minYearsAgo = Math.min(...yearsAgoValues);
+      const maxYearsAgo = Math.max(...yearsAgoValues);
+      const span = Math.max(1, maxYearsAgo - minYearsAgo);
+
+      return {
+        era,
+        events: laneEvents.map((event) => {
+          const yearsAgo = Number(event?.yearsAgo ?? Math.abs(Number(event?.year ?? 0)));
+          const normalized = Number.isFinite(yearsAgo) ? (maxYearsAgo - yearsAgo) / span : 0;
+          const positionPct = Math.max(6, Math.min(94, normalized * 100));
+          return { ...event, positionPct };
+        }),
+      };
+    });
+});
+
+function syncTimelineQueryState() {
+  const currentView = String(route.query.timelineView || "");
+  const currentEra = String(route.query.timelineEra || "all");
+  const currentFamilyFocus = String(route.query.familyFocus || "");
+  const nextView = timelineViewMode.value === "track" ? "track" : "list";
+  const nextEra = timelineEraFilter.value || "all";
+  const nextFamilyFocus = String(focusedFamilyMemberKey.value || "").trim();
+
+  if (currentView === nextView && currentEra === nextEra && currentFamilyFocus === nextFamilyFocus) {
+    return;
+  }
+
+  const nextQuery = {
+    ...route.query,
+    timelineView: nextView,
+    timelineEra: nextEra === "all" ? undefined : nextEra,
+    familyFocus: nextFamilyFocus || undefined,
+  };
+
+  router.replace({ query: nextQuery });
+}
+
 // ── Actions ───────────────────────────────────────────────────────────────────
 function randomizeName() {
   civName.value = pick(CIV_PREFIXES) + pick(CIV_SUFFIXES);
+}
+
+function resolveHistoryRng(civilizationName, nextHistoryLength, nextEraStart) {
+  const seedText = String(historySeed.value || "").trim();
+  if (!seedText) {
+    return Math.random;
+  }
+
+  const worldSeed = String(historyContext.value.worldName || "").trim();
+  return createHistorySeededRng(
+    `${seedText}|${civilizationName}|${nextHistoryLength}|${Number(nextEraStart) || 0}|${worldSeed}`,
+  );
 }
 
 function generateHistory() {
@@ -361,11 +600,153 @@ function generateHistory() {
     historyLength: historyLength.value,
     eraStart: eraStart.value,
     context: historyContext.value,
+    rng: resolveHistoryRng(resolvedCivilizationName, historyLength.value, eraStart.value),
   });
+  if (timelineEraFilter.value !== "all" && !timelineEraOptions.value.includes(timelineEraFilter.value)) {
+    timelineEraFilter.value = "all";
+  }
 }
 
 function familyTreeLinksFor(dynastyId) {
-  return history.value?.familyTree?.find((entry) => entry.id === dynastyId)?.links || [];
+  const links = history.value?.familyTree?.find((entry) => entry.id === dynastyId)?.links || [];
+  if (!focusedFamilyMemberKey.value) {
+    return links;
+  }
+
+  const [focusedDynastyId, focusedMemberName] = focusedFamilyMemberKey.value.split("::");
+  if (focusedDynastyId !== dynastyId || !focusedMemberName) {
+    return [];
+  }
+
+  return links.filter((link) => {
+    const isDirectRelation = link?.parent === focusedMemberName || link?.child === focusedMemberName;
+    const isPedigreeLink = link?.type === "parent-child" || link?.type === "marriage";
+    return isDirectRelation && isPedigreeLink;
+  });
+}
+
+function familyTreeGenerationRows(dynastyId) {
+  const members = history.value?.familyTree?.find((entry) => entry.id === dynastyId)?.members || [];
+  const lanes = new Map();
+  for (const member of members) {
+    const generation = Math.max(1, Number(member?.generation || 1));
+    if (!lanes.has(generation)) {
+      lanes.set(generation, []);
+    }
+    lanes.get(generation).push(member);
+  }
+
+  return [...lanes.entries()]
+    .sort((left, right) => left[0] - right[0])
+    .map(([generation, generationMembers]) => ({
+      generation,
+      members: [...generationMembers].sort((left, right) =>
+        String(left?.name || "").localeCompare(String(right?.name || "")),
+      ),
+    }));
+}
+
+const focusedFamilyMember = computed(() => {
+  if (!focusedFamilyMemberKey.value || !history.value?.familyTree?.length) {
+    return null;
+  }
+
+  const [dynastyId, memberName] = focusedFamilyMemberKey.value.split("::");
+  const dynasty = history.value.familyTree.find((entry) => entry.id === dynastyId);
+  const member = dynasty?.members?.find((entry) => entry.name === memberName);
+  return member ? { ...member, dynasty: dynasty?.dynastyName || dynasty?.name || "Unknown Dynasty" } : null;
+});
+
+function clearFamilyFocus() {
+  focusedFamilyMemberKey.value = "";
+}
+
+function focusFamilyMember(dynastyId, memberName) {
+  const nextKey = `${dynastyId}::${memberName}`;
+  focusedFamilyMemberKey.value = focusedFamilyMemberKey.value === nextKey ? "" : nextKey;
+}
+
+function getFocusedFamilyTreeState(dynastyId) {
+  if (!focusedFamilyMemberKey.value) {
+    return { focused: false, relatedNames: new Set() };
+  }
+
+  const [focusedDynastyId, focusedMemberName] = focusedFamilyMemberKey.value.split("::");
+  if (focusedDynastyId !== dynastyId) {
+    return { focused: false, relatedNames: new Set() };
+  }
+
+  const dynasty = history.value?.familyTree?.find((entry) => entry.id === dynastyId);
+  const members = dynasty?.members || [];
+  const selectedMember = members.find((entry) => entry.name === focusedMemberName);
+  if (!selectedMember) {
+    return { focused: false, relatedNames: new Set() };
+  }
+
+  const relatedNames = new Set(
+    [selectedMember.name, selectedMember.parentName, selectedMember.spouseName].filter(Boolean),
+  );
+  (Array.isArray(selectedMember.siblingNames) ? selectedMember.siblingNames : []).forEach((name) =>
+    relatedNames.add(name),
+  );
+  (Array.isArray(selectedMember.childNames) ? selectedMember.childNames : []).forEach((name) => relatedNames.add(name));
+
+  for (const member of members) {
+    if (member.parentName === selectedMember.name) {
+      relatedNames.add(member.name);
+    }
+    if ((Array.isArray(member.childNames) ? member.childNames : []).includes(selectedMember.name)) {
+      relatedNames.add(member.name);
+    }
+    if ((Array.isArray(member.siblingNames) ? member.siblingNames : []).includes(selectedMember.name)) {
+      relatedNames.add(member.name);
+    }
+    if (member.spouseName === selectedMember.name) {
+      relatedNames.add(member.name);
+    }
+  }
+
+  return { focused: true, relatedNames };
+}
+
+function familyMemberClass(dynastyId, member = {}) {
+  const focusState = getFocusedFamilyTreeState(dynastyId);
+  if (!focusState.focused) {
+    return {};
+  }
+
+  const isSelected = focusedFamilyMemberKey.value === `${dynastyId}::${member.name}`;
+  const isRelated = focusState.relatedNames.has(member.name);
+  return {
+    "family-member-selected": isSelected,
+    "family-member-related": !isSelected && isRelated,
+    "family-member-muted": !isRelated,
+  };
+}
+
+function familyTreeCardClass(dynastyId) {
+  if (!focusedFamilyMemberKey.value) {
+    return {};
+  }
+
+  const [focusedDynastyId] = focusedFamilyMemberKey.value.split("::");
+  return {
+    "dynasty-card-focused": focusedDynastyId === dynastyId,
+    "dynasty-card-muted": focusedDynastyId !== dynastyId,
+  };
+}
+
+function familyTreeLinkClass(dynastyId, link = {}) {
+  const focusState = getFocusedFamilyTreeState(dynastyId);
+  if (!focusState.focused) {
+    return {};
+  }
+
+  const isRelated = focusState.relatedNames.has(link.parent) || focusState.relatedNames.has(link.child);
+  return {
+    "tree-link-selected": isRelated,
+    "tree-link-muted": !isRelated,
+  };
 }
 
 function relationGlyph(type = "parent-child") {
@@ -397,6 +778,7 @@ async function saveHistoryRecord() {
       ...(history.value.meta || {}),
       historyLength: historyLength.value,
       eraStart: Number(eraStart.value || 5000),
+      seed: String(historySeed.value || "").trim(),
     },
   });
 
@@ -408,6 +790,7 @@ function loadSavedHistory(record = {}) {
   history.value = { ...record };
   civName.value = String(record.civilizationName || civName.value || "");
   historyLength.value = String(record?.meta?.historyLength || historyLength.value || "medium");
+  historySeed.value = String(record?.meta?.seed || historySeed.value || "").trim();
   eraStart.value = Number(record?.meta?.eraStart || eraStart.value || 5000);
   toastService.success(`Loaded saved history for ${record.civilizationName || "the archive"}.`);
 }
@@ -438,6 +821,11 @@ function evolveHistory() {
     civilizationName: history.value?.civilizationName || civName.value || pick(CIV_PREFIXES) + pick(CIV_SUFFIXES),
     historyLength: historyLength.value,
     eraStart: nextSpan,
+    rng: resolveHistoryRng(
+      history.value?.civilizationName || civName.value || "Generated Civilization",
+      historyLength.value,
+      nextSpan,
+    ),
     context: {
       ...historyContext.value,
       flashpoint: history.value?.dynasties?.[0]?.inheritanceCrisis || historyContext.value.flashpoint,
@@ -475,6 +863,22 @@ onMounted(async () => {
 
   if (String(civName.value || "").trim()) {
     generateHistory();
+  }
+});
+
+watch([timelineViewMode, timelineEraFilter, focusedFamilyMemberKey], () => {
+  syncTimelineQueryState();
+});
+
+watch(timelineEraOptions, (options) => {
+  if (timelineEraFilter.value !== "all" && !options.includes(timelineEraFilter.value)) {
+    timelineEraFilter.value = "all";
+  }
+});
+
+watch([() => history.value?.familyTree, focusedFamilyMember], ([familyTree, focusedMember]) => {
+  if (Array.isArray(familyTree) && familyTree.length && focusedFamilyMemberKey.value && !focusedMember) {
+    focusedFamilyMemberKey.value = "";
   }
 });
 </script>
@@ -697,6 +1101,31 @@ onMounted(async () => {
   color: #8fdcff;
 }
 
+.family-tree-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.family-clear-button {
+  min-height: 2rem;
+  padding: 0.35rem 0.75rem;
+}
+
+.family-focus-banner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 0.85rem;
+  padding: 0.7rem 0.85rem;
+  border-radius: 0.5rem;
+  background: rgba(0, 217, 255, 0.12);
+  border: 1px solid rgba(0, 217, 255, 0.28);
+  color: #eafcff;
+}
+
 .saved-history-list,
 .people-grid,
 .dynasty-grid {
@@ -713,6 +1142,17 @@ onMounted(async () => {
   border: 1px solid rgba(0, 217, 255, 0.2);
   border-radius: 0.5rem;
   padding: 0.85rem;
+}
+
+.dynasty-card-focused {
+  border-color: rgba(0, 217, 255, 0.65);
+  box-shadow:
+    0 0 0 1px rgba(0, 217, 255, 0.14),
+    0 12px 28px rgba(0, 0, 0, 0.32);
+}
+
+.dynasty-card-muted {
+  opacity: 0.46;
 }
 
 .person-name {
@@ -811,6 +1251,85 @@ onMounted(async () => {
   color: #ffd1d1;
 }
 
+.tree-link-selected {
+  border-color: rgba(0, 217, 255, 0.45);
+}
+
+.tree-link-muted {
+  opacity: 0.28;
+}
+
+.generation-board {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 0.85rem;
+}
+
+.generation-lane {
+  display: grid;
+  grid-template-columns: 58px 1fr;
+  gap: 0.55rem;
+  align-items: start;
+}
+
+.generation-lane-label {
+  color: #00ffff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding-top: 0.3rem;
+}
+
+.generation-lane-members {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.generation-member {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 130px;
+  padding: 0.32rem 0.5rem;
+  border-radius: 0.35rem;
+  background: rgba(0, 217, 255, 0.08);
+  border: 1px solid rgba(0, 217, 255, 0.16);
+  color: #dfe9ff;
+  font-size: 0.75rem;
+}
+
+.generation-member.family-member-selected,
+.lineage-row.family-member-selected {
+  background: rgba(0, 217, 255, 0.18);
+  border-color: rgba(0, 217, 255, 0.72);
+  box-shadow: 0 0 0 1px rgba(0, 217, 255, 0.18);
+}
+
+.generation-member.family-member-related,
+.lineage-row.family-member-related {
+  background: rgba(0, 217, 255, 0.12);
+  border-color: rgba(0, 217, 255, 0.28);
+}
+
+.generation-member.family-member-muted,
+.lineage-row.family-member-muted {
+  opacity: 0.35;
+}
+
+.generation-member[role="button"],
+.lineage-copy[role="button"] {
+  cursor: pointer;
+}
+
+.generation-member[role="button"]:focus-visible,
+.lineage-copy[role="button"]:focus-visible,
+.family-clear-button:focus-visible {
+  outline: 2px solid #00ffff;
+  outline-offset: 2px;
+}
+
 .person-life-list,
 .lineage-list {
   display: flex;
@@ -866,6 +1385,184 @@ onMounted(async () => {
   gap: 0.15rem;
   color: #dfe9ff;
   font-size: 0.8rem;
+}
+
+.timeline-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.timeline-view-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.timeline-view-header h3 {
+  margin: 0;
+  color: #8fdcff;
+}
+
+.timeline-view-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.timeline-era-filter-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.timeline-era-filter-label {
+  color: #b5d8ff;
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.timeline-era-chip-list {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.timeline-era-chip {
+  min-height: 2rem;
+  border-radius: 999px;
+  border: 1px solid rgba(110, 189, 255, 0.35);
+  background: rgba(14, 21, 42, 0.88);
+  color: #d7eaff;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.78rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.timeline-era-chip:hover {
+  border-color: rgba(0, 217, 255, 0.45);
+}
+
+.timeline-era-chip-active {
+  background: rgba(0, 217, 255, 0.2);
+  color: #e8fdff;
+  border-color: rgba(0, 217, 255, 0.6);
+}
+
+.timeline-era-chip:focus-visible {
+  outline: 2px solid rgba(0, 217, 255, 0.55);
+  outline-offset: 1px;
+}
+
+.timeline-view-toggle {
+  display: inline-flex;
+  gap: 0.45rem;
+}
+
+.timeline-toggle-btn {
+  min-height: 2rem;
+  padding: 0.35rem 0.75rem;
+}
+
+.timeline-toggle-active {
+  background: rgba(0, 217, 255, 0.22);
+  color: #dff8ff;
+  border: 1px solid rgba(0, 217, 255, 0.45);
+}
+
+.timeline-track {
+  position: relative;
+  min-height: 130px;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(0, 217, 255, 0.22);
+  background: linear-gradient(180deg, rgba(12, 22, 44, 0.55), rgba(10, 14, 30, 0.7));
+  padding: 0.8rem 1rem 0.9rem;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.timeline-empty-state {
+  color: #9eb8da;
+  font-size: 0.86rem;
+  letter-spacing: 0.01em;
+}
+
+.timeline-track-lane {
+  position: relative;
+  min-height: 112px;
+  border-radius: 0.45rem;
+  background: rgba(8, 12, 25, 0.42);
+  border: 1px solid rgba(0, 217, 255, 0.12);
+  padding: 0.65rem 0.6rem 0.55rem;
+}
+
+.timeline-track-lane-label {
+  position: absolute;
+  top: 0.25rem;
+  left: 0.5rem;
+  z-index: 2;
+  color: #92ddff;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  background: rgba(6, 14, 30, 0.92);
+  border: 1px solid rgba(0, 217, 255, 0.22);
+  border-radius: 999px;
+  padding: 0.16rem 0.45rem;
+}
+
+.timeline-track-axis {
+  position: absolute;
+  top: 52%;
+  left: 0.6rem;
+  right: 0.6rem;
+  height: 2px;
+  background: linear-gradient(90deg, rgba(0, 217, 255, 0.25), rgba(0, 217, 255, 0.75), rgba(0, 217, 255, 0.25));
+}
+
+.timeline-track-node {
+  position: absolute;
+  top: 52%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.timeline-track-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  border: 2px solid #0d1226;
+  background: #00d9ff;
+  box-shadow: 0 0 0 3px rgba(0, 217, 255, 0.15);
+}
+
+.timeline-track-card {
+  width: 168px;
+  min-height: 66px;
+  background: rgba(8, 15, 32, 0.92);
+  border: 1px solid rgba(0, 217, 255, 0.22);
+  border-radius: 0.5rem;
+  padding: 0.4rem 0.5rem;
+}
+
+.timeline-track-node-top .timeline-track-card {
+  transform: translateY(-46px);
+}
+
+.timeline-track-node-bottom .timeline-track-card {
+  transform: translateY(46px);
 }
 
 /* Timeline */

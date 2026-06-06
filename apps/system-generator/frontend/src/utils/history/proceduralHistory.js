@@ -455,6 +455,27 @@ const PERSON_ROLE_BY_CATEGORY = {
 const DYNASTY_TITLES = ["House", "Line", "Dynasty", "Clan"];
 const MARRIAGE_STYLES = ["treaty marriage", "political union", "frontier compact", "ceremonial bond"];
 
+function hashHistorySeed(seed) {
+  const text = String(seed ?? "history-seed");
+  let hash = 1779033703 ^ text.length;
+  for (let index = 0; index < text.length; index += 1) {
+    hash = Math.imul(hash ^ text.charCodeAt(index), 3432918353);
+    hash = (hash << 13) | (hash >>> 19);
+  }
+  return hash >>> 0 || 1;
+}
+
+export function createHistorySeededRng(seed = "history-seed") {
+  let state = hashHistorySeed(seed);
+  return () => {
+    state += 0x6d2b79f5;
+    let value = state;
+    value = Math.imul(value ^ (value >>> 15), value | 1);
+    value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
+    return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
 function normalizeContextList(value) {
   const values = Array.isArray(value) ? value : String(value || "").split(/[,;/|]+/);
   return values
@@ -867,9 +888,35 @@ export function buildDynastyChronicles(
     const feudSummary = `${baseDynasty.name} and ${rivalDynasty} maintain a bitter feud over charters, marriages, and old betrayals.`;
     const betrayalSummary = `${baseDynasty.name} suffered a high-profile betrayal when one of its own quietly aligned with ${rivalDynasty}.`;
 
+    const generationPlan = [];
+    for (let memberIndex = 0; memberIndex < baseDynasty.members.length; memberIndex += 1) {
+      if (memberIndex === 0) {
+        generationPlan.push(1);
+        continue;
+      }
+
+      const previousGeneration = generationPlan[memberIndex - 1] || 1;
+      if (memberIndex === 1) {
+        generationPlan.push(previousGeneration + 1);
+        continue;
+      }
+
+      const keepSameGeneration = rng() < 0.38;
+      generationPlan.push(keepSameGeneration ? previousGeneration : previousGeneration + 1);
+    }
+
     const lineageMembers = baseDynasty.members.map((member, memberIndex, lineage) => {
-      const parent = memberIndex > 0 ? lineage[memberIndex - 1] : null;
-      const child = memberIndex < lineage.length - 1 ? lineage[memberIndex + 1] : null;
+      const generation = generationPlan[memberIndex] || memberIndex + 1;
+      const parentCandidates = lineage.filter(
+        (_, candidateIndex) =>
+          candidateIndex < memberIndex &&
+          Number(generationPlan[candidateIndex] || candidateIndex + 1) === Math.max(1, generation - 1),
+      );
+      const parent = parentCandidates.length
+        ? pick(parentCandidates, rng)
+        : memberIndex > 0
+          ? lineage[memberIndex - 1]
+          : null;
       const spouse = randomHistoricalPersonName(rng, { civilizationName, worldName: context?.worldName });
       const spouseName = `${spouse.firstName} ${member.lastName}`;
       const siblingNames = [
@@ -893,16 +940,6 @@ export function buildDynastyChronicles(
         relation: marriageStyle,
         summary: `${spouseName} became consort of ${member.name} through a ${marriageStyle}.`,
       };
-      const childProfiles = child
-        ? [
-            {
-              name: child.name,
-              role: "Heir",
-              relation: "Child",
-              summary: `${child.name} inherited the expectations of ${baseDynasty.name}.`,
-            },
-          ]
-        : [];
       const siblingProfiles = siblingNames.map((siblingName) => ({
         name: siblingName,
         role: "Sibling",
@@ -914,7 +951,7 @@ export function buildDynastyChronicles(
         memberIndex % 2 === 0
           ? `${pick(PERSON_FIRST_NAMES, rng)} ${baseDynasty.members[0]?.lastName || member.lastName}`
           : `${pick(PERSON_FIRST_NAMES, rng)} ${pick(PERSON_LAST_NAMES, rng)}`;
-      const heirName = child?.name || `${pick(PERSON_FIRST_NAMES, rng)} ${member.lastName}`;
+      const heirName = null;
       const claimantName = `${pick(PERSON_FIRST_NAMES, rng)} ${pick(PERSON_LAST_NAMES, rng)}`;
       const legendStatus =
         memberIndex === 0
@@ -929,14 +966,14 @@ export function buildDynastyChronicles(
         ...member,
         dynasty: baseDynasty.name,
         dynastyId: baseDynasty.id,
-        generation: memberIndex + 1,
-        familyRole: parent ? (child ? "Line Holder" : "Heir") : "Founder",
+        generation,
+        familyRole: parent ? "Line Holder" : "Founder",
         parentName: parent?.name || null,
-        childNames: child ? [child.name] : [],
+        childNames: [],
         spouseName,
         siblingNames,
         spouseProfile,
-        childProfiles,
+        childProfiles: [],
         siblingProfiles,
         mentorName,
         rivalName,
@@ -953,6 +990,32 @@ export function buildDynastyChronicles(
       };
     });
 
+    const memberByName = new Map(lineageMembers.map((member) => [member.name, member]));
+    for (const member of lineageMembers) {
+      if (!member.parentName) continue;
+      const parent = memberByName.get(member.parentName);
+      if (!parent) continue;
+      parent.childNames = [...(Array.isArray(parent.childNames) ? parent.childNames : []), member.name];
+    }
+
+    for (const member of lineageMembers) {
+      const childNames = Array.isArray(member.childNames) ? member.childNames : [];
+      member.childProfiles = childNames.map((childName, childIndex) => ({
+        name: childName,
+        role: childIndex === 0 ? "Heir" : "Child",
+        relation: "Child",
+        summary: `${childName} inherited the expectations of ${baseDynasty.name}.`,
+      }));
+      member.heirName = childNames[0] || `${pick(PERSON_FIRST_NAMES, rng)} ${member.lastName}`;
+      if (!member.parentName && member.generation === 1) {
+        member.familyRole = "Founder";
+      } else if (childNames.length) {
+        member.familyRole = "Patriarch/Matriarch";
+      } else {
+        member.familyRole = "Scion";
+      }
+    }
+
     return {
       id: baseDynasty.id,
       name: baseDynasty.name,
@@ -965,7 +1028,7 @@ export function buildDynastyChronicles(
       betrayalSummary,
       inheritanceCrisis,
       successionWar: `The ${baseDynasty.name} Succession War`,
-      generations: lineageMembers.length,
+      generations: Math.max(1, ...lineageMembers.map((member) => Number(member.generation || 1))),
       summary: `${baseDynasty.name} influenced ${
         lineageMembers
           .map((member) => member.category)
@@ -993,6 +1056,7 @@ export function buildDynastyChronicles(
         role,
         generation,
         parentName,
+        childNames,
         familyRole,
         spouseName,
         siblingNames,
@@ -1006,6 +1070,7 @@ export function buildDynastyChronicles(
         role,
         generation,
         parentName,
+        childNames,
         familyRole,
         spouseName,
         siblingNames,

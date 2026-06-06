@@ -1799,6 +1799,16 @@ function goToHistoryGenerator() {
         .map((entry) => String(entry || "").trim())
         .filter(Boolean)
         .join(", "),
+      seed: String(
+        [
+          systemStore.currentSystemId || route.params.systemId || "",
+          world.value?.name || worldName.value || "",
+          latestLinkedSophont.value?.name || "",
+        ]
+          .map((entry) => String(entry || "").trim())
+          .filter(Boolean)
+          .join(":") || "world-history",
+      ),
       flashpoint: String(world.value?.linkedSophontProfile?.currentFlashpoint || "").trim(),
       conflictSummary: String(latestLinkedSophont.value?.factionSummary || "").trim(),
       eventHook: String(latestLinkedSophont.value?.eventHook || "").trim(),

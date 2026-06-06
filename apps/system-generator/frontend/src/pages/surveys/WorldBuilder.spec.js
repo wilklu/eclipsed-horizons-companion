@@ -360,6 +360,36 @@ describe("WorldBuilder", () => {
     expect(wrapper.text()).toContain("Dispute over canal tolls");
   });
 
+  it("navigates to history generation with a deterministic seed from world context", async () => {
+    const wrapper = mount(WorldBuilder, {
+      global: {
+        stubs: {
+          LoadingSpinner: { template: "<div data-test='loading-spinner' />" },
+          SurveyNavigation: { template: "<div data-test='survey-navigation' />" },
+        },
+      },
+    });
+
+    await flushPromises();
+    await flushPromises();
+
+    const historyButton = wrapper.findAll("button").find((button) => button.text().includes("History Generator"));
+
+    expect(historyButton).toBeTruthy();
+    await historyButton.trigger("click");
+
+    expect(hoisted.routerPush).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "HistoryGenerator",
+        query: expect.objectContaining({
+          source: "world-builder-history",
+          worldName: "Iona",
+          seed: "sector-1:0101:Iona",
+        }),
+      }),
+    );
+  });
+
   it("shows the WBH native lifeform profile in World Survey when native sophont life is present", async () => {
     const profiledSystem = createSystemRecord();
     profiledSystem.planets = [

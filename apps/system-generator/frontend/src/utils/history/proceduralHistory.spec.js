@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildDynastyChronicles,
+  createHistorySeededRng,
   generateProceduralHistory,
   randomHistoricalPersonName,
   resolveContextualSubcategory,
@@ -119,5 +121,64 @@ describe("proceduralHistory contextual subcategories", () => {
     expect(history.notablePeople.some((person) => Boolean(person.heirName) && Boolean(person.claimantName))).toBe(true);
     expect(history.notablePeople.some((person) => person.childProfiles?.length)).toBe(true);
     expect(history.events.some((event) => Boolean(event.causedBy) && Boolean(event.relatedDynasty))).toBe(true);
+  });
+
+  it("produces deterministic output when a seeded rng is supplied", () => {
+    const shared = {
+      civilizationName: "Talari Concord",
+      historyLength: "long",
+      eraStart: 25000,
+      context: {
+        worldName: "Talara",
+        government: "Imperial Directorate",
+        pressureLevel: "High",
+        diplomaticPosture: "guarded hostility",
+        flashpoint: "succession blockade",
+      },
+    };
+
+    const one = generateProceduralHistory({
+      ...shared,
+      rng: createHistorySeededRng("talara-history-seed"),
+    });
+    const two = generateProceduralHistory({
+      ...shared,
+      rng: createHistorySeededRng("talara-history-seed"),
+    });
+
+    expect(one.events.map((event) => event.title)).toEqual(two.events.map((event) => event.title));
+    expect(one.overview["Historical Themes"]).toBe(two.overview["Historical Themes"]);
+    expect(one.notablePeople.map((person) => person.name)).toEqual(two.notablePeople.map((person) => person.name));
+  });
+
+  it("builds branching family generations instead of a strictly linear chain", () => {
+    const notablePeople = Array.from({ length: 9 }, (_, index) => ({
+      name: `Figure ${index + 1}`,
+      firstName: `Figure${index + 1}`,
+      lastName: "Talor",
+      role: "Regent",
+      category: "Political",
+      summary: `Figure ${index + 1} shaped the dynasty.`,
+      birth: { yearsAgo: 9000 - index * 100 },
+      death: { yearsAgo: 8800 - index * 90 },
+      lifeEvents: [],
+    }));
+
+    const lineage = buildDynastyChronicles(
+      {
+        notablePeople,
+        civilizationName: "Talari Concord",
+        context: { worldName: "Talara" },
+        totalSpan: 10000,
+      },
+      () => 0.1,
+    );
+
+    expect(
+      lineage.dynasties.some((dynasty) => dynasty.members.length >= 3 && dynasty.generations < dynasty.members.length),
+    ).toBe(true);
+    expect(lineage.familyTree.some((branch) => branch.members.some((member) => Array.isArray(member.childNames)))).toBe(
+      true,
+    );
   });
 });
