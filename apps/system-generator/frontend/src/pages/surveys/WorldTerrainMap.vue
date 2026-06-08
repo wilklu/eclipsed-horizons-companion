@@ -140,6 +140,33 @@
           >
             Shore Step
           </button>
+          <button
+            type="button"
+            class="map-button map-button-secondary"
+            @click="generateIceCapsStep"
+            :disabled="!(activeHexCells?.length ?? 0)"
+            title="Temporary walkthrough: generate ice caps from hydrographics"
+          >
+            Ice Caps Step
+          </button>
+          <button
+            type="button"
+            class="map-button map-button-secondary"
+            @click="generateDesertStep"
+            :disabled="!(activeHexCells?.length ?? 0)"
+            title="Temporary walkthrough: generate desert coverage"
+          >
+            Desert Step
+          </button>
+          <button
+            type="button"
+            class="map-button map-button-secondary"
+            @click="generateForestStep"
+            :disabled="!(activeHexCells?.length ?? 0)"
+            title="Temporary walkthrough: generate latitude forest/swamp/tundra biomes"
+          >
+            Forest Step
+          </button>
           <div
             v-if="useSurveyOverlayHexes"
             class="terrain-paint-controls"
@@ -783,6 +810,7 @@ import { deserializeReturnRoute } from "../../utils/returnRoute.js";
 import { useSystemStore } from "../../stores/systemStore.js";
 import { normalizeFaceTopologyId } from "../../utils/worldTerrainStartTriangle.js";
 import { canonicalizeHexId } from "../../utils/worldMapHexTopology.js";
+import { resolveTerrainCoreCountsFromBudget } from "../../utils/terrainPlacement.js";
 import {
   WORLD_HEX_TAGS,
   buildWorldHexTagIndex,
@@ -2254,18 +2282,11 @@ function applyTerrainSurveyToMap() {
     return taken;
   };
 
-  const oceanCount = clamp(Number(budgetMap.get("water") || 0), 0, cells.length);
-  const plateHint = Number(
-    selectedWorld.value?.majorTectonicPlates || selectedWorld.value?.seismology?.majorTectonicPlates || 0,
-  );
-  const inferredMountainCount = Math.max(1, Math.min(cells.length - oceanCount, 1 + Math.max(0, plateHint)));
-  const mountainCount = clamp(
-    Number(budgetMap.get("mountain") || 0) || inferredMountainCount,
-    0,
-    cells.length - oceanCount,
-  );
-  const inferredShoreCount = Math.max(1, Math.round(oceanCount * 0.35));
-  const shoreCount = clamp(Number(budgetMap.get("shore") || 0) || inferredShoreCount, 0, cells.length);
+  const {
+    waterCount: oceanCount,
+    mountainCount,
+    shoreCount,
+  } = resolveTerrainCoreCountsFromBudget(budgetMap, cells.length);
 
   const mountainCells = takeCells(
     orderedCellsDesc,
@@ -2345,14 +2366,8 @@ function applyTerrainSurveyToMap() {
     }
   }
 
-  for (const cell of cells) {
-    const key = String(cell?.key || "").trim();
-    if (!key || entriesByKey.has(key)) continue;
-    entriesByKey.set(key, {
-      points: normalizePoints(cell?.points || ""),
-      terrain: "plains",
-    });
-  }
+  // Leave unassigned cells implicit to avoid generating massive overlay payloads
+  // (thousands of explicit plains entries can stall rendering and persistence).
 
   useSurveyOverlayHexes.value = true;
   applySurveyOverlayTerrainForSize(size, entriesByKey);
@@ -2536,8 +2551,15 @@ function tryApplySurveyOverlayTerrain() {
   const bySize = selectedWorld.value?.terrainOverlayBySize;
   const serialized = bySize && typeof bySize === "object" ? bySize[String(size)] : null;
   const entriesByKey = normalizeOverlayEntriesByKey(serialized);
+  const inMemoryEntriesByKey = buildOverlayEntriesByKeyFromCurrentLayers(size);
 
   if (!cells.length || !entriesByKey.size) {
+    // Keep locally-generated overlay visible while persisted world data catches up.
+    // Without this guard, watcher-driven reapply can clear oceans immediately after step generation.
+    if (cells.length && useSurveyOverlayHexes.value && inMemoryEntriesByKey.size) {
+      return true;
+    }
+
     useSurveyOverlayHexes.value = Boolean(disableLegacyTerrainGeneration);
     if (disableLegacyTerrainGeneration) {
       resetTerrainLayersForSize(size);
@@ -5199,8 +5221,6 @@ function buildRandomWaterCells(cells, targetCount, rng = Math.random) {
 }
 
 function placeDesertHexes() {
-  // TODO: re-enable when step-terrain generation is implemented
-  return;
   const cells = activeHexCells.value;
   const size = activeTerrainTemplateSize.value;
 
@@ -5220,6 +5240,23 @@ function placeDesertHexes() {
     precipiceHexesBySize.value.get(size),
     craterHexesBySize.value.get(size),
     ruinHexesBySize.value.get(size),
+    iceCapHexesBySize.value.get(size),
+    forestBiomeHexesBySize.value.get(size),
+    swampBiomeHexesBySize.value.get(size),
+    arcticBiomeHexesBySize.value.get(size),
+    twilightFrozenLandHexesBySize.value.get(size),
+    twilightOceanIceFieldHexesBySize.value.get(size),
+    twilightOceanDesertHexesBySize.value.get(size),
+    townHexesBySize.value.get(size),
+    cityHexesBySize.value.get(size),
+    arcologyHexesBySize.value.get(size),
+    ruralHexesBySize.value.get(size),
+    worldPortHexesBySize.value.get(size),
+    twilightZoneHexesBySize.value.get(size),
+    penalColonyHexesBySize.value.get(size),
+    wastelandHexesBySize.value.get(size),
+    exoticHexesBySize.value.get(size),
+    nobleLandHexesBySize.value.get(size),
   ];
 
   for (const layer of layers) {
@@ -5333,8 +5370,6 @@ function placeSeaHexes(rng = Math.random) {
 }
 
 function placeIceCapHexes(rng = null) {
-  // TODO: re-enable when step-terrain generation is implemented
-  return;
   const cells = activeHexCells.value;
   const size = activeTerrainTemplateSize.value;
   const baseBandCount = Math.floor(hydroTriangleScore.value / 2);
@@ -6121,29 +6156,27 @@ function generateOceansStep() {
   const seed = hashString(
     `${String(worldInfo.value?.name || "")}|${systemInfo.value.hex}|${size}|ocean-step|${waterTarget}`,
   );
-  const adjacency = buildHexAdjacencyGraph(cells);
-  const scoreByKey = buildTerrainPlacementScoreMap(cells, seed, adjacency.byId);
-  const waterCells = [...cells]
-    .filter((cell) => String(cell?.key || "").trim())
-    .sort(
-      (left, right) => (scoreByKey.get(String(left.key || "")) || 0) - (scoreByKey.get(String(right.key || "")) || 0),
-    )
-    .slice(0, waterTarget);
+  const rand = mulberry32(seed);
+  const waterCells = buildRandomWaterCells(
+    cells.filter((cell) => String(cell?.key || "").trim()),
+    waterTarget,
+    rand,
+  );
 
-  const waterMap = new Map();
+  const waterEntriesByKey = new Map();
   for (const cell of waterCells) {
     const key = String(cell?.key || "").trim();
     if (!key) continue;
-    waterMap.set(key, {
+    waterEntriesByKey.set(key, {
       points: normalizePoints(cell?.points || ""),
-      cx: cell?.cx,
-      cy: cell?.cy,
+      terrain: "water",
     });
   }
 
-  useSurveyOverlayHexes.value = false;
-  resetTerrainLayersForSize(size);
-  setLayerMapForSize(waterHexesBySize, size, waterMap);
+  // Route Ocean Step through the same batched overlay path used by survey apply
+  // to avoid large reactive churn from sequential layer resets/sets.
+  useSurveyOverlayHexes.value = true;
+  applySurveyOverlayTerrainForSize(size, waterEntriesByKey);
   placeTectonicLines();
   queueTerrainOverlayPersist();
 }
@@ -6182,14 +6215,9 @@ function generateMountainsStep() {
   const seed = hashString(
     `${String(worldInfo.value?.name || "")}|${systemInfo.value.hex}|${size}|mountain-step|${mountainTarget}`,
   );
-  const adjacency = buildHexAdjacencyGraph(cells);
-  const scoreByKey = buildTerrainPlacementScoreMap(cells, seed, adjacency.byId);
+  const rand = mulberry32(seed);
   const mountains = new Map();
-  for (const cell of eligibleMountainCells
-    .sort(
-      (left, right) => (scoreByKey.get(String(right.key || "")) || 0) - (scoreByKey.get(String(left.key || "")) || 0),
-    )
-    .slice(0, mountainTarget)) {
+  for (const cell of buildRandomWaterCells(eligibleMountainCells, mountainTarget, rand)) {
     const key = String(cell?.key || "").trim();
     if (!key) continue;
     mountains.set(key, {
@@ -6199,9 +6227,33 @@ function generateMountainsStep() {
     });
   }
 
-  useSurveyOverlayHexes.value = false;
-  resetTerrainLayersForSize(size);
-  setLayerMapForSize(waterHexesBySize, size, preservedWater);
+  const cellsByKey = new Map(cells.map((cell) => [String(cell?.key || "").trim(), cell]));
+  const entriesByKey = new Map();
+
+  for (const [key, value] of preservedWater.entries()) {
+    const normalizedKey = String(key || "").trim();
+    if (!normalizedKey) continue;
+    const points = normalizePoints(value?.points || cellsByKey.get(normalizedKey)?.points || "");
+    if (!points) continue;
+    entriesByKey.set(normalizedKey, {
+      points,
+      terrain: "water",
+    });
+  }
+
+  for (const [key, value] of mountains.entries()) {
+    const normalizedKey = String(key || "").trim();
+    if (!normalizedKey) continue;
+    const points = normalizePoints(value?.points || cellsByKey.get(normalizedKey)?.points || "");
+    if (!points) continue;
+    entriesByKey.set(normalizedKey, {
+      points,
+      terrain: "mountain",
+    });
+  }
+
+  useSurveyOverlayHexes.value = true;
+  applySurveyOverlayTerrainForSize(size, entriesByKey);
 
   if (preservedOceanTriangles.length) {
     setLayerMapForSize(oceanTrianglesBySize, size, preservedOceanTriangles);
@@ -6231,11 +6283,75 @@ function generateShoresStep() {
   const preservedShoreSegments = shoreSegmentsBySize.value.get(size) ? [...shoreSegmentsBySize.value.get(size)] : [];
   const preservedWater = new Map(waterHexesBySize.value.get(size) || []);
   const preservedMountains = new Map(mountainHexesBySize.value.get(size) || []);
+  const waterKeys = new Set(preservedWater.keys());
+  const mountainKeys = new Set(preservedMountains.keys());
+  const eligibleShoreCells = cells.filter((cell) => {
+    const key = String(cell?.key || "").trim();
+    return key && !waterKeys.has(key) && !mountainKeys.has(key);
+  });
 
-  useSurveyOverlayHexes.value = false;
-  resetTerrainLayersForSize(size);
-  setLayerMapForSize(waterHexesBySize, size, preservedWater);
-  setLayerMapForSize(mountainHexesBySize, size, preservedMountains);
+  const budgetMap = buildTerrainBudgetMapFromSurveyComposition();
+  const shoreBudget = Number(budgetMap.get("shore") || 0);
+  const inferredShoreTarget = Math.max(1, Math.round(waterKeys.size * 0.35));
+  const shoreTarget =
+    shoreBudget > 0
+      ? Math.min(eligibleShoreCells.length, shoreBudget)
+      : Math.min(eligibleShoreCells.length, inferredShoreTarget);
+
+  const seed = hashString(
+    `${String(worldInfo.value?.name || "")}|${systemInfo.value.hex}|${size}|shore-step|${shoreTarget}`,
+  );
+  const rand = mulberry32(seed);
+  const placedShores = new Map();
+
+  for (const cell of buildRandomWaterCells(eligibleShoreCells, shoreTarget, rand)) {
+    const key = String(cell?.key || "").trim();
+    if (!key) continue;
+    placedShores.set(key, {
+      points: normalizePoints(cell?.points || ""),
+      cx: cell?.cx,
+      cy: cell?.cy,
+    });
+  }
+
+  const cellsByKey = new Map(cells.map((cell) => [String(cell?.key || "").trim(), cell]));
+  const entriesByKey = new Map();
+
+  for (const [key, value] of preservedWater.entries()) {
+    const normalizedKey = String(key || "").trim();
+    if (!normalizedKey) continue;
+    const points = normalizePoints(value?.points || cellsByKey.get(normalizedKey)?.points || "");
+    if (!points) continue;
+    entriesByKey.set(normalizedKey, {
+      points,
+      terrain: "water",
+    });
+  }
+
+  for (const [key, value] of preservedMountains.entries()) {
+    const normalizedKey = String(key || "").trim();
+    if (!normalizedKey) continue;
+    const points = normalizePoints(value?.points || cellsByKey.get(normalizedKey)?.points || "");
+    if (!points) continue;
+    entriesByKey.set(normalizedKey, {
+      points,
+      terrain: "mountain",
+    });
+  }
+
+  for (const [key, value] of placedShores.entries()) {
+    const normalizedKey = String(key || "").trim();
+    if (!normalizedKey) continue;
+    const points = normalizePoints(value?.points || cellsByKey.get(normalizedKey)?.points || "");
+    if (!points) continue;
+    entriesByKey.set(normalizedKey, {
+      points,
+      terrain: "shore",
+    });
+  }
+
+  useSurveyOverlayHexes.value = true;
+  applySurveyOverlayTerrainForSize(size, entriesByKey);
 
   if (preservedOceanTriangles.length) {
     setLayerMapForSize(oceanTrianglesBySize, size, preservedOceanTriangles);
@@ -6247,56 +6363,40 @@ function generateShoresStep() {
     setLayerMapForSize(shoreSegmentsBySize, size, preservedShoreSegments);
   }
 
-  const adjacency = buildHexAdjacencyGraph(cells);
-  const waterKeys = new Set(preservedWater.keys());
-  const mountainKeys = new Set(preservedMountains.keys());
-  const shoreCandidates = [];
-
-  for (const cell of cells) {
-    const key = String(cell?.key || "").trim();
-    if (!key || waterKeys.has(key) || mountainKeys.has(key)) {
-      continue;
-    }
-    const neighbors = adjacency.byId.get(key)?.neighbors || new Set();
-    let waterNeighborCount = 0;
-    for (const neighborKey of neighbors) {
-      if (waterKeys.has(neighborKey)) {
-        waterNeighborCount += 1;
-      }
-    }
-    if (waterNeighborCount > 0) {
-      shoreCandidates.push({
-        key,
-        points: normalizePoints(cell?.points || ""),
-        cx: cell?.cx,
-        cy: cell?.cy,
-        waterNeighborCount,
-      });
-    }
-  }
-
-  shoreCandidates.sort((left, right) => right.waterNeighborCount - left.waterNeighborCount);
-
-  const budgetMap = buildTerrainBudgetMapFromSurveyComposition();
-  const shoreBudget = Number(budgetMap.get("shore") || 0);
-  const inferredShoreTarget = Math.max(1, Math.round(waterKeys.size * 0.35));
-  const shoreTarget =
-    shoreBudget > 0
-      ? Math.min(shoreCandidates.length, shoreBudget)
-      : Math.min(shoreCandidates.length, inferredShoreTarget);
-  const placedShores = new Map();
-
-  for (const candidate of shoreCandidates.slice(0, shoreTarget)) {
-    placedShores.set(candidate.key, {
-      points: candidate.points,
-      cx: candidate.cx,
-      cy: candidate.cy,
-    });
-  }
-
-  setLayerMapForSize(shoreHexesBySize, size, placedShores);
-
   placeTectonicLines();
+  queueTerrainOverlayPersist();
+}
+
+function generateIceCapsStep() {
+  markTerrainUserInteraction();
+  if (!(activeHexCells.value?.length ?? 0)) {
+    return;
+  }
+
+  useSurveyOverlayHexes.value = true;
+  placeIceCapHexes();
+  queueTerrainOverlayPersist();
+}
+
+function generateDesertStep() {
+  markTerrainUserInteraction();
+  if (!(activeHexCells.value?.length ?? 0)) {
+    return;
+  }
+
+  useSurveyOverlayHexes.value = true;
+  placeDesertHexes();
+  queueTerrainOverlayPersist();
+}
+
+function generateForestStep() {
+  markTerrainUserInteraction();
+  if (!(activeHexCells.value?.length ?? 0)) {
+    return;
+  }
+
+  useSurveyOverlayHexes.value = true;
+  placeLatitudeBiomes();
   queueTerrainOverlayPersist();
 }
 
@@ -6309,6 +6409,9 @@ function generateTerrain() {
   generateOceansStep();
   generateMountainsStep();
   generateShoresStep();
+  placeIceCapHexes();
+  placeDesertHexes();
+  placeLatitudeBiomes();
 }
 
 function handleMapClick(event) {

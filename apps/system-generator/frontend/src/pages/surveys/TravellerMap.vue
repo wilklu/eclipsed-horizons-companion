@@ -2014,6 +2014,15 @@ function buildStarMarkersForTiles(tiles) {
   const markerByKey = new Map();
   const tileBySectorId = new Map(tiles.map((tile) => [String(tile.sectorId), tile]));
 
+  const hasMeaningfulStarMetadata = (info) => {
+    if (!info || typeof info !== "object") return false;
+    const rawStarType = String(info?.starType || "").trim();
+    const rawAnomalyType = String(info?.anomalyType || "").trim();
+    const generatedStars = Array.isArray(info?.generatedStars) ? info.generatedStars : [];
+    const secondaryStars = Array.isArray(info?.secondaryStars) ? info.secondaryStars : [];
+    return Boolean(rawStarType || rawAnomalyType || generatedStars.length || secondaryStars.length);
+  };
+
   for (const system of atlasSystemRecords.value) {
     const sectorId = String(system?.sectorId || "");
     const tile = tileBySectorId.get(sectorId);
@@ -2036,7 +2045,7 @@ function buildStarMarkersForTiles(tiles) {
         system?.metadata?.generatedSurvey?.anomalyType ||
         tile.sector?.metadata?.hexStarTypes?.[coord]?.anomalyType ||
         null,
-      fallbackStarType: tile.sector?.metadata?.hexStarTypes?.[coord]?.starType || "G2V",
+      fallbackStarType: tile.sector?.metadata?.hexStarTypes?.[coord]?.starType || "",
       legacyReconstructed:
         system?.metadata?.generatedSurvey?.legacyReconstructed ??
         system?.metadata?.legacyReconstructed ??
@@ -2048,7 +2057,7 @@ function buildStarMarkersForTiles(tiles) {
         tile.sector?.metadata?.hexStarTypes?.[coord]?.legacyHierarchyUnknown ??
         false,
     });
-    const starType = normalizeGeneratedStarType(starMetadata.starType);
+    const starType = normalizeGeneratedStarType(starMetadata.starType, "?");
     const secondaryStars = starMetadata.secondaryStars.map((star) => normalizeGeneratedStarType(star)).filter(Boolean);
     const starClass =
       String(tile.sector?.metadata?.hexStarTypes?.[coord]?.starClass || "").trim() || starTypeToCssClass(starType);
@@ -2091,14 +2100,12 @@ function buildStarMarkersForTiles(tiles) {
   for (const tile of tiles) {
     const hexStarTypes = tile.sector?.metadata?.hexStarTypes ?? {};
     const occupiedHexes = tile.sector?.metadata?.occupiedHexes ?? [];
-    const compactedHexStarTypeCount = Number(tile.sector?.metadata?.hexStarTypeCount);
-    const inferredTypedCoverage =
-      Number.isFinite(compactedHexStarTypeCount) &&
-      occupiedHexes.length > 0 &&
-      compactedHexStarTypeCount >= occupiedHexes.length;
     const typedCoords = new Set();
 
     for (const [coord, info] of Object.entries(hexStarTypes)) {
+      if (!hasMeaningfulStarMetadata(info)) {
+        continue;
+      }
       const key = `${tile.sectorId}:${coord}`;
       if (markerByKey.has(key)) {
         typedCoords.add(coord);
@@ -2113,11 +2120,11 @@ function buildStarMarkersForTiles(tiles) {
         primary: info?.starType,
         secondaryStars: info?.secondaryStars,
         anomalyType: info?.anomalyType ?? null,
-        fallbackStarType: String(info?.starType || "G2"),
+        fallbackStarType: String(info?.starType || ""),
         legacyReconstructed: info?.legacyReconstructed ?? false,
         legacyHierarchyUnknown: info?.legacyHierarchyUnknown ?? false,
       });
-      const starType = normalizeGeneratedStarType(starMetadata.starType);
+      const starType = normalizeGeneratedStarType(starMetadata.starType, "?");
       typedCoords.add(coord);
       const marker = {
         key,
@@ -2162,7 +2169,6 @@ function buildStarMarkersForTiles(tiles) {
       const hrow = parseInt(coord.slice(2, 4), 10);
       if (!Number.isFinite(hcol) || !Number.isFinite(hrow)) continue;
       const { wx, wy } = hexWorldCenter(tile.sx, tile.sy, hcol, hrow);
-      const inferredPresenceOnly = !inferredTypedCoverage;
       const marker = {
         key,
         galaxyId: tile.sector?.galaxyId,
@@ -2173,7 +2179,7 @@ function buildStarMarkersForTiles(tiles) {
         coord,
         wx,
         wy,
-        starType: inferredPresenceOnly ? "?" : "G2V",
+        starType: "?",
         starClass: "",
         color: "#909090",
         compColor: "#707070",
@@ -2187,8 +2193,8 @@ function buildStarMarkersForTiles(tiles) {
         importance: "—",
         governmentProfile: "—",
         factionsProfile: "—",
-        hasSavedSystem: !inferredPresenceOnly,
-        presenceOnly: inferredPresenceOnly,
+        hasSavedSystem: false,
+        presenceOnly: true,
         name: "",
       };
       markerByKey.set(key, marker);
@@ -4352,7 +4358,7 @@ function parseHexCoordinates(coord) {
   };
 }
 
-function normalizeGeneratedStarType(star) {
+function normalizeGeneratedStarType(star, fallback = "G2V") {
   const rawValue =
     typeof star === "string"
       ? star
@@ -4367,11 +4373,11 @@ function normalizeGeneratedStarType(star) {
         : "";
   const normalized = String(rawValue || "").trim();
   if (!normalized) {
-    return "G2V";
+    return fallback;
   }
 
   const lowered = normalized.toLowerCase();
-  return lowered === "undefined" || lowered === "null" || lowered === "nan" ? "G2V" : normalized;
+  return lowered === "undefined" || lowered === "null" || lowered === "nan" ? fallback : normalized;
 }
 
 function buildAtlasGeneratedSystem(sector, coord, primaryStar, secondaryStars = [], anomalyType = null) {
@@ -5010,7 +5016,7 @@ function openStarSystem() {
     },
     query: {
       hex: star.coord,
-      star: star.starType,
+      star: star.presenceOnly ? "" : star.starType,
       systemRecordId,
       ...(anomalyType ? { anomaly: anomalyType } : {}),
       ...(Number.isFinite(Number(anomalyMass)) ? { anomalyMass: Number(anomalyMass) } : {}),

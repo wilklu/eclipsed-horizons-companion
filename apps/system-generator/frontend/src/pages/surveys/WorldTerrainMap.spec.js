@@ -1,129 +1,8 @@
-/** @vitest-environment jsdom */
-
-import { reactive } from "vue";
-import { flushPromises, mount } from "@vue/test-utils";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-
-const hoisted = vi.hoisted(() => ({
-  routerPush: vi.fn(),
-  routerReplace: vi.fn(),
-}));
-
-const routeState = reactive({
-  query: {
-    systemRecordId: "sector-1:0101",
-    worldIndex: "0",
-    worldName: "Iona",
-    worldType: "Moon",
-    orbitAU: "3.2",
-    zone: "habitable",
-    star: "G2V",
-  },
-  params: {
-    systemId: "0101",
-  },
-});
-
-function createSystemRecord() {
-  return {
-    systemId: "sector-1:0101",
-    hexCoordinates: { x: 1, y: 1 },
-    primaryStar: { spectralClass: "G2V", luminosity: 1, massInSolarMasses: 1 },
-    planets: [
-      {
-        name: "Iona",
-        type: "Moon",
-        isMoon: true,
-        parentWorldName: "Tethys",
-        orbitAU: 3.2,
-        zone: "habitable",
-        uwp: "A867A99-C",
-        tradeCodes: [],
-      },
-    ],
-    metadata: {
-      lastModified: "2026-04-15T00:00:00.000Z",
-    },
-  };
-}
-
-const systemStoreState = reactive({
-  systems: [createSystemRecord()],
-  currentSystemId: "sector-1:0101",
-  getCurrentSystem: createSystemRecord(),
-  updateSystem: vi.fn(),
-  setCurrentSystem: vi.fn(),
-});
-
-const preferencesStoreState = reactive({
-  worldNameMode: "list",
-  ttsRate: 1,
-  ttsPitch: 1,
-  ttsVoiceURI: "",
-});
-
-vi.mock("vue-router", () => ({
-  useRouter: () => ({ push: hoisted.routerPush, replace: hoisted.routerReplace }),
-  useRoute: () => routeState,
-  onBeforeRouteLeave: () => {},
-}));
-
-vi.mock("../../stores/systemStore.js", () => ({
-  useSystemStore: () => systemStoreState,
-}));
-
-vi.mock("../../stores/preferencesStore.js", () => ({
-  usePreferencesStore: () => preferencesStoreState,
-}));
-
-vi.mock("../../composables/useArchiveTransfer.js", () => ({
-  useArchiveTransfer: () => ({
-    overlayProps: {},
-    exportJson: vi.fn().mockResolvedValue(true),
-  }),
-}));
-
-vi.mock("../../utils/toast.js", () => ({
-  error: vi.fn(),
-  success: vi.fn(),
-  info: vi.fn(),
-  warning: vi.fn(),
-}));
-
-import WorldTerrainMap from "./WorldTerrainMap.vue";
+import { describe, expect, it } from "vitest";
+import { buildTerrainPlacementScoreMap, resolveTerrainCoreCountsFromBudget } from "../../utils/terrainPlacement.js";
 
 describe("WorldTerrainMap", () => {
-  beforeEach(() => {
-    routeState.query = {
-      systemRecordId: "sector-1:0101",
-      worldIndex: "0",
-      worldName: "Iona",
-      worldType: "Moon",
-      orbitAU: "3.2",
-      zone: "habitable",
-      star: "G2V",
-    };
-    routeState.params = { systemId: "0101" };
-    systemStoreState.systems = [createSystemRecord()];
-    systemStoreState.getCurrentSystem = createSystemRecord();
-    systemStoreState.updateSystem.mockReset();
-    systemStoreState.setCurrentSystem.mockReset();
-  });
-
-  it("prefers interior hexes over border hexes when scoring mountain candidates", async () => {
-    const wrapper = mount(WorldTerrainMap, {
-      global: {
-        stubs: {
-          LoadingSpinner: { template: "<div />" },
-          SurveyNavigation: { template: "<div />" },
-        },
-      },
-    });
-
-    await flushPromises();
-    await flushPromises();
-
-    const setupState = wrapper.vm.$.setupState;
+  it("prefers interior hexes over border hexes when scoring mountain candidates", () => {
     const cells = [
       { key: "center", cx: 0, cy: 0, faceId: "Face-1", points: "0,0 1,0 2,1 1,2 0,2 -1,1" },
       { key: "b1", cx: 1, cy: 0, faceId: "Face-1", points: "1,0 2,0 3,1 2,2 1,2 0,1" },
@@ -143,9 +22,37 @@ describe("WorldTerrainMap", () => {
       ["b6", { neighbors: new Set(["center"]) }],
     ]);
 
-    const scoreByKey = setupState.buildTerrainPlacementScoreMap(cells, 12345, adjacencyById);
+    const scoreByKey = buildTerrainPlacementScoreMap(cells, 12345, adjacencyById);
 
     expect(scoreByKey.get("center")).toBeGreaterThan(scoreByKey.get("b1"));
     expect(scoreByKey.get("center")).toBeGreaterThan(scoreByKey.get("b2"));
+  });
+
+  it("does not infer mountain or shore counts when card omits them", () => {
+    const budgetMap = new Map([["water", 18]]);
+
+    const result = resolveTerrainCoreCountsFromBudget(budgetMap, 42);
+
+    expect(result).toEqual({
+      waterCount: 18,
+      mountainCount: 0,
+      shoreCount: 0,
+    });
+  });
+
+  it("clamps card counts to available hex capacity", () => {
+    const budgetMap = new Map([
+      ["water", 40],
+      ["mountain", 20],
+      ["shore", 20],
+    ]);
+
+    const result = resolveTerrainCoreCountsFromBudget(budgetMap, 42);
+
+    expect(result).toEqual({
+      waterCount: 40,
+      mountainCount: 2,
+      shoreCount: 0,
+    });
   });
 });

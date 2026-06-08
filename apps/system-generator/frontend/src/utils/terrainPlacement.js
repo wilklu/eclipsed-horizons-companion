@@ -1,6 +1,24 @@
 import { hashString, mulberry32 } from "./terrainRandom.js";
 import { normalizeFaceTopologyId } from "./worldTerrainStartTriangle.js";
 
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+export function resolveTerrainCoreCountsFromBudget(budgetMap, totalCells) {
+  const source = budgetMap instanceof Map ? budgetMap : new Map();
+  const cellLimit = Math.max(0, Number(totalCells) || 0);
+  const waterCount = clamp(Number(source.get("water") || 0), 0, cellLimit);
+  const mountainCount = clamp(Number(source.get("mountain") || 0), 0, Math.max(0, cellLimit - waterCount));
+  const shoreCount = clamp(Number(source.get("shore") || 0), 0, Math.max(0, cellLimit - waterCount - mountainCount));
+
+  return {
+    waterCount,
+    mountainCount,
+    shoreCount,
+  };
+}
+
 export function buildTerrainInteriorDistanceMap(cells, adjacencyById = new Map()) {
   const distanceByKey = new Map();
   if (!Array.isArray(cells) || !cells.length) {

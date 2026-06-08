@@ -5343,11 +5343,35 @@ function buildPersistedSystemRecordsForSector(sector, hexStarTypes) {
       const rawCoord = String(coord || "").trim();
       if (!/^\d{4}$/.test(rawCoord)) return null;
 
-      const normalizedInfo = normalizeHexStarTypeRecord(info, "G2V");
-      const primaryType = normalizeStarTypeValue(normalizedInfo?.starType, "G2V");
-      const generatedStars = Array.isArray(normalizedInfo?.generatedStars)
+      const normalizedInfo = normalizeHexStarTypeRecord(info, "");
+      let generatedStars = Array.isArray(normalizedInfo?.generatedStars)
         ? normalizedInfo.generatedStars.map((star) => ({ ...star }))
         : [];
+      let primaryType = normalizeStarTypeValue(normalizedInfo?.starType, "");
+      let secondaryStars = Array.isArray(normalizedInfo?.secondaryStars) ? [...normalizedInfo.secondaryStars] : [];
+
+      // Presence-first flows can carry sparse records (or legacy placeholders).
+      // If there is no usable star metadata yet, synthesize one instead of defaulting every system to G2V.
+      if (!primaryType && !generatedStars.length && !normalizedInfo?.anomalyType) {
+        const generatedPrimary = generatePrimaryStar();
+        const fallbackType = normalizeStarTypeValue(
+          generatedPrimary?.designation || generatedPrimary?.spectralType || generatedPrimary?.persistedSpectralClass,
+          "G2V",
+        );
+        const generatedMetadata = buildHexStarTypeMetadata({
+          generatedStars: [{ ...generatedPrimary }],
+          primary: generatedPrimary,
+          fallbackStarType: fallbackType,
+        });
+
+        generatedStars = Array.isArray(generatedMetadata?.generatedStars)
+          ? generatedMetadata.generatedStars.map((star) => ({ ...star }))
+          : [];
+        primaryType = normalizeStarTypeValue(generatedMetadata?.starType, fallbackType);
+        secondaryStars = Array.isArray(generatedMetadata?.secondaryStars) ? [...generatedMetadata.secondaryStars] : [];
+      }
+
+      primaryType = normalizeStarTypeValue(primaryType, "G2V");
 
       return {
         systemId: `${sectorId}:${rawCoord}`,
@@ -5361,7 +5385,7 @@ function buildPersistedSystemRecordsForSector(sector, hexStarTypes) {
         primaryStar: {
           spectralClass: primaryType,
         },
-        companionStars: (normalizedInfo?.secondaryStars ?? []).map((spectralClass) => ({ spectralClass })),
+        companionStars: secondaryStars.map((spectralClass) => ({ spectralClass })),
         metadata: {
           generatedSurvey: {
             stars: generatedStars,

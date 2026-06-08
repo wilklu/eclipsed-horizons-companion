@@ -169,12 +169,26 @@ vi.mock("../../utils/primaryStarGenerator.js", () => ({
 }));
 
 vi.mock("../../utils/systemStarMetadata.js", () => ({
-  buildHexStarTypeMetadata: vi.fn().mockImplementation(() => ({
-    starType: "G2V",
-    secondaryStars: [],
-    generatedStars: [],
-    anomalyType: null,
-  })),
+  buildHexStarTypeMetadata: vi.fn().mockImplementation((params = {}) => {
+    const generatedStars = Array.isArray(params.generatedStars)
+      ? params.generatedStars.map((star) => ({ ...star }))
+      : [];
+    const firstGenerated = generatedStars[0] ?? null;
+    const inferredType =
+      params.anomalyType ||
+      firstGenerated?.spectralClass ||
+      firstGenerated?.spectralType ||
+      firstGenerated?.designation ||
+      params.fallbackStarType ||
+      "G2V";
+
+    return {
+      starType: inferredType,
+      secondaryStars: Array.isArray(params.secondaryStars) ? [...params.secondaryStars] : [],
+      generatedStars,
+      anomalyType: params.anomalyType ?? null,
+    };
+  }),
   normalizeHexStarTypeRecord: vi.fn((record) => record),
 }));
 
@@ -338,6 +352,9 @@ vi.mock("../../components/galaxy-survey/GalaxySurveyMapInspector.vue", () => ({
 }));
 
 import { calculateHexOccupancyProbability } from "../../utils/sectorGeneration.js";
+import { replaceSystemsForSectorStrict } from "../../api/systemApi.js";
+import { generatePrimaryStar } from "../../utils/primaryStarGenerator.js";
+import * as galaxyGenerationBatch from "../../utils/galaxyGenerationBatch.js";
 import GalaxySurvey from "./GalaxySurvey.vue";
 
 describe("GalaxySurvey guided flow", () => {
@@ -477,6 +494,85 @@ describe("GalaxySurvey guided flow", () => {
     expect(preferencesStoreState.surveyOccupancyRealism).toBe(1.35);
     expect(calculateHexOccupancyProbability).toHaveBeenCalled();
     expect(calculateHexOccupancyProbability.mock.calls[0][0].realismScale).toBe(1.35);
+  });
+
+  it("generates varied primary stars for sparse presence metadata instead of forcing G2V", async () => {
+    const batchSpy = vi.spyOn(galaxyGenerationBatch, "generateGalaxySectorBatch").mockReturnValue({
+      results: [
+        {
+          occupiedHexes: ["0101"],
+          hexStarTypes: {
+            "0101": {},
+          },
+          systemCount: 1,
+          isGalacticCenterSector: false,
+          centerAnomalyType: null,
+          centerAnomaly: null,
+          centralAnomalyHex: null,
+        },
+      ],
+    });
+
+    generatePrimaryStar.mockReturnValueOnce({
+      designation: "K7V",
+      spectralType: "K7V",
+    });
+
+    const wrapper = mount(GalaxySurvey);
+    await flushPromises();
+
+    await wrapper.vm.$.setupState.generateSelectedRing({ mode: "presence" });
+    await flushPromises();
+
+    expect(replaceSystemsForSectorStrict).toHaveBeenCalled();
+    const persistedSystems = replaceSystemsForSectorStrict.mock.calls.at(-1)?.[1] ?? [];
+    expect(persistedSystems).toHaveLength(1);
+    expect(persistedSystems[0]?.primaryStar?.spectralClass).toBe("K7V");
+    expect(persistedSystems[0]?.primaryStar?.spectralClass).not.toBe("G2V");
+
+    batchSpy.mockRestore();
+  });
+
+  it("persists mixed spectral classes across multiple sparse presence hexes", async () => {
+    const batchSpy = vi.spyOn(galaxyGenerationBatch, "generateGalaxySectorBatch").mockReturnValue({
+      results: [
+        {
+          occupiedHexes: ["0101", "0102"],
+          hexStarTypes: {
+            "0101": {},
+            "0102": {},
+          },
+          systemCount: 2,
+          isGalacticCenterSector: false,
+          centerAnomalyType: null,
+          centerAnomaly: null,
+          centralAnomalyHex: null,
+        },
+      ],
+    });
+
+    replaceSystemsForSectorStrict.mockClear();
+    generatePrimaryStar.mockClear();
+    generatePrimaryStar.mockReturnValueOnce({ designation: "K7V", spectralType: "K7V" });
+    generatePrimaryStar.mockReturnValueOnce({ designation: "M3V", spectralType: "M3V" });
+
+    const wrapper = mount(GalaxySurvey);
+    await flushPromises();
+
+    await wrapper.vm.$.setupState.generateSelectedRing({ mode: "presence" });
+    await flushPromises();
+
+    expect(replaceSystemsForSectorStrict).toHaveBeenCalled();
+    const persistedSystems = replaceSystemsForSectorStrict.mock.calls.at(-1)?.[1] ?? [];
+    expect(persistedSystems).toHaveLength(2);
+
+    const spectralClasses = persistedSystems
+      .map((record) => record?.primaryStar?.spectralClass)
+      .filter((value) => typeof value === "string")
+      .sort();
+    expect(spectralClasses).toEqual(["K7V", "M3V"]);
+
+    batchSpy.mockRestore();
   });
 
   it("applies standard density across the current galaxy", async () => {

@@ -498,4 +498,51 @@ describe("TravellerMap anomaly display", () => {
       }),
     );
   });
+
+  it("treats sparse hex star metadata as presence-only and avoids forcing G-class navigation", async () => {
+    const sparseSector = createAnomalySector({
+      metadata: {
+        occupiedHexes: ["1619", "1720", "1818"],
+        hexStarTypes: {
+          1818: {},
+        },
+      },
+    });
+    sectorStoreState.sectors = [sparseSector];
+    sectorApi.getSectors.mockResolvedValue([sparseSector]);
+    sectorApi.getSectorsWindow.mockResolvedValue([sparseSector]);
+    sectorApi.getSector.mockResolvedValue(sparseSector);
+    sectorLayoutGenerator.generateGalaxySectorLayoutWindow.mockReturnValue([sparseSector]);
+
+    const wrapper = mount(TravellerMap, {
+      global: {
+        stubs: {
+          LoadingSpinner: { template: "<div data-test='loading-spinner' />" },
+        },
+      },
+    });
+
+    await flushPromises();
+    await flushPromises();
+
+    const markers = wrapper.vm.$.setupState.loadedRouteStarMarkers;
+    const sparseMarker = markers.find((entry) => entry.coord === "1818");
+
+    expect(sparseMarker).toBeTruthy();
+    expect(sparseMarker.presenceOnly).toBe(true);
+    expect(sparseMarker.starType).toBe("?");
+
+    wrapper.vm.$.setupState.onStarClick(sparseMarker);
+    wrapper.vm.$.setupState.openStarSystem();
+
+    expect(hoisted.routerPush).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "StarSystemBuilder",
+        query: expect.objectContaining({
+          hex: "1818",
+          star: "",
+        }),
+      }),
+    );
+  });
 });
