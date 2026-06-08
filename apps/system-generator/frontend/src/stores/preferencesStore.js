@@ -30,6 +30,7 @@ export const PREFERENCE_DEFAULTS = Object.freeze({
   atlasLayerAnomalies: true,
   atlasLayerBadges: true,
   atlasLayerPolity: true,
+  terrainColorOverrides: {},
 });
 
 function loadPreferences() {

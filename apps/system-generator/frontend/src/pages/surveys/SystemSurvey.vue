@@ -118,12 +118,14 @@ function buildSectorHexLabel({ sectorName = "", sectorId = "", hex = "", existin
 }
 
 const currentSystem = computed(() => {
-  const baseSystem = !resolvedSystemId.value
-    ? systemStore.getCurrentSystem
-    : (systemStore.systems.find((system) => String(system?.systemId) === resolvedSystemId.value) ??
-      systemStore.getCurrentSystem);
+  const requestedSystemId = String(resolvedSystemId.value || "").trim();
+  const matchedSystem = requestedSystemId
+    ? (systemStore.systems.find((system) => String(system?.systemId || "").trim() === requestedSystemId) ?? null)
+    : null;
+  const baseSystem = requestedSystemId ? matchedSystem : systemStore.getCurrentSystem;
 
   const routedSystemName = String(route.query.systemName || "").trim();
+  const routedStarLabel = String(route.query.star || "").trim();
   const routedHex = String(route.query.hex || "")
     .trim()
     .replace(/\D/g, "");
@@ -150,7 +152,14 @@ const currentSystem = computed(() => {
       name: routedSystemName,
       systemName: routedSystemName,
       systemDesignation: routedSystemName,
-      stars: route.query.star ? [{ designation: String(route.query.star).trim() }] : [],
+      stars: routedStarLabel
+        ? [
+            {
+              designation: routedStarLabel,
+              spectralClass: routedStarLabel,
+            },
+          ]
+        : [],
       metadata: {
         ...(routedSectorName ? { sectorName: routedSectorName } : {}),
         ...(nextSectorHex ? { sectorHex: nextSectorHex } : {}),
@@ -175,6 +184,17 @@ const currentSystem = computed(() => {
       "",
   ).trim();
   const nextSystemName = existingName || routedSystemName;
+  const hasExplicitStars = Array.isArray(baseSystem?.stars) && baseSystem.stars.length > 0;
+  const nextStars = hasExplicitStars
+    ? baseSystem.stars
+    : routedStarLabel
+      ? [
+          {
+            designation: routedStarLabel,
+            spectralClass: routedStarLabel,
+          },
+        ]
+      : [];
 
   return {
     ...baseSystem,
@@ -187,6 +207,16 @@ const currentSystem = computed(() => {
           name: nextSystemName,
           systemName: nextSystemName,
           systemDesignation: nextSystemName,
+        }
+      : {}),
+    ...(nextStars.length ? { stars: nextStars } : {}),
+    ...(!hasExplicitStars && routedStarLabel
+      ? {
+          primaryStar: {
+            ...(baseSystem?.primaryStar && typeof baseSystem.primaryStar === "object" ? baseSystem.primaryStar : {}),
+            designation: String(baseSystem?.primaryStar?.designation || routedStarLabel).trim() || routedStarLabel,
+            spectralClass: String(baseSystem?.primaryStar?.spectralClass || routedStarLabel).trim() || routedStarLabel,
+          },
         }
       : {}),
     metadata: {

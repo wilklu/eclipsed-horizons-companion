@@ -74,7 +74,10 @@
             </div>
             <div class="info-row">
               <dt>Map Profile</dt>
-              <dd>{{ mapProfileLabel }}</dd>
+              <dd>
+                {{ mapProfileLabel
+                }}<template v-if="activeTerrainTemplateSize"> — Size {{ activeTerrainTemplateSize }}</template>
+              </dd>
             </div>
           </dl>
         </div>
@@ -82,8 +85,6 @@
 
       <section class="map-panel">
         <div class="map-meta">
-          <span>External SVG template rendering</span>
-          <span>Template size {{ activeTerrainTemplateSize }} ({{ templateStatusLabel }})</span>
           <span v-if="hoveredHexLabel" class="map-hover-readout">Hover: {{ hoveredHexLabel }}</span>
         </div>
 
@@ -95,7 +96,7 @@
             :disabled="!(activeHexCells?.length ?? 0) || !hasTerrainSurveyComposition"
             title="Seed map terrain from Terrain Survey composition"
           >
-            Apply Terrain Survey to Map
+            Apply Terrain
           </button>
           <button
             type="button"
@@ -103,7 +104,7 @@
             @click="generateTerrain"
             :disabled="!(activeHexCells?.length ?? 0)"
           >
-            Generate Terrain
+            Regenerate Terrain
           </button>
           <button
             type="button"
@@ -113,113 +114,45 @@
           >
             Clear Terrain
           </button>
-          <div
-            v-if="useSurveyOverlayHexes"
-            class="terrain-paint-controls"
-            role="group"
-            aria-label="Terrain paint controls"
-          >
-            <button
-              v-for="terrain in terrainPaintTypes"
-              :key="terrain.id"
-              type="button"
-              class="map-button map-button-secondary terrain-paint-btn"
-              :class="{ 'terrain-paint-btn-active': selectedOverlayTerrain === terrain.id }"
-              @click="selectedOverlayTerrain = terrain.id"
-              :title="terrain.label"
-            >
-              {{ terrain.label }}
-            </button>
-            <button
-              type="button"
-              class="map-button map-button-secondary terrain-paint-btn"
-              :class="{ 'terrain-paint-btn-active': selectedOverlayTerrain === null }"
-              @click="selectedOverlayTerrain = null"
-              title="Erase terrain assignment"
-            >
-              Erase
+        </div>
+
+        <section class="legend-preferences-panel" aria-label="Terrain legend and color preferences">
+          <div class="legend-preferences-card">
+            <div class="legend-preferences-header">
+              <h3 class="legend-preferences-title">Hex Legend</h3>
+              <span class="legend-total-assigned"
+                >Total Assigned: {{ totalSurveyPlacedHexes }}/{{ totalSurveyTargetHexes }}</span
+              >
+            </div>
+            <ul class="hex-legend-list">
+              <li
+                v-for="entry in hexLegendEntries"
+                :key="entry.id"
+                class="hex-legend-item"
+                v-show="entry.count > 0 || entry.target > 0"
+              >
+                <span class="hex-legend-swatch" :style="{ backgroundColor: entry.color }" aria-hidden="true"></span>
+                <span class="hex-legend-label">{{ entry.label }}</span>
+                <span class="hex-legend-count">{{
+                  entry.target > 0 ? `${entry.count}/${entry.target}` : entry.count
+                }}</span>
+              </li>
+            </ul>
+          </div>
+
+          <div class="legend-preferences-card">
+            <h3 class="legend-preferences-title">Terrain Colors</h3>
+            <div class="terrain-color-grid" role="group" aria-label="Terrain color preferences">
+              <label v-for="terrain in terrainColorPreferenceEntries" :key="terrain.id" class="terrain-color-row">
+                <span>{{ terrain.label }}</span>
+                <input type="color" :value="terrain.color" @input="setTerrainColor(terrain.id, $event.target.value)" />
+              </label>
+            </div>
+            <button type="button" class="map-button map-button-secondary" @click="resetTerrainColors">
+              Reset Terrain Colors
             </button>
           </div>
-          <span class="map-controls-note" v-if="useSurveyOverlayHexes">Using Terrain Survey hex overlay</span>
-          <span class="map-controls-note"
-            >Total Assigned: {{ totalSurveyPlacedHexes }}/{{ totalSurveyTargetHexes }}</span
-          >
-          <span class="map-controls-note">{{
-            formatPlacedVsTarget("Ocean", "water", activeWaterHexEntries?.length ?? 0)
-          }}</span>
-          <span class="map-controls-note">{{
-            formatPlacedVsTarget("Shore", "shore", activeShoreHexEntries?.length ?? 0)
-          }}</span>
-          <span class="map-controls-note">{{
-            formatPlacedVsTarget("Mountains", "mountain", activeMountainHexEntries?.length ?? 0)
-          }}</span>
-          <span class="map-controls-note">{{
-            formatPlacedVsTarget("Hills", "hills", activeHillsHexEntries?.length ?? 0)
-          }}</span>
-          <span class="map-controls-note">{{
-            formatPlacedVsTarget("Plains", "plains", activePlainsHexEntries?.length ?? 0)
-          }}</span>
-          <span class="map-controls-note">{{
-            formatPlacedVsTarget("Volcanic", "volcanic", activeVolcanicHexEntries?.length ?? 0)
-          }}</span>
-          <span class="map-controls-note">{{
-            formatPlacedVsTarget("Ice Fields", "icefield", activeIceFieldHexEntries?.length ?? 0)
-          }}</span>
-          <span class="map-controls-note">{{
-            formatPlacedVsTarget("Frozen Lands", "frozenland", activeFrozenLandHexEntries?.length ?? 0)
-          }}</span>
-          <span class="map-controls-note">{{
-            formatPlacedVsTarget("Glaciers", "glacier", activeGlacierHexEntries?.length ?? 0)
-          }}</span>
-          <span class="map-controls-note" v-if="isVacuumWorld">Craters: {{ activeCraterHexEntries?.length ?? 0 }}</span>
-          <span class="map-controls-note" v-if="isDesertWorld">Desert: {{ activeDesertHexEntries?.length ?? 0 }}</span>
-          <span class="map-controls-note" v-if="activeOceanTriangleCount > 0"
-            >Oceans: {{ activeOceanTriangleCount }} triangles / {{ activeOceanGroupCount }} ocean groups</span
-          >
-          <span class="map-controls-note" v-if="isDieBackWorld">Ruins: {{ activeRuinHexEntries?.length ?? 0 }}</span>
-          <span class="map-controls-note" v-if="croplandDicePerContinent > 0"
-            >Cropland: {{ activeCroplandHexEntries?.length ?? 0 }}</span
-          >
-          <span class="map-controls-note" v-if="isSingleTownSettlementWorld"
-            >Towns: {{ activeTownHexEntries?.length ?? 0 }}</span
-          >
-          <span class="map-controls-note" v-if="(activeCityHexEntries?.length ?? 0) > 0"
-            >Cities: {{ activeCityHexEntries?.length ?? 0 }}<template v-if="domedCityRequired"> (Domed)</template></span
-          >
-          <span class="map-controls-note" v-if="(activeArcologyHexEntries?.length ?? 0) > 0"
-            >Arcologies: {{ activeArcologyHexEntries?.length ?? 0 }}</span
-          >
-          <span class="map-controls-note" v-if="(activeRuralHexEntries?.length ?? 0) > 0"
-            >Rural: {{ activeRuralHexEntries?.length ?? 0 }}</span
-          >
-          <span class="map-controls-note" v-if="(activeWorldPortHexEntries?.length ?? 0) > 0"
-            >{{ activeWorldPortHexEntries[0]?.spaceport ? "Spaceport" : "Starport" }}:
-            {{ activeWorldPortHexEntries?.length ?? 0 }}</span
-          >
-          <span class="map-controls-note" v-if="isTwilightZoneWorld"
-            >Twilight Zone: {{ activeTwilightZoneHexEntries?.length ?? 0 }}</span
-          >
-          <span class="map-controls-note" v-if="isTwilightZoneWorld && (activeBakedLandHexEntries?.length ?? 0) > 0"
-            >Baked Lands: {{ activeBakedLandHexEntries?.length ?? 0 }}</span
-          >
-          <span
-            class="map-controls-note"
-            v-if="isTwilightZoneWorld && (activeTwilightFrozenLandHexEntries?.length ?? 0) > 0"
-            >Frozen Lands: {{ activeTwilightFrozenLandHexEntries?.length ?? 0 }}</span
-          >
-          <span class="map-controls-note" v-if="(activePenalColonyHexEntries?.length ?? 0) > 0"
-            >Penal Colonies: {{ activePenalColonyHexEntries?.length ?? 0 }}</span
-          >
-          <span class="map-controls-note" v-if="(activeWastelandHexEntries?.length ?? 0) > 0"
-            >Wasteland: {{ activeWastelandHexEntries?.length ?? 0 }}</span
-          >
-          <span class="map-controls-note" v-if="(activeExoticHexEntries?.length ?? 0) > 0"
-            >Exotic: {{ activeExoticHexEntries?.length ?? 0 }}</span
-          >
-          <span class="map-controls-note" v-if="(activeNobleLandHexEntries?.length ?? 0) > 0"
-            >Noble Lands: {{ activeNobleLandHexEntries?.length ?? 0 }}</span
-          >
-        </div>
+        </section>
 
         <WorldTerrainHexInspector
           :selected-key="selectedTerrainHexKey"
@@ -266,14 +199,19 @@
               v-for="entry in activeOceanTriangleEntries"
               :key="entry.key"
               :points="entry.points"
-              fill="rgba(38, 96, 178, 0.18)"
+              :fill="withAlpha(terrainColor('water'), 0.18)"
               stroke="none"
             />
           </g>
 
           <g id="plains-hex-overlay" pointer-events="none">
             <g v-for="entry in activePlainsHexEntries" :key="entry.key">
-              <polygon :points="entry.points" fill="rgba(214, 193, 141, 0.14)" stroke="#9d8553" stroke-width="0.9" />
+              <polygon
+                :points="entry.points"
+                :fill="withAlpha(terrainColor('plains'), 0.14)"
+                :stroke="terrainColor('plains')"
+                stroke-width="0.9"
+              />
               <text
                 :x="entry.cx"
                 :y="entry.cy + 4"
@@ -290,7 +228,12 @@
 
           <g id="hills-hex-overlay" pointer-events="none">
             <g v-for="entry in activeHillsHexEntries" :key="entry.key">
-              <polygon :points="entry.points" fill="#A0825C" stroke="#6C563B" stroke-width="1.2" />
+              <polygon
+                :points="entry.points"
+                :fill="withAlpha(terrainColor('hills'), 0.65)"
+                :stroke="terrainColor('hills')"
+                stroke-width="1.2"
+              />
               <text
                 :x="entry.cx"
                 :y="entry.cy + 4"
@@ -307,7 +250,12 @@
 
           <g id="volcanic-hex-overlay" pointer-events="none">
             <g v-for="entry in activeVolcanicHexEntries" :key="entry.key">
-              <polygon :points="entry.points" fill="rgba(138, 58, 28, 0.42)" stroke="#5a2410" stroke-width="1.3" />
+              <polygon
+                :points="entry.points"
+                :fill="withAlpha(terrainColor('volcanic'), 0.42)"
+                :stroke="terrainColor('volcanic')"
+                stroke-width="1.3"
+              />
               <text
                 :x="entry.cx"
                 :y="entry.cy + 4"
@@ -327,8 +275,8 @@
               v-for="entry in activeForestBiomeHexEntries"
               :key="entry.key"
               :points="entry.points"
-              fill="rgba(34, 128, 72, 0.32)"
-              stroke="#1D6A3C"
+              :fill="withAlpha(terrainColor('forest'), 0.32)"
+              :stroke="terrainColor('forest')"
               stroke-width="0.8"
             />
           </g>
@@ -338,8 +286,8 @@
               v-for="entry in activeSwampBiomeHexEntries"
               :key="entry.key"
               :points="entry.points"
-              fill="rgba(95, 122, 66, 0.30)"
-              stroke="#4B5F31"
+              :fill="withAlpha(terrainColor('swamp'), 0.3)"
+              :stroke="terrainColor('swamp')"
               stroke-width="0.8"
             />
           </g>
@@ -349,8 +297,8 @@
               v-for="entry in activeTundraHexEntries"
               :key="entry.key"
               :points="entry.points"
-              fill="rgba(188, 199, 208, 0.30)"
-              stroke="#7A8894"
+              :fill="withAlpha(terrainColor('tundra'), 0.3)"
+              :stroke="terrainColor('tundra')"
               stroke-width="0.8"
             />
           </g>
@@ -360,7 +308,7 @@
               v-for="entry in activeWaterHexEntries"
               :key="entry.key"
               :points="entry.points"
-              fill="#04529D"
+              :fill="terrainColor('water')"
               stroke="black"
               stroke-width="1"
             />
@@ -368,7 +316,12 @@
 
           <g id="ice-field-hex-overlay" pointer-events="none">
             <g v-for="entry in activeIceFieldHexEntries" :key="entry.key">
-              <polygon :points="entry.points" fill="rgba(206, 231, 247, 0.58)" stroke="#7ea7c1" stroke-width="1.1" />
+              <polygon
+                :points="entry.points"
+                :fill="withAlpha(terrainColor('icefield'), 0.58)"
+                :stroke="terrainColor('icefield')"
+                stroke-width="1.1"
+              />
               <text
                 :x="entry.cx"
                 :y="entry.cy + 4"
@@ -385,7 +338,12 @@
 
           <g id="frozen-lands-hex-overlay" pointer-events="none">
             <g v-for="entry in activeFrozenLandHexEntries" :key="entry.key">
-              <polygon :points="entry.points" fill="rgba(205, 214, 226, 0.28)" stroke="#8592a3" stroke-width="0.9" />
+              <polygon
+                :points="entry.points"
+                :fill="withAlpha(terrainColor('frozenland'), 0.28)"
+                :stroke="terrainColor('frozenland')"
+                stroke-width="0.9"
+              />
               <text
                 :x="entry.cx"
                 :y="entry.cy + 4"
@@ -634,7 +592,12 @@
 
           <g id="ice-cap-hex-overlay" pointer-events="none">
             <g v-for="entry in activeIceCapHexEntries" :key="entry.key">
-              <polygon :points="entry.points" fill="rgba(226, 242, 255, 0.72)" stroke="#7fa4bf" stroke-width="1.4" />
+              <polygon
+                :points="entry.points"
+                :fill="withAlpha(terrainColor('icecap'), 0.72)"
+                :stroke="terrainColor('icecap')"
+                stroke-width="1.4"
+              />
               <text
                 :x="entry.cx"
                 :y="entry.cy + 4"
@@ -651,7 +614,12 @@
 
           <g id="glacier-hex-overlay" pointer-events="none">
             <g v-for="entry in activeGlacierHexEntries" :key="entry.key">
-              <polygon :points="entry.points" fill="rgba(193, 229, 250, 0.52)" stroke="#5e94ba" stroke-width="1.2" />
+              <polygon
+                :points="entry.points"
+                :fill="withAlpha(terrainColor('glacier'), 0.52)"
+                :stroke="terrainColor('glacier')"
+                stroke-width="1.2"
+              />
               <text
                 :x="entry.cx"
                 :y="entry.cy + 4"
@@ -668,7 +636,12 @@
 
           <g id="shore-hex-overlay" pointer-events="none">
             <g v-for="entry in activeShoreHexEntries" :key="entry.key">
-              <polygon :points="entry.points" fill="rgba(231, 199, 122, 0.24)" stroke="#b0892f" stroke-width="1.2" />
+              <polygon
+                :points="entry.points"
+                :fill="withAlpha(terrainColor('shore'), 0.24)"
+                :stroke="terrainColor('shore')"
+                stroke-width="1.2"
+              />
               <text
                 :x="entry.cx"
                 :y="entry.cy + 4"
@@ -685,7 +658,12 @@
 
           <g id="desert-hex-overlay" pointer-events="none">
             <g v-for="entry in activeDesertHexEntries" :key="entry.key">
-              <polygon :points="entry.points" fill="rgba(210, 180, 110, 0.30)" stroke="#8e6e2f" stroke-width="1.2" />
+              <polygon
+                :points="entry.points"
+                :fill="withAlpha(terrainColor('desert'), 0.3)"
+                :stroke="terrainColor('desert')"
+                stroke-width="1.2"
+              />
               <text
                 :x="entry.cx"
                 :y="entry.cy + 4"
@@ -719,7 +697,12 @@
 
           <g id="island-hex-overlay" pointer-events="none">
             <g v-for="entry in activeIslandHexEntries" :key="entry.key">
-              <polygon :points="entry.points" fill="rgba(163, 127, 91, 0.38)" stroke="#8a5c31" stroke-width="1.5" />
+              <polygon
+                :points="entry.points"
+                :fill="withAlpha(terrainColor('island'), 0.38)"
+                :stroke="terrainColor('island')"
+                stroke-width="1.5"
+              />
               <text
                 :x="entry.cx"
                 :y="entry.cy + 4"
@@ -736,7 +719,12 @@
 
           <g id="mountain-hex-overlay" pointer-events="none">
             <g v-for="entry in activeMountainHexEntries" :key="entry.key">
-              <polygon :points="entry.points" fill="#778899" stroke="#4a5a6a" stroke-width="1.5" />
+              <polygon
+                :points="entry.points"
+                :fill="terrainColor('mountain')"
+                :stroke="terrainColor('mountain')"
+                stroke-width="1.5"
+              />
               <text
                 :x="entry.cx"
                 :y="entry.cy + 4"
@@ -850,6 +838,7 @@ import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import { deserializeReturnRoute } from "../../utils/returnRoute.js";
 import { useSystemStore } from "../../stores/systemStore.js";
+import { usePreferencesStore } from "../../stores/preferencesStore.js";
 import { normalizeFaceTopologyId } from "../../utils/worldTerrainStartTriangle.js";
 import { canonicalizeHexId } from "../../utils/worldMapHexTopology.js";
 import { resolveTerrainCoreCountsFromBudget } from "../../utils/terrainPlacement.js";
@@ -861,6 +850,7 @@ import {
 import WorldTerrainHexInspector from "../../components/world/WorldTerrainHexInspector.vue";
 const route = useRoute();
 const systemStore = useSystemStore();
+const preferencesStore = usePreferencesStore();
 
 const RAW_MAP_MODULES = import.meta.glob("../../assets/maps/*.svg", {
   query: "?raw",
@@ -1012,6 +1002,333 @@ const terrainPaintTypes = Object.freeze([
   { id: "tundra", label: "Tundra" },
   { id: "swamp", label: "Swamp" },
   { id: "urban", label: "Urban" },
+]);
+
+const TERRAIN_COLOR_DEFAULTS = Object.freeze({
+  water: "#04529d",
+  shore: "#e7c77a",
+  plains: "#d6c18d",
+  island: "#a37f5b",
+  hills: "#a0825c",
+  forest: "#228048",
+  mountain: "#778899",
+  volcanic: "#8a3a1c",
+  icecap: "#e2f2ff",
+  glacier: "#c1e5fa",
+  icefield: "#cee7f7",
+  frozenland: "#cdd6e2",
+  desert: "#d2b46e",
+  tundra: "#bcc7d0",
+  swamp: "#5f7a42",
+  urban: "#9e9e9e",
+});
+
+const FEATURE_LEGEND_COLORS = Object.freeze({
+  resource: "#228b22",
+  chasm: "#79429f",
+  precipice: "#c95432",
+  crater: "#6e6e6e",
+  ruin: "#5a5a5a",
+  cropland: "#7cb054",
+  town: "#dba860",
+  city: "#c47047",
+  arcology: "#7d65ba",
+  rural: "#8eb75c",
+  worldport: "#5a82d2",
+  twilight: "#825aab",
+  bakedland: "#cd7c4a",
+  penal: "#794c4c",
+  wasteland: "#94896d",
+  exotic: "#61a5a4",
+  noble: "#b89054",
+});
+
+function normalizeHexColor(value, fallback = "#888888") {
+  const normalized = String(value || "").trim();
+  if (/^#[0-9a-fA-F]{6}$/.test(normalized)) {
+    return normalized.toLowerCase();
+  }
+  return fallback;
+}
+
+function withAlpha(hexColor, alpha = 0.35) {
+  const safeHex = normalizeHexColor(hexColor, "#888888").replace("#", "");
+  const safeAlpha = Math.max(0, Math.min(1, Number(alpha) || 0));
+  const r = Number.parseInt(safeHex.slice(0, 2), 16);
+  const g = Number.parseInt(safeHex.slice(2, 4), 16);
+  const b = Number.parseInt(safeHex.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${safeAlpha.toFixed(3)})`;
+}
+
+const terrainColorOverrides = computed(() => {
+  const raw = preferencesStore.terrainColorOverrides;
+  return raw && typeof raw === "object" ? raw : {};
+});
+
+function terrainColor(id) {
+  const terrainId = String(id || "").trim();
+  const fallback = TERRAIN_COLOR_DEFAULTS[terrainId] || "#888888";
+  return normalizeHexColor(terrainColorOverrides.value[terrainId], fallback);
+}
+
+function setTerrainColor(id, color) {
+  const terrainId = String(id || "").trim();
+  if (!terrainId) return;
+  const next = {
+    ...(terrainColorOverrides.value || {}),
+    [terrainId]: normalizeHexColor(color, TERRAIN_COLOR_DEFAULTS[terrainId] || "#888888"),
+  };
+  preferencesStore.set("terrainColorOverrides", next);
+}
+
+function resetTerrainColors() {
+  preferencesStore.set("terrainColorOverrides", {});
+}
+
+const terrainColorPreferenceEntries = computed(() =>
+  terrainPaintTypes.map((terrain) => ({
+    ...terrain,
+    color: terrainColor(terrain.id),
+  })),
+);
+
+function legendTarget(terrain) {
+  return Number(terrainBudgetByType.value.get(terrain) || 0);
+}
+
+function uniqueHexCount(entries) {
+  const seen = new Set();
+  for (const entry of entries) {
+    seen.add(entry.logicalKey ?? entry.key);
+  }
+  return seen.size;
+}
+
+const hexLegendEntries = computed(() => [
+  {
+    id: "water",
+    label: "Ocean",
+    color: terrainColor("water"),
+    count: uniqueHexCount(activeWaterHexEntries.value),
+    target: legendTarget("water"),
+  },
+  {
+    id: "shore",
+    label: "Shore",
+    color: terrainColor("shore"),
+    count: uniqueHexCount(activeShoreHexEntries.value),
+    target: legendTarget("shore"),
+  },
+  {
+    id: "island",
+    label: "Islands",
+    color: terrainColor("island"),
+    count: uniqueHexCount(activeIslandHexEntries.value),
+    target: legendTarget("island"),
+  },
+  {
+    id: "mountain",
+    label: "Mountains",
+    color: terrainColor("mountain"),
+    count: uniqueHexCount(activeMountainHexEntries.value),
+    target: legendTarget("mountain"),
+  },
+  {
+    id: "hills",
+    label: "Hills",
+    color: terrainColor("hills"),
+    count: uniqueHexCount(activeHillsHexEntries.value),
+    target: legendTarget("hills"),
+  },
+  {
+    id: "plains",
+    label: "Plains",
+    color: terrainColor("plains"),
+    count: uniqueHexCount(activePlainsHexEntries.value),
+    target: legendTarget("plains"),
+  },
+  {
+    id: "volcanic",
+    label: "Volcanic",
+    color: terrainColor("volcanic"),
+    count: uniqueHexCount(activeVolcanicHexEntries.value),
+    target: legendTarget("volcanic"),
+  },
+  {
+    id: "forest",
+    label: "Forest",
+    color: terrainColor("forest"),
+    count: uniqueHexCount(activeForestBiomeHexEntries.value),
+    target: legendTarget("forest"),
+  },
+  {
+    id: "swamp",
+    label: "Swamp",
+    color: terrainColor("swamp"),
+    count: uniqueHexCount(activeSwampBiomeHexEntries.value),
+    target: legendTarget("swamp"),
+  },
+  {
+    id: "tundra",
+    label: "Tundra",
+    color: terrainColor("tundra"),
+    count: uniqueHexCount(activeTundraHexEntries.value),
+    target: legendTarget("tundra"),
+  },
+  {
+    id: "icecap",
+    label: "Ice Cap",
+    color: terrainColor("icecap"),
+    count: uniqueHexCount(activeIceCapHexEntries.value),
+    target: legendTarget("icecap"),
+  },
+  {
+    id: "glacier",
+    label: "Glacier",
+    color: terrainColor("glacier"),
+    count: uniqueHexCount(activeGlacierHexEntries.value),
+    target: legendTarget("glacier"),
+  },
+  {
+    id: "icefield",
+    label: "Ice Field",
+    color: terrainColor("icefield"),
+    count: uniqueHexCount(activeIceFieldHexEntries.value),
+    target: legendTarget("icefield"),
+  },
+  {
+    id: "frozenland",
+    label: "Frozen Lands",
+    color: terrainColor("frozenland"),
+    count: uniqueHexCount(activeFrozenLandHexEntries.value),
+    target: legendTarget("frozenland"),
+  },
+  {
+    id: "desert",
+    label: "Desert",
+    color: terrainColor("desert"),
+    count: uniqueHexCount(activeDesertHexEntries.value),
+    target: legendTarget("desert"),
+  },
+  {
+    id: "bakedland",
+    label: "Baked Lands",
+    color: FEATURE_LEGEND_COLORS.bakedland,
+    count: uniqueHexCount(activeBakedLandHexEntries.value),
+    target: 0,
+  },
+  {
+    id: "chasm",
+    label: "Chasm",
+    color: FEATURE_LEGEND_COLORS.chasm,
+    count: uniqueHexCount(activeChasmHexEntries.value),
+    target: 0,
+  },
+  {
+    id: "precipice",
+    label: "Precipice",
+    color: FEATURE_LEGEND_COLORS.precipice,
+    count: uniqueHexCount(activePrecipiceHexEntries.value),
+    target: 0,
+  },
+  {
+    id: "crater",
+    label: "Crater",
+    color: FEATURE_LEGEND_COLORS.crater,
+    count: uniqueHexCount(activeCraterHexEntries.value),
+    target: 0,
+  },
+  {
+    id: "ruin",
+    label: "Ruins",
+    color: FEATURE_LEGEND_COLORS.ruin,
+    count: uniqueHexCount(activeRuinHexEntries.value),
+    target: 0,
+  },
+  {
+    id: "resource",
+    label: "Resources",
+    color: FEATURE_LEGEND_COLORS.resource,
+    count: uniqueHexCount(activeResourceHexEntries.value),
+    target: 0,
+  },
+  {
+    id: "cropland",
+    label: "Cropland",
+    color: FEATURE_LEGEND_COLORS.cropland,
+    count: uniqueHexCount(activeCroplandHexEntries.value),
+    target: 0,
+  },
+  {
+    id: "town",
+    label: "Towns",
+    color: FEATURE_LEGEND_COLORS.town,
+    count: uniqueHexCount(activeTownHexEntries.value),
+    target: 0,
+  },
+  {
+    id: "city",
+    label: "Cities",
+    color: FEATURE_LEGEND_COLORS.city,
+    count: uniqueHexCount(activeCityHexEntries.value),
+    target: 0,
+  },
+  {
+    id: "arcology",
+    label: "Arcologies",
+    color: FEATURE_LEGEND_COLORS.arcology,
+    count: uniqueHexCount(activeArcologyHexEntries.value),
+    target: 0,
+  },
+  {
+    id: "rural",
+    label: "Rural",
+    color: FEATURE_LEGEND_COLORS.rural,
+    count: uniqueHexCount(activeRuralHexEntries.value),
+    target: 0,
+  },
+  {
+    id: "worldport",
+    label: "Starport / Spaceport",
+    color: FEATURE_LEGEND_COLORS.worldport,
+    count: uniqueHexCount(activeWorldPortHexEntries.value),
+    target: 0,
+  },
+  {
+    id: "twilight",
+    label: "Twilight Zone",
+    color: FEATURE_LEGEND_COLORS.twilight,
+    count: uniqueHexCount(activeTwilightZoneHexEntries.value),
+    target: 0,
+  },
+  {
+    id: "penal",
+    label: "Penal Colony",
+    color: FEATURE_LEGEND_COLORS.penal,
+    count: uniqueHexCount(activePenalColonyHexEntries.value),
+    target: 0,
+  },
+  {
+    id: "wasteland",
+    label: "Wasteland",
+    color: FEATURE_LEGEND_COLORS.wasteland,
+    count: uniqueHexCount(activeWastelandHexEntries.value),
+    target: 0,
+  },
+  {
+    id: "exotic",
+    label: "Exotic",
+    color: FEATURE_LEGEND_COLORS.exotic,
+    count: uniqueHexCount(activeExoticHexEntries.value),
+    target: 0,
+  },
+  {
+    id: "noble",
+    label: "Noble Lands",
+    color: FEATURE_LEGEND_COLORS.noble,
+    count: uniqueHexCount(activeNobleLandHexEntries.value),
+    target: 0,
+  },
 ]);
 
 function normalizeSurveyTerrainType(value) {
@@ -7312,6 +7629,97 @@ function clearMapHover() {
   color: #333;
 }
 
+.legend-preferences-panel {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.legend-preferences-card {
+  border: 2px solid #111;
+  padding: 0.65rem;
+  background: #fafafa;
+}
+
+.legend-preferences-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 0.55rem;
+}
+
+.legend-preferences-title {
+  margin: 0;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.legend-total-assigned {
+  font-size: 0.82rem;
+  color: #444;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.hex-legend-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.35rem 0.65rem;
+  max-height: 280px;
+  overflow: auto;
+}
+
+.hex-legend-item {
+  display: grid;
+  grid-template-columns: 12px 1fr auto;
+  gap: 0.4rem;
+  align-items: center;
+  font-size: 0.8rem;
+}
+
+.hex-legend-swatch {
+  width: 12px;
+  height: 12px;
+  border: 1px solid #111;
+}
+
+.hex-legend-label {
+  color: #222;
+}
+
+.hex-legend-count {
+  color: #555;
+  font-weight: 600;
+}
+
+.terrain-color-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.4rem 0.75rem;
+  margin-bottom: 0.6rem;
+}
+
+.terrain-color-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+}
+
+.terrain-color-row input[type="color"] {
+  width: 34px;
+  height: 22px;
+  border: 1px solid #111;
+  padding: 0;
+  background: transparent;
+}
+
 .terrain-map {
   width: 100%;
   display: block;
@@ -7339,6 +7747,15 @@ function clearMapHover() {
 
   .info-row {
     grid-template-columns: 110px 1fr;
+  }
+
+  .legend-preferences-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .hex-legend-list,
+  .terrain-color-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>

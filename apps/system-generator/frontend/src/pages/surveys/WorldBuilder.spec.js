@@ -313,6 +313,44 @@ describe("WorldBuilder", () => {
     expect(text).not.toContain("River:");
   });
 
+  it("merges Baked lands into Desert on the Terrain Survey card", async () => {
+    const profiledSystem = createSystemRecord();
+    profiledSystem.planets = [
+      {
+        ...profiledSystem.planets[0],
+        terrainComposition: {
+          surfaceProfile: ["Arid heat bands"],
+          hexCounts: [
+            { type: "Desert", hexes: 4, percent: "2" },
+            { type: "Baked lands", hexes: 3, percent: "1" },
+            { type: "Clear", hexes: 15, percent: "8" },
+          ],
+          assignedHexes: 22,
+          totalMapHexes: 250,
+        },
+      },
+    ];
+    systemStoreState.systems = [profiledSystem];
+    systemStoreState.getCurrentSystem = profiledSystem;
+
+    const wrapper = mount(WorldBuilder, {
+      global: {
+        stubs: {
+          LoadingSpinner: { template: "<div data-test='loading-spinner' />" },
+          SurveyNavigation: { template: "<div data-test='survey-navigation' />" },
+        },
+      },
+    });
+
+    await flushPromises();
+    await flushPromises();
+
+    const text = wrapper.text();
+    expect(text).toContain("Desert:");
+    expect(text).toContain("7 hexes");
+    expect(text).not.toContain("Baked lands:");
+  });
+
   it("keeps stale census values at the uninhabited baseline when native sophont life is absent", async () => {
     const staleSystem = createSystemRecord();
     staleSystem.planets = [

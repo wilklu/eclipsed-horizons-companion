@@ -267,6 +267,18 @@ describe("systemSurveyFormModel", () => {
     }
   });
 
+  it("hydrates stars from primaryStar when stars[] is missing", () => {
+    const surveyData = buildSurveyDataFromSystem({
+      systemId: "sector-1:0917",
+      primaryStar: { designation: "K7 V", spectralClass: "K7 V", massInSolarMasses: 0.7 },
+      worlds: [],
+    });
+
+    expect(surveyData.stars).toHaveLength(1);
+    expect(surveyData.stars[0].typeSubtype).toBe("K7");
+    expect(surveyData.stars[0].lumClass).toBe("V");
+  });
+
   it("derives profile notes from mainworld social overlays when no explicit notes are stored", () => {
     const socialNotes = buildMainworldSocialProfileNotes({
       minimumSustainableTechLevel: { summary: "Minimal sustainable TL 5" },

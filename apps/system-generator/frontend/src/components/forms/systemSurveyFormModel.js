@@ -533,7 +533,23 @@ export function buildSurveyDataFromSystem(systemRecord) {
   const stars =
     Array.isArray(systemRecord?.stars) && systemRecord.stars.length
       ? systemRecord.stars.map((star) => normalizeSurveyStarRow(star))
-      : base.stars;
+      : systemRecord?.primaryStar && typeof systemRecord.primaryStar === "object"
+        ? (() => {
+            const starLabel = String(
+              systemRecord?.primaryStar?.spectralClass || systemRecord?.primaryStar?.designation || "",
+            ).trim();
+            if (!starLabel) {
+              return base.stars;
+            }
+            return [
+              normalizeSurveyStarRow({
+                ...systemRecord.primaryStar,
+                designation: String(systemRecord?.primaryStar?.designation || starLabel).trim(),
+                spectralClass: String(systemRecord?.primaryStar?.spectralClass || starLabel).trim(),
+              }),
+            ];
+          })()
+        : base.stars;
 
   const worlds =
     Array.isArray(systemRecord?.worlds) && systemRecord.worlds.length

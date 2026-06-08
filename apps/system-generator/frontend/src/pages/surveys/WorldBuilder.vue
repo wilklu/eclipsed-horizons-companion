@@ -1241,9 +1241,9 @@ function normalizeTerrainSurveyComposition(composition) {
   }
 
   const sourceHexCounts = Array.isArray(composition.hexCounts) ? composition.hexCounts : [];
-  const normalizedHexCounts = normalizeOceanIslandShoreOnlyHexCounts(mergeRiverHexesIntoLakes(sourceHexCounts)).map(
-    (entry) => ({ ...entry }),
-  );
+  const normalizedHexCounts = normalizeOceanIslandShoreOnlyHexCounts(
+    mergeBakedLandsIntoDesert(mergeRiverHexesIntoLakes(sourceHexCounts)),
+  ).map((entry) => ({ ...entry }));
   const assignedHexes = normalizedHexCounts.reduce((sum, entry) => sum + Math.max(0, Number(entry?.hexes) || 0), 0);
 
   return {
@@ -1251,6 +1251,32 @@ function normalizeTerrainSurveyComposition(composition) {
     hexCounts: normalizedHexCounts,
     assignedHexes,
   };
+}
+
+function mergeBakedLandsIntoDesert(hexCounts = []) {
+  const entries = Array.isArray(hexCounts) ? hexCounts.map((entry) => ({ ...entry })) : [];
+  const normalizeType = (value) =>
+    String(value ?? "")
+      .trim()
+      .toLowerCase();
+
+  const bakedHexes = entries
+    .filter((entry) => normalizeType(entry?.type) === "baked lands" || normalizeType(entry?.type) === "baked land")
+    .reduce((sum, entry) => sum + Math.max(0, Number(entry?.hexes) || 0), 0);
+
+  const withoutBaked = entries.filter((entry) => !["baked lands", "baked land"].includes(normalizeType(entry?.type)));
+  if (bakedHexes <= 0) {
+    return withoutBaked;
+  }
+
+  const desertEntry = withoutBaked.find((entry) => normalizeType(entry?.type) === "desert");
+  if (desertEntry) {
+    desertEntry.hexes = Math.max(0, Number(desertEntry.hexes) || 0) + bakedHexes;
+  } else {
+    withoutBaked.push({ type: "Desert", hexes: bakedHexes, percent: 0, category: "arid" });
+  }
+
+  return withoutBaked;
 }
 
 function mergeRiverHexesIntoLakes(hexCounts = []) {
