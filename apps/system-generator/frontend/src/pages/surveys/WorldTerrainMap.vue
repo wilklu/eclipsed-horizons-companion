@@ -113,60 +113,6 @@
           >
             Clear Terrain
           </button>
-          <button
-            type="button"
-            class="map-button map-button-secondary"
-            @click="generateOceansStep"
-            :disabled="!(activeHexCells?.length ?? 0)"
-            title="Temporary walkthrough: clear map and generate ocean hexes only"
-          >
-            Ocean Step
-          </button>
-          <button
-            type="button"
-            class="map-button map-button-secondary"
-            @click="generateMountainsStep"
-            :disabled="!(activeHexCells?.length ?? 0)"
-            title="Temporary walkthrough: clear non-ocean layers and generate mountains"
-          >
-            Mountain Step
-          </button>
-          <button
-            type="button"
-            class="map-button map-button-secondary"
-            @click="generateShoresStep"
-            :disabled="!(activeHexCells?.length ?? 0)"
-            title="Temporary walkthrough: clear non-ocean/non-mountain layers and generate shores"
-          >
-            Shore Step
-          </button>
-          <button
-            type="button"
-            class="map-button map-button-secondary"
-            @click="generateIceCapsStep"
-            :disabled="!(activeHexCells?.length ?? 0)"
-            title="Temporary walkthrough: generate ice caps from hydrographics"
-          >
-            Ice Caps Step
-          </button>
-          <button
-            type="button"
-            class="map-button map-button-secondary"
-            @click="generateDesertStep"
-            :disabled="!(activeHexCells?.length ?? 0)"
-            title="Temporary walkthrough: generate desert coverage"
-          >
-            Desert Step
-          </button>
-          <button
-            type="button"
-            class="map-button map-button-secondary"
-            @click="generateForestStep"
-            :disabled="!(activeHexCells?.length ?? 0)"
-            title="Temporary walkthrough: generate latitude forest/swamp/tundra biomes"
-          >
-            Forest Step
-          </button>
           <div
             v-if="useSurveyOverlayHexes"
             class="terrain-paint-controls"
@@ -195,25 +141,42 @@
             </button>
           </div>
           <span class="map-controls-note" v-if="useSurveyOverlayHexes">Using Terrain Survey hex overlay</span>
-          <span class="map-controls-note">Target water: {{ Math.round(hydroTargetRatio * 100) }}%</span>
-          <span class="map-controls-note">Mountains: {{ activeMountainHexEntries?.length ?? 0 }}</span>
-          <span class="map-controls-note">Hills: {{ activeHillsHexEntries?.length ?? 0 }}</span>
-          <span class="map-controls-note">Rainforest: {{ activeForestBiomeHexEntries?.length ?? 0 }}</span>
-          <span class="map-controls-note">Tundra: {{ activeTundraHexEntries?.length ?? 0 }}</span>
-          <span class="map-controls-note">Chasms: {{ activeChasmHexEntries?.length ?? 0 }}</span>
-          <span class="map-controls-note">Precipices: {{ activePrecipiceHexEntries?.length ?? 0 }}</span>
+          <span class="map-controls-note"
+            >Total Assigned: {{ totalSurveyPlacedHexes }}/{{ totalSurveyTargetHexes }}</span
+          >
+          <span class="map-controls-note">{{
+            formatPlacedVsTarget("Ocean", "water", activeWaterHexEntries?.length ?? 0)
+          }}</span>
+          <span class="map-controls-note">{{
+            formatPlacedVsTarget("Shore", "shore", activeShoreHexEntries?.length ?? 0)
+          }}</span>
+          <span class="map-controls-note">{{
+            formatPlacedVsTarget("Mountains", "mountain", activeMountainHexEntries?.length ?? 0)
+          }}</span>
+          <span class="map-controls-note">{{
+            formatPlacedVsTarget("Hills", "hills", activeHillsHexEntries?.length ?? 0)
+          }}</span>
+          <span class="map-controls-note">{{
+            formatPlacedVsTarget("Plains", "plains", activePlainsHexEntries?.length ?? 0)
+          }}</span>
+          <span class="map-controls-note">{{
+            formatPlacedVsTarget("Volcanic", "volcanic", activeVolcanicHexEntries?.length ?? 0)
+          }}</span>
+          <span class="map-controls-note">{{
+            formatPlacedVsTarget("Ice Fields", "icefield", activeIceFieldHexEntries?.length ?? 0)
+          }}</span>
+          <span class="map-controls-note">{{
+            formatPlacedVsTarget("Frozen Lands", "frozenland", activeFrozenLandHexEntries?.length ?? 0)
+          }}</span>
+          <span class="map-controls-note">{{
+            formatPlacedVsTarget("Glaciers", "glacier", activeGlacierHexEntries?.length ?? 0)
+          }}</span>
           <span class="map-controls-note" v-if="isVacuumWorld">Craters: {{ activeCraterHexEntries?.length ?? 0 }}</span>
           <span class="map-controls-note" v-if="isDesertWorld">Desert: {{ activeDesertHexEntries?.length ?? 0 }}</span>
           <span class="map-controls-note" v-if="activeOceanTriangleCount > 0"
             >Oceans: {{ activeOceanTriangleCount }} triangles / {{ activeOceanGroupCount }} ocean groups</span
           >
-          <span class="map-controls-note" v-if="(activeTopologyTriangles?.length ?? 0) > 0"
-            >Continents: {{ activeContinentTriangleCount }}</span
-          >
           <span class="map-controls-note" v-if="isDieBackWorld">Ruins: {{ activeRuinHexEntries?.length ?? 0 }}</span>
-          <span class="map-controls-note" v-if="resourceHexCount > 0"
-            >Resource Hexes: {{ resourceHexCount }} ({{ activeResourceHexEntries?.length ?? 0 }} placed)</span
-          >
           <span class="map-controls-note" v-if="croplandDicePerContinent > 0"
             >Cropland: {{ activeCroplandHexEntries?.length ?? 0 }}</span
           >
@@ -308,6 +271,23 @@
             />
           </g>
 
+          <g id="plains-hex-overlay" pointer-events="none">
+            <g v-for="entry in activePlainsHexEntries" :key="entry.key">
+              <polygon :points="entry.points" fill="rgba(214, 193, 141, 0.14)" stroke="#9d8553" stroke-width="0.9" />
+              <text
+                :x="entry.cx"
+                :y="entry.cy + 4"
+                text-anchor="middle"
+                font-size="8"
+                font-weight="bold"
+                fill="#6f5a34"
+                style="pointer-events: none; user-select: none"
+              >
+                Pl
+              </text>
+            </g>
+          </g>
+
           <g id="hills-hex-overlay" pointer-events="none">
             <g v-for="entry in activeHillsHexEntries" :key="entry.key">
               <polygon :points="entry.points" fill="#A0825C" stroke="#6C563B" stroke-width="1.2" />
@@ -321,6 +301,23 @@
                 style="pointer-events: none; user-select: none"
               >
                 H
+              </text>
+            </g>
+          </g>
+
+          <g id="volcanic-hex-overlay" pointer-events="none">
+            <g v-for="entry in activeVolcanicHexEntries" :key="entry.key">
+              <polygon :points="entry.points" fill="rgba(138, 58, 28, 0.42)" stroke="#5a2410" stroke-width="1.3" />
+              <text
+                :x="entry.cx"
+                :y="entry.cy + 4"
+                text-anchor="middle"
+                font-size="8"
+                font-weight="bold"
+                fill="#351207"
+                style="pointer-events: none; user-select: none"
+              >
+                V
               </text>
             </g>
           </g>
@@ -370,25 +367,37 @@
           </g>
 
           <g id="ice-field-hex-overlay" pointer-events="none">
-            <polygon
-              v-for="entry in activeIceFieldHexEntries"
-              :key="entry.key"
-              :points="entry.points"
-              fill="rgba(206, 231, 247, 0.58)"
-              stroke="#7ea7c1"
-              stroke-width="1.1"
-            />
+            <g v-for="entry in activeIceFieldHexEntries" :key="entry.key">
+              <polygon :points="entry.points" fill="rgba(206, 231, 247, 0.58)" stroke="#7ea7c1" stroke-width="1.1" />
+              <text
+                :x="entry.cx"
+                :y="entry.cy + 4"
+                text-anchor="middle"
+                font-size="8"
+                font-weight="bold"
+                fill="#375a70"
+                style="pointer-events: none; user-select: none"
+              >
+                If
+              </text>
+            </g>
           </g>
 
           <g id="frozen-lands-hex-overlay" pointer-events="none">
-            <polygon
-              v-for="entry in activeFrozenLandHexEntries"
-              :key="entry.key"
-              :points="entry.points"
-              fill="rgba(205, 214, 226, 0.28)"
-              stroke="#8592a3"
-              stroke-width="0.9"
-            />
+            <g v-for="entry in activeFrozenLandHexEntries" :key="entry.key">
+              <polygon :points="entry.points" fill="rgba(205, 214, 226, 0.28)" stroke="#8592a3" stroke-width="0.9" />
+              <text
+                :x="entry.cx"
+                :y="entry.cy + 4"
+                text-anchor="middle"
+                font-size="8"
+                font-weight="bold"
+                fill="#4b5565"
+                style="pointer-events: none; user-select: none"
+              >
+                Fr
+              </text>
+            </g>
           </g>
 
           <g id="cropland-hex-overlay" pointer-events="none">
@@ -528,6 +537,22 @@
             />
           </g>
 
+          <g id="latitude-guide-line-overlay" pointer-events="none">
+            <line
+              v-for="line in activeLatitudeGuideLines"
+              :key="line.key"
+              :x1="line.x1"
+              :y1="line.y1"
+              :x2="line.x2"
+              :y2="line.y2"
+              :stroke="line.type === 'equator' ? '#cf7f00' : line.type === 'tropic' ? '#b24a00' : '#336f9c'"
+              :stroke-width="line.type === 'equator' ? 1.8 : 1.3"
+              :stroke-dasharray="line.type === 'equator' ? '0' : '7 5'"
+              stroke-linecap="round"
+              opacity="0.85"
+            />
+          </g>
+
           <g id="baked-lands-hex-overlay" pointer-events="none">
             <polygon
               v-for="entry in activeBakedLandHexEntries"
@@ -620,6 +645,23 @@
                 style="pointer-events: none; user-select: none"
               >
                 Ic
+              </text>
+            </g>
+          </g>
+
+          <g id="glacier-hex-overlay" pointer-events="none">
+            <g v-for="entry in activeGlacierHexEntries" :key="entry.key">
+              <polygon :points="entry.points" fill="rgba(193, 229, 250, 0.52)" stroke="#5e94ba" stroke-width="1.2" />
+              <text
+                :x="entry.cx"
+                :y="entry.cy + 4"
+                text-anchor="middle"
+                font-size="8"
+                font-weight="bold"
+                fill="#2f6285"
+                style="pointer-events: none; user-select: none"
+              >
+                Gl
               </text>
             </g>
           </g>
@@ -957,8 +999,15 @@ const terrainPaintTypes = Object.freeze([
   { id: "water", label: "Water" },
   { id: "shore", label: "Shore" },
   { id: "plains", label: "Plains" },
+  { id: "island", label: "Island" },
+  { id: "hills", label: "Hills" },
   { id: "forest", label: "Forest" },
   { id: "mountain", label: "Mountain" },
+  { id: "volcanic", label: "Volcanic" },
+  { id: "icecap", label: "Icecap" },
+  { id: "glacier", label: "Glacier" },
+  { id: "icefield", label: "Ice Field" },
+  { id: "frozenland", label: "Frozen Lands" },
   { id: "desert", label: "Desert" },
   { id: "tundra", label: "Tundra" },
   { id: "swamp", label: "Swamp" },
@@ -969,6 +1018,7 @@ function normalizeSurveyTerrainType(value) {
   return String(value || "")
     .trim()
     .toLowerCase()
+    .replace(/[^a-z0-9\s_-]+/g, " ")
     .replace(/[_-]+/g, " ")
     .replace(/\s+/g, " ");
 }
@@ -976,7 +1026,7 @@ function normalizeSurveyTerrainType(value) {
 const SURVEY_TYPE_TO_TERRAIN = new Map([
   ["wetland", "swamp"],
   ["wetlands", "swamp"],
-  ["wet woods", "swamp"],
+  ["wet woods", "forest"],
   ["shore", "shore"],
   ["shores", "shore"],
   ["ocean", "water"],
@@ -985,24 +1035,28 @@ const SURVEY_TYPE_TO_TERRAIN = new Map([
   ["rivers", "water"],
   ["lake", "water"],
   ["lakes", "water"],
-  ["island", "plains"],
-  ["islands", "plains"],
-  ["icecap", "tundra"],
-  ["icecaps", "tundra"],
-  ["ice cap", "tundra"],
-  ["ice caps", "tundra"],
-  ["glacier", "tundra"],
-  ["glaciers", "tundra"],
-  ["ice field", "tundra"],
-  ["ice fields", "tundra"],
-  ["frozen land", "tundra"],
-  ["frozen lands", "tundra"],
+  ["island", "island"],
+  ["islands", "island"],
+  ["icecap", "icecap"],
+  ["icecaps", "icecap"],
+  ["ice cap", "icecap"],
+  ["ice caps", "icecap"],
+  ["glacier", "glacier"],
+  ["glaciers", "glacier"],
+  ["ice field", "icefield"],
+  ["ice fields", "icefield"],
+  ["frozen land", "frozenland"],
+  ["frozen lands", "frozenland"],
+  ["tundra", "tundra"],
   ["mountain", "mountain"],
   ["mountains", "mountain"],
-  ["rough", "mountain"],
-  ["volcano", "mountain"],
-  ["volcanoes", "mountain"],
-  ["volcanos", "mountain"],
+  ["rough", "hills"],
+  ["rouch", "hills"],
+  ["volcano", "volcanic"],
+  ["volcanoes", "volcanic"],
+  ["volcanos", "volcanic"],
+  ["volacano", "volcanic"],
+  ["volacanos", "volcanic"],
   ["desert", "desert"],
   ["deserts", "desert"],
   ["baked land", "desert"],
@@ -1223,6 +1277,15 @@ const activeWaterHexEntries = computed(() => {
 const activeShoreHexEntries = computed(() => {
   const mapForSize = shoreHexesBySize.value.get(activeTerrainTemplateSize.value);
   return toLayerEntries(mapForSize);
+});
+
+const activePlainsHexEntries = computed(() => {
+  const mapForSize = flatlandHexesBySize.value.get(activeTerrainTemplateSize.value);
+  return toLayerEntries(mapForSize).filter((entry) =>
+    activeHexTagsByKey.value
+      .get(String(entry.logicalKey || entry.key || ""))
+      ?.terrainTags?.includes(WORLD_HEX_TAGS.FLATLANDS),
+  );
 });
 
 function normalizePoints(points) {
@@ -1876,6 +1939,7 @@ const twilightFrozenLandHexesBySize = ref(new Map());
 const twilightOceanDesertHexesBySize = ref(new Map());
 const twilightOceanIceFieldHexesBySize = ref(new Map());
 const flatlandHexesBySize = ref(new Map());
+const islandHexesBySize = ref(new Map());
 const hillsHexesBySize = ref(new Map());
 const volcanicHexesBySize = ref(new Map());
 const forestBiomeHexesBySize = ref(new Map());
@@ -1883,6 +1947,9 @@ const swampBiomeHexesBySize = ref(new Map());
 const arcticBiomeHexesBySize = ref(new Map());
 const mountainHexesBySize = ref(new Map());
 const iceCapHexesBySize = ref(new Map());
+const glacierHexesBySize = ref(new Map());
+const iceFieldHexesBySize = ref(new Map());
+const frozenLandHexesBySize = ref(new Map());
 const chasmHexesBySize = ref(new Map());
 const precipiceHexesBySize = ref(new Map());
 const craterHexesBySize = ref(new Map());
@@ -1930,6 +1997,39 @@ const hasTerrainSurveyComposition = computed(() => {
   return Array.isArray(counts) && counts.length > 0;
 });
 
+function getLayerHexCount(layerRef, size = activeTerrainTemplateSize.value) {
+  const mapForSize = layerRef.value.get(size);
+  return mapForSize instanceof Map ? mapForSize.size : 0;
+}
+
+const activeWaterHexCount = computed(() => getLayerHexCount(waterHexesBySize));
+const activeShoreHexCount = computed(() => getLayerHexCount(shoreHexesBySize));
+const activeMountainHexCount = computed(() => getLayerHexCount(mountainHexesBySize));
+const activeHillsHexCount = computed(() => getLayerHexCount(hillsHexesBySize));
+const activePlainsHexCount = computed(() => getLayerHexCount(flatlandHexesBySize));
+const activeVolcanicHexCount = computed(() => getLayerHexCount(volcanicHexesBySize));
+const activeForestBiomeHexCount = computed(() => getLayerHexCount(forestBiomeHexesBySize));
+const activeTundraHexCount = computed(() => getLayerHexCount(arcticBiomeHexesBySize));
+const activeIceFieldHexCount = computed(() => getLayerHexCount(iceFieldHexesBySize));
+const activeFrozenLandHexCount = computed(() => getLayerHexCount(frozenLandHexesBySize));
+const activeGlacierHexCount = computed(() => getLayerHexCount(glacierHexesBySize));
+const activeCraterHexCount = computed(() => getLayerHexCount(craterHexesBySize));
+const activeDesertHexCount = computed(() => getLayerHexCount(desertHexesBySize));
+const activeRuinHexCount = computed(() => getLayerHexCount(ruinHexesBySize));
+const activeCroplandHexCount = computed(() => getLayerHexCount(croplandHexesBySize));
+const activeTownHexCount = computed(() => getLayerHexCount(townHexesBySize));
+const activeCityHexCount = computed(() => getLayerHexCount(cityHexesBySize));
+const activeArcologyHexCount = computed(() => getLayerHexCount(arcologyHexesBySize));
+const activeRuralHexCount = computed(() => getLayerHexCount(ruralHexesBySize));
+const activeWorldPortHexCount = computed(() => getLayerHexCount(worldPortHexesBySize));
+const activeTwilightZoneHexCount = computed(() => getLayerHexCount(twilightZoneHexesBySize));
+const activeBakedLandHexCount = computed(() => getLayerHexCount(bakedLandHexesBySize));
+const activeTwilightFrozenLandHexCount = computed(() => getLayerHexCount(twilightFrozenLandHexesBySize));
+const activePenalColonyHexCount = computed(() => getLayerHexCount(penalColonyHexesBySize));
+const activeWastelandHexCount = computed(() => getLayerHexCount(wastelandHexesBySize));
+const activeExoticHexCount = computed(() => getLayerHexCount(exoticHexesBySize));
+const activeNobleLandHexCount = computed(() => getLayerHexCount(nobleLandHexesBySize));
+
 function setLayerMapForSize(layerRef, size, map) {
   const next = new Map(layerRef.value);
   if (map instanceof Map && map.size) {
@@ -1968,6 +2068,7 @@ function resetTerrainLayersForSize(size) {
     twilightOceanDesertHexesBySize,
     twilightOceanIceFieldHexesBySize,
     flatlandHexesBySize,
+    islandHexesBySize,
     hillsHexesBySize,
     volcanicHexesBySize,
     forestBiomeHexesBySize,
@@ -1975,6 +2076,9 @@ function resetTerrainLayersForSize(size) {
     arcticBiomeHexesBySize,
     mountainHexesBySize,
     iceCapHexesBySize,
+    glacierHexesBySize,
+    iceFieldHexesBySize,
+    frozenLandHexesBySize,
     chasmHexesBySize,
     precipiceHexesBySize,
     craterHexesBySize,
@@ -2064,7 +2168,14 @@ function buildOverlayEntriesByKeyFromCurrentLayers(size) {
   const layerSources = [
     [waterHexesBySize.value.get(size), "water"],
     [shoreHexesBySize.value.get(size), "shore"],
+    [islandHexesBySize.value.get(size), "island"],
+    [hillsHexesBySize.value.get(size), "hills"],
     [mountainHexesBySize.value.get(size), "mountain"],
+    [volcanicHexesBySize.value.get(size), "volcanic"],
+    [iceCapHexesBySize.value.get(size), "icecap"],
+    [glacierHexesBySize.value.get(size), "glacier"],
+    [iceFieldHexesBySize.value.get(size), "icefield"],
+    [frozenLandHexesBySize.value.get(size), "frozenland"],
     [forestBiomeHexesBySize.value.get(size), "forest"],
     [desertHexesBySize.value.get(size), "desert"],
     [arcticBiomeHexesBySize.value.get(size), "tundra"],
@@ -2133,6 +2244,55 @@ function buildTerrainCountPlanFromSurveyComposition() {
   return [...buildTerrainBudgetMapFromSurveyComposition().entries()].map(([terrain, hexes]) => ({ terrain, hexes }));
 }
 
+const terrainBudgetByType = computed(() => buildTerrainBudgetMapFromSurveyComposition());
+
+const activeSurveyPlacedCountsByTerrain = computed(() => {
+  const placedByTerrain = new Map();
+  const entriesByKey = buildOverlayEntriesByKeyFromCurrentLayers(activeTerrainTemplateSize.value);
+  let explicitNonPlainsCount = 0;
+  for (const entry of entriesByKey.values()) {
+    const terrain = String(entry?.terrain || "")
+      .trim()
+      .toLowerCase();
+    if (!terrain) continue;
+    placedByTerrain.set(terrain, (placedByTerrain.get(terrain) || 0) + 1);
+    if (terrain !== "plains") {
+      explicitNonPlainsCount += 1;
+    }
+  }
+
+  // Plains are intentionally sparse in overlay persistence; unassigned cells render as plains.
+  const logicalHexCount = Math.max(0, activeHexRenderVariantsByKey.value.size);
+  const logicalPlainsCount = Math.max(0, logicalHexCount - explicitNonPlainsCount);
+  placedByTerrain.set("plains", logicalPlainsCount);
+
+  return placedByTerrain;
+});
+
+const totalSurveyTargetHexes = computed(() => {
+  let total = 0;
+  for (const value of terrainBudgetByType.value.values()) {
+    total += Math.max(0, Number(value) || 0);
+  }
+  return total;
+});
+
+const totalSurveyPlacedHexes = computed(() => {
+  let total = 0;
+  for (const terrain of terrainBudgetByType.value.keys()) {
+    total += Math.max(0, Number(activeSurveyPlacedCountsByTerrain.value.get(terrain) || 0));
+  }
+  return total;
+});
+
+function formatPlacedVsTarget(label, terrain, placed) {
+  const dedupedPlaced = Number(activeSurveyPlacedCountsByTerrain.value.get(terrain) || 0);
+  const target = Number(terrainBudgetByType.value.get(terrain) || 0);
+  const placedCount =
+    Number.isFinite(dedupedPlaced) && dedupedPlaced >= 0 ? dedupedPlaced : Math.max(0, Number(placed) || 0);
+  return `${label}: ${placedCount}/${Math.max(0, target)}`;
+}
+
 function buildTerrainBudgetMapFromSurveyComposition() {
   const counts = Array.isArray(selectedWorld.value?.terrainComposition?.hexCounts)
     ? selectedWorld.value.terrainComposition.hexCounts
@@ -2147,7 +2307,7 @@ function buildTerrainBudgetMapFromSurveyComposition() {
     Number(
       selectedWorld.value?.terrainComposition?.totalMapHexes ||
         selectedWorld.value?.terrainComposition?.assignedHexes ||
-        activeHexCells.value.length ||
+        activeHexRenderVariantsByKey.value.size ||
         0,
     ),
   );
@@ -2163,6 +2323,59 @@ function buildTerrainBudgetMapFromSurveyComposition() {
         : 0;
     if (!Number.isFinite(hexes) || hexes <= 0) continue;
     merged.set(terrain, (merged.get(terrain) || 0) + hexes);
+  }
+
+  const capacityHexes = Math.max(0, activeHexRenderVariantsByKey.value.size || totalMapHexes || 0);
+  let overage =
+    [...merged.values()].reduce((sum, value) => sum + Math.max(0, Number(value) || 0), 0) - Math.max(0, capacityHexes);
+
+  if (overage > 0) {
+    // Plains are implicit filler terrain, so trim them first when the survey totals
+    // overcommit the logical map capacity due rounding or legacy data.
+    const trimOrder = [
+      "plains",
+      "shore",
+      "hills",
+      "frozenland",
+      "volcanic",
+      "island",
+      "mountain",
+      "water",
+      "icecap",
+      "glacier",
+      "icefield",
+      "forest",
+      "desert",
+      "tundra",
+      "swamp",
+      "urban",
+    ];
+
+    for (const terrain of trimOrder) {
+      if (overage <= 0) break;
+      const current = Math.max(0, Number(merged.get(terrain) || 0));
+      if (current <= 0) continue;
+      const delta = Math.min(current, overage);
+      merged.set(terrain, current - delta);
+      overage -= delta;
+    }
+
+    if (overage > 0) {
+      for (const [terrain, value] of merged.entries()) {
+        if (overage <= 0) break;
+        const current = Math.max(0, Number(value) || 0);
+        if (current <= 0) continue;
+        const delta = Math.min(current, overage);
+        merged.set(terrain, current - delta);
+        overage -= delta;
+      }
+    }
+
+    for (const [terrain, value] of [...merged.entries()]) {
+      if (!Number.isFinite(Number(value)) || Number(value) <= 0) {
+        merged.delete(terrain);
+      }
+    }
   }
 
   return merged;
@@ -2192,7 +2405,8 @@ function buildTerrainInteriorDistanceMap(cells, adjacencyById = new Map()) {
     const neighbors = adjacencyById.get(key)?.neighbors || new Set();
     for (const neighborKey of neighbors) {
       const nextDistance = baseDistance + 1;
-      if (distanceByKey.has(neighborKey) && distanceByKey.get(neighborKey) >= nextDistance) {
+      // Keep the shortest known distance from any border hex.
+      if (distanceByKey.has(neighborKey) && distanceByKey.get(neighborKey) <= nextDistance) {
         continue;
       }
       distanceByKey.set(neighborKey, nextDistance);
@@ -2240,7 +2454,7 @@ function buildTerrainPlacementScoreMap(cells, seed, adjacencyById = new Map()) {
   return byKey;
 }
 
-function applyTerrainSurveyToMap() {
+function applyTerrainSurveyToMap(options = {}) {
   markTerrainUserInteraction();
   const cells = activeHexCells.value;
   if (!cells.length) {
@@ -2252,16 +2466,58 @@ function applyTerrainSurveyToMap() {
     return false;
   }
 
+  const sourceCounts = Array.isArray(selectedWorld.value?.terrainComposition?.hexCounts)
+    ? selectedWorld.value.terrainComposition.hexCounts
+    : [];
+  const normalizeSurveyType = (value) =>
+    String(value || "")
+      .trim()
+      .toLowerCase();
+  const sumHexesForTypes = (types = []) => {
+    const lookup = new Set(types.map((value) => normalizeSurveyType(value)));
+    return sourceCounts
+      .filter((entry) => lookup.has(normalizeSurveyType(entry?.type)))
+      .reduce((sum, entry) => sum + Math.max(0, Number(entry?.hexes) || 0), 0);
+  };
+  const requestedLakeHexes = sumHexesForTypes(["lake", "lakes", "river", "rivers"]);
+  const requestedRoughWoodsHexes = sumHexesForTypes(["rough woods"]);
+  const requestedWetWoodsHexes = sumHexesForTypes(["wet woods"]);
+
+  const positiveTerrains = [...budgetMap.entries()]
+    .filter(([, hexes]) => Number(hexes) > 0)
+    .map(([terrain]) =>
+      String(terrain || "")
+        .trim()
+        .toLowerCase(),
+    );
+  const hasOnlyOceanIslandShore =
+    positiveTerrains.length > 0 && positiveTerrains.every((terrain) => ["water", "island", "shore"].includes(terrain));
+  if (hasOnlyOceanIslandShore) {
+    const shoreBudget = Math.max(0, Number(budgetMap.get("shore") || 0));
+    if (shoreBudget > 0) {
+      budgetMap.set("island", Math.max(0, Number(budgetMap.get("island") || 0)) + shoreBudget);
+      budgetMap.set("shore", 0);
+    }
+  }
+
   const size = activeTerrainTemplateSize.value;
   const worldName = String(worldInfo.value?.name || "").trim();
   const countPlan = [...budgetMap.entries()].map(([terrain, hexes]) => [terrain, hexes]);
-  const seed = hashString(`${worldName}|${systemInfo.value.hex}|${size}|overlay-seed|${JSON.stringify(countPlan)}`);
+  const seedSalt = String(options?.seedSalt || "").trim();
+  const seed = hashString(
+    `${worldName}|${systemInfo.value.hex}|${size}|overlay-seed|${JSON.stringify(countPlan)}|${seedSalt}`,
+  );
   const adjacency = buildHexAdjacencyGraph(cells);
   const scoreByKey = buildTerrainPlacementScoreMap(cells, seed, adjacency.byId);
   const entriesByKey = new Map();
 
   const allCellsByKey = new Map(cells.map((cell) => [String(cell?.key || "").trim(), cell]));
   const availableKeys = new Set(allCellsByKey.keys());
+  const cyValues = cells.map((cell) => Number(cell?.cy)).filter(Number.isFinite);
+  const minY = cyValues.length ? Math.min(...cyValues) : 0;
+  const maxY = cyValues.length ? Math.max(...cyValues) : 0;
+  const halfSpan = Math.max(1, (maxY - minY) / 2);
+  const midY = (maxY + minY) / 2;
   const orderedCellsDesc = [...cells]
     .filter((cell) => String(cell?.key || "").trim())
     .sort(
@@ -2282,15 +2538,87 @@ function applyTerrainSurveyToMap() {
     return taken;
   };
 
+  const axialTilt = clamp(Number(selectedWorld.value?.axialTilt) || 0, 0, 90);
+  const axialTiltRatio = axialTilt / 90;
+  // Lower tilt favors broader permanent polar caps; higher tilt narrows stable cap zones.
+  const iceCapPolarStart = clamp(0.62 + axialTiltRatio * 0.18, 0.58, 0.82);
+
+  const getLatitudeAbs = (cell) => {
+    const cy = Number(cell?.cy);
+    if (!Number.isFinite(cy)) {
+      return 0;
+    }
+    return Math.abs((cy - midY) / halfSpan);
+  };
+
   const {
     waterCount: oceanCount,
     mountainCount,
     shoreCount,
   } = resolveTerrainCoreCountsFromBudget(budgetMap, cells.length);
 
+  const lakeHexCount = Math.min(Math.max(0, requestedLakeHexes), oceanCount);
+  const openOceanCount = Math.max(0, oceanCount - lakeHexCount);
+
+  const capPreWaterPlacement = (requestedCount) => {
+    const requested = Math.max(0, Number(requestedCount) || 0);
+    // Reserve enough free hexes so ocean can always hit its budget target.
+    const maxAllowed = Math.max(0, availableKeys.size - openOceanCount - lakeHexCount);
+    return Math.min(requested, maxAllowed);
+  };
+
+  const requestedIceCapCount = clamp(Number(budgetMap.get("icecap") || 0), 0, cells.length);
+  if (requestedIceCapCount > 0) {
+    const iceCapCandidates = [...cells]
+      .filter((cell) => {
+        const key = String(cell?.key || "").trim();
+        return key && availableKeys.has(key) && getLatitudeAbs(cell) >= iceCapPolarStart;
+      })
+      .sort((left, right) => getLatitudeAbs(right) - getLatitudeAbs(left));
+
+    const polarPool = iceCapCandidates.length
+      ? iceCapCandidates
+      : [...cells]
+          .filter((cell) => {
+            const key = String(cell?.key || "").trim();
+            return key && availableKeys.has(key);
+          })
+          .sort((left, right) => getLatitudeAbs(right) - getLatitudeAbs(left));
+
+    const iceCapCells = takeCells(polarPool, capPreWaterPlacement(requestedIceCapCount));
+    for (const cell of iceCapCells) {
+      const key = String(cell?.key || "").trim();
+      if (!key) continue;
+      entriesByKey.set(key, {
+        points: normalizePoints(cell?.points || ""),
+        terrain: "icecap",
+      });
+    }
+  }
+
+  const requestedGlacierCount = clamp(Number(budgetMap.get("glacier") || 0), 0, cells.length);
+  if (requestedGlacierCount > 0) {
+    const glacierCandidates = [...cells]
+      .filter((cell) => {
+        const key = String(cell?.key || "").trim();
+        return key && availableKeys.has(key);
+      })
+      .sort((left, right) => getLatitudeAbs(right) - getLatitudeAbs(left));
+
+    const glacierCells = takeCells(glacierCandidates, capPreWaterPlacement(requestedGlacierCount));
+    for (const cell of glacierCells) {
+      const key = String(cell?.key || "").trim();
+      if (!key) continue;
+      entriesByKey.set(key, {
+        points: normalizePoints(cell?.points || ""),
+        terrain: "glacier",
+      });
+    }
+  }
+
   const mountainCells = takeCells(
     orderedCellsDesc,
-    mountainCount,
+    capPreWaterPlacement(mountainCount),
     (left, right) => (scoreByKey.get(String(right.key || "")) || 0) - (scoreByKey.get(String(left.key || "")) || 0),
   );
   for (const cell of mountainCells) {
@@ -2304,66 +2632,307 @@ function applyTerrainSurveyToMap() {
 
   const waterCells = takeCells(
     orderedCellsAsc.filter((cell) => !entriesByKey.has(String(cell?.key || "").trim())),
-    oceanCount,
+    openOceanCount,
     (left, right) => (scoreByKey.get(String(left.key || "")) || 0) - (scoreByKey.get(String(right.key || "")) || 0),
   );
-  const waterKeys = new Set();
+  const oceanKeys = new Set();
   for (const cell of waterCells) {
     const key = String(cell?.key || "").trim();
     if (!key) continue;
-    waterKeys.add(key);
+    oceanKeys.add(key);
     entriesByKey.set(key, {
       points: normalizePoints(cell?.points || ""),
       terrain: "water",
     });
   }
 
+  if (lakeHexCount > 0) {
+    const lakeCandidates = orderedCellsDesc.filter((cell) => {
+      const key = String(cell?.key || "").trim();
+      if (!key || entriesByKey.has(key)) {
+        return false;
+      }
+      const neighborKeys = adjacency.byId.get(key)?.neighbors || new Set();
+      for (const neighborKey of neighborKeys) {
+        if (oceanKeys.has(String(neighborKey || "").trim())) {
+          return false;
+        }
+      }
+      return true;
+    });
+
+    const lakeCells = takeCells(
+      lakeCandidates,
+      lakeHexCount,
+      (left, right) => (scoreByKey.get(String(right.key || "")) || 0) - (scoreByKey.get(String(left.key || "")) || 0),
+    );
+
+    for (const cell of lakeCells) {
+      const key = String(cell?.key || "").trim();
+      if (!key) continue;
+      entriesByKey.set(key, {
+        points: normalizePoints(cell?.points || ""),
+        terrain: "water",
+      });
+    }
+  }
+
+  const secondaryTerrains = countPlan.filter(
+    ([terrain]) => !["mountain", "water", "shore", "icecap", "glacier"].includes(terrain),
+  );
+  secondaryTerrains.sort((left, right) => {
+    const leftIsPlains = left[0] === "plains";
+    const rightIsPlains = right[0] === "plains";
+    if (leftIsPlains && !rightIsPlains) return 1;
+    if (!leftIsPlains && rightIsPlains) return -1;
+    return 0;
+  });
+  const remainingCells = [...cells].filter((cell) => {
+    const key = String(cell?.key || "").trim();
+    return key && !entriesByKey.has(key);
+  });
+
+  const reservedShore = Math.min(remainingCells.length, shoreCount);
+  const explicitTerrainCounts = new Map();
+  for (const [terrain, hexes] of secondaryTerrains) {
+    explicitTerrainCounts.set(terrain, Math.max(0, Number(hexes) || 0));
+  }
+
+  const placementCursorPool = orderedCellsDesc.filter((cell) => {
+    const key = String(cell?.key || "").trim();
+    return key && !entriesByKey.has(key);
+  });
+  const nextAvailablePlacementCell = () => {
+    for (const cell of placementCursorPool) {
+      const key = String(cell?.key || "").trim();
+      if (!key || entriesByKey.has(key)) continue;
+      return cell;
+    }
+    return null;
+  };
+
+  let placedNonPlainsSecondaryCount = 0;
+  const placeSecondaryTerrainCell = (terrain, cell) => {
+    const key = String(cell?.key || "").trim();
+    if (!key || entriesByKey.has(key)) {
+      return false;
+    }
+    entriesByKey.set(key, {
+      points: normalizePoints(cell?.points || ""),
+      terrain,
+    });
+    placedNonPlainsSecondaryCount += 1;
+    explicitTerrainCounts.set(terrain, Math.max(0, Number(explicitTerrainCounts.get(terrain) || 0) - 1));
+    return true;
+  };
+
+  const placeTerrainWithGlobalLimit = (terrain, count) => {
+    const requested = Math.max(0, Number(count) || 0);
+    for (let placed = 0; placed < requested; ) {
+      const maxNonPlainsAllowed = Math.max(0, remainingCells.length - reservedShore - placedNonPlainsSecondaryCount);
+      if (maxNonPlainsAllowed <= 0) break;
+      const nextCell = nextAvailablePlacementCell();
+      if (!nextCell) break;
+      if (placeSecondaryTerrainCell(terrain, nextCell)) {
+        placed += 1;
+      }
+    }
+  };
+
+  // Place anchor terrains first so constrained woods can reference final neighbors.
+  placeTerrainWithGlobalLimit("hills", explicitTerrainCounts.get("hills") || 0);
+  placeTerrainWithGlobalLimit("swamp", explicitTerrainCounts.get("swamp") || 0);
+
+  const hasNeighborTerrain = (key, requiredTerrains) => {
+    const neighborKeys = adjacency.byId.get(key)?.neighbors || new Set();
+    for (const neighborKey of neighborKeys) {
+      const normalizedNeighbor = String(neighborKey || "").trim();
+      const neighborTerrain = String(entriesByKey.get(normalizedNeighbor)?.terrain || "plains");
+      if (requiredTerrains.has(neighborTerrain)) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  const placeConstrainedForest = (count, requiredTerrains) => {
+    const requested = Math.max(0, Number(count) || 0);
+    let placed = 0;
+    if (requested <= 0) return 0;
+    const candidates = orderedCellsDesc.filter((cell) => {
+      const key = String(cell?.key || "").trim();
+      return key && !entriesByKey.has(key) && hasNeighborTerrain(key, requiredTerrains);
+    });
+    for (const cell of candidates) {
+      if (placed >= requested) break;
+      const maxNonPlainsAllowed = Math.max(0, remainingCells.length - reservedShore - placedNonPlainsSecondaryCount);
+      if (maxNonPlainsAllowed <= 0) break;
+      if (placeSecondaryTerrainCell("forest", cell)) {
+        placed += 1;
+      }
+    }
+    return placed;
+  };
+
+  const placeConstrainedTerrain = (terrain, count, requiredTerrains) => {
+    const requested = Math.max(0, Number(count) || 0);
+    let placed = 0;
+    if (requested <= 0) return 0;
+    const candidates = orderedCellsDesc.filter((cell) => {
+      const key = String(cell?.key || "").trim();
+      return key && !entriesByKey.has(key) && hasNeighborTerrain(key, requiredTerrains);
+    });
+    for (const cell of candidates) {
+      if (placed >= requested) break;
+      const maxNonPlainsAllowed = Math.max(0, remainingCells.length - reservedShore - placedNonPlainsSecondaryCount);
+      if (maxNonPlainsAllowed <= 0) break;
+      if (placeSecondaryTerrainCell(terrain, cell)) {
+        placed += 1;
+      }
+    }
+    return placed;
+  };
+
+  const roughWoodsTarget = Math.min(
+    Math.max(0, requestedRoughWoodsHexes),
+    Math.max(0, Number(explicitTerrainCounts.get("forest") || 0)),
+  );
+  placeConstrainedForest(roughWoodsTarget, new Set(["hills"]));
+
+  const wetWoodsTarget = Math.min(
+    Math.max(0, requestedWetWoodsHexes),
+    Math.max(0, Number(explicitTerrainCounts.get("forest") || 0)),
+  );
+  placeConstrainedForest(wetWoodsTarget, new Set(["swamp"]));
+
+  placeTerrainWithGlobalLimit("forest", explicitTerrainCounts.get("forest") || 0);
+
+  const volcanicTarget = Math.max(0, Number(explicitTerrainCounts.get("volcanic") || 0));
+  if (volcanicTarget > 0) {
+    const placedAdjacentMountain = placeConstrainedTerrain("volcanic", volcanicTarget, new Set(["mountain"]));
+    const remainingAfterMountain = Math.max(0, volcanicTarget - placedAdjacentMountain);
+    const placedAdjacentHills = placeConstrainedTerrain("volcanic", remainingAfterMountain, new Set(["hills"]));
+    const remainingVolcanic = Math.max(0, remainingAfterMountain - placedAdjacentHills);
+    if (remainingVolcanic > 0) {
+      placeTerrainWithGlobalLimit("volcanic", remainingVolcanic);
+    }
+  }
+
+  for (const [terrain, hexes] of secondaryTerrains) {
+    const requestedHexes = Math.max(0, Number(hexes) || 0);
+    if (requestedHexes <= 0 || ["plains", "hills", "swamp", "forest", "volcanic"].includes(terrain)) {
+      continue;
+    }
+    placeTerrainWithGlobalLimit(terrain, explicitTerrainCounts.get(terrain) || requestedHexes);
+  }
+
+  // Apply shoreline last so coastline follows the final land/water layout.
   const shoreCandidates = [];
   for (const cell of cells) {
     const key = String(cell?.key || "").trim();
-    if (!key || entriesByKey.has(key)) continue;
+    if (!key) continue;
+
+    const currentTerrain = String(entriesByKey.get(key)?.terrain || "plains");
+    if (currentTerrain !== "plains") {
+      continue;
+    }
+
     const neighborKeys = adjacency.byId.get(key)?.neighbors || [];
-    const waterNeighborCount = neighborKeys.reduce(
-      (count, neighborKey) => count + (waterKeys.has(neighborKey) ? 1 : 0),
-      0,
-    );
-    if (waterNeighborCount <= 0) continue;
-    shoreCandidates.push({ cell, waterNeighborCount, score: scoreByKey.get(key) || 0 });
+    let waterNeighborCount = 0;
+    let landNeighborCount = 0;
+    for (const neighborKey of Array.from(neighborKeys)) {
+      if (oceanKeys.has(String(neighborKey || "").trim())) {
+        waterNeighborCount += 1;
+        continue;
+      }
+      const neighborTerrain = String(entriesByKey.get(neighborKey)?.terrain || "plains");
+      if (neighborTerrain !== "island") {
+        landNeighborCount += 1;
+      }
+    }
+
+    if (waterNeighborCount <= 0 || landNeighborCount <= 0) {
+      continue;
+    }
+
+    shoreCandidates.push({
+      cell,
+      waterNeighborCount,
+      landNeighborCount,
+      score: scoreByKey.get(key) || 0,
+    });
   }
 
   shoreCandidates.sort((left, right) => {
     if (right.waterNeighborCount !== left.waterNeighborCount) {
       return right.waterNeighborCount - left.waterNeighborCount;
     }
+    if (right.landNeighborCount !== left.landNeighborCount) {
+      return right.landNeighborCount - left.landNeighborCount;
+    }
     return right.score - left.score;
   });
 
-  for (const { cell } of shoreCandidates.slice(0, shoreCount)) {
+  const hasStableLandNeighborForShore = (hexKey, selectedShoreKeys = new Set()) => {
+    const neighborKeys = adjacency.byId.get(hexKey)?.neighbors || [];
+    for (const neighborKey of Array.from(neighborKeys)) {
+      if (oceanKeys.has(String(neighborKey || "").trim())) {
+        continue;
+      }
+      const neighborTerrain = String(entriesByKey.get(neighborKey)?.terrain || "plains");
+      if (!["water", "shore", "island", "plains"].includes(neighborTerrain)) {
+        return true;
+      }
+      // Plains can anchor shoreline only when they are not selected as shore in the final state.
+      if (neighborTerrain === "plains" && !selectedShoreKeys.has(String(neighborKey || "").trim())) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  let placedShoreCount = 0;
+  const shoreCandidateKeys = new Set(shoreCandidates.map(({ cell }) => String(cell?.key || "").trim()).filter(Boolean));
+  const selectedShoreKeys = new Set();
+  for (const { cell } of shoreCandidates) {
+    if (placedShoreCount >= shoreCount) {
+      break;
+    }
     const key = String(cell?.key || "").trim();
     if (!key) continue;
+    const currentTerrain = String(entriesByKey.get(key)?.terrain || "plains");
+    if (currentTerrain !== "plains") {
+      continue;
+    }
+
+    const nextSelected = new Set(selectedShoreKeys);
+    nextSelected.add(key);
+
+    // Ensure the new shore hex and nearby already-selected shore hexes remain valid
+    // against the final selected shoreline set.
+    const impactedKeys = [key];
+    const neighborKeys = adjacency.byId.get(key)?.neighbors || [];
+    for (const neighborKey of Array.from(neighborKeys)) {
+      const normalizedNeighborKey = String(neighborKey || "").trim();
+      if (selectedShoreKeys.has(normalizedNeighborKey)) {
+        impactedKeys.push(normalizedNeighborKey);
+      }
+    }
+
+    const keepsStableLandAnchor = impactedKeys.every((candidateKey) =>
+      hasStableLandNeighborForShore(candidateKey, nextSelected),
+    );
+    if (!keepsStableLandAnchor) {
+      continue;
+    }
+
     entriesByKey.set(key, {
       points: normalizePoints(cell?.points || ""),
       terrain: "shore",
     });
-  }
-
-  const secondaryTerrains = countPlan.filter(([terrain]) => !["mountain", "water", "shore"].includes(terrain));
-  const remainingCells = [...cells].filter((cell) => {
-    const key = String(cell?.key || "").trim();
-    return key && !entriesByKey.has(key);
-  });
-  let secondaryCursor = 0;
-  for (const [terrain, hexes] of secondaryTerrains) {
-    for (let count = 0; count < hexes && secondaryCursor < remainingCells.length; count += 1) {
-      const cell = remainingCells[secondaryCursor];
-      secondaryCursor += 1;
-      const key = String(cell?.key || "").trim();
-      if (!key || entriesByKey.has(key)) continue;
-      entriesByKey.set(key, {
-        points: normalizePoints(cell?.points || ""),
-        terrain,
-      });
-    }
+    selectedShoreKeys.add(key);
+    shoreCandidateKeys.delete(key);
+    placedShoreCount += 1;
   }
 
   // Leave unassigned cells implicit to avoid generating massive overlay payloads
@@ -2423,8 +2992,15 @@ function applyOverlayPaintAtHex(key, points) {
     waterHexesBySize,
     shoreHexesBySize,
     flatlandHexesBySize,
+    islandHexesBySize,
+    hillsHexesBySize,
     forestBiomeHexesBySize,
     mountainHexesBySize,
+    volcanicHexesBySize,
+    iceCapHexesBySize,
+    glacierHexesBySize,
+    iceFieldHexesBySize,
+    frozenLandHexesBySize,
     desertHexesBySize,
     arcticBiomeHexesBySize,
     swampBiomeHexesBySize,
@@ -2457,8 +3033,15 @@ function applyOverlayPaintAtHex(key, points) {
   const targetByTerrain = {
     water: waterHexesBySize,
     plains: flatlandHexesBySize,
+    island: islandHexesBySize,
+    hills: hillsHexesBySize,
     forest: forestBiomeHexesBySize,
     mountain: mountainHexesBySize,
+    volcanic: volcanicHexesBySize,
+    icecap: iceCapHexesBySize,
+    glacier: glacierHexesBySize,
+    icefield: iceFieldHexesBySize,
+    frozenland: frozenLandHexesBySize,
     desert: desertHexesBySize,
     tundra: arcticBiomeHexesBySize,
     swamp: swampBiomeHexesBySize,
@@ -2488,8 +3071,15 @@ function applySurveyOverlayTerrainForSize(size, entriesByKey) {
     const water = new Map();
     const shore = new Map();
     const flatlands = new Map();
+    const islands = new Map();
     const forests = new Map();
+    const hills = new Map();
     const mountains = new Map();
+    const volcanic = new Map();
+    const iceCaps = new Map();
+    const glaciers = new Map();
+    const iceFields = new Map();
+    const frozenLands = new Map();
     const deserts = new Map();
     const arctic = new Map();
     const swamps = new Map();
@@ -2507,11 +3097,32 @@ function applySurveyOverlayTerrainForSize(size, entriesByKey) {
         case "plains":
           flatlands.set(key, payload);
           break;
+        case "island":
+          islands.set(key, payload);
+          break;
+        case "hills":
+          hills.set(key, payload);
+          break;
         case "forest":
           forests.set(key, payload);
           break;
         case "mountain":
           mountains.set(key, payload);
+          break;
+        case "volcanic":
+          volcanic.set(key, payload);
+          break;
+        case "icecap":
+          iceCaps.set(key, payload);
+          break;
+        case "glacier":
+          glaciers.set(key, payload);
+          break;
+        case "icefield":
+          iceFields.set(key, payload);
+          break;
+        case "frozenland":
+          frozenLands.set(key, payload);
           break;
         case "desert":
           deserts.set(key, payload);
@@ -2534,8 +3145,15 @@ function applySurveyOverlayTerrainForSize(size, entriesByKey) {
     setLayerMapForSize(waterHexesBySize, size, water);
     setLayerMapForSize(shoreHexesBySize, size, shore);
     setLayerMapForSize(flatlandHexesBySize, size, flatlands);
+    setLayerMapForSize(islandHexesBySize, size, islands);
+    setLayerMapForSize(hillsHexesBySize, size, hills);
     setLayerMapForSize(forestBiomeHexesBySize, size, forests);
     setLayerMapForSize(mountainHexesBySize, size, mountains);
+    setLayerMapForSize(volcanicHexesBySize, size, volcanic);
+    setLayerMapForSize(iceCapHexesBySize, size, iceCaps);
+    setLayerMapForSize(glacierHexesBySize, size, glaciers);
+    setLayerMapForSize(iceFieldHexesBySize, size, iceFields);
+    setLayerMapForSize(frozenLandHexesBySize, size, frozenLands);
     setLayerMapForSize(desertHexesBySize, size, deserts);
     setLayerMapForSize(arcticBiomeHexesBySize, size, arctic);
     setLayerMapForSize(swampBiomeHexesBySize, size, swamps);
@@ -2591,11 +3209,15 @@ const activeHexTagIndex = computed(() => {
     })(),
     layerHexMaps: [
       [flatlandHexesBySize.value.get(size), WORLD_HEX_TAGS.FLATLANDS],
+      [islandHexesBySize.value.get(size), WORLD_HEX_TAGS.ISLAND],
       [hillsHexesBySize.value.get(size), WORLD_HEX_TAGS.HILLS],
       [volcanicHexesBySize.value.get(size), WORLD_HEX_TAGS.VOLCANIC],
       [waterHexesBySize.value.get(size), WORLD_HEX_TAGS.WATER],
       [shoreHexesBySize.value.get(size), WORLD_HEX_TAGS.SHORELINE],
       [iceCapHexesBySize.value.get(size), WORLD_HEX_TAGS.ICE_CAP],
+      [glacierHexesBySize.value.get(size), WORLD_HEX_TAGS.GLACIER],
+      [iceFieldHexesBySize.value.get(size), WORLD_HEX_TAGS.ICE_FIELD],
+      [frozenLandHexesBySize.value.get(size), WORLD_HEX_TAGS.FROZEN_LANDS],
       [forestBiomeHexesBySize.value.get(size), WORLD_HEX_TAGS.FOREST],
       [swampBiomeHexesBySize.value.get(size), WORLD_HEX_TAGS.SWAMP],
       [arcticBiomeHexesBySize.value.get(size), WORLD_HEX_TAGS.ARCTIC],
@@ -2710,6 +3332,7 @@ const terrainHexTagPersistTimer = ref(null);
 const lastPersistedTerrainHexTagSignature = ref("");
 const terrainOverlayPersistTimer = ref(null);
 const hasUserInteractedWithTerrain = ref(false);
+const terrainRegenerationNonce = ref(0);
 
 function markTerrainUserInteraction() {
   hasUserInteractedWithTerrain.value = true;
@@ -3149,8 +3772,17 @@ const activeHillsHexEntries = computed(() => {
   );
 });
 
+const activeVolcanicHexEntries = computed(() => {
+  const mapForSize = volcanicHexesBySize.value.get(activeTerrainTemplateSize.value);
+  return toLayerEntries(mapForSize).filter((entry) =>
+    activeHexTagsByKey.value
+      .get(String(entry.logicalKey || entry.key || ""))
+      ?.terrainTags?.includes(WORLD_HEX_TAGS.VOLCANIC),
+  );
+});
+
 const activeIslandHexEntries = computed(() => {
-  const mapForSize = mountainHexesBySize.value.get(activeTerrainTemplateSize.value);
+  const mapForSize = islandHexesBySize.value.get(activeTerrainTemplateSize.value);
   return toLayerEntries(mapForSize).filter((entry) =>
     activeHexTagsByKey.value
       .get(String(entry.logicalKey || entry.key || ""))
@@ -3184,6 +3816,15 @@ const activeTundraHexEntries = computed(() => {
 const activeIceCapHexEntries = computed(() => {
   const mapForSize = iceCapHexesBySize.value.get(activeTerrainTemplateSize.value);
   return toLayerEntries(mapForSize);
+});
+
+const activeGlacierHexEntries = computed(() => {
+  const mapForSize = glacierHexesBySize.value.get(activeTerrainTemplateSize.value);
+  return toLayerEntries(mapForSize).filter((entry) =>
+    activeHexTagsByKey.value
+      .get(String(entry.logicalKey || entry.key || ""))
+      ?.terrainTags?.includes(WORLD_HEX_TAGS.GLACIER),
+  );
 });
 
 const activeCroplandHexEntries = computed(() => {
@@ -3245,6 +3886,84 @@ const activeTwilightZoneGuideLines = computed(() => {
   return twilightZoneGuideLinesBySize.value.get(activeTerrainTemplateSize.value) || [];
 });
 
+const activeLatitudeGuideLines = computed(() => {
+  const cells = activeHexCells.value;
+  if (!Array.isArray(cells) || !cells.length) {
+    return [];
+  }
+
+  const cyValues = cells.map((cell) => Number(cell?.cy)).filter(Number.isFinite);
+  if (!cyValues.length) {
+    return [];
+  }
+
+  const minY = Math.min(...cyValues);
+  const maxY = Math.max(...cyValues);
+  const halfSpan = Math.max(1, (maxY - minY) / 2);
+  const midY = (maxY + minY) / 2;
+  const bounds = parseViewBoxRect(activeViewBox.value);
+
+  const axialTilt = clamp(Number(selectedWorld.value?.axialTilt) || 0, 0, 90);
+  const tiltRatio = axialTilt / 90;
+  const tropicOffset = halfSpan * tiltRatio;
+  const arcticOffset = halfSpan * (1 - tiltRatio);
+
+  const lines = [
+    {
+      key: "equator",
+      type: "equator",
+      x1: bounds.minX,
+      x2: bounds.maxX,
+      y1: midY,
+      y2: midY,
+    },
+  ];
+
+  const tropicNorthY = midY - tropicOffset;
+  const tropicSouthY = midY + tropicOffset;
+  lines.push(
+    {
+      key: "tropic-north",
+      type: "tropic",
+      x1: bounds.minX,
+      x2: bounds.maxX,
+      y1: tropicNorthY,
+      y2: tropicNorthY,
+    },
+    {
+      key: "tropic-south",
+      type: "tropic",
+      x1: bounds.minX,
+      x2: bounds.maxX,
+      y1: tropicSouthY,
+      y2: tropicSouthY,
+    },
+  );
+
+  const arcticNorthY = midY - arcticOffset;
+  const arcticSouthY = midY + arcticOffset;
+  lines.push(
+    {
+      key: "arctic-north",
+      type: "arctic",
+      x1: bounds.minX,
+      x2: bounds.maxX,
+      y1: arcticNorthY,
+      y2: arcticNorthY,
+    },
+    {
+      key: "arctic-south",
+      type: "arctic",
+      x1: bounds.minX,
+      x2: bounds.maxX,
+      y1: arcticSouthY,
+      y2: arcticSouthY,
+    },
+  );
+
+  return lines;
+});
+
 const activeBakedLandHexEntries = computed(() => {
   const mapForSize = bakedLandHexesBySize.value.get(activeTerrainTemplateSize.value);
   return toLayerEntries(mapForSize);
@@ -3287,13 +4006,23 @@ const activeDomedCityHexMap = computed(() => {
   return domed;
 });
 
-const activeIceFieldHexEntries = computed(() =>
-  activeHexTagEntries.value.filter((entry) => entry.terrainTags?.includes(WORLD_HEX_TAGS.ICE_FIELD)),
-);
+const activeIceFieldHexEntries = computed(() => {
+  const mapForSize = iceFieldHexesBySize.value.get(activeTerrainTemplateSize.value);
+  return toLayerEntries(mapForSize).filter((entry) =>
+    activeHexTagsByKey.value
+      .get(String(entry.logicalKey || entry.key || ""))
+      ?.terrainTags?.includes(WORLD_HEX_TAGS.ICE_FIELD),
+  );
+});
 
-const activeFrozenLandHexEntries = computed(() =>
-  activeHexTagEntries.value.filter((entry) => entry.terrainTags?.includes(WORLD_HEX_TAGS.FROZEN_LANDS)),
-);
+const activeFrozenLandHexEntries = computed(() => {
+  const mapForSize = frozenLandHexesBySize.value.get(activeTerrainTemplateSize.value);
+  return toLayerEntries(mapForSize).filter((entry) =>
+    activeHexTagsByKey.value
+      .get(String(entry.logicalKey || entry.key || ""))
+      ?.terrainTags?.includes(WORLD_HEX_TAGS.FROZEN_LANDS),
+  );
+});
 
 const activeChasmHexEntries = computed(() => {
   const mapForSize = chasmHexesBySize.value.get(activeTerrainTemplateSize.value);
@@ -6139,7 +6868,6 @@ function clearWaterHexes() {
 
 function generateOceansStep() {
   markTerrainUserInteraction();
-  const size = activeTerrainTemplateSize.value;
   const cells = activeHexCells.value;
   if (!(cells?.length ?? 0)) {
     return;
@@ -6147,131 +6875,18 @@ function generateOceansStep() {
 
   const budgetMap = buildTerrainBudgetMapFromSurveyComposition();
   const requestedWater = Number(budgetMap.get("water") || 0);
-  const waterTarget = clamp(
-    requestedWater > 0 ? requestedWater : Math.round(cells.length * hydroTargetRatio.value),
-    0,
-    cells.length,
-  );
-
+  const targetCount = clamp(requestedWater, 0, cells.length);
   const seed = hashString(
-    `${String(worldInfo.value?.name || "")}|${systemInfo.value.hex}|${size}|ocean-step|${waterTarget}`,
+    `${String(worldInfo.value?.name || "")}|${systemInfo.value.hex}|${activeTerrainTemplateSize.value}|ocean-step|${targetCount}`,
   );
   const rand = mulberry32(seed);
-  const waterCells = buildRandomWaterCells(
-    cells.filter((cell) => String(cell?.key || "").trim()),
-    waterTarget,
-    rand,
-  );
 
-  const waterEntriesByKey = new Map();
-  for (const cell of waterCells) {
-    const key = String(cell?.key || "").trim();
-    if (!key) continue;
-    waterEntriesByKey.set(key, {
-      points: normalizePoints(cell?.points || ""),
-      terrain: "water",
-    });
-  }
-
-  // Route Ocean Step through the same batched overlay path used by survey apply
-  // to avoid large reactive churn from sequential layer resets/sets.
-  useSurveyOverlayHexes.value = true;
-  applySurveyOverlayTerrainForSize(size, waterEntriesByKey);
-  placeTectonicLines();
-  queueTerrainOverlayPersist();
-}
-
-function generateMountainsStep() {
-  markTerrainUserInteraction();
-  const size = activeTerrainTemplateSize.value;
-  if (!(activeHexCells.value?.length ?? 0)) {
-    return;
-  }
-
-  const preservedOceanTriangles = oceanTrianglesBySize.value.get(size) ? [...oceanTrianglesBySize.value.get(size)] : [];
-  const preservedOceanGroups = oceanGroupsBySize.value.get(size) ? [...oceanGroupsBySize.value.get(size)] : [];
-  const preservedShoreSegments = shoreSegmentsBySize.value.get(size) ? [...shoreSegmentsBySize.value.get(size)] : [];
-  const preservedWater = new Map(waterHexesBySize.value.get(size) || []);
-
-  const cells = activeHexCells.value;
-  const waterKeys = new Set(preservedWater.keys());
-  const eligibleMountainCells = cells.filter((cell) => {
-    const key = String(cell?.key || "").trim();
-    return key && !waterKeys.has(key);
+  applyBudgetedTerrainStep("water", targetCount, {
+    orderCells: (eligibleCells) => buildRandomWaterCells(eligibleCells, eligibleCells.length, rand),
   });
-
-  const budgetMap = buildTerrainBudgetMapFromSurveyComposition();
-  const plateHint = Number(
-    selectedWorld.value?.majorTectonicPlates || selectedWorld.value?.seismology?.majorTectonicPlates || 0,
-  );
-  const inferredMountainTarget = Math.max(1, Math.min(eligibleMountainCells.length, 1 + Math.max(0, plateHint)));
-  const requestedMountain = Number(budgetMap.get("mountain") || 0);
-  const mountainTarget = clamp(
-    requestedMountain > 0 ? requestedMountain : inferredMountainTarget,
-    0,
-    eligibleMountainCells.length,
-  );
-
-  const seed = hashString(
-    `${String(worldInfo.value?.name || "")}|${systemInfo.value.hex}|${size}|mountain-step|${mountainTarget}`,
-  );
-  const rand = mulberry32(seed);
-  const mountains = new Map();
-  for (const cell of buildRandomWaterCells(eligibleMountainCells, mountainTarget, rand)) {
-    const key = String(cell?.key || "").trim();
-    if (!key) continue;
-    mountains.set(key, {
-      points: normalizePoints(cell?.points || ""),
-      cx: cell?.cx,
-      cy: cell?.cy,
-    });
-  }
-
-  const cellsByKey = new Map(cells.map((cell) => [String(cell?.key || "").trim(), cell]));
-  const entriesByKey = new Map();
-
-  for (const [key, value] of preservedWater.entries()) {
-    const normalizedKey = String(key || "").trim();
-    if (!normalizedKey) continue;
-    const points = normalizePoints(value?.points || cellsByKey.get(normalizedKey)?.points || "");
-    if (!points) continue;
-    entriesByKey.set(normalizedKey, {
-      points,
-      terrain: "water",
-    });
-  }
-
-  for (const [key, value] of mountains.entries()) {
-    const normalizedKey = String(key || "").trim();
-    if (!normalizedKey) continue;
-    const points = normalizePoints(value?.points || cellsByKey.get(normalizedKey)?.points || "");
-    if (!points) continue;
-    entriesByKey.set(normalizedKey, {
-      points,
-      terrain: "mountain",
-    });
-  }
-
-  useSurveyOverlayHexes.value = true;
-  applySurveyOverlayTerrainForSize(size, entriesByKey);
-
-  if (preservedOceanTriangles.length) {
-    setLayerMapForSize(oceanTrianglesBySize, size, preservedOceanTriangles);
-  }
-  if (preservedOceanGroups.length) {
-    setLayerMapForSize(oceanGroupsBySize, size, preservedOceanGroups);
-  }
-  if (preservedShoreSegments.length) {
-    setLayerMapForSize(shoreSegmentsBySize, size, preservedShoreSegments);
-  }
-
-  setLayerMapForSize(mountainHexesBySize, size, mountains);
-  placeTectonicLines();
-  queueTerrainOverlayPersist();
 }
 
-function generateShoresStep() {
-  markTerrainUserInteraction();
+function applyBudgetedTerrainStep(terrain, requestedCount, options = {}) {
   const size = activeTerrainTemplateSize.value;
   const cells = activeHexCells.value;
   if (!(cells?.length ?? 0)) {
@@ -6281,73 +6896,45 @@ function generateShoresStep() {
   const preservedOceanTriangles = oceanTrianglesBySize.value.get(size) ? [...oceanTrianglesBySize.value.get(size)] : [];
   const preservedOceanGroups = oceanGroupsBySize.value.get(size) ? [...oceanGroupsBySize.value.get(size)] : [];
   const preservedShoreSegments = shoreSegmentsBySize.value.get(size) ? [...shoreSegmentsBySize.value.get(size)] : [];
-  const preservedWater = new Map(waterHexesBySize.value.get(size) || []);
-  const preservedMountains = new Map(mountainHexesBySize.value.get(size) || []);
-  const waterKeys = new Set(preservedWater.keys());
-  const mountainKeys = new Set(preservedMountains.keys());
-  const eligibleShoreCells = cells.filter((cell) => {
-    const key = String(cell?.key || "").trim();
-    return key && !waterKeys.has(key) && !mountainKeys.has(key);
-  });
 
-  const budgetMap = buildTerrainBudgetMapFromSurveyComposition();
-  const shoreBudget = Number(budgetMap.get("shore") || 0);
-  const inferredShoreTarget = Math.max(1, Math.round(waterKeys.size * 0.35));
-  const shoreTarget =
-    shoreBudget > 0
-      ? Math.min(eligibleShoreCells.length, shoreBudget)
-      : Math.min(eligibleShoreCells.length, inferredShoreTarget);
-
-  const seed = hashString(
-    `${String(worldInfo.value?.name || "")}|${systemInfo.value.hex}|${size}|shore-step|${shoreTarget}`,
-  );
-  const rand = mulberry32(seed);
-  const placedShores = new Map();
-
-  for (const cell of buildRandomWaterCells(eligibleShoreCells, shoreTarget, rand)) {
-    const key = String(cell?.key || "").trim();
-    if (!key) continue;
-    placedShores.set(key, {
-      points: normalizePoints(cell?.points || ""),
-      cx: cell?.cx,
-      cy: cell?.cy,
-    });
-  }
-
-  const cellsByKey = new Map(cells.map((cell) => [String(cell?.key || "").trim(), cell]));
   const entriesByKey = new Map();
-
-  for (const [key, value] of preservedWater.entries()) {
-    const normalizedKey = String(key || "").trim();
-    if (!normalizedKey) continue;
-    const points = normalizePoints(value?.points || cellsByKey.get(normalizedKey)?.points || "");
-    if (!points) continue;
-    entriesByKey.set(normalizedKey, {
-      points,
-      terrain: "water",
+  const currentEntriesByKey = buildOverlayEntriesByKeyFromCurrentLayers(size);
+  for (const [key, entry] of currentEntriesByKey.entries()) {
+    if (entry?.terrain === terrain) {
+      continue;
+    }
+    entriesByKey.set(key, {
+      points: normalizePoints(entry?.points || ""),
+      terrain: entry?.terrain,
     });
   }
 
-  for (const [key, value] of preservedMountains.entries()) {
-    const normalizedKey = String(key || "").trim();
-    if (!normalizedKey) continue;
-    const points = normalizePoints(value?.points || cellsByKey.get(normalizedKey)?.points || "");
-    if (!points) continue;
-    entriesByKey.set(normalizedKey, {
-      points,
-      terrain: "mountain",
+  const cappedCount = clamp(Number(requestedCount) || 0, 0, cells.length);
+  if (cappedCount > 0) {
+    const occupiedKeys = new Set(entriesByKey.keys());
+    const eligibleCells = cells.filter((cell) => {
+      const key = String(cell?.key || "").trim();
+      if (!key || occupiedKeys.has(key)) {
+        return false;
+      }
+      if (typeof options.predicate === "function") {
+        return options.predicate(cell, { entriesByKey, cells });
+      }
+      return true;
     });
-  }
 
-  for (const [key, value] of placedShores.entries()) {
-    const normalizedKey = String(key || "").trim();
-    if (!normalizedKey) continue;
-    const points = normalizePoints(value?.points || cellsByKey.get(normalizedKey)?.points || "");
-    if (!points) continue;
-    entriesByKey.set(normalizedKey, {
-      points,
-      terrain: "shore",
-    });
+    const selectionPool =
+      typeof options.orderCells === "function"
+        ? options.orderCells(eligibleCells, { entriesByKey, cells })
+        : eligibleCells;
+    for (const cell of selectionPool.slice(0, Math.min(cappedCount, selectionPool.length))) {
+      const key = String(cell?.key || "").trim();
+      if (!key || entriesByKey.has(key)) continue;
+      entriesByKey.set(key, {
+        points: normalizePoints(cell?.points || ""),
+        terrain,
+      });
+    }
   }
 
   useSurveyOverlayHexes.value = true;
@@ -6367,51 +6954,114 @@ function generateShoresStep() {
   queueTerrainOverlayPersist();
 }
 
+function generateMountainsStep() {
+  markTerrainUserInteraction();
+  const budgetMap = buildTerrainBudgetMapFromSurveyComposition();
+  const requestedMountain = Number(budgetMap.get("mountain") || 0);
+  applyBudgetedTerrainStep("mountain", requestedMountain);
+}
+
+function generateVolcanoStep() {
+  markTerrainUserInteraction();
+  const budgetMap = buildTerrainBudgetMapFromSurveyComposition();
+  const requestedVolcanic = Number(budgetMap.get("volcanic") || 0);
+  applyBudgetedTerrainStep("volcanic", requestedVolcanic);
+}
+
+function generateShoresStep() {
+  markTerrainUserInteraction();
+  const budgetMap = buildTerrainBudgetMapFromSurveyComposition();
+  const shoreBudget = Number(budgetMap.get("shore") || 0);
+  const size = activeTerrainTemplateSize.value;
+  const cells = activeHexCells.value;
+  const waterKeys = new Set(waterHexesBySize.value.get(size)?.keys() || []);
+  const terrainEntriesByKey = buildOverlayEntriesByKeyFromCurrentLayers(size);
+  const adjacency = buildHexAdjacencyGraph(cells);
+  const cellKeys = new Set(cells.map((cell) => String(cell?.key || "").trim()).filter(Boolean));
+
+  applyBudgetedTerrainStep("shore", shoreBudget, {
+    predicate: (cell) => {
+      const key = String(cell?.key || "").trim();
+      if (!key) return false;
+      const neighbors = adjacency.byId.get(key)?.neighbors || new Set();
+      let hasWaterNeighbor = false;
+      let hasLandNeighbor = false;
+      for (const neighborKey of neighbors) {
+        if (waterKeys.has(neighborKey)) {
+          hasWaterNeighbor = true;
+          continue;
+        }
+        const neighborTerrain = String(terrainEntriesByKey.get(neighborKey)?.terrain || "plains");
+        if (cellKeys.has(neighborKey) && neighborTerrain !== "island") {
+          hasLandNeighbor = true;
+        }
+      }
+      return hasWaterNeighbor && hasLandNeighbor;
+    },
+    orderCells: (eligibleCells) => {
+      const withWeight = eligibleCells.map((cell) => {
+        const key = String(cell?.key || "").trim();
+        const neighbors = adjacency.byId.get(key)?.neighbors || new Set();
+        let waterNeighborCount = 0;
+        let landNeighborCount = 0;
+        for (const neighborKey of neighbors) {
+          if (waterKeys.has(neighborKey)) {
+            waterNeighborCount += 1;
+            continue;
+          }
+          const neighborTerrain = String(terrainEntriesByKey.get(neighborKey)?.terrain || "plains");
+          if (cellKeys.has(neighborKey) && neighborTerrain !== "island") {
+            landNeighborCount += 1;
+          }
+        }
+        return { cell, waterNeighborCount, landNeighborCount };
+      });
+
+      withWeight.sort((left, right) => {
+        if (right.waterNeighborCount !== left.waterNeighborCount) {
+          return right.waterNeighborCount - left.waterNeighborCount;
+        }
+        return right.landNeighborCount - left.landNeighborCount;
+      });
+      return withWeight.map((entry) => entry.cell);
+    },
+  });
+}
+
 function generateIceCapsStep() {
   markTerrainUserInteraction();
-  if (!(activeHexCells.value?.length ?? 0)) {
-    return;
-  }
-
-  useSurveyOverlayHexes.value = true;
-  placeIceCapHexes();
-  queueTerrainOverlayPersist();
+  const budgetMap = buildTerrainBudgetMapFromSurveyComposition();
+  const requestedIceCaps = Number(budgetMap.get("icecap") || budgetMap.get("tundra") || 0);
+  applyBudgetedTerrainStep("icecap", requestedIceCaps);
 }
 
 function generateDesertStep() {
   markTerrainUserInteraction();
-  if (!(activeHexCells.value?.length ?? 0)) {
-    return;
-  }
-
-  useSurveyOverlayHexes.value = true;
-  placeDesertHexes();
-  queueTerrainOverlayPersist();
+  const budgetMap = buildTerrainBudgetMapFromSurveyComposition();
+  const requestedDesert = Number(budgetMap.get("desert") || 0);
+  applyBudgetedTerrainStep("desert", requestedDesert);
 }
 
 function generateForestStep() {
   markTerrainUserInteraction();
-  if (!(activeHexCells.value?.length ?? 0)) {
-    return;
-  }
-
-  useSurveyOverlayHexes.value = true;
-  placeLatitudeBiomes();
-  queueTerrainOverlayPersist();
+  const budgetMap = buildTerrainBudgetMapFromSurveyComposition();
+  const requestedForest = Number(budgetMap.get("forest") || 0);
+  applyBudgetedTerrainStep("forest", requestedForest);
 }
 
 function generateTerrain() {
-  // Clean generation path: seed explicit overlay entries from Terrain Survey composition,
-  // then fall back to hydro-driven water/plains seeding when composition detail is absent.
-  if (applyTerrainSurveyToMap()) {
-    return;
+  // Regenerate terrain from scratch using survey-card composition counts.
+  markTerrainUserInteraction();
+  const size = activeTerrainTemplateSize.value;
+  resetTerrainLayersForSize(size);
+  useSurveyOverlayHexes.value = false;
+  terrainRegenerationNonce.value += 1;
+  const regenerated = applyTerrainSurveyToMap({
+    seedSalt: `regen-${terrainRegenerationNonce.value}`,
+  });
+  if (!regenerated) {
+    queueTerrainOverlayPersist();
   }
-  generateOceansStep();
-  generateMountainsStep();
-  generateShoresStep();
-  placeIceCapHexes();
-  placeDesertHexes();
-  placeLatitudeBiomes();
 }
 
 function handleMapClick(event) {

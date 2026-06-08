@@ -4,7 +4,7 @@
  * Derives a terrain hex composition for a terrestrial world using a standard
  * icosahedral world map.
  *
- * Method 2 uses world-size-based hex totals (10*n^2+2 where n is world size).
+ * Uses exact unique-hex totals from the in-app world map templates per size.
  * When size cannot be resolved, this falls back to Method 1's 490-hex map.
  *
  * NOTE: the old Method 1 simplification (5 hexes ≈ 1% of world surface area)
@@ -17,6 +17,21 @@
 /** Total hexes on a standard 490-hex world map (WBH Method 1). */
 const STANDARD_MAP_HEXES = 490;
 
+// Exact unique logical-hex counts derived from frontend SVG templates.
+const TEMPLATE_UNIQUE_HEXES_BY_SIZE = {
+  1: 14,
+  2: 41,
+  3: 90,
+  4: 188,
+  5: 250,
+  6: 356,
+  7: 486,
+  8: 633,
+  9: 804,
+  10: 983,
+  11: 1117,
+};
+
 function resolveTotalMapHexes(sizeCode) {
   const normalized = String(sizeCode ?? "")
     .trim()
@@ -25,7 +40,7 @@ function resolveTotalMapHexes(sizeCode) {
   if (!Number.isFinite(size) || size <= 0) {
     return STANDARD_MAP_HEXES;
   }
-  return 10 * size * size + 2;
+  return TEMPLATE_UNIQUE_HEXES_BY_SIZE[size] || STANDARD_MAP_HEXES;
 }
 
 /**
@@ -58,6 +73,102 @@ function clamp(value, min, max) {
  */
 function safeRound(value) {
   return Math.max(0, Math.round(value));
+}
+
+function normalizeOceanIslandShoreOnlyHexCounts(hexCounts = []) {
+  const entries = Array.isArray(hexCounts) ? [...hexCounts] : [];
+  const normalizedType = (value) =>
+    String(value ?? "")
+      .trim()
+      .toLowerCase();
+  const allowed = new Set(["ocean", "shore", "islands"]);
+  const positiveEntries = entries.filter((entry) => Number(entry?.hexes) > 0);
+
+  if (!positiveEntries.length) {
+    return entries;
+  }
+
+  const isOceanIslandShoreOnly = positiveEntries.every((entry) => allowed.has(normalizedType(entry?.type)));
+  if (!isOceanIslandShoreOnly) {
+    return entries;
+  }
+
+  const shoreHexes = positiveEntries
+    .filter((entry) => normalizedType(entry?.type) === "shore")
+    .reduce((sum, entry) => sum + Math.max(0, Number(entry?.hexes) || 0), 0);
+
+  if (shoreHexes <= 0) {
+    return entries;
+  }
+
+  const withoutShore = entries.filter((entry) => normalizedType(entry?.type) !== "shore");
+  const islandEntry = withoutShore.find((entry) => normalizedType(entry?.type) === "islands");
+  if (islandEntry) {
+    islandEntry.hexes = Math.max(0, Number(islandEntry.hexes) || 0) + shoreHexes;
+  } else {
+    withoutShore.push({ type: "Islands", hexes: shoreHexes, category: "water" });
+  }
+
+  return withoutShore;
+}
+
+function normalizeHexCountsToTotal(hexCounts = [], totalMapHexes = 0) {
+  const target = Math.max(0, Number(totalMapHexes) || 0);
+  const entries = (Array.isArray(hexCounts) ? hexCounts : []).map((entry) => ({
+    ...entry,
+    hexes: Math.max(0, Number(entry?.hexes) || 0),
+  }));
+
+  const normalizeType = (value) =>
+    String(value ?? "")
+      .trim()
+      .toLowerCase();
+
+  const total = entries.reduce((sum, entry) => sum + entry.hexes, 0);
+  if (total === target) {
+    return entries;
+  }
+
+  if (total < target) {
+    const deficit = target - total;
+    const clearEntry = entries.find((entry) => {
+      const type = normalizeType(entry?.type);
+      return type === "clear" || type === "plains";
+    });
+
+    if (clearEntry) {
+      clearEntry.hexes += deficit;
+    } else if (deficit > 0) {
+      entries.push({ type: "Clear", hexes: deficit, category: "plains" });
+    }
+
+    return entries;
+  }
+
+  let overage = total - target;
+  const clearEntry = entries.find((entry) => {
+    const type = normalizeType(entry?.type);
+    return type === "clear" || type === "plains";
+  });
+
+  if (clearEntry && overage > 0) {
+    const delta = Math.min(clearEntry.hexes, overage);
+    clearEntry.hexes -= delta;
+    overage -= delta;
+  }
+
+  if (overage > 0) {
+    const byDescendingHexes = [...entries].sort((left, right) => right.hexes - left.hexes);
+    for (const entry of byDescendingHexes) {
+      if (overage <= 0) break;
+      if (entry.hexes <= 0) continue;
+      const delta = Math.min(entry.hexes, overage);
+      entry.hexes -= delta;
+      overage -= delta;
+    }
+  }
+
+  return entries.filter((entry) => entry.hexes > 0);
 }
 
 // ---------------------------------------------------------------------------
@@ -229,6 +340,31 @@ export function generateMainworldTerrainComposition(params = {}) {
       // Wet woods adjacent to wetlands
       wetWoodsHexes = safeRound(wetlandHexes * 0.5);
     }
+
+    // Preserve WBH subtype variety on small maps where rounding can collapse
+    // vegetation subtypes to zero even when climate supports them.
+    if (forestHexes > 1 && roughWoodsHexes <= 0) {
+      roughWoodsHexes = 1;
+      forestHexes = Math.max(0, forestHexes - 1);
+    }
+
+    if (hydro >= 5 && avgTempC >= 0 && avgTempC <= 35) {
+      if (wetlandHexes <= 0 && forestHexes > 0) {
+        wetlandHexes = 1;
+        forestHexes = Math.max(0, forestHexes - 1);
+      }
+
+      if (wetlandHexes > 0 && wetWoodsHexes <= 0 && forestHexes > 0) {
+        wetWoodsHexes = 1;
+        forestHexes = Math.max(0, forestHexes - 1);
+      }
+    }
+
+    // Keep at least one core woods hex when vegetation exists.
+    if (forestHexes <= 0 && roughWoodsHexes > 0) {
+      roughWoodsHexes = Math.max(0, roughWoodsHexes - 1);
+      forestHexes = 1;
+    }
   }
 
   // -----------------------------------------------------------------------
@@ -300,8 +436,8 @@ export function generateMainworldTerrainComposition(params = {}) {
   push("Ocean", oceanHexes, "water");
   push("Shore", shoreHexes, "water");
   push("Islands", islandHexes, "water");
-  push("River", safeRound(lakeRiverHexes * 0.5), "water");
-  push("Lake", safeRound(lakeRiverHexes * 0.5), "water");
+  // Rivers are represented as lake hexes for survey/map budgeting.
+  push("Lake", lakeRiverHexes, "water");
 
   // Ice
   push("Icecap", icecapHexes, "ice");
@@ -332,8 +468,12 @@ export function generateMainworldTerrainComposition(params = {}) {
   // -----------------------------------------------------------------------
   // Total and percent
   // -----------------------------------------------------------------------
-  const assignedHexes = hexCounts.reduce((s, e) => s + e.hexes, 0);
-  const withPercent = hexCounts.map((e) => ({
+  const normalizedHexCounts = normalizeHexCountsToTotal(
+    normalizeOceanIslandShoreOnlyHexCounts(hexCounts),
+    totalMapHexes,
+  );
+  const assignedHexes = normalizedHexCounts.reduce((s, e) => s + e.hexes, 0);
+  const withPercent = normalizedHexCounts.map((e) => ({
     ...e,
     percent: Number(((e.hexes / totalMapHexes) * 100).toFixed(1)),
   }));

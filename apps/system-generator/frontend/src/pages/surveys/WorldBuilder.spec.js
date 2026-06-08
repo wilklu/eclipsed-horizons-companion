@@ -198,6 +198,121 @@ describe("WorldBuilder", () => {
     expect(badges[1].attributes("title")).toContain("Low Technology");
   });
 
+  it("shows Hills and Plains labels on the Terrain Survey card when source data uses Rough and Clear", async () => {
+    const profiledSystem = createSystemRecord();
+    profiledSystem.planets = [
+      {
+        ...profiledSystem.planets[0],
+        terrainComposition: {
+          surfaceProfile: ["Hydrographics profile generated"],
+          hexCounts: [
+            { type: "Rough", hexes: 5, percent: "25" },
+            { type: "Clear", hexes: 7, percent: "35" },
+          ],
+          assignedHexes: 12,
+          totalMapHexes: 20,
+        },
+      },
+    ];
+    systemStoreState.systems = [profiledSystem];
+    systemStoreState.getCurrentSystem = profiledSystem;
+
+    const wrapper = mount(WorldBuilder, {
+      global: {
+        stubs: {
+          LoadingSpinner: { template: "<div data-test='loading-spinner' />" },
+          SurveyNavigation: { template: "<div data-test='survey-navigation' />" },
+        },
+      },
+    });
+
+    await flushPromises();
+    await flushPromises();
+
+    const text = wrapper.text();
+    expect(text).toContain("Hills:");
+    expect(text).toContain("Plains:");
+    expect(text).not.toContain("Rough:");
+    expect(text).not.toContain("Clear:");
+  });
+
+  it("converts Shore into Islands on the Terrain Survey card when only Ocean, Shore, and Islands are present", async () => {
+    const profiledSystem = createSystemRecord();
+    profiledSystem.planets = [
+      {
+        ...profiledSystem.planets[0],
+        terrainComposition: {
+          surfaceProfile: ["Oceanic world"],
+          hexCounts: [
+            { type: "Ocean", hexes: 30, percent: "71" },
+            { type: "Shore", hexes: 4, percent: "10" },
+            { type: "Islands", hexes: 8, percent: "19" },
+          ],
+          assignedHexes: 42,
+          totalMapHexes: 42,
+        },
+      },
+    ];
+    systemStoreState.systems = [profiledSystem];
+    systemStoreState.getCurrentSystem = profiledSystem;
+
+    const wrapper = mount(WorldBuilder, {
+      global: {
+        stubs: {
+          LoadingSpinner: { template: "<div data-test='loading-spinner' />" },
+          SurveyNavigation: { template: "<div data-test='survey-navigation' />" },
+        },
+      },
+    });
+
+    await flushPromises();
+    await flushPromises();
+
+    const text = wrapper.text();
+    expect(text).toContain("Ocean:");
+    expect(text).toContain("Islands:");
+    expect(text).toContain("12 hexes");
+    expect(text).not.toContain("Shore:");
+  });
+
+  it("merges River into Lake on the Terrain Survey card", async () => {
+    const profiledSystem = createSystemRecord();
+    profiledSystem.planets = [
+      {
+        ...profiledSystem.planets[0],
+        terrainComposition: {
+          surfaceProfile: ["Inland water network"],
+          hexCounts: [
+            { type: "River", hexes: 3, percent: "1" },
+            { type: "Lake", hexes: 2, percent: "1" },
+            { type: "Clear", hexes: 15, percent: "8" },
+          ],
+          assignedHexes: 20,
+          totalMapHexes: 250,
+        },
+      },
+    ];
+    systemStoreState.systems = [profiledSystem];
+    systemStoreState.getCurrentSystem = profiledSystem;
+
+    const wrapper = mount(WorldBuilder, {
+      global: {
+        stubs: {
+          LoadingSpinner: { template: "<div data-test='loading-spinner' />" },
+          SurveyNavigation: { template: "<div data-test='survey-navigation' />" },
+        },
+      },
+    });
+
+    await flushPromises();
+    await flushPromises();
+
+    const text = wrapper.text();
+    expect(text).toContain("Lake:");
+    expect(text).toContain("5 hexes");
+    expect(text).not.toContain("River:");
+  });
+
   it("keeps stale census values at the uninhabited baseline when native sophont life is absent", async () => {
     const staleSystem = createSystemRecord();
     staleSystem.planets = [

@@ -345,34 +345,34 @@
           </section>
 
           <section
-            v-if="!isGasGiantSurvey && world.terrainComposition?.hexCounts?.length"
+            v-if="!isGasGiantSurvey && normalizedTerrainComposition?.hexCounts?.length"
             class="world-section world-section--compact"
           >
             <div class="section-header">
               <h3>🗺️ Terrain Survey</h3>
             </div>
             <div class="prop-list">
-              <div class="prop-row" v-for="note in world.terrainComposition.surfaceProfile" :key="note">
+              <div class="prop-row" v-for="note in normalizedTerrainComposition.surfaceProfile" :key="note">
                 <span class="prop-value">{{ note }}</span>
               </div>
             </div>
             <div class="prop-list" style="margin-top: 0.5rem">
-              <div class="prop-row" v-for="entry in world.terrainComposition.hexCounts" :key="entry.type">
-                <span class="prop-label">{{ entry.type }}:</span>
+              <div class="prop-row" v-for="entry in normalizedTerrainComposition.hexCounts" :key="entry.type">
+                <span class="prop-label">{{ formatTerrainSurveyTypeLabel(entry.type) }}:</span>
                 <span class="prop-value">{{ entry.hexes }} hexes ({{ entry.percent }}%)</span>
               </div>
               <div class="prop-row">
                 <span class="prop-label">Total assigned:</span>
                 <span class="prop-value"
-                  >{{ world.terrainComposition.assignedHexes }} /
-                  {{ world.terrainComposition.totalMapHexes }} hexes</span
+                  >{{ normalizedTerrainComposition.assignedHexes }} /
+                  {{ normalizedTerrainComposition.totalMapHexes }} hexes</span
                 >
               </div>
             </div>
           </section>
 
           <section
-            v-if="!isGasGiantSurvey && world.terrainComposition?.hexCounts?.length"
+            v-if="!isGasGiantSurvey && normalizedTerrainComposition?.hexCounts?.length"
             class="world-section world-section--full"
           >
             <div class="section-header">
@@ -382,7 +382,7 @@
               </button>
             </div>
             <WorldSvgMapForm
-              :terrainSeed="world.terrainComposition"
+              :terrainSeed="normalizedTerrainComposition"
               :seedWorldName="world.name"
               :seedUwp="world.uwp"
               :seedWorldSize="world.size"
@@ -996,6 +996,10 @@ const showBiosocialSurveySections = computed(() => {
   return !isBiosocialSurveyExcludedWorldType(activeWorldType.value);
 });
 
+const normalizedTerrainComposition = computed(() => {
+  return normalizeTerrainSurveyComposition(world.value?.terrainComposition);
+});
+
 const worldPhysicalSurveyButtonLabel = computed(() => {
   return isGasGiantSurvey.value ? "Open Gas Giant Survey" : "Open World Survey";
 });
@@ -1220,6 +1224,94 @@ function formatNativeLifeRating(profile, index, kind) {
     return describeNativeLifeRating(kind, "0");
   }
   return describeNativeLifeRating(kind, digits.charAt(index));
+}
+
+function formatTerrainSurveyTypeLabel(type) {
+  const normalized = String(type || "")
+    .trim()
+    .toLowerCase();
+  if (normalized === "rough") return "Hills";
+  if (normalized === "clear") return "Plains";
+  return String(type || "Unknown");
+}
+
+function normalizeTerrainSurveyComposition(composition) {
+  if (!composition || typeof composition !== "object") {
+    return null;
+  }
+
+  const sourceHexCounts = Array.isArray(composition.hexCounts) ? composition.hexCounts : [];
+  const normalizedHexCounts = normalizeOceanIslandShoreOnlyHexCounts(mergeRiverHexesIntoLakes(sourceHexCounts)).map(
+    (entry) => ({ ...entry }),
+  );
+  const assignedHexes = normalizedHexCounts.reduce((sum, entry) => sum + Math.max(0, Number(entry?.hexes) || 0), 0);
+
+  return {
+    ...composition,
+    hexCounts: normalizedHexCounts,
+    assignedHexes,
+  };
+}
+
+function mergeRiverHexesIntoLakes(hexCounts = []) {
+  const entries = Array.isArray(hexCounts) ? hexCounts.map((entry) => ({ ...entry })) : [];
+  const normalizeType = (value) =>
+    String(value ?? "")
+      .trim()
+      .toLowerCase();
+
+  const riverHexes = entries
+    .filter((entry) => normalizeType(entry?.type) === "river")
+    .reduce((sum, entry) => sum + Math.max(0, Number(entry?.hexes) || 0), 0);
+
+  const withoutRiver = entries.filter((entry) => normalizeType(entry?.type) !== "river");
+  if (riverHexes <= 0) {
+    return withoutRiver;
+  }
+
+  const lakeEntry = withoutRiver.find((entry) => normalizeType(entry?.type) === "lake");
+  if (lakeEntry) {
+    lakeEntry.hexes = Math.max(0, Number(lakeEntry.hexes) || 0) + riverHexes;
+  } else {
+    withoutRiver.push({ type: "Lake", hexes: riverHexes, percent: 0, category: "water" });
+  }
+
+  return withoutRiver;
+}
+
+function normalizeOceanIslandShoreOnlyHexCounts(hexCounts = []) {
+  const entries = Array.isArray(hexCounts) ? [...hexCounts] : [];
+  const normalizeType = (value) =>
+    String(value ?? "")
+      .trim()
+      .toLowerCase();
+  const positiveEntries = entries.filter((entry) => Number(entry?.hexes) > 0);
+  if (!positiveEntries.length) {
+    return entries;
+  }
+
+  const allowed = new Set(["ocean", "shore", "islands"]);
+  const isOceanIslandShoreOnly = positiveEntries.every((entry) => allowed.has(normalizeType(entry?.type)));
+  if (!isOceanIslandShoreOnly) {
+    return entries;
+  }
+
+  const shoreHexes = positiveEntries
+    .filter((entry) => normalizeType(entry?.type) === "shore")
+    .reduce((sum, entry) => sum + Math.max(0, Number(entry?.hexes) || 0), 0);
+  if (shoreHexes <= 0) {
+    return entries;
+  }
+
+  const withoutShore = entries.filter((entry) => normalizeType(entry?.type) !== "shore").map((entry) => ({ ...entry }));
+  const islandsEntry = withoutShore.find((entry) => normalizeType(entry?.type) === "islands");
+  if (islandsEntry) {
+    islandsEntry.hexes = Math.max(0, Number(islandsEntry.hexes) || 0) + shoreHexes;
+  } else {
+    withoutShore.push({ type: "Islands", hexes: shoreHexes, percent: 0, category: "water" });
+  }
+
+  return withoutShore;
 }
 
 function resolveNativeSophontState(worldRecord = {}) {

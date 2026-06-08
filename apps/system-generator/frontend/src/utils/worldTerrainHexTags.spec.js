@@ -212,4 +212,38 @@ describe("worldTerrainHexTags", () => {
       hasBiomeTags: true,
     });
   });
+
+  it("applies a fallback terrain label so every hex is terrain-tagged", () => {
+    const temperate = buildWorldHexTagIndex({
+      cells: [{ key: "hex-no-face", faceId: "", points: "0,0" }],
+      topologyGraph: { triangles: [] },
+      oceanTriangleIds: [],
+      layerHexMaps: [],
+      frozenWorld: false,
+    });
+
+    expect(temperate.byKey.get("hex-no-face")).toMatchObject({
+      tags: [WORLD_HEX_TAGS.CONTINENT],
+      terrainTags: [WORLD_HEX_TAGS.CONTINENT],
+      terrainClass: WORLD_HEX_TERRAIN_CLASSES.OPEN_FLAT,
+      biomeTags: [WORLD_HEX_BIOMES.PLAINS],
+      hasTerrainTags: true,
+    });
+
+    const frozen = buildWorldHexTagIndex({
+      cells: [{ key: "hex-no-face-frozen", faceId: "", points: "1,1" }],
+      topologyGraph: { triangles: [] },
+      oceanTriangleIds: [],
+      layerHexMaps: [],
+      frozenWorld: true,
+    });
+
+    expect(frozen.byKey.get("hex-no-face-frozen")).toMatchObject({
+      tags: [WORLD_HEX_TAGS.FROZEN_LANDS],
+      terrainTags: [WORLD_HEX_TAGS.FROZEN_LANDS],
+      terrainClass: WORLD_HEX_TERRAIN_CLASSES.OPEN_FLAT,
+      biomeTags: [WORLD_HEX_BIOMES.ARCTIC],
+      hasTerrainTags: true,
+    });
+  });
 });
