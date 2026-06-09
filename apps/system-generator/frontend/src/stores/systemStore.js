@@ -125,7 +125,12 @@ export const useSystemStore = defineStore("system", {
 
     async updateSystem(systemId, updates, options = {}) {
       this.error = null;
-      const next = await systemApi.updateSystem(systemId, updates, options);
+      const existing = this.systems.find((system) => system.systemId === systemId) ?? null;
+      const payload = {
+        ...(existing && typeof existing === "object" ? existing : {}),
+        ...(updates && typeof updates === "object" ? updates : {}),
+      };
+      const next = await systemApi.updateSystem(systemId, payload, options);
       saveSystems(
         loadSystems()
           .filter((system) => system.systemId !== systemId)

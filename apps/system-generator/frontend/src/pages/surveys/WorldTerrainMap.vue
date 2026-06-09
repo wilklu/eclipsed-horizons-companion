@@ -88,34 +88,6 @@
           <span v-if="hoveredHexLabel" class="map-hover-readout">Hover: {{ hoveredHexLabel }}</span>
         </div>
 
-        <div class="map-controls">
-          <button
-            type="button"
-            class="map-button"
-            @click="applyTerrainSurveyToMap"
-            :disabled="!(activeHexCells?.length ?? 0) || !hasTerrainSurveyComposition"
-            title="Seed map terrain from Terrain Survey composition"
-          >
-            Apply Terrain
-          </button>
-          <button
-            type="button"
-            class="map-button map-button-secondary"
-            @click="generateTerrain"
-            :disabled="!(activeHexCells?.length ?? 0)"
-          >
-            Regenerate Terrain
-          </button>
-          <button
-            type="button"
-            class="map-button map-button-secondary"
-            @click="clearWaterHexes"
-            :disabled="!(activeHexCells?.length ?? 0)"
-          >
-            Clear Terrain
-          </button>
-        </div>
-
         <section class="legend-preferences-panel" aria-label="Terrain legend and color preferences">
           <div class="legend-preferences-card">
             <div class="legend-preferences-header">
@@ -154,12 +126,42 @@
           </div>
         </section>
 
-        <WorldTerrainHexInspector
-          :selected-key="selectedTerrainHexKey"
-          :selected-hex="selectedTerrainHexEntry"
-          :summary="terrainHexInspectorSummary"
-          @clear-selection="clearTerrainHexSelection"
-        />
+        <div class="map-controls">
+          <button
+            type="button"
+            class="map-button"
+            @click="applyTerrainSurveyToMap"
+            :disabled="!(activeHexCells?.length ?? 0) || !hasTerrainSurveyComposition"
+            title="Seed map terrain from Terrain Survey composition"
+          >
+            Apply Terrain
+          </button>
+          <button
+            type="button"
+            class="map-button map-button-secondary"
+            @click="generateTerrain"
+            :disabled="!(activeHexCells?.length ?? 0)"
+          >
+            Regenerate Terrain
+          </button>
+          <button
+            type="button"
+            class="map-button map-button-secondary"
+            @click="saveCurrentTerrainBaseline"
+            :disabled="!(activeHexCells?.length ?? 0)"
+            title="Save current terrain as the regeneration baseline"
+          >
+            Save Current Terrain
+          </button>
+          <button
+            type="button"
+            class="map-button map-button-secondary"
+            @click="clearWaterHexes"
+            :disabled="!(activeHexCells?.length ?? 0)"
+          >
+            Clear Terrain
+          </button>
+        </div>
 
         <svg
           id="blankMapSVG"
@@ -835,7 +837,7 @@
 
 <script setup>
 import { computed, onBeforeUnmount, ref, watch } from "vue";
-import { useRoute } from "vue-router";
+import { onBeforeRouteLeave, useRoute } from "vue-router";
 import { deserializeReturnRoute } from "../../utils/returnRoute.js";
 import { useSystemStore } from "../../stores/systemStore.js";
 import { usePreferencesStore } from "../../stores/preferencesStore.js";
@@ -847,7 +849,6 @@ import {
   buildWorldHexTagIndex,
   buildWorldTerrainHexTagSnapshot,
 } from "../../utils/worldTerrainHexTags.js";
-import WorldTerrainHexInspector from "../../components/world/WorldTerrainHexInspector.vue";
 const route = useRoute();
 const systemStore = useSystemStore();
 const preferencesStore = usePreferencesStore();
@@ -1093,7 +1094,11 @@ const terrainColorPreferenceEntries = computed(() =>
 );
 
 function legendTarget(terrain) {
-  return Number(terrainBudgetByType.value.get(terrain) || 0);
+  const budgetTarget = Number(terrainBudgetByType.value.get(terrain) || 0);
+  if (budgetTarget > 0) {
+    return budgetTarget;
+  }
+  return Number(activeSurveyPlacedCountsByTerrain.value.get(terrain) || 0);
 }
 
 function uniqueHexCount(entries) {
@@ -1144,7 +1149,7 @@ const hexLegendEntries = computed(() => [
     id: "plains",
     label: "Plains",
     color: terrainColor("plains"),
-    count: uniqueHexCount(activePlainsHexEntries.value),
+    count: Number(activeSurveyPlacedCountsByTerrain.value.get("plains") || 0),
     target: legendTarget("plains"),
   },
   {
@@ -1320,7 +1325,7 @@ const hexLegendEntries = computed(() => [
     label: "Exotic",
     color: FEATURE_LEGEND_COLORS.exotic,
     count: uniqueHexCount(activeExoticHexEntries.value),
-    target: 0,
+    target: legendTarget("exotic"),
   },
   {
     id: "noble",
@@ -1382,7 +1387,7 @@ const SURVEY_TYPE_TO_TERRAIN = new Map([
   ["wood", "forest"],
   ["forest", "forest"],
   ["rough woods", "forest"],
-  ["exotic", "desert"],
+  ["exotic", "exotic"],
   ["clear", "plains"],
   ["flat", "plains"],
   ["flatland", "plains"],
@@ -1462,6 +1467,11 @@ const activeTerrainTemplateSize = computed(() => {
   const sizeFromRoute = parseWorldSizeCode(route.query.size);
   if (sizeFromRoute !== null) {
     return sizeFromRoute;
+  }
+
+  const sizeFromWorldSizeRoute = parseWorldSizeCode(route.query.worldSize);
+  if (sizeFromWorldSizeRoute !== null) {
+    return sizeFromWorldSizeRoute;
   }
 
   return 5;
@@ -2308,9 +2318,36 @@ const activeContinentTriangleCount = computed(() =>
 const disableLegacyTerrainGeneration = true;
 const useSurveyOverlayHexes = ref(false);
 const isApplyingOverlayLayers = ref(false);
+const savedTerrainCompositionByWorld = ref(null);
+const savedTerrainCompositionWorldKey = ref("");
+
+function getCurrentWorldTerrainKey() {
+  const systemId = String(boundSystem.value?.systemId || "").trim();
+  const worldIndex = selectedWorldIndex.value;
+  if (!systemId || worldIndex === null) {
+    return "";
+  }
+  return `${systemId}:${worldIndex}`;
+}
+
+function getEffectiveTerrainComposition() {
+  const currentKey = getCurrentWorldTerrainKey();
+  if (
+    currentKey &&
+    savedTerrainCompositionWorldKey.value === currentKey &&
+    savedTerrainCompositionByWorld.value &&
+    typeof savedTerrainCompositionByWorld.value === "object"
+  ) {
+    return savedTerrainCompositionByWorld.value;
+  }
+
+  return selectedWorld.value?.terrainComposition && typeof selectedWorld.value.terrainComposition === "object"
+    ? selectedWorld.value.terrainComposition
+    : null;
+}
 
 const hasTerrainSurveyComposition = computed(() => {
-  const counts = selectedWorld.value?.terrainComposition?.hexCounts;
+  const counts = getEffectiveTerrainComposition()?.hexCounts;
   return Array.isArray(counts) && counts.length > 0;
 });
 
@@ -2414,7 +2451,80 @@ function resetTerrainLayersForSize(size) {
 }
 
 function normalizeOverlayEntriesByKey(rawEntries) {
-  if (!Array.isArray(rawEntries) || !rawEntries.length) {
+  const legacyLayerToTerrain = {
+    water: "water",
+    shore: "shore",
+    flatland: "plains",
+    flatlands: "plains",
+    plains: "plains",
+    island: "island",
+    islands: "island",
+    hills: "hills",
+    forest: "forest",
+    mountain: "mountain",
+    volcanic: "volcanic",
+    icecap: "icecap",
+    glacier: "glacier",
+    icefield: "icefield",
+    frozenland: "frozenland",
+    desert: "desert",
+    arctic: "tundra",
+    tundra: "tundra",
+    swamp: "swamp",
+    city: "urban",
+    urban: "urban",
+    exotic: "exotic",
+  };
+
+  const sourceEntries = (() => {
+    if (Array.isArray(rawEntries)) {
+      return rawEntries;
+    }
+
+    if (!rawEntries || typeof rawEntries !== "object") {
+      return [];
+    }
+
+    const out = [];
+    for (const [layerName, payload] of Object.entries(rawEntries)) {
+      const terrain =
+        legacyLayerToTerrain[
+          String(layerName || "")
+            .trim()
+            .toLowerCase()
+        ] || null;
+      if (!terrain) {
+        continue;
+      }
+
+      if (Array.isArray(payload)) {
+        for (const item of payload) {
+          if (typeof item === "string") {
+            out.push({ key: item, terrain });
+            continue;
+          }
+          if (item && typeof item === "object") {
+            out.push({ ...item, terrain });
+          }
+        }
+        continue;
+      }
+
+      if (payload && typeof payload === "object") {
+        for (const [entryKey, entryValue] of Object.entries(payload)) {
+          if (entryValue && typeof entryValue === "object") {
+            out.push({ key: entryKey, ...entryValue, terrain });
+          } else {
+            out.push({ key: entryKey, terrain });
+          }
+        }
+      }
+    }
+
+    return out;
+  })();
+
+  if (!sourceEntries.length) {
     return new Map();
   }
 
@@ -2434,7 +2544,7 @@ function normalizeOverlayEntriesByKey(rawEntries) {
   }
 
   const out = new Map();
-  for (const entry of rawEntries) {
+  for (const entry of sourceEntries) {
     if (!entry || typeof entry !== "object") {
       continue;
     }
@@ -2497,6 +2607,7 @@ function buildOverlayEntriesByKeyFromCurrentLayers(size) {
     [desertHexesBySize.value.get(size), "desert"],
     [arcticBiomeHexesBySize.value.get(size), "tundra"],
     [swampBiomeHexesBySize.value.get(size), "swamp"],
+    [exoticHexesBySize.value.get(size), "exotic"],
     [cityHexesBySize.value.get(size), "urban"],
     [flatlandHexesBySize.value.get(size), "plains"],
   ];
@@ -2536,10 +2647,117 @@ function serializeTerrainOverlayBySize(activeSizeOverride = null) {
   return nextOverlay;
 }
 
+const TERRAIN_COMPOSITION_TYPE_BY_OVERLAY = Object.freeze({
+  water: "Ocean",
+  shore: "Shore",
+  island: "Islands",
+  hills: "Rough",
+  plains: "Clear",
+  mountain: "Mountain",
+  volcanic: "Volcano",
+  forest: "Forest",
+  swamp: "Wetland",
+  tundra: "Tundra",
+  icecap: "Ice cap",
+  glacier: "Glacier",
+  icefield: "Ice field",
+  frozenland: "Frozen lands",
+  desert: "Desert",
+  exotic: "Exotic",
+  urban: "Urban",
+});
+
+const TERRAIN_COMPOSITION_ORDER = Object.freeze([
+  "water",
+  "shore",
+  "island",
+  "mountain",
+  "hills",
+  "plains",
+  "volcanic",
+  "forest",
+  "swamp",
+  "tundra",
+  "icecap",
+  "glacier",
+  "icefield",
+  "frozenland",
+  "desert",
+  "exotic",
+  "urban",
+]);
+
+function buildTerrainCompositionFromOverlay(activeSizeOverride = null) {
+  const activeSize = Number.isFinite(Number(activeSizeOverride))
+    ? Number(activeSizeOverride)
+    : activeTerrainTemplateSize.value;
+  const explicitEntries = buildOverlayEntriesByKeyFromCurrentLayers(activeSize);
+  if (!explicitEntries.size) {
+    return {
+      ...(selectedWorld.value?.terrainComposition && typeof selectedWorld.value.terrainComposition === "object"
+        ? selectedWorld.value.terrainComposition
+        : {}),
+    };
+  }
+  const countsByTerrain = new Map();
+
+  for (const entry of explicitEntries.values()) {
+    const terrain = String(entry?.terrain || "")
+      .trim()
+      .toLowerCase();
+    if (!terrain) {
+      continue;
+    }
+
+    countsByTerrain.set(terrain, (countsByTerrain.get(terrain) || 0) + 1);
+  }
+
+  const totalMapHexes = Math.max(
+    0,
+    Number(activeHexRenderVariantsByKey.value.size || selectedWorld.value?.terrainComposition?.totalMapHexes || 0),
+  );
+
+  const orderedTerrains = [
+    ...TERRAIN_COMPOSITION_ORDER.filter((terrain) => (countsByTerrain.get(terrain) || 0) > 0),
+    ...[...countsByTerrain.keys()].filter(
+      (terrain) => !TERRAIN_COMPOSITION_ORDER.includes(terrain) && (countsByTerrain.get(terrain) || 0) > 0,
+    ),
+  ];
+
+  const toPercent = (hexes) => {
+    if (!totalMapHexes) {
+      return "0";
+    }
+    return String(Math.round((Math.max(0, Number(hexes) || 0) / totalMapHexes) * 100));
+  };
+
+  const hexCounts = orderedTerrains.map((terrain) => {
+    const hexes = Math.max(0, Number(countsByTerrain.get(terrain) || 0));
+    return {
+      type: TERRAIN_COMPOSITION_TYPE_BY_OVERLAY[terrain] || terrain,
+      hexes,
+      percent: toPercent(hexes),
+    };
+  });
+
+  const surfaceProfile = Array.isArray(selectedWorld.value?.terrainComposition?.surfaceProfile)
+    ? [...selectedWorld.value.terrainComposition.surfaceProfile]
+    : ["Terrain map overlay committed"];
+
+  return {
+    ...(selectedWorld.value?.terrainComposition && typeof selectedWorld.value.terrainComposition === "object"
+      ? selectedWorld.value.terrainComposition
+      : {}),
+    surfaceProfile,
+    hexCounts,
+    assignedHexes: hexCounts.reduce((sum, entry) => sum + Math.max(0, Number(entry?.hexes) || 0), 0),
+    totalMapHexes,
+  };
+}
+
 function buildTerrainWeightsFromSurveyComposition() {
-  const counts = Array.isArray(selectedWorld.value?.terrainComposition?.hexCounts)
-    ? selectedWorld.value.terrainComposition.hexCounts
-    : [];
+  const composition = getEffectiveTerrainComposition();
+  const counts = Array.isArray(composition?.hexCounts) ? composition.hexCounts : [];
   if (!counts.length) {
     return [];
   }
@@ -2561,27 +2779,44 @@ function buildTerrainCountPlanFromSurveyComposition() {
   return [...buildTerrainBudgetMapFromSurveyComposition().entries()].map(([terrain, hexes]) => ({ terrain, hexes }));
 }
 
-const terrainBudgetByType = computed(() => buildTerrainBudgetMapFromSurveyComposition());
+function buildTerrainBudgetMapFromOverlay() {
+  const composition = buildTerrainCompositionFromOverlay();
+  const counts = Array.isArray(composition?.hexCounts) ? composition.hexCounts : [];
+  const merged = new Map();
+
+  for (const entry of counts) {
+    const terrain = mapSurveyTypeToTerrain(entry?.type);
+    const hexes = Math.max(0, Number(entry?.hexes) || 0);
+    if (!terrain || hexes <= 0) {
+      continue;
+    }
+    merged.set(terrain, (merged.get(terrain) || 0) + hexes);
+  }
+
+  return merged;
+}
+
+const terrainBudgetByType = computed(() => {
+  const persistedBudget = buildTerrainBudgetMapFromSurveyComposition();
+  const hasLiveOverlay = buildOverlayEntriesByKeyFromCurrentLayers(activeTerrainTemplateSize.value).size > 0;
+
+  if (hasUserInteractedWithTerrain.value && hasLiveOverlay) {
+    return buildTerrainBudgetMapFromOverlay();
+  }
+
+  return persistedBudget;
+});
 
 const activeSurveyPlacedCountsByTerrain = computed(() => {
   const placedByTerrain = new Map();
   const entriesByKey = buildOverlayEntriesByKeyFromCurrentLayers(activeTerrainTemplateSize.value);
-  let explicitNonPlainsCount = 0;
   for (const entry of entriesByKey.values()) {
     const terrain = String(entry?.terrain || "")
       .trim()
       .toLowerCase();
     if (!terrain) continue;
     placedByTerrain.set(terrain, (placedByTerrain.get(terrain) || 0) + 1);
-    if (terrain !== "plains") {
-      explicitNonPlainsCount += 1;
-    }
   }
-
-  // Plains are intentionally sparse in overlay persistence; unassigned cells render as plains.
-  const logicalHexCount = Math.max(0, activeHexRenderVariantsByKey.value.size);
-  const logicalPlainsCount = Math.max(0, logicalHexCount - explicitNonPlainsCount);
-  placedByTerrain.set("plains", logicalPlainsCount);
 
   return placedByTerrain;
 });
@@ -2611,9 +2846,8 @@ function formatPlacedVsTarget(label, terrain, placed) {
 }
 
 function buildTerrainBudgetMapFromSurveyComposition() {
-  const counts = Array.isArray(selectedWorld.value?.terrainComposition?.hexCounts)
-    ? selectedWorld.value.terrainComposition.hexCounts
-    : [];
+  const composition = getEffectiveTerrainComposition();
+  const counts = Array.isArray(composition?.hexCounts) ? composition.hexCounts : [];
   if (!counts.length) {
     return new Map();
   }
@@ -2621,12 +2855,7 @@ function buildTerrainBudgetMapFromSurveyComposition() {
   const merged = new Map();
   const totalMapHexes = Math.max(
     0,
-    Number(
-      selectedWorld.value?.terrainComposition?.totalMapHexes ||
-        selectedWorld.value?.terrainComposition?.assignedHexes ||
-        activeHexRenderVariantsByKey.value.size ||
-        0,
-    ),
+    Number(composition?.totalMapHexes || composition?.assignedHexes || activeHexRenderVariantsByKey.value.size || 0),
   );
 
   for (const entry of counts) {
@@ -2772,7 +3001,11 @@ function buildTerrainPlacementScoreMap(cells, seed, adjacencyById = new Map()) {
 }
 
 function applyTerrainSurveyToMap(options = {}) {
-  markTerrainUserInteraction();
+  const trackUserInteraction = options?.trackUserInteraction !== false;
+  const persistAfterApply = options?.persistAfterApply !== false;
+  if (trackUserInteraction) {
+    markTerrainUserInteraction();
+  }
   const cells = activeHexCells.value;
   if (!cells.length) {
     return false;
@@ -2783,9 +3016,8 @@ function applyTerrainSurveyToMap(options = {}) {
     return false;
   }
 
-  const sourceCounts = Array.isArray(selectedWorld.value?.terrainComposition?.hexCounts)
-    ? selectedWorld.value.terrainComposition.hexCounts
-    : [];
+  const sourceComposition = getEffectiveTerrainComposition();
+  const sourceCounts = Array.isArray(sourceComposition?.hexCounts) ? sourceComposition.hexCounts : [];
   const normalizeSurveyType = (value) =>
     String(value || "")
       .trim()
@@ -2893,16 +3125,25 @@ function applyTerrainSurveyToMap(options = {}) {
       })
       .sort((left, right) => getLatitudeAbs(right) - getLatitudeAbs(left));
 
-    const polarPool = iceCapCandidates.length
-      ? iceCapCandidates
-      : [...cells]
-          .filter((cell) => {
-            const key = String(cell?.key || "").trim();
-            return key && availableKeys.has(key);
-          })
-          .sort((left, right) => getLatitudeAbs(right) - getLatitudeAbs(left));
+    // Prioritize polar cells first, but still allow spillover placement across remaining cells
+    // when the requested ice-cap budget exceeds strict polar availability.
+    const fallbackCandidates = [...cells]
+      .filter((cell) => {
+        const key = String(cell?.key || "").trim();
+        return key && availableKeys.has(key);
+      })
+      .sort((left, right) => getLatitudeAbs(right) - getLatitudeAbs(left));
 
-    const iceCapCells = takeCells(polarPool, capPreWaterPlacement(requestedIceCapCount));
+    const seenKeys = new Set();
+    const prioritizedIceCapPool = [];
+    for (const cell of [...iceCapCandidates, ...fallbackCandidates]) {
+      const key = String(cell?.key || "").trim();
+      if (!key || seenKeys.has(key)) continue;
+      seenKeys.add(key);
+      prioritizedIceCapPool.push(cell);
+    }
+
+    const iceCapCells = takeCells(prioritizedIceCapPool, capPreWaterPlacement(requestedIceCapCount));
     for (const cell of iceCapCells) {
       const key = String(cell?.key || "").trim();
       if (!key) continue;
@@ -3056,6 +3297,35 @@ function applyTerrainSurveyToMap(options = {}) {
     }
   };
 
+  const placePlainsWithReserve = (count) => {
+    const requested = Math.max(0, Number(count) || 0);
+    if (requested <= 0) return;
+
+    const plainsCandidates = orderedCellsAsc.filter((cell) => {
+      const key = String(cell?.key || "").trim();
+      return key && !entriesByKey.has(key);
+    });
+
+    let placed = 0;
+    for (const cell of plainsCandidates) {
+      if (placed >= requested) break;
+      const key = String(cell?.key || "").trim();
+      if (!key || entriesByKey.has(key)) continue;
+
+      // Keep enough unassigned hexes available for shoreline conversion.
+      const remainingUnassigned = cells.length - entriesByKey.size;
+      if (remainingUnassigned <= reservedShore) {
+        break;
+      }
+
+      entriesByKey.set(key, {
+        points: normalizePoints(cell?.points || ""),
+        terrain: "plains",
+      });
+      placed += 1;
+    }
+  };
+
   // Place anchor terrains first so constrained woods can reference final neighbors.
   placeTerrainWithGlobalLimit("hills", explicitTerrainCounts.get("hills") || 0);
   placeTerrainWithGlobalLimit("swamp", explicitTerrainCounts.get("swamp") || 0);
@@ -3142,6 +3412,9 @@ function applyTerrainSurveyToMap(options = {}) {
     }
     placeTerrainWithGlobalLimit(terrain, explicitTerrainCounts.get(terrain) || requestedHexes);
   }
+
+  const requestedPlainsCount = Math.max(0, Number(explicitTerrainCounts.get("plains") || 0));
+  placePlainsWithReserve(requestedPlainsCount);
 
   // Apply shoreline last so coastline follows the final land/water layout.
   const shoreCandidates = [];
@@ -3252,13 +3525,43 @@ function applyTerrainSurveyToMap(options = {}) {
     placedShoreCount += 1;
   }
 
-  // Leave unassigned cells implicit to avoid generating massive overlay payloads
-  // (thousands of explicit plains entries can stall rendering and persistence).
+  if (requestedPlainsCount > 0) {
+    let currentPlainsCount = 0;
+    for (const entry of entriesByKey.values()) {
+      if (String(entry?.terrain || "") === "plains") {
+        currentPlainsCount += 1;
+      }
+    }
+
+    const plainsDeficit = Math.max(0, requestedPlainsCount - currentPlainsCount);
+    if (plainsDeficit > 0) {
+      const fallbackPlainsCells = orderedCellsAsc.filter((cell) => {
+        const key = String(cell?.key || "").trim();
+        return key && !entriesByKey.has(key);
+      });
+
+      let toppedUp = 0;
+      for (const cell of fallbackPlainsCells) {
+        if (toppedUp >= plainsDeficit) break;
+        const key = String(cell?.key || "").trim();
+        if (!key || entriesByKey.has(key)) continue;
+        entriesByKey.set(key, {
+          points: normalizePoints(cell?.points || ""),
+          terrain: "plains",
+        });
+        toppedUp += 1;
+      }
+    }
+  }
+
+  // Leave remaining unassigned cells implicit as a final fallback.
 
   useSurveyOverlayHexes.value = true;
   applySurveyOverlayTerrainForSize(size, entriesByKey);
   placeTectonicLines();
-  queueTerrainOverlayPersist();
+  if (persistAfterApply) {
+    queueTerrainOverlayPersist();
+  }
   return true;
 }
 
@@ -3400,6 +3703,7 @@ function applySurveyOverlayTerrainForSize(size, entriesByKey) {
     const deserts = new Map();
     const arctic = new Map();
     const swamps = new Map();
+    const exotic = new Map();
     const cities = new Map();
 
     for (const [key, value] of entriesByKey.entries()) {
@@ -3450,6 +3754,9 @@ function applySurveyOverlayTerrainForSize(size, entriesByKey) {
         case "swamp":
           swamps.set(key, payload);
           break;
+        case "exotic":
+          exotic.set(key, payload);
+          break;
         case "urban":
           cities.set(key, payload);
           break;
@@ -3474,6 +3781,7 @@ function applySurveyOverlayTerrainForSize(size, entriesByKey) {
     setLayerMapForSize(desertHexesBySize, size, deserts);
     setLayerMapForSize(arcticBiomeHexesBySize, size, arctic);
     setLayerMapForSize(swampBiomeHexesBySize, size, swamps);
+    setLayerMapForSize(exoticHexesBySize, size, exotic);
     setLayerMapForSize(cityHexesBySize, size, cities);
   } finally {
     isApplyingOverlayLayers.value = false;
@@ -3484,7 +3792,19 @@ function tryApplySurveyOverlayTerrain() {
   const size = activeTerrainTemplateSize.value;
   const cells = activeHexCells.value;
   const bySize = selectedWorld.value?.terrainOverlayBySize;
-  const serialized = bySize && typeof bySize === "object" ? bySize[String(size)] : null;
+  let serialized = bySize && typeof bySize === "object" ? bySize[String(size)] : null;
+  if (!serialized && bySize && typeof bySize === "object") {
+    const fallbackKey = Object.keys(bySize).find((key) => {
+      const value = bySize[key];
+      if (Array.isArray(value)) {
+        return value.length > 0;
+      }
+      return Boolean(value && typeof value === "object" && Object.keys(value).length > 0);
+    });
+    if (fallbackKey) {
+      serialized = bySize[fallbackKey];
+    }
+  }
   const entriesByKey = normalizeOverlayEntriesByKey(serialized);
   const inMemoryEntriesByKey = buildOverlayEntriesByKeyFromCurrentLayers(size);
 
@@ -3495,9 +3815,22 @@ function tryApplySurveyOverlayTerrain() {
       return true;
     }
 
+    const hasSurveyComposition = Array.isArray(selectedWorld.value?.terrainComposition?.hexCounts)
+      ? selectedWorld.value.terrainComposition.hexCounts.length > 0
+      : false;
+    if (cells.length && !inMemoryEntriesByKey.size && hasSurveyComposition) {
+      const rebuiltFromComposition = applyTerrainSurveyToMap({
+        seedSalt: `rehydrate-${size}`,
+        trackUserInteraction: false,
+        persistAfterApply: false,
+      });
+      if (rebuiltFromComposition) {
+        return true;
+      }
+    }
+
     useSurveyOverlayHexes.value = Boolean(disableLegacyTerrainGeneration);
     if (disableLegacyTerrainGeneration) {
-      resetTerrainLayersForSize(size);
       placeTectonicLines();
     }
     return false;
@@ -3684,7 +4017,7 @@ function queueTerrainOverlayPersist() {
   terrainOverlayPersistTimer.value = setTimeout(() => {
     terrainOverlayPersistTimer.value = null;
     void persistTerrainOverlay();
-  }, 120);
+  }, 0);
 }
 
 async function persistTerrainOverlay() {
@@ -3704,9 +4037,11 @@ async function persistTerrainOverlay() {
   }
 
   const nextOverlay = serializeTerrainOverlayBySize();
+  const nextTerrainComposition = buildTerrainCompositionFromOverlay();
   currentPlanets[worldIndex] = {
     ...currentPlanets[worldIndex],
     terrainOverlayBySize: nextOverlay,
+    terrainComposition: nextTerrainComposition,
   };
 
   const updatedAt = new Date().toISOString();
@@ -3731,6 +4066,9 @@ async function persistTerrainHexTags() {
   if (!hasUserInteractedWithTerrain.value) {
     return false;
   }
+  if (!activeHexCells.value.length) {
+    return false;
+  }
   const systemId = String(boundSystem.value?.systemId || "").trim();
   const worldIndex = selectedWorldIndex.value;
   const world = selectedWorld.value;
@@ -3751,6 +4089,7 @@ async function persistTerrainHexTags() {
   }
 
   const nextOverlay = serializeTerrainOverlayBySize();
+  const nextTerrainComposition = buildTerrainCompositionFromOverlay();
 
   const currentPlanets = Array.isArray(boundSystem.value?.planets) ? [...boundSystem.value.planets] : [];
   if (!currentPlanets.length || !currentPlanets[worldIndex]) {
@@ -3760,6 +4099,7 @@ async function persistTerrainHexTags() {
   currentPlanets[worldIndex] = {
     ...currentPlanets[worldIndex],
     terrainOverlayBySize: nextOverlay,
+    terrainComposition: nextTerrainComposition,
     metadata: {
       ...(currentPlanets[worldIndex].metadata && typeof currentPlanets[worldIndex].metadata === "object"
         ? currentPlanets[worldIndex].metadata
@@ -3787,6 +4127,45 @@ async function persistTerrainHexTags() {
   return true;
 }
 
+async function flushPendingTerrainPersistence() {
+  if (!hasUserInteractedWithTerrain.value) {
+    return;
+  }
+
+  const hadPendingOverlayPersist = Boolean(terrainOverlayPersistTimer.value);
+
+  if (terrainOverlayPersistTimer.value) {
+    clearTimeout(terrainOverlayPersistTimer.value);
+    terrainOverlayPersistTimer.value = null;
+  }
+  if (terrainHexTagPersistTimer.value) {
+    clearTimeout(terrainHexTagPersistTimer.value);
+    terrainHexTagPersistTimer.value = null;
+  }
+
+  if (hadPendingOverlayPersist) {
+    await persistTerrainOverlay();
+  }
+  await persistTerrainHexTags();
+}
+
+async function saveCurrentTerrainBaseline() {
+  if (!(activeHexCells.value?.length ?? 0)) {
+    return false;
+  }
+
+  markTerrainUserInteraction();
+  const nextComposition = buildTerrainCompositionFromOverlay();
+  const currentKey = getCurrentWorldTerrainKey();
+  if (currentKey && nextComposition && typeof nextComposition === "object") {
+    savedTerrainCompositionWorldKey.value = currentKey;
+    savedTerrainCompositionByWorld.value = nextComposition;
+  }
+
+  await flushPendingTerrainPersistence();
+  return true;
+}
+
 watch(
   [activeHexTagIndex, selectedWorld, selectedWorldIndex],
   () => {
@@ -3810,6 +4189,10 @@ onBeforeUnmount(() => {
     clearTimeout(terrainOverlayPersistTimer.value);
     terrainOverlayPersistTimer.value = null;
   }
+});
+
+onBeforeRouteLeave(async () => {
+  await flushPendingTerrainPersistence();
 });
 
 const worldTradeCodes = computed(() => {
@@ -4381,7 +4764,6 @@ watch(
       return;
     }
     if (disableLegacyTerrainGeneration) {
-      resetTerrainLayersForSize(activeTerrainTemplateSize.value);
       placeTectonicLines();
       return;
     }
@@ -4411,6 +4793,38 @@ watch(
     placeNobleLandHexes();
   },
   { immediate: true },
+);
+
+watch(
+  activeHexCells,
+  () => {
+    if (!activeHexCells.value.length) {
+      return;
+    }
+    if (tryApplySurveyOverlayTerrain()) {
+      return;
+    }
+    if (disableLegacyTerrainGeneration) {
+      placeTectonicLines();
+    }
+  },
+  { immediate: true },
+);
+
+watch(
+  () => [selectedWorld.value?.terrainOverlayBySize, activeTerrainTemplateSize.value],
+  () => {
+    if (!activeHexCells.value.length) {
+      return;
+    }
+    if (tryApplySurveyOverlayTerrain()) {
+      return;
+    }
+    if (disableLegacyTerrainGeneration) {
+      placeTectonicLines();
+    }
+  },
+  { immediate: true, deep: true },
 );
 
 watch(tectonicPlateCount, () => {
@@ -7547,7 +7961,7 @@ function clearMapHover() {
 }
 
 .map-panel {
-  padding: 1rem;
+  padding: 1rem clamp(1.5rem, 4vw, 3.25rem);
 }
 
 .map-meta {
@@ -7668,7 +8082,7 @@ function clearMapHover() {
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.35rem 0.65rem;
   max-height: 280px;
   overflow: auto;
@@ -7699,7 +8113,7 @@ function clearMapHover() {
 
 .terrain-color-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.4rem 0.75rem;
   margin-bottom: 0.6rem;
 }

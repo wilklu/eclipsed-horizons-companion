@@ -133,4 +133,45 @@ describe("SystemSurvey", () => {
     expect(starSubtypeInput.exists()).toBe(true);
     expect(starSubtypeInput.element.value).toBe("K7");
   });
+
+  it("prefers routed star metadata over cached default stars for matched systems", async () => {
+    routeState.query = {
+      systemId: "sector-1:0101",
+      systemRecordId: "sector-1:0101",
+      systemName: "Aster System",
+      hex: "0101",
+      star: "M3 V",
+    };
+    routeState.params = {
+      galaxyId: "gal-1",
+      sectorId: "sector-1",
+      systemId: "sector-1:0101",
+    };
+
+    systemStoreState.systems = [
+      {
+        systemId: "sector-1:0101",
+        stars: [{ designation: "G2 V", spectralClass: "G2 V" }],
+        primaryStar: { designation: "G2 V", spectralClass: "G2 V" },
+        worlds: [],
+        metadata: {},
+      },
+    ];
+    systemStoreState.getCurrentSystem = systemStoreState.systems[0];
+
+    const wrapper = mount(SystemSurvey, {
+      global: {
+        stubs: {
+          SurveyNavigation: { template: "<div data-test='survey-navigation' />" },
+        },
+      },
+    });
+
+    await flushPromises();
+    await flushPromises();
+
+    const starSubtypeInput = wrapper.find('input[placeholder="G2V"]');
+    expect(starSubtypeInput.exists()).toBe(true);
+    expect(starSubtypeInput.element.value).toBe("M3");
+  });
 });

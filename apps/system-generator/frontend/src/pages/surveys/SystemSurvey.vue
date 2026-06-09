@@ -185,15 +185,19 @@ const currentSystem = computed(() => {
   ).trim();
   const nextSystemName = existingName || routedSystemName;
   const hasExplicitStars = Array.isArray(baseSystem?.stars) && baseSystem.stars.length > 0;
-  const nextStars = hasExplicitStars
-    ? baseSystem.stars
-    : routedStarLabel
-      ? [
-          {
-            designation: routedStarLabel,
-            spectralClass: routedStarLabel,
-          },
-        ]
+  const hasRoutedStarLabel = Boolean(routedStarLabel);
+  const nextStars = hasRoutedStarLabel
+    ? [
+        {
+          ...(hasExplicitStars && baseSystem.stars[0] && typeof baseSystem.stars[0] === "object"
+            ? baseSystem.stars[0]
+            : {}),
+          designation: routedStarLabel,
+          spectralClass: routedStarLabel,
+        },
+      ]
+    : hasExplicitStars
+      ? baseSystem.stars
       : [];
 
   return {
@@ -210,12 +214,12 @@ const currentSystem = computed(() => {
         }
       : {}),
     ...(nextStars.length ? { stars: nextStars } : {}),
-    ...(!hasExplicitStars && routedStarLabel
+    ...(hasRoutedStarLabel
       ? {
           primaryStar: {
             ...(baseSystem?.primaryStar && typeof baseSystem.primaryStar === "object" ? baseSystem.primaryStar : {}),
-            designation: String(baseSystem?.primaryStar?.designation || routedStarLabel).trim() || routedStarLabel,
-            spectralClass: String(baseSystem?.primaryStar?.spectralClass || routedStarLabel).trim() || routedStarLabel,
+            designation: routedStarLabel,
+            spectralClass: routedStarLabel,
           },
         }
       : {}),
