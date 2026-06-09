@@ -589,6 +589,52 @@ function upsertSector(payload) {
   return toSector(row);
 }
 
+function mergePlanetRecord(existingPlanet, incomingPlanet) {
+  const existing = existingPlanet && typeof existingPlanet === "object" ? existingPlanet : null;
+  const incoming = incomingPlanet && typeof incomingPlanet === "object" ? incomingPlanet : null;
+
+  if (!existing) return incoming;
+  if (!incoming) return existing;
+
+  return {
+    ...existing,
+    ...incoming,
+    metadata: {
+      ...(existing.metadata && typeof existing.metadata === "object" ? existing.metadata : {}),
+      ...(incoming.metadata && typeof incoming.metadata === "object" ? incoming.metadata : {}),
+    },
+  };
+}
+
+function mergeSystemRecord(existingSystemRecord, incomingSystemRecord) {
+  const existing = existingSystemRecord && typeof existingSystemRecord === "object" ? existingSystemRecord : {};
+  const incoming = incomingSystemRecord && typeof incomingSystemRecord === "object" ? incomingSystemRecord : {};
+  const merged = {
+    ...existing,
+    ...incoming,
+  };
+
+  const existingPlanets = Array.isArray(existing.planets) ? existing.planets : [];
+  const incomingPlanets = Array.isArray(incoming.planets) ? incoming.planets : null;
+
+  if (incomingPlanets) {
+    const mergedPlanets = incomingPlanets.map((incomingPlanet, index) => {
+      const existingPlanet = existingPlanets[index];
+      return mergePlanetRecord(existingPlanet, incomingPlanet);
+    });
+
+    if (existingPlanets.length > incomingPlanets.length) {
+      for (let index = incomingPlanets.length; index < existingPlanets.length; index += 1) {
+        mergedPlanets.push(existingPlanets[index]);
+      }
+    }
+
+    merged.planets = mergedPlanets;
+  }
+
+  return merged;
+}
+
 function upsertSystem(payload) {
   const system = normalizeSystemPayload(payload);
   if (!system.systemId) throw new Error("systemId is required");
@@ -600,9 +646,19 @@ function upsertSystem(payload) {
   }
 
   const existingRow = db.prepare("SELECT * FROM systems WHERE systemId = ?").get(system.systemId);
+  const existingMetadata = parseJsonField(existingRow?.metadata, {});
+  const existingSystemRecord =
+    existingMetadata?.systemRecord && typeof existingMetadata.systemRecord === "object"
+      ? existingMetadata.systemRecord
+      : {};
+  const incomingSystemRecord =
+    system?.metadata?.systemRecord && typeof system.metadata.systemRecord === "object"
+      ? system.metadata.systemRecord
+      : {};
   const mergedMetadata = {
-    ...parseJsonField(existingRow?.metadata, {}),
+    ...existingMetadata,
     ...(system.metadata ?? {}),
+    systemRecord: mergeSystemRecord(existingSystemRecord, incomingSystemRecord),
     galaxyId: sectorRow.galaxyId,
   };
 

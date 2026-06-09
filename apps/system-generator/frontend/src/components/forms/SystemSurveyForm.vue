@@ -633,24 +633,46 @@ const countWorldsByType = (type) => {
   return surveyData.value.worlds.filter((w) => w.type === type).length;
 };
 
+function resolveCanonicalSystemRecord(systemId, fallback = null) {
+  const normalizedId = String(systemId || "").trim();
+  if (!normalizedId) {
+    return fallback && typeof fallback === "object" ? fallback : null;
+  }
+
+  const fromStore = systemStore.systems.find((system) => String(system?.systemId || "") === normalizedId) ?? null;
+  if (fromStore && typeof fromStore === "object") {
+    return fromStore;
+  }
+
+  const current = systemStore.getCurrentSystem;
+  if (current && String(current?.systemId || "") === normalizedId) {
+    return current;
+  }
+
+  return fallback && typeof fallback === "object" ? fallback : null;
+}
+
 // Save system name — shared helper
 function saveSystemName(nextName, systemRecord) {
   if (!systemRecord?.systemId) return;
   const name = String(nextName || "").trim();
   if (!name) return;
+  const canonicalRecord = resolveCanonicalSystemRecord(systemRecord.systemId, systemRecord);
+  const metadata =
+    canonicalRecord?.metadata && typeof canonicalRecord.metadata === "object" ? canonicalRecord.metadata : {};
+  const metadataSystemRecord =
+    metadata.systemRecord && typeof metadata.systemRecord === "object" ? metadata.systemRecord : {};
+
   systemStore
     .updateSystem(systemRecord.systemId, {
-      ...systemRecord,
       name,
       systemName: name,
       systemDesignation: name,
       metadata: {
-        ...(systemRecord.metadata && typeof systemRecord.metadata === "object" ? systemRecord.metadata : {}),
+        ...metadata,
         displayName: name,
         systemRecord: {
-          ...(systemRecord.metadata?.systemRecord && typeof systemRecord.metadata.systemRecord === "object"
-            ? systemRecord.metadata.systemRecord
-            : {}),
+          ...metadataSystemRecord,
           name,
           systemName: name,
           systemDesignation: name,
@@ -724,7 +746,13 @@ const saveSurvey = async () => {
       resolvedSystemRecord.value && typeof resolvedSystemRecord.value === "object" ? resolvedSystemRecord.value : null;
 
     if (currentRecord?.systemId) {
-      const nextRecord = mergeSystemSurveyRecord(currentRecord, surveyData.value);
+      const canonicalRecord = resolveCanonicalSystemRecord(currentRecord.systemId, currentRecord);
+      const nextRecord = mergeSystemSurveyRecord(canonicalRecord, surveyData.value);
+
+      // System Survey should not rewrite planetary detail payloads (terrain, ecology, world builders).
+      if ("planets" in nextRecord) {
+        delete nextRecord.planets;
+      }
 
       await systemStore.updateSystem(currentRecord.systemId, nextRecord);
       systemStore.setCurrentSystem(currentRecord.systemId);

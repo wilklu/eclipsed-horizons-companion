@@ -382,11 +382,12 @@
               </button>
             </div>
             <WorldSvgMapForm
-              :terrainSeed="normalizedTerrainComposition"
+              :terrainSeed="hasGeneratedTerrainMap ? normalizedTerrainComposition : null"
               :seedWorldName="world.name"
               :seedUwp="world.uwp"
               :seedWorldSize="world.size"
-              :seedTerrainOverlay="world.terrainOverlayBySize"
+              :seedTerrainGenerated="hasGeneratedTerrainMap"
+              :seedTerrainOverlay="hasGeneratedTerrainMap ? world.terrainOverlayBySize : null"
               :readOnly="true"
             />
           </section>
@@ -1000,6 +1001,28 @@ const normalizedTerrainComposition = computed(() => {
   return normalizeTerrainSurveyComposition(world.value?.terrainComposition);
 });
 
+const hasGeneratedTerrainMap = computed(() => {
+  const explicit = world.value?.terrainMapGenerated;
+  if (explicit === true) {
+    return true;
+  }
+  if (explicit === false) {
+    return false;
+  }
+
+  const overlay = world.value?.terrainOverlayBySize;
+  if (!overlay || typeof overlay !== "object") {
+    return false;
+  }
+
+  return Object.values(overlay).some((entries) => {
+    if (Array.isArray(entries)) {
+      return entries.length > 0;
+    }
+    return Boolean(entries && typeof entries === "object" && Object.keys(entries).length > 0);
+  });
+});
+
 const worldPhysicalSurveyButtonLabel = computed(() => {
   return isGasGiantSurvey.value ? "Open Gas Giant Survey" : "Open World Survey";
 });
@@ -1407,6 +1430,7 @@ function mergeWorldSection(currentWorld, rerolledWorld, section) {
 
   if (section === "physical") {
     // Physical rerolls can change terrain drivers (size/hydro/temperature); clear persisted map overlays and tags.
+    merged.terrainMapGenerated = false;
     merged.terrainOverlayBySize = {};
     merged.terrainHexTags = {};
   }

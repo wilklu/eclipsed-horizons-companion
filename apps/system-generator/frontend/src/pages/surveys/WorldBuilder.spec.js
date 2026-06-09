@@ -351,6 +351,52 @@ describe("WorldBuilder", () => {
     expect(text).not.toContain("Baked lands:");
   });
 
+  it("retains persisted terrain overlay data on the hydrated world profile", async () => {
+    const profiledSystem = createSystemRecord();
+    profiledSystem.planets = [
+      {
+        ...profiledSystem.planets[0],
+        size: 2,
+        terrainMapGenerated: true,
+        terrainComposition: {
+          surfaceProfile: ["Hydrographics profile generated"],
+          hexCounts: [
+            { type: "Ocean", hexes: 1, percent: "5" },
+            { type: "Clear", hexes: 3, percent: "15" },
+          ],
+          assignedHexes: 4,
+          totalMapHexes: 20,
+        },
+        terrainOverlayBySize: {
+          2: [
+            {
+              key: "010002",
+              points: "0,0 1,0 2,1 1,2 0,2 -1,1",
+              terrain: "water",
+            },
+          ],
+        },
+      },
+    ];
+    systemStoreState.systems = [profiledSystem];
+    systemStoreState.getCurrentSystem = profiledSystem;
+
+    const wrapper = mount(WorldBuilder, {
+      global: {
+        stubs: {
+          LoadingSpinner: { template: "<div data-test='loading-spinner' />" },
+          SurveyNavigation: { template: "<div data-test='survey-navigation' />" },
+        },
+      },
+    });
+
+    await flushPromises();
+    await flushPromises();
+
+    expect(wrapper.vm.$.setupState.world.terrainOverlayBySize).toEqual(profiledSystem.planets[0].terrainOverlayBySize);
+    expect(wrapper.vm.$.setupState.world.terrainMapGenerated).toBe(true);
+  });
+
   it("keeps stale census values at the uninhabited baseline when native sophont life is absent", async () => {
     const staleSystem = createSystemRecord();
     staleSystem.planets = [
@@ -641,6 +687,7 @@ describe("WorldBuilder", () => {
 
     const setupState = wrapper.vm.$.setupState;
     const currentWorld = setupState.world;
+    currentWorld.terrainMapGenerated = true;
     currentWorld.terrainOverlayBySize = {
       2: {
         water: ["010002"],
@@ -684,6 +731,7 @@ describe("WorldBuilder", () => {
     expect(physicalReroll.orbitalPeriodDays).toBe(240);
     expect(physicalReroll.populationCode).toBe(6);
     expect(physicalReroll.terrainComposition?.assignedHexes).toBe(42);
+    expect(physicalReroll.terrainMapGenerated).toBe(false);
     expect(physicalReroll.terrainOverlayBySize).toEqual({});
     expect(physicalReroll.terrainHexTags).toEqual({});
 

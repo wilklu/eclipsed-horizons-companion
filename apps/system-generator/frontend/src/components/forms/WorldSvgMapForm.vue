@@ -97,12 +97,14 @@
 
 <script setup>
 import { computed, ref, watch } from "vue";
+import { canonicalizeHexId } from "../../utils/worldMapHexTopology.js";
 
 const props = defineProps({
   terrainSeed: { type: Object, default: null },
   seedWorldName: { type: String, default: "" },
   seedUwp: { type: String, default: "" },
   seedWorldSize: { type: [String, Number], default: null },
+  seedTerrainGenerated: { type: Boolean, default: false },
   seedTerrainOverlay: { type: Object, default: null },
   readOnly: { type: Boolean, default: false },
 });
@@ -141,6 +143,31 @@ const TYPE_TO_TERRAIN = {
   "Rough Woods": "forest",
   Exotic: "desert",
   Clear: "plains",
+};
+
+const LEGACY_LAYER_TO_TERRAIN = {
+  water: "water",
+  shore: "water",
+  flatland: "plains",
+  flatlands: "plains",
+  plains: "plains",
+  island: "plains",
+  islands: "plains",
+  hills: "mountain",
+  forest: "forest",
+  mountain: "mountain",
+  volcanic: "mountain",
+  icecap: "tundra",
+  glacier: "tundra",
+  icefield: "tundra",
+  frozenland: "tundra",
+  desert: "desert",
+  arctic: "tundra",
+  tundra: "tundra",
+  swamp: "swamp",
+  city: "urban",
+  urban: "urban",
+  exotic: "desert",
 };
 
 const RAW_MAP_MODULES = import.meta.glob("../../assets/maps/*.svg", {
@@ -182,7 +209,42 @@ function parseWorldSizeCode(value) {
   return 5;
 }
 
-const activeSize = computed(() => parseWorldSizeCode(props.seedWorldSize));
+function getPopulatedOverlaySizes(serialized) {
+  if (!serialized || typeof serialized !== "object") {
+    return [];
+  }
+
+  return Object.entries(serialized)
+    .map(([sizeKey, entries]) => {
+      const size = Number.parseInt(String(sizeKey), 10);
+      if (!Number.isFinite(size)) {
+        return null;
+      }
+
+      if (Array.isArray(entries)) {
+        return entries.length > 0 ? size : null;
+      }
+
+      if (entries && typeof entries === "object") {
+        return Object.keys(entries).length > 0 ? size : null;
+      }
+
+      return null;
+    })
+    .filter((size) => Number.isFinite(size));
+}
+
+const activeSize = computed(() => {
+  const preferredSize = parseWorldSizeCode(props.seedWorldSize);
+  if (!props.seedTerrainGenerated) {
+    return preferredSize;
+  }
+  const overlaySizes = getPopulatedOverlaySizes(props.seedTerrainOverlay);
+  if (overlaySizes.includes(preferredSize)) {
+    return preferredSize;
+  }
+  return overlaySizes[0] ?? preferredSize;
+});
 const activeSizeCode = computed(() => String(props.seedWorldSize ?? activeSize.value));
 
 function buildTemplateFilename(size) {
@@ -246,26 +308,119 @@ let requestId = 0;
 
 const terrainBySize = ref(new Map());
 
-function deserializeTerrainOverlay(serialized) {
+function resolveHexKeyFromElement(el) {
+  const candidates = [
+    el?.getAttribute?.("data-logical-hex-id"),
+    el?.getAttribute?.("data-seam-group"),
+    el?.getAttribute?.("data-hex-id"),
+    el?.getAttribute?.("hex-id"),
+  ];
+
+  for (const candidate of candidates) {
+    const normalized = canonicalizeHexId(String(candidate || "").trim());
+    if (normalized) {
+      return normalized;
+    }
+  }
+
+  return "";
+}
+
+function buildHexCellLookup(cells = []) {
+  const lookup = new Map();
+  for (const cell of cells) {
+    const cellKey = canonicalizeHexId(String(cell?.key || "").trim());
+    if (cellKey && !lookup.has(cellKey)) {
+      lookup.set(cellKey, cell);
+    }
+  }
+  return lookup;
+}
+
+function normalizeSerializedEntries(entries, cellsByKey) {
+  if (Array.isArray(entries)) {
+    return entries
+      .filter((entry) => entry && typeof entry === "object")
+      .map((entry) => ({
+        key: canonicalizeHexId(String(entry.key || "").trim()),
+        points: normalizePoints(entry.points),
+        terrain: String(entry.terrain || "").trim(),
+      }));
+  }
+
+  if (!entries || typeof entries !== "object") {
+    return [];
+  }
+
+  const out = [];
+  for (const [layerName, payload] of Object.entries(entries)) {
+    const terrain =
+      LEGACY_LAYER_TO_TERRAIN[
+        String(layerName || "")
+          .trim()
+          .toLowerCase()
+      ] || null;
+    if (!terrain) {
+      continue;
+    }
+
+    if (Array.isArray(payload)) {
+      for (const item of payload) {
+        if (typeof item === "string") {
+          const key = canonicalizeHexId(item);
+          out.push({
+            key,
+            points: normalizePoints(cellsByKey.get(key)?.points || ""),
+            terrain,
+          });
+          continue;
+        }
+        if (item && typeof item === "object") {
+          const key = canonicalizeHexId(String(item.key || "").trim());
+          out.push({
+            key,
+            points: normalizePoints(item.points || cellsByKey.get(key)?.points || ""),
+            terrain,
+          });
+        }
+      }
+      continue;
+    }
+
+    if (payload && typeof payload === "object") {
+      for (const [entryKey, entryValue] of Object.entries(payload)) {
+        const key = canonicalizeHexId(entryKey);
+        out.push({
+          key,
+          points: normalizePoints(entryValue?.points || cellsByKey.get(key)?.points || ""),
+          terrain,
+        });
+      }
+    }
+  }
+
+  return out;
+}
+
+function deserializeTerrainOverlay(serialized, cells = []) {
   const next = new Map();
   if (!serialized || typeof serialized !== "object") {
     return next;
   }
 
+  const cellsByKey = buildHexCellLookup(cells);
+
   for (const [sizeKey, entries] of Object.entries(serialized)) {
     const size = Number.parseInt(String(sizeKey), 10);
-    if (!Number.isFinite(size) || !Array.isArray(entries)) {
+    if (!Number.isFinite(size)) {
       continue;
     }
 
     const perSize = new Map();
-    for (const entry of entries) {
-      if (!entry || typeof entry !== "object") {
-        continue;
-      }
-      const key = String(entry.key || "").trim();
-      const points = normalizePoints(entry.points);
-      const terrain = String(entry.terrain || "").trim();
+    for (const entry of normalizeSerializedEntries(entries, cellsByKey)) {
+      const key = canonicalizeHexId(String(entry?.key || "").trim());
+      const points = normalizePoints(entry?.points || cellsByKey.get(key)?.points || "");
+      const terrain = String(entry?.terrain || "").trim();
       if (!key || !points || !terrain) {
         continue;
       }
@@ -348,7 +503,7 @@ function extractHexCells(templateContent) {
     .filter((poly) => isHexPolygonElement(poly))
     .map((poly) => {
       const points = normalizePoints(poly.getAttribute("points"));
-      const hexId = String(poly.getAttribute("data-hex-id") || "").trim();
+      const hexId = resolveHexKeyFromElement(poly);
       return {
         key: hexId || points,
         points,
@@ -422,22 +577,22 @@ function buildTerrainWeightsFromSeed(seed) {
   return Array.from(merged.entries()).map(([terrain, weight]) => ({ terrain, weight }));
 }
 
-function autoSeedTerrain() {
+function buildAutoSeededTerrainMap() {
   const cells = activeHexCells.value;
   if (!cells.length) {
-    return;
+    return null;
   }
 
   const weighted = buildTerrainWeightsFromSeed(props.terrainSeed);
   if (!weighted.length) {
-    return;
+    return null;
   }
 
   const seedValue = hashString(`${props.seedWorldName}|${props.seedUwp}|${activeSize.value}|terrain`);
   const rand = mulberry32(seedValue);
   const totalWeight = weighted.reduce((sum, entry) => sum + entry.weight, 0);
-
   const nextForSize = new Map();
+
   for (const cell of cells) {
     let roll = rand() * totalWeight;
     let picked = weighted[0].terrain;
@@ -449,6 +604,15 @@ function autoSeedTerrain() {
       }
     }
     nextForSize.set(cell.key, { points: cell.points, terrain: picked });
+  }
+
+  return nextForSize;
+}
+
+function autoSeedTerrain() {
+  const nextForSize = buildAutoSeededTerrainMap();
+  if (!nextForSize?.size) {
+    return;
   }
 
   const next = new Map(terrainBySize.value);
@@ -475,7 +639,7 @@ function handleMapClick(event) {
     return;
   }
 
-  const hexId = String(el.getAttribute("data-hex-id") || "").trim();
+  const hexId = resolveHexKeyFromElement(el);
   const key = hexId || points;
 
   const next = new Map(terrainBySize.value);
@@ -543,9 +707,27 @@ watch(
 );
 
 watch(
-  () => props.seedTerrainOverlay,
-  (nextOverlay) => {
-    terrainBySize.value = deserializeTerrainOverlay(nextOverlay);
+  [() => props.seedTerrainOverlay, activeHexCells],
+  ([nextOverlay, cells]) => {
+    terrainBySize.value = deserializeTerrainOverlay(nextOverlay, cells);
+
+    if (!readOnly.value || !props.seedTerrainGenerated) {
+      return;
+    }
+
+    const activeEntries = terrainBySize.value.get(activeSize.value);
+    if (activeEntries?.size) {
+      return;
+    }
+
+    const previewSeed = buildAutoSeededTerrainMap();
+    if (!previewSeed?.size) {
+      return;
+    }
+
+    const next = new Map(terrainBySize.value);
+    next.set(activeSize.value, previewSeed);
+    terrainBySize.value = next;
   },
   { immediate: true, deep: true },
 );

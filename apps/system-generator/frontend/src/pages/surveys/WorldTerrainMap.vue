@@ -2628,6 +2628,45 @@ function buildOverlayEntriesByKeyFromCurrentLayers(size) {
   return byKey;
 }
 
+function buildOverlayEntriesByKeyFromRenderedLayers() {
+  const layerSources = [
+    [activeWaterHexEntries.value, "water"],
+    [activeShoreHexEntries.value, "shore"],
+    [activeIslandHexEntries.value, "island"],
+    [activeHillsHexEntries.value, "hills"],
+    [activeMountainHexEntries.value, "mountain"],
+    [activeVolcanicHexEntries.value, "volcanic"],
+    [activeIceCapHexEntries.value, "icecap"],
+    [activeGlacierHexEntries.value, "glacier"],
+    [activeIceFieldHexEntries.value, "icefield"],
+    [activeFrozenLandHexEntries.value, "frozenland"],
+    [activeForestBiomeHexEntries.value, "forest"],
+    [activeDesertHexEntries.value, "desert"],
+    [activeTundraHexEntries.value, "tundra"],
+    [activeSwampBiomeHexEntries.value, "swamp"],
+    [activeExoticHexEntries.value, "exotic"],
+    [activeCityHexEntries.value, "urban"],
+    [activePlainsHexEntries.value, "plains"],
+  ];
+
+  const byKey = new Map();
+  for (const [entries, terrain] of layerSources) {
+    const list = Array.isArray(entries) ? entries : [];
+    for (const entry of list) {
+      const key = String(entry?.logicalKey || entry?.key || "")
+        .trim()
+        .split("::")[0];
+      const points = normalizePoints(entry?.points || "");
+      if (!key || !points || byKey.has(key)) {
+        continue;
+      }
+      byKey.set(key, { key, points, terrain });
+    }
+  }
+
+  return byKey;
+}
+
 function serializeTerrainOverlayBySize(activeSizeOverride = null) {
   const activeSize = Number.isFinite(Number(activeSizeOverride))
     ? Number(activeSizeOverride)
@@ -2637,10 +2676,18 @@ function serializeTerrainOverlayBySize(activeSizeOverride = null) {
       ? { ...selectedWorld.value.terrainOverlayBySize }
       : {};
 
-  const entries = [...buildOverlayEntriesByKeyFromCurrentLayers(activeSize).values()];
+  let entries = [...buildOverlayEntriesByKeyFromCurrentLayers(activeSize).values()];
+  if (!entries.length) {
+    entries = [...buildOverlayEntriesByKeyFromRenderedLayers().values()];
+  }
   if (entries.length) {
     nextOverlay[String(activeSize)] = entries;
   } else {
+    // During route transitions/template swaps, active map cells can momentarily be unavailable.
+    // Preserve existing persisted overlay in that transient state to avoid destructive blank writes.
+    if (!activeHexCells.value.length) {
+      return nextOverlay;
+    }
     delete nextOverlay[String(activeSize)];
   }
 
@@ -3792,6 +3839,16 @@ function tryApplySurveyOverlayTerrain() {
   const size = activeTerrainTemplateSize.value;
   const cells = activeHexCells.value;
   const bySize = selectedWorld.value?.terrainOverlayBySize;
+  const terrainMapWasGenerated = selectedWorld.value?.terrainMapGenerated === true;
+  // DEBUG: terrain read path
+  console.log("[TERRAIN READ] tryApplySurveyOverlayTerrain", {
+    size,
+    cellCount: cells.length,
+    terrainMapWasGenerated,
+    bySizeKeys: bySize && typeof bySize === "object" ? Object.keys(bySize) : "null/missing",
+    bySizeForSize: bySize && typeof bySize === "object" ? bySize[String(size)] : "no bySize",
+    useSurveyOverlay: useSurveyOverlayHexes.value,
+  });
   let serialized = bySize && typeof bySize === "object" ? bySize[String(size)] : null;
   if (!serialized && bySize && typeof bySize === "object") {
     const fallbackKey = Object.keys(bySize).find((key) => {
@@ -3818,7 +3875,7 @@ function tryApplySurveyOverlayTerrain() {
     const hasSurveyComposition = Array.isArray(selectedWorld.value?.terrainComposition?.hexCounts)
       ? selectedWorld.value.terrainComposition.hexCounts.length > 0
       : false;
-    if (cells.length && !inMemoryEntriesByKey.size && hasSurveyComposition) {
+    if (cells.length && !inMemoryEntriesByKey.size && hasSurveyComposition && terrainMapWasGenerated) {
       const rebuiltFromComposition = applyTerrainSurveyToMap({
         seedSalt: `rehydrate-${size}`,
         trackUserInteraction: false,
@@ -4038,8 +4095,23 @@ async function persistTerrainOverlay() {
 
   const nextOverlay = serializeTerrainOverlayBySize();
   const nextTerrainComposition = buildTerrainCompositionFromOverlay();
+  const terrainMapGenerated = Object.keys(nextOverlay).length > 0;
+  // DEBUG: terrain save path
+  console.log("[TERRAIN SAVE] persistTerrainOverlay", {
+    systemId,
+    worldIndex,
+    terrainMapGenerated,
+    overlaySizes: Object.keys(nextOverlay),
+    overlayEntryCounts: Object.fromEntries(
+      Object.entries(nextOverlay).map(([k, v]) => [
+        k,
+        Array.isArray(v) ? v.length : typeof v === "object" ? Object.keys(v).length : 0,
+      ]),
+    ),
+  });
   currentPlanets[worldIndex] = {
     ...currentPlanets[worldIndex],
+    terrainMapGenerated,
     terrainOverlayBySize: nextOverlay,
     terrainComposition: nextTerrainComposition,
   };
@@ -4053,6 +4125,15 @@ async function persistTerrainOverlay() {
         : {}),
       lastModified: updatedAt,
     },
+  });
+
+  // DEBUG: log what the API returned
+  console.log("[TERRAIN SAVE] persistTerrainOverlay API response", {
+    returnedSystemId: updatedSystem?.systemId,
+    returnedTerrainMapGenerated: updatedSystem?.planets?.[worldIndex]?.terrainMapGenerated,
+    returnedOverlaySizes: updatedSystem?.planets?.[worldIndex]?.terrainOverlayBySize
+      ? Object.keys(updatedSystem.planets[worldIndex].terrainOverlayBySize)
+      : "missing",
   });
 
   if (updatedSystem?.systemId) {
@@ -4090,6 +4171,7 @@ async function persistTerrainHexTags() {
 
   const nextOverlay = serializeTerrainOverlayBySize();
   const nextTerrainComposition = buildTerrainCompositionFromOverlay();
+  const terrainMapGenerated = Object.keys(nextOverlay).length > 0;
 
   const currentPlanets = Array.isArray(boundSystem.value?.planets) ? [...boundSystem.value.planets] : [];
   if (!currentPlanets.length || !currentPlanets[worldIndex]) {
@@ -4098,6 +4180,7 @@ async function persistTerrainHexTags() {
 
   currentPlanets[worldIndex] = {
     ...currentPlanets[worldIndex],
+    terrainMapGenerated,
     terrainOverlayBySize: nextOverlay,
     terrainComposition: nextTerrainComposition,
     metadata: {
@@ -4127,10 +4210,12 @@ async function persistTerrainHexTags() {
   return true;
 }
 
-async function flushPendingTerrainPersistence() {
+async function flushPendingTerrainPersistence(options = {}) {
   if (!hasUserInteractedWithTerrain.value) {
     return;
   }
+
+  const forceOverlayPersist = options?.forceOverlayPersist === true;
 
   const hadPendingOverlayPersist = Boolean(terrainOverlayPersistTimer.value);
 
@@ -4143,7 +4228,7 @@ async function flushPendingTerrainPersistence() {
     terrainHexTagPersistTimer.value = null;
   }
 
-  if (hadPendingOverlayPersist) {
+  if (hadPendingOverlayPersist || forceOverlayPersist) {
     await persistTerrainOverlay();
   }
   await persistTerrainHexTags();
@@ -4162,8 +4247,18 @@ async function saveCurrentTerrainBaseline() {
     savedTerrainCompositionByWorld.value = nextComposition;
   }
 
-  await flushPendingTerrainPersistence();
-  return true;
+  if (terrainOverlayPersistTimer.value) {
+    clearTimeout(terrainOverlayPersistTimer.value);
+    terrainOverlayPersistTimer.value = null;
+  }
+  if (terrainHexTagPersistTimer.value) {
+    clearTimeout(terrainHexTagPersistTimer.value);
+    terrainHexTagPersistTimer.value = null;
+  }
+
+  const overlayPersisted = await persistTerrainOverlay();
+  const tagsPersisted = await persistTerrainHexTags();
+  return Boolean(overlayPersisted || tagsPersisted);
 }
 
 watch(
