@@ -1024,26 +1024,46 @@ const TERRAIN_COLOR_DEFAULTS = Object.freeze({
   urban: "#9e9e9e",
 });
 
-const TERRAIN_CLUSTER_TUNING = Object.freeze({
+const TERRAIN_CLUSTER_PROFILE_TUNING = Object.freeze({
+  tight: { continuationBias: 0.9, neighborBias: 0.82 },
+  medium: { continuationBias: 0.76, neighborBias: 0.7 },
+  loose: { continuationBias: 0.45, neighborBias: 0.5 },
+});
+
+const TERRAIN_CLUSTER_PROFILE_BY_TERRAIN = Object.freeze({
+  water: "tight",
+  lake: "tight",
+  icecap: "tight",
+  glacier: "tight",
+  mountain: "medium",
+  forest: "medium",
+  volcanic: "medium",
+  plains: "loose",
+  secondary: "medium",
+});
+
+// Optional terrain-level overrides that preserve bespoke tuning while still
+// routing through the high-level tight/medium/loose profile model.
+const TERRAIN_CLUSTER_TUNING_OVERRIDES = Object.freeze({
   water: { continuationBias: 0.94, neighborBias: 0.86 },
-  lake: { continuationBias: 0.9, neighborBias: 0.82 },
-  icecap: { continuationBias: 0.9, neighborBias: 0.82 },
   glacier: { continuationBias: 0.88, neighborBias: 0.8 },
   mountain: { continuationBias: 0.82, neighborBias: 0.76 },
-  forest: { continuationBias: 0.76, neighborBias: 0.7 },
   volcanic: { continuationBias: 0.72, neighborBias: 0.7 },
-  plains: { continuationBias: 0.45, neighborBias: 0.5 },
   secondary: { continuationBias: 0.7, neighborBias: 0.68 },
 });
 
-function getClusterTuning(terrain) {
-  const normalized = String(terrain || "")
+function getClusterTuning(terrainOrProfile) {
+  const normalized = String(terrainOrProfile || "")
     .trim()
     .toLowerCase();
-  if (normalized === "volcanic") {
-    return TERRAIN_CLUSTER_TUNING.volcanic;
-  }
-  return TERRAIN_CLUSTER_TUNING[normalized] || TERRAIN_CLUSTER_TUNING.secondary;
+
+  const profile = TERRAIN_CLUSTER_PROFILE_TUNING[normalized]
+    ? normalized
+    : TERRAIN_CLUSTER_PROFILE_BY_TERRAIN[normalized] || TERRAIN_CLUSTER_PROFILE_BY_TERRAIN.secondary;
+  const profileTuning = TERRAIN_CLUSTER_PROFILE_TUNING[profile] || TERRAIN_CLUSTER_PROFILE_TUNING.medium;
+  const terrainOverride = TERRAIN_CLUSTER_TUNING_OVERRIDES[normalized] || null;
+
+  return terrainOverride ? { ...profileTuning, ...terrainOverride } : profileTuning;
 }
 
 const FEATURE_LEGEND_COLORS = Object.freeze({
