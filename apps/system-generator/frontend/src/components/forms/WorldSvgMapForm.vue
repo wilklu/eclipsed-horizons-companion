@@ -648,7 +648,29 @@ const activeTerrainEntries = computed(() => {
   if (!current) {
     return [];
   }
-  return Array.from(current.entries()).map(([key, value]) => ({ key, ...value }));
+
+  // Build entries per active hex cell so that seam partner polygons
+  // (which may share a canonical key) are painted using each cell's
+  // polygon points while reusing the persisted terrain type.
+  const out = [];
+  for (const cell of activeHexCells.value || []) {
+    const cellKey = canonicalizeHexId(String(cell?.key || "").trim()) || "";
+    const stored = current.get(cellKey) || current.get(String(cellKey));
+    if (stored && stored.terrain) {
+      out.push({ key: cellKey, points: cell.points, terrain: stored.terrain });
+    }
+  }
+
+  // Also include any remaining stored entries that don't match active cells
+  // (fallback for templates with missing metadata).
+  const activeKeys = new Set(out.map((e) => e.key));
+  for (const [key, value] of current.entries()) {
+    if (!activeKeys.has(key)) {
+      out.push({ key, points: value.points, terrain: value.terrain });
+    }
+  }
+
+  return out;
 });
 
 const paintedCount = computed(() => activeTerrainEntries.value.length);
