@@ -40,7 +40,7 @@
           <div class="name-row">
             <input v-model="seedValue" placeholder="guid-seed" class="text-input" />
             <button class="btn btn-secondary" type="button" title="Generate new seed" @click="generateNewSeed">
-              🧬 New
+              🧬
             </button>
           </div>
         </div>
@@ -462,7 +462,11 @@ const selectedWorldKey = ref("");
 const sophont = ref(null);
 
 const styledImagePrompt = computed(() =>
-  buildConceptArtPrompt(String(sophont.value?.imagePrompt || ""), { entityType: "sophont", style: artStyle.value }),
+  buildConceptArtPrompt(String(sophont.value?.imagePrompt || ""), {
+    entityType: "sophont",
+    style: artStyle.value,
+    seed: sophont.value?.seed || seedValue.value,
+  }),
 );
 
 const worldOptions = computed(() => listSystemWorldOptions(systemStore.getAllSystems));
@@ -1058,7 +1062,7 @@ async function exportSophont() {
 
 .control-panel {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  grid-template-columns: repeat(6, 1fr);
   gap: 0.65rem;
   margin-bottom: 1.25rem;
   padding: 1.15rem;
@@ -1091,10 +1095,18 @@ async function exportSophont() {
 .name-row {
   display: flex;
   align-items: stretch;
-  gap: 0.5rem;
+  gap: 0.3rem;
+  min-width: 0;
 }
 .name-row .text-input {
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.name-row .btn {
+  flex: 0 0 auto;
+  padding: 0 0.5rem;
+  min-width: 2rem;
 }
 
 .select-input,

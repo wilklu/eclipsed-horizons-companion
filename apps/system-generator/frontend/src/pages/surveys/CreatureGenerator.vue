@@ -40,7 +40,7 @@
           <div class="name-row">
             <input v-model="seedValue" placeholder="guid-seed" class="text-input" />
             <button class="btn btn-secondary" type="button" title="Generate new seed" @click="generateNewSeed">
-              🧬 New
+              🧬
             </button>
           </div>
         </div>
@@ -88,7 +88,7 @@
         <div class="control-group">
           <label>Art Style</label>
           <select v-model="artStyle" class="select-input">
-            <option v-for="entry in ART_STYLE_PRESETS" :key="entry" :value="entry">{{ entry }}</option>
+            <option v-for="entry in artStyleOptions" :key="entry" :value="entry">{{ entry }}</option>
           </select>
         </div>
 
@@ -540,8 +540,14 @@ const faunaBundle = ref(null);
 const encounterTable = ref([]);
 
 const styledImagePrompt = computed(() =>
-  buildConceptArtPrompt(String(creature.value?.imagePrompt || ""), { entityType: "fauna", style: artStyle.value }),
+  buildConceptArtPrompt(String(creature.value?.imagePrompt || ""), {
+    entityType: "fauna",
+    style: artStyle.value,
+    seed: creature.value?.seed || seedValue.value,
+  }),
 );
+
+const artStyleOptions = computed(() => ART_STYLE_PRESETS.filter((s) => s !== "March of Progress"));
 
 const worldOptions = computed(() => listSystemWorldOptions(systemStore.getAllSystems));
 
@@ -1363,7 +1369,7 @@ async function exportCreature() {
 
 .control-panel {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  grid-template-columns: 2.2fr 1fr 1fr 1fr 1fr 0.6fr 1.6fr 1fr;
   gap: 0.65rem;
   margin-bottom: 1.25rem;
   padding: 1.15rem;
@@ -1379,7 +1385,7 @@ async function exportCreature() {
 }
 
 .control-group-wide {
-  grid-column: span 2;
+  grid-column: span 1;
 }
 
 .control-group label {
@@ -1390,7 +1396,6 @@ async function exportCreature() {
 
 .control-group-narrow {
   min-width: 0;
-  max-width: 120px;
 }
 
 .select-input-narrow {
@@ -1411,11 +1416,24 @@ async function exportCreature() {
 .name-row {
   display: flex;
   align-items: stretch;
-  gap: 0.5rem;
+  gap: 0.3rem;
+  min-width: 0;
 }
 
 .name-row .text-input {
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.control-panel > .control-group:first-child .text-input {
+  font-size: 1.05rem;
+  padding: 0.65rem 0.75rem;
+}
+
+.name-row .btn {
+  flex: 0 0 auto;
+  padding: 0 0.5rem;
+  min-width: 2rem;
 }
 
 .select-input,

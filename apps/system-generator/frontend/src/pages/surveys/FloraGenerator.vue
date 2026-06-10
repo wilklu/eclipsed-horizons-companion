@@ -40,7 +40,7 @@
           <div class="name-row seed-row">
             <input v-model="seedValue" placeholder="guid-seed" class="text-input seed-input" />
             <button class="btn btn-secondary" type="button" title="Generate new seed" @click="generateNewSeed">
-              🧬 New
+              🧬
             </button>
           </div>
         </div>
@@ -72,7 +72,7 @@
         <div class="control-group">
           <label>Art Style</label>
           <select v-model="artStyle" class="select-input">
-            <option v-for="entry in ART_STYLE_PRESETS" :key="entry" :value="entry">{{ entry }}</option>
+            <option v-for="entry in artStyleOptions" :key="entry" :value="entry">{{ entry }}</option>
           </select>
         </div>
 
@@ -356,8 +356,14 @@ const selectedWorldKey = ref("");
 const flora = ref(null);
 
 const styledImagePrompt = computed(() =>
-  buildConceptArtPrompt(String(flora.value?.imagePrompt || ""), { entityType: "flora", style: artStyle.value }),
+  buildConceptArtPrompt(String(flora.value?.imagePrompt || ""), {
+    entityType: "flora",
+    style: artStyle.value,
+    seed: flora.value?.seed || seedValue.value,
+  }),
 );
+
+const artStyleOptions = computed(() => ART_STYLE_PRESETS.filter((s) => s !== "March of Progress"));
 
 const worldOptions = computed(() => listSystemWorldOptions(systemStore.getAllSystems));
 
@@ -901,7 +907,7 @@ async function exportFlora() {
 
 .control-panel {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  grid-template-columns: repeat(6, 1fr);
   gap: 0.65rem;
 }
 
@@ -913,7 +919,7 @@ async function exportFlora() {
 }
 
 .control-group-wide {
-  grid-column: span 2;
+  grid-column: span 1;
 }
 
 .control-action {
@@ -934,13 +940,19 @@ label {
 
 .name-row {
   display: flex;
-  gap: 0.5rem;
+  gap: 0.3rem;
   min-width: 0;
 }
 
 .name-row .text-input {
   flex: 1 1 auto;
   min-width: 0;
+}
+
+.name-row .btn {
+  flex: 0 0 auto;
+  padding: 0 0.5rem;
+  min-width: 2rem;
 }
 
 .seed-row .seed-input {
