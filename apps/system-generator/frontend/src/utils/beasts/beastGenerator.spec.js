@@ -22,6 +22,7 @@ import {
   resolveWeapon,
   summarizeEcosystemBalance,
   buildFaunaWorldUpdate,
+  getWorldAvailableCreatureTerrains,
 } from "./beastGenerator.js";
 import { formatBeastSummary, formatReactionValue } from "./beastFormatting.js";
 
@@ -157,6 +158,24 @@ describe("beastGenerator rules foundation", () => {
     expect(linked.sourceWorld.nativeSophontLife).toBe(true);
     expect(linked.worldSize).toBe(8);
     expect(linked.terrain).toBe("Wetland");
+  });
+
+  it("derives available terrains from world terrain composition", () => {
+    const options = getWorldAvailableCreatureTerrains({
+      terrainComposition: {
+        hexCounts: [
+          { type: "woods", count: 5 },
+          { type: "desert", count: 3 },
+          { type: "ice field", count: 2 },
+          { type: "unknown-homebrew", count: 1 },
+        ],
+      },
+    });
+
+    expect(options).toContain("Woods");
+    expect(options).toContain("Desert");
+    expect(options).toContain("Ice Field");
+    expect(options).not.toContain("Clear");
   });
 
   it("builds world fauna bundles with ecosystem balance summaries", () => {

@@ -55,7 +55,7 @@
           <label>Home Environment:</label>
           <select v-model="homeEnvironment" class="select-input">
             <option value="random">🎲 Random</option>
-            <option v-for="env in HOME_ENVS" :key="env" :value="env">{{ env }}</option>
+            <option v-for="env in homeEnvironmentOptions" :key="env" :value="env">{{ env }}</option>
           </select>
         </div>
         <div class="control-group">
@@ -281,6 +281,9 @@
                   <button type="button" class="btn btn-secondary btn-copy" @click="generateConceptArt(sophont)">
                     Generate Art
                   </button>
+                  <button type="button" class="btn btn-secondary btn-copy" @click="openUploadImagesDialog">
+                    Add Images
+                  </button>
                   <button
                     type="button"
                     class="btn btn-secondary btn-copy"
@@ -301,9 +304,43 @@
               </div>
               <textarea :value="styledImagePrompt" class="prompt-textarea" rows="5" readonly />
             </div>
+            <input
+              ref="additionalImagesInput"
+              class="hidden-file-input"
+              type="file"
+              accept="image/*"
+              multiple
+              @change="handleAdditionalImagesSelected"
+            />
             <div v-if="artPreviewUrl" class="prompt-block section-offset">
               <span class="prompt-label">Concept Art Preview · {{ artStyle }}</span>
-              <img :src="artPreviewUrl" alt="Generated sophont concept art preview" class="concept-art-preview" />
+              <img
+                :src="artPreviewUrl"
+                alt="Generated sophont concept art preview"
+                class="concept-art-preview"
+                @load="handlePreviewLoaded"
+                @error="handlePreviewError"
+              />
+            </div>
+            <div v-if="artPreviewError" class="prompt-error section-offset">{{ artPreviewError }}</div>
+            <div v-if="additionalImageUrls.length" class="section-offset">
+              <span class="prompt-label">Additional Images</span>
+              <div class="additional-image-grid">
+                <article
+                  v-for="(url, index) in additionalImageUrls"
+                  :key="`${url}-${index}`"
+                  class="additional-image-card"
+                >
+                  <img :src="url" alt="Additional sophont reference" class="additional-image-thumb" />
+                  <button
+                    type="button"
+                    class="btn btn-secondary btn-remove-image"
+                    @click="removeAdditionalImage(index)"
+                  >
+                    Remove
+                  </button>
+                </article>
+              </div>
             </div>
             <p class="prompt-caption">{{ sophont.imageCaption }}</p>
           </section>
@@ -328,6 +365,7 @@
         </div>
         <div v-if="savedSophonts.length" class="saved-record-list">
           <article v-for="entry in savedSophonts" :key="entry.id" class="saved-record-card">
+            <img v-if="entry.imageUrl" :src="entry.imageUrl" alt="Saved sophont artwork" class="saved-record-thumb" />
             <div class="saved-record-copy">
               <strong>{{ entry.name }}</strong>
               <span>{{ entry.taxonomy?.["Scientific Name"] || "Unclassified sophont" }}</span>
@@ -362,6 +400,7 @@ import {
   buildSophontWorldUpdate,
   buildWorldLinkedSophontOptions,
   generateSophontProfile,
+  getWorldAvailableSophontEnvironments,
   randomSophontName,
 } from "../../utils/beasts/sophontGenerator.js";
 import { generateGuidSeed } from "../../utils/beasts/beastGenerator.js";
@@ -413,6 +452,9 @@ const isSpeakingName = ref(false);
 const supportsSpeechSynthesis = isSpeechSynthesisSupported();
 const artStyle = ref(DEFAULT_ART_STYLE);
 const artPreviewUrl = ref("");
+const artPreviewError = ref("");
+const additionalImageUrls = ref([]);
+const additionalImagesInput = ref(null);
 const seedValue = ref(generateGuidSeed("sophont"));
 const bodyPlan = ref("random");
 const homeEnvironment = ref("random");
@@ -429,6 +471,13 @@ const selectedWorldOption = computed(
   () => worldOptions.value.find((entry) => entry.key === selectedWorldKey.value) || null,
 );
 const selectedWorldRecord = computed(() => selectedWorldOption.value?.world || null);
+const homeEnvironmentOptions = computed(() => {
+  if (!selectedWorldRecord.value) {
+    return HOME_ENVS;
+  }
+
+  return getWorldAvailableSophontEnvironments(selectedWorldRecord.value);
+});
 const activeWorldCriteria = computed(() => ({
   worldKey: selectedWorldKey.value,
   systemId: selectedWorldOption.value?.systemId || String(route.query.systemId || route.query.systemRecordId || ""),
@@ -520,12 +569,29 @@ watch(
 watch(selectedWorldRecord, (world) => {
   if (!world) return;
   const linked = buildWorldLinkedSophontOptions(world);
-  homeEnvironment.value = linked.homeEnvironment;
+  if (homeEnvironment.value === "random" || !homeEnvironmentOptions.value.includes(homeEnvironment.value)) {
+    homeEnvironment.value = homeEnvironmentOptions.value.includes(linked.homeEnvironment)
+      ? linked.homeEnvironment
+      : homeEnvironmentOptions.value[0];
+  }
   bodyPlan.value = linked.bodyPlan;
   if (!String(speciesName.value || "").trim()) {
     speciesName.value = String(world?.name || "").trim();
   }
 });
+
+watch(
+  homeEnvironmentOptions,
+  (options) => {
+    if (!selectedWorldRecord.value || homeEnvironment.value === "random") {
+      return;
+    }
+    if (!options.includes(homeEnvironment.value)) {
+      homeEnvironment.value = options[0] || "random";
+    }
+  },
+  { immediate: true },
+);
 
 function generateNewSeed() {
   seedValue.value = generateGuidSeed("sophont");
@@ -597,6 +663,7 @@ function generateConceptArt(record = sophont.value) {
     return;
   }
 
+  artPreviewError.value = "";
   artPreviewUrl.value = buildConceptArtUrl(prompt, {
     entityType: "sophont",
     style: artStyle.value,
@@ -604,6 +671,61 @@ function generateConceptArt(record = sophont.value) {
     width: 1024,
     height: 1024,
   });
+
+  if (!artPreviewUrl.value) {
+    artPreviewError.value = "Unable to build an art URL from the current prompt.";
+    toastService.error("Unable to generate concept art preview.");
+    return;
+  }
+
+  if (!additionalImageUrls.value.includes(artPreviewUrl.value)) {
+    additionalImageUrls.value = [artPreviewUrl.value, ...additionalImageUrls.value];
+  }
+}
+
+function handlePreviewLoaded() {
+  artPreviewError.value = "";
+}
+
+function handlePreviewError() {
+  artPreviewError.value =
+    "The generated image could not be loaded. Try Generate Art again or switch Art Style to create a new variant.";
+}
+
+function openUploadImagesDialog() {
+  additionalImagesInput.value?.click();
+}
+
+function handleAdditionalImagesSelected(event) {
+  const files = Array.from(event?.target?.files || []);
+  if (!files.length) {
+    return;
+  }
+
+  for (const file of files) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const url = String(reader.result || "").trim();
+      if (!url) {
+        return;
+      }
+      if (!additionalImageUrls.value.includes(url)) {
+        additionalImageUrls.value = [url, ...additionalImageUrls.value];
+      }
+    };
+    reader.readAsDataURL(file);
+  }
+
+  if (event?.target) {
+    event.target.value = "";
+  }
+}
+
+function removeAdditionalImage(index) {
+  if (index < 0 || index >= additionalImageUrls.value.length) {
+    return;
+  }
+  additionalImageUrls.value = additionalImageUrls.value.filter((_, currentIndex) => currentIndex !== index);
 }
 
 function openArtPreview() {
@@ -619,6 +741,7 @@ function openArtPreview() {
 
 function clearArtPreview() {
   artPreviewUrl.value = "";
+  artPreviewError.value = "";
 }
 
 async function copyPromptText(text) {
@@ -704,9 +827,11 @@ async function ensureSophontSpeciesPool() {
 
 async function generateSophont() {
   const seed = ensureSeed();
+  clearArtPreview();
+  const availableEnvironments = homeEnvironmentOptions.value;
   const resolvedHomeEnvironment =
     homeEnvironment.value === "random"
-      ? HOME_ENVS[Math.floor(Math.random() * HOME_ENVS.length)]
+      ? availableEnvironments[Math.floor(Math.random() * availableEnvironments.length)]
       : homeEnvironment.value;
   if (!String(speciesName.value || "").trim()) {
     randomizeName();
@@ -715,10 +840,13 @@ async function generateSophont() {
   await ensureSophontSpeciesPool();
 
   const linked = selectedWorldRecord.value
-    ? buildWorldLinkedSophontOptions(selectedWorldRecord.value)
+    ? {
+        ...buildWorldLinkedSophontOptions(selectedWorldRecord.value),
+        homeEnvironment: resolvedHomeEnvironment,
+      }
     : {
         sourceWorld: null,
-        homeEnvironment: homeEnvironment.value,
+        homeEnvironment: resolvedHomeEnvironment,
         bodyPlan: bodyPlan.value,
       };
 
@@ -785,6 +913,8 @@ async function saveSophontRecord() {
 
   const persisted = await sophontStore.saveSophont({
     ...sophont.value,
+    imageUrl: String(artPreviewUrl.value || sophont.value.imageUrl || "").trim(),
+    imageUrls: [...new Set(additionalImageUrls.value.filter(Boolean))],
     seed: seedValue.value,
     bodyPlanSelection: bodyPlan.value,
     homeEnvironmentSelection: homeEnvironment.value,
@@ -793,7 +923,17 @@ async function saveSophontRecord() {
     worldName: selectedWorldOption.value?.worldName || sophont.value.sourceWorld?.name || "",
   });
 
-  sophont.value = { ...sophont.value, id: persisted.id, savedAt: persisted.savedAt, updatedAt: persisted.updatedAt };
+  sophont.value = {
+    ...sophont.value,
+    id: persisted.id,
+    imageUrl: String(persisted.imageUrl || sophont.value.imageUrl || "").trim(),
+    imageUrls: Array.isArray(persisted.imageUrls)
+      ? [...persisted.imageUrls]
+      : [...new Set(additionalImageUrls.value.filter(Boolean))],
+    savedAt: persisted.savedAt,
+    updatedAt: persisted.updatedAt,
+  };
+  additionalImageUrls.value = Array.isArray(sophont.value.imageUrls) ? [...sophont.value.imageUrls] : [];
   const linked = await persistSophontToWorldContext(persisted);
   toastService.success(
     linked ? `Saved sophont ${persisted.name} and linked it to the world survey.` : `Saved sophont ${persisted.name}.`,
@@ -846,6 +986,13 @@ function loadSavedSophont(record) {
   if (normalizedRecord.worldKey) {
     selectedWorldKey.value = normalizedRecord.worldKey;
   }
+  artPreviewUrl.value = String(normalizedRecord.imageUrl || "").trim();
+  artPreviewError.value = "";
+  additionalImageUrls.value = Array.isArray(normalizedRecord.imageUrls)
+    ? [...normalizedRecord.imageUrls]
+    : artPreviewUrl.value
+      ? [artPreviewUrl.value]
+      : [];
   sophont.value = normalizedRecord;
   toastService.success(`Loaded sophont ${normalizedRecord.name}.`);
 }
@@ -861,6 +1008,7 @@ async function deleteSavedSophont(recordId) {
 function resetForm() {
   stopNameSpeech();
   clearArtPreview();
+  additionalImageUrls.value = [];
   speciesName.value = "";
   seedValue.value = generateGuidSeed("sophont");
   bodyPlan.value = "random";
@@ -909,9 +1057,9 @@ async function exportSophont() {
 }
 
 .control-panel {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 0.65rem;
   margin-bottom: 1.25rem;
   padding: 1.15rem;
   background: #1a1a1a;
@@ -922,7 +1070,7 @@ async function exportSophont() {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  min-width: 200px;
+  min-width: 0;
 }
 
 .control-group label {
@@ -932,7 +1080,13 @@ async function exportSophont() {
 }
 
 .control-action {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: row;
   justify-content: flex-end;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
 }
 .name-row {
   display: flex;
@@ -1085,6 +1239,15 @@ async function exportSophont() {
   background: #12122e;
 }
 
+.saved-record-thumb {
+  width: 64px;
+  height: 64px;
+  border-radius: 0.4rem;
+  object-fit: cover;
+  border: 1px solid #2a4064;
+  flex: 0 0 auto;
+}
+
 .saved-record-copy {
   display: grid;
   gap: 0.2rem;
@@ -1149,6 +1312,47 @@ async function exportSophont() {
   margin: 0.75rem 0 0;
   color: #9fb6d9;
   font-style: italic;
+}
+
+.hidden-file-input {
+  display: none;
+}
+
+.prompt-error {
+  color: #fecaca;
+  background: rgba(127, 29, 29, 0.28);
+  border: 1px solid rgba(248, 113, 113, 0.5);
+  border-radius: 0.45rem;
+  padding: 0.55rem 0.7rem;
+  font-size: 0.88rem;
+}
+
+.additional-image-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.7rem;
+}
+
+.additional-image-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  border: 1px solid rgba(0, 217, 255, 0.25);
+  border-radius: 0.45rem;
+  padding: 0.45rem;
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.additional-image-thumb {
+  width: 100%;
+  height: 120px;
+  object-fit: cover;
+  border-radius: 0.35rem;
+}
+
+.btn-remove-image {
+  min-height: 2rem;
+  padding: 0.45rem 0.65rem;
 }
 
 .char-item {

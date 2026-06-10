@@ -273,14 +273,25 @@
           </g>
 
           <g id="rainforest-hex-overlay" pointer-events="none">
-            <polygon
-              v-for="entry in activeForestBiomeHexEntries"
-              :key="entry.key"
-              :points="entry.points"
-              :fill="withAlpha(terrainColor('forest'), 0.32)"
-              :stroke="terrainColor('forest')"
-              stroke-width="0.8"
-            />
+            <g v-for="entry in activeForestBiomeHexEntries" :key="entry.key">
+              <polygon
+                :points="entry.points"
+                :fill="withAlpha(terrainColor('forest'), 0.32)"
+                :stroke="terrainColor('forest')"
+                stroke-width="0.8"
+              />
+              <text
+                :x="entry.cx"
+                :y="entry.cy + 4"
+                text-anchor="middle"
+                font-size="8"
+                font-weight="bold"
+                fill="#174d26"
+                style="pointer-events: none; user-select: none"
+              >
+                Fo
+              </text>
+            </g>
           </g>
 
           <g id="swamp-hex-overlay" pointer-events="none">
@@ -560,7 +571,12 @@
 
           <g id="exotic-hex-overlay" pointer-events="none">
             <g v-for="entry in activeExoticHexEntries" :key="entry.key">
-              <polygon :points="entry.points" fill="rgba(97, 165, 164, 0.34)" stroke="#2f6f6f" stroke-width="1.1" />
+              <polygon
+                :points="entry.points"
+                :fill="withAlpha(terrainColor('exotic'), 0.34)"
+                :stroke="terrainColor('exotic')"
+                stroke-width="1.1"
+              />
               <text
                 :x="entry.cx"
                 :y="entry.cy + 4"
@@ -1002,6 +1018,7 @@ const terrainPaintTypes = Object.freeze([
   { id: "desert", label: "Desert" },
   { id: "tundra", label: "Tundra" },
   { id: "swamp", label: "Swamp" },
+  { id: "exotic", label: "Exotic" },
   { id: "urban", label: "Urban" },
 ]);
 
@@ -1021,6 +1038,7 @@ const TERRAIN_COLOR_DEFAULTS = Object.freeze({
   desert: "#d2b46e",
   tundra: "#bcc7d0",
   swamp: "#5f7a42",
+  exotic: "#61a5a4",
   urban: "#9e9e9e",
 });
 
@@ -1365,7 +1383,7 @@ const hexLegendEntries = computed(() => [
   {
     id: "exotic",
     label: "Exotic",
-    color: FEATURE_LEGEND_COLORS.exotic,
+    color: terrainColor("exotic"),
     count: uniqueHexCount(activeExoticHexEntries.value),
     target: legendTarget("exotic"),
   },

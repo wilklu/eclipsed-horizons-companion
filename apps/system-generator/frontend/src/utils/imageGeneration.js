@@ -1,5 +1,6 @@
 export const DEFAULT_ART_STYLE = "Field Guide";
-export const ART_STYLE_PRESETS = ["Field Guide", "Concept Art", "Portrait", "Scientific Plate"];
+export const ART_STYLE_PRESETS = ["Field Guide", "Concept Art", "Portrait", "Scientific Plate", "Anatomy Diagram"];
+const MAX_PROMPT_CHARS = 700;
 
 const STYLE_DESCRIPTORS = {
   "Field Guide":
@@ -8,12 +9,30 @@ const STYLE_DESCRIPTORS = {
   Portrait: "hero portrait framing, expressive lighting, subject-forward composition, polished illustrative finish",
   "Scientific Plate":
     "museum-quality scientific plate, balanced studio lighting, taxonomy-friendly presentation, minimal background noise",
+  "Anatomy Diagram":
+    "technical anatomy diagram framing, cutaway and labeled-region friendly composition, high structural clarity, clean neutral background",
 };
 
 function clampDimension(value, fallback = 768) {
   const parsed = Number(value);
   const resolved = Number.isFinite(parsed) ? parsed : fallback;
   return Math.min(1536, Math.max(512, Math.round(resolved)));
+}
+
+function clampPromptLength(prompt) {
+  const normalized = String(prompt || "").trim();
+  if (!normalized) {
+    return "";
+  }
+
+  if (normalized.length <= MAX_PROMPT_CHARS) {
+    return normalized;
+  }
+
+  const slice = normalized.slice(0, MAX_PROMPT_CHARS);
+  const cut = slice.lastIndexOf(" ");
+  const compact = (cut > 120 ? slice.slice(0, cut) : slice).trim();
+  return `${compact}.`;
 }
 
 export function buildConceptArtPrompt(basePrompt, { entityType = "subject", style = DEFAULT_ART_STYLE } = {}) {
@@ -29,7 +48,9 @@ export function buildConceptArtPrompt(basePrompt, { entityType = "subject", styl
     return "";
   }
 
-  return `${normalizedPrompt} Create a ${normalizedType} illustration in a ${normalizedStyle.toLowerCase()} style with ${descriptor}. No text, watermark, logos, borders, or captions.`;
+  return clampPromptLength(
+    `${normalizedPrompt} Create a ${normalizedType} illustration in a ${normalizedStyle.toLowerCase()} style with ${descriptor}. No text, watermark, logos, borders, or captions.`,
+  );
 }
 
 export function buildConceptArtUrl(

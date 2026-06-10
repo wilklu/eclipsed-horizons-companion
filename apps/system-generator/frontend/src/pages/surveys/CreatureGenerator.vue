@@ -58,7 +58,7 @@
           <label>Native Terrain</label>
           <select v-model="terrain" class="select-input">
             <option value="random">🎲 Random</option>
-            <option v-for="entry in TERRAIN_OPTIONS" :key="entry" :value="entry">{{ entry }}</option>
+            <option v-for="entry in terrainChoiceOptions" :key="entry" :value="entry">{{ entry }}</option>
           </select>
         </div>
 
@@ -318,6 +318,9 @@
                   <button type="button" class="btn btn-secondary btn-copy" @click="generateConceptArt(creature)">
                     Generate Art
                   </button>
+                  <button type="button" class="btn btn-secondary btn-copy" @click="openUploadImagesDialog">
+                    Add Images
+                  </button>
                   <button
                     type="button"
                     class="btn btn-secondary btn-copy"
@@ -338,9 +341,43 @@
               </div>
               <textarea :value="styledImagePrompt" class="prompt-textarea" rows="5" readonly />
             </div>
+            <input
+              ref="additionalImagesInput"
+              class="hidden-file-input"
+              type="file"
+              accept="image/*"
+              multiple
+              @change="handleAdditionalImagesSelected"
+            />
             <div v-if="artPreviewUrl" class="prompt-block section-offset">
               <span class="prompt-label">Concept Art Preview · {{ artStyle }}</span>
-              <img :src="artPreviewUrl" alt="Generated fauna concept art preview" class="concept-art-preview" />
+              <img
+                :src="artPreviewUrl"
+                alt="Generated fauna concept art preview"
+                class="concept-art-preview"
+                @load="handlePreviewLoaded"
+                @error="handlePreviewError"
+              />
+            </div>
+            <div v-if="artPreviewError" class="prompt-error section-offset">{{ artPreviewError }}</div>
+            <div v-if="additionalImageUrls.length" class="section-offset">
+              <span class="prompt-label">Additional Images</span>
+              <div class="additional-image-grid">
+                <article
+                  v-for="(url, index) in additionalImageUrls"
+                  :key="`${url}-${index}`"
+                  class="additional-image-card"
+                >
+                  <img :src="url" alt="Additional fauna reference" class="additional-image-thumb" />
+                  <button
+                    type="button"
+                    class="btn btn-secondary btn-remove-image"
+                    @click="removeAdditionalImage(index)"
+                  >
+                    Remove
+                  </button>
+                </article>
+              </div>
             </div>
             <p class="prompt-caption">{{ creature.imageCaption }}</p>
           </section>
@@ -357,6 +394,7 @@
         </div>
         <div v-if="savedCreatures.length" class="saved-record-list">
           <article v-for="entry in savedCreatures" :key="entry.id" class="saved-record-card">
+            <img v-if="entry.imageUrl" :src="entry.imageUrl" alt="Saved fauna artwork" class="saved-record-thumb" />
             <div class="saved-record-copy">
               <strong>{{ entry.name }}</strong>
               <span>{{ entry.taxonomy?.["Scientific Name"] || "Unclassified fauna" }}</span>
@@ -382,6 +420,12 @@
         </div>
         <div v-if="savedFaunaBundles.length" class="saved-record-list">
           <article v-for="entry in savedFaunaBundles" :key="entry.id" class="saved-record-card">
+            <img
+              v-if="entry.imageUrl || entry.focus?.imageUrl"
+              :src="entry.imageUrl || entry.focus?.imageUrl"
+              alt="Saved fauna bundle artwork"
+              class="saved-record-thumb"
+            />
             <div class="saved-record-copy">
               <strong>{{ entry.worldName || "Linked World" }}</strong>
               <span>{{ entry.focus?.taxonomy?.["Scientific Name"] || entry.focus?.name || "Fauna bundle" }}</span>
@@ -427,6 +471,7 @@ import {
   randomBeastName,
   generateWorldFaunaBundle,
   summarizeEcosystemBalance,
+  getWorldAvailableCreatureTerrains,
 } from "../../utils/beasts/beastGenerator.js";
 import {
   buildPropagationOriginNote,
@@ -480,6 +525,9 @@ const isSpeakingName = ref(false);
 const supportsSpeechSynthesis = isSpeechSynthesisSupported();
 const artStyle = ref(DEFAULT_ART_STYLE);
 const artPreviewUrl = ref("");
+const artPreviewError = ref("");
+const additionalImageUrls = ref([]);
+const additionalImagesInput = ref(null);
 const seedValue = ref(generateGuidSeed("fauna"));
 const generationMode = ref("single");
 const terrain = ref("random");
@@ -501,6 +549,13 @@ const selectedWorldOption = computed(
   () => worldOptions.value.find((entry) => entry.key === selectedWorldKey.value) || null,
 );
 const selectedWorldRecord = computed(() => selectedWorldOption.value?.world || null);
+const terrainChoiceOptions = computed(() => {
+  if (!selectedWorldRecord.value) {
+    return TERRAIN_OPTIONS;
+  }
+
+  return getWorldAvailableCreatureTerrains(selectedWorldRecord.value, terrain.value);
+});
 const activeWorldCriteria = computed(() => ({
   worldKey: selectedWorldKey.value,
   systemId: selectedWorldOption.value?.systemId || String(route.query.systemId || route.query.systemRecordId || ""),
@@ -592,9 +647,26 @@ watch(selectedWorldRecord, (world) => {
   if (!world) return;
   const linked = buildWorldLinkedCreatureOptions(world);
   linkedWorldName.value = linked.sourceWorld?.name || "";
-  terrain.value = linked.terrain;
+  if (terrain.value === "random" || !terrainChoiceOptions.value.includes(terrain.value)) {
+    terrain.value = terrainChoiceOptions.value.includes(linked.terrain)
+      ? linked.terrain
+      : terrainChoiceOptions.value[0];
+  }
   worldSize.value = String(linked.worldSize ?? "8");
 });
+
+watch(
+  terrainChoiceOptions,
+  (options) => {
+    if (!selectedWorldRecord.value || terrain.value === "random") {
+      return;
+    }
+    if (!options.includes(terrain.value)) {
+      terrain.value = options[0] || "random";
+    }
+  },
+  { immediate: true },
+);
 
 function formatSigned(value) {
   const number = Number(value) || 0;
@@ -739,6 +811,7 @@ function generateConceptArt(record = creature.value) {
     return;
   }
 
+  artPreviewError.value = "";
   artPreviewUrl.value = buildConceptArtUrl(prompt, {
     entityType: "fauna",
     style: artStyle.value,
@@ -746,6 +819,61 @@ function generateConceptArt(record = creature.value) {
     width: 1024,
     height: 1024,
   });
+
+  if (!artPreviewUrl.value) {
+    artPreviewError.value = "Unable to build an art URL from the current prompt.";
+    toastService.error("Unable to generate concept art preview.");
+    return;
+  }
+
+  if (!additionalImageUrls.value.includes(artPreviewUrl.value)) {
+    additionalImageUrls.value = [artPreviewUrl.value, ...additionalImageUrls.value];
+  }
+}
+
+function handlePreviewLoaded() {
+  artPreviewError.value = "";
+}
+
+function handlePreviewError() {
+  artPreviewError.value =
+    "The generated image could not be loaded. Try Generate Art again or switch Art Style to create a new variant.";
+}
+
+function openUploadImagesDialog() {
+  additionalImagesInput.value?.click();
+}
+
+function handleAdditionalImagesSelected(event) {
+  const files = Array.from(event?.target?.files || []);
+  if (!files.length) {
+    return;
+  }
+
+  for (const file of files) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const url = String(reader.result || "").trim();
+      if (!url) {
+        return;
+      }
+      if (!additionalImageUrls.value.includes(url)) {
+        additionalImageUrls.value = [url, ...additionalImageUrls.value];
+      }
+    };
+    reader.readAsDataURL(file);
+  }
+
+  if (event?.target) {
+    event.target.value = "";
+  }
+}
+
+function removeAdditionalImage(index) {
+  if (index < 0 || index >= additionalImageUrls.value.length) {
+    return;
+  }
+  additionalImageUrls.value = additionalImageUrls.value.filter((_, currentIndex) => currentIndex !== index);
 }
 
 function openArtPreview() {
@@ -761,6 +889,7 @@ function openArtPreview() {
 
 function clearArtPreview() {
   artPreviewUrl.value = "";
+  artPreviewError.value = "";
 }
 
 async function copyPromptText(text) {
@@ -848,8 +977,12 @@ async function ensureFaunaSpeciesPool() {
 
 async function generateCreature() {
   const seed = ensureSeed();
+  clearArtPreview();
+  const availableTerrains = terrainChoiceOptions.value;
   const resolvedTerrain =
-    terrain.value === "random" ? TERRAIN_OPTIONS[Math.floor(Math.random() * TERRAIN_OPTIONS.length)] : terrain.value;
+    terrain.value === "random"
+      ? availableTerrains[Math.floor(Math.random() * availableTerrains.length)]
+      : terrain.value;
   if (!String(creatureName.value || "").trim()) {
     randomizeName();
   }
@@ -985,6 +1118,8 @@ async function saveCreatureRecord() {
 
   const persisted = await creatureStore.saveCreature({
     ...creature.value,
+    imageUrl: String(artPreviewUrl.value || creature.value.imageUrl || "").trim(),
+    imageUrls: [...new Set(additionalImageUrls.value.filter(Boolean))],
     seed: seedValue.value,
     primaryNicheSelection: primaryNiche.value,
     systemId: selectedWorldOption.value?.systemId || String(route.query.systemId || route.query.systemRecordId || ""),
@@ -995,7 +1130,17 @@ async function saveCreatureRecord() {
     generationMode: generationMode.value,
   });
 
-  creature.value = { ...creature.value, id: persisted.id, savedAt: persisted.savedAt, updatedAt: persisted.updatedAt };
+  creature.value = {
+    ...creature.value,
+    id: persisted.id,
+    imageUrl: String(persisted.imageUrl || creature.value.imageUrl || "").trim(),
+    imageUrls: Array.isArray(persisted.imageUrls)
+      ? [...persisted.imageUrls]
+      : [...new Set(additionalImageUrls.value.filter(Boolean))],
+    savedAt: persisted.savedAt,
+    updatedAt: persisted.updatedAt,
+  };
+  additionalImageUrls.value = Array.isArray(creature.value.imageUrls) ? [...creature.value.imageUrls] : [];
   toastService.success(`Saved creature ${persisted.name}.`);
 }
 
@@ -1007,6 +1152,10 @@ async function saveFaunaBundleRecord() {
 
   const persisted = await creatureStore.saveFaunaBundle({
     ...faunaBundle.value,
+    imageUrl: String(
+      artPreviewUrl.value || faunaBundle.value.imageUrl || faunaBundle.value.focus?.imageUrl || "",
+    ).trim(),
+    imageUrls: [...new Set(additionalImageUrls.value.filter(Boolean))],
     seed: seedValue.value,
     systemId: selectedWorldOption.value?.systemId || String(route.query.systemId || route.query.systemRecordId || ""),
     worldKey: selectedWorldKey.value,
@@ -1017,9 +1166,16 @@ async function saveFaunaBundleRecord() {
   faunaBundle.value = {
     ...faunaBundle.value,
     id: persisted.id,
+    imageUrl: String(
+      persisted.imageUrl || faunaBundle.value.imageUrl || faunaBundle.value.focus?.imageUrl || "",
+    ).trim(),
+    imageUrls: Array.isArray(persisted.imageUrls)
+      ? [...persisted.imageUrls]
+      : [...new Set(additionalImageUrls.value.filter(Boolean))],
     savedAt: persisted.savedAt,
     updatedAt: persisted.updatedAt,
   };
+  additionalImageUrls.value = Array.isArray(faunaBundle.value.imageUrls) ? [...faunaBundle.value.imageUrls] : [];
   const linked = await persistFaunaBundleToWorldContext(persisted);
   toastService.success(
     linked
@@ -1076,6 +1232,13 @@ function loadSavedCreature(record) {
   if (normalizedRecord.worldKey) {
     selectedWorldKey.value = normalizedRecord.worldKey;
   }
+  artPreviewUrl.value = String(normalizedRecord.imageUrl || "").trim();
+  artPreviewError.value = "";
+  additionalImageUrls.value = Array.isArray(normalizedRecord.imageUrls)
+    ? [...normalizedRecord.imageUrls]
+    : artPreviewUrl.value
+      ? [artPreviewUrl.value]
+      : [];
   creature.value = buildCreatureViewModel(normalizedRecord, normalizedRecord);
   encounterTable.value = Array.isArray(normalizedRecord.encounterTable) ? [...normalizedRecord.encounterTable] : [];
   toastService.success(`Loaded creature ${normalizedRecord.name}.`);
@@ -1090,6 +1253,13 @@ function loadSavedFaunaBundle(bundle) {
   if (bundle.worldKey) {
     selectedWorldKey.value = bundle.worldKey;
   }
+  artPreviewUrl.value = String(bundle.imageUrl || bundle.focus?.imageUrl || "").trim();
+  artPreviewError.value = "";
+  additionalImageUrls.value = Array.isArray(bundle.imageUrls)
+    ? [...bundle.imageUrls]
+    : artPreviewUrl.value
+      ? [artPreviewUrl.value]
+      : [];
   faunaBundle.value = { ...bundle };
   encounterTable.value = Array.isArray(bundle.entries) ? [...bundle.entries] : [];
   const focusProfile = bundle.focus || bundle.entries?.[0] || null;
@@ -1117,6 +1287,7 @@ async function deleteSavedFaunaBundle(bundleId) {
 function resetForm() {
   stopNameSpeech();
   clearArtPreview();
+  additionalImageUrls.value = [];
   creatureName.value = "";
   seedValue.value = generateGuidSeed("fauna");
   generationMode.value = "single";
@@ -1192,8 +1363,8 @@ async function exportCreature() {
 
 .control-panel {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 0.65rem;
   margin-bottom: 1.25rem;
   padding: 1.15rem;
   background: #1a1a1a;
@@ -1228,7 +1399,12 @@ async function exportCreature() {
 }
 
 .control-action {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: row;
   justify-content: flex-end;
+  align-items: center;
+  flex-wrap: wrap;
   gap: 0.6rem;
 }
 
@@ -1358,6 +1534,15 @@ async function exportCreature() {
   background: #12122e;
 }
 
+.saved-record-thumb {
+  width: 64px;
+  height: 64px;
+  border-radius: 0.4rem;
+  object-fit: cover;
+  border: 1px solid #2a4064;
+  flex: 0 0 auto;
+}
+
 .saved-record-copy {
   display: grid;
   gap: 0.2rem;
@@ -1415,6 +1600,47 @@ async function exportCreature() {
   margin: 0.75rem 0 0;
   color: #9fb6d9;
   font-style: italic;
+}
+
+.hidden-file-input {
+  display: none;
+}
+
+.prompt-error {
+  color: #fecaca;
+  background: rgba(127, 29, 29, 0.28);
+  border: 1px solid rgba(248, 113, 113, 0.5);
+  border-radius: 0.45rem;
+  padding: 0.55rem 0.7rem;
+  font-size: 0.88rem;
+}
+
+.additional-image-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.7rem;
+}
+
+.additional-image-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  border: 1px solid rgba(0, 217, 255, 0.25);
+  border-radius: 0.45rem;
+  padding: 0.45rem;
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.additional-image-thumb {
+  width: 100%;
+  height: 120px;
+  object-fit: cover;
+  border-radius: 0.35rem;
+}
+
+.btn-remove-image {
+  min-height: 2rem;
+  padding: 0.45rem 0.65rem;
 }
 
 .creature-section {

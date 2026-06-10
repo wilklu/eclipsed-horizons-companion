@@ -35,10 +35,10 @@
           </div>
         </div>
 
-        <div class="control-group">
+        <div class="control-group control-group-wide">
           <label>Seed</label>
-          <div class="name-row">
-            <input v-model="seedValue" placeholder="guid-seed" class="text-input" />
+          <div class="name-row seed-row">
+            <input v-model="seedValue" placeholder="guid-seed" class="text-input seed-input" />
             <button class="btn btn-secondary" type="button" title="Generate new seed" @click="generateNewSeed">
               🧬 New
             </button>
@@ -57,7 +57,7 @@
           <label>Climate</label>
           <select v-model="climate" class="select-input">
             <option value="random">🎲 Random</option>
-            <option v-for="entry in FLORA_CLIMATES" :key="entry" :value="entry">{{ entry }}</option>
+            <option v-for="entry in climateOptions" :key="entry" :value="entry">{{ entry }}</option>
           </select>
         </div>
 
@@ -171,6 +171,9 @@
                   <button type="button" class="btn btn-secondary btn-copy" @click="generateConceptArt(flora)">
                     Generate Art
                   </button>
+                  <button type="button" class="btn btn-secondary btn-copy" @click="openUploadImagesDialog">
+                    Add Images
+                  </button>
                   <button
                     type="button"
                     class="btn btn-secondary btn-copy"
@@ -191,9 +194,43 @@
               </div>
               <textarea readonly class="prompt-textarea" :value="styledImagePrompt"></textarea>
             </div>
+            <input
+              ref="additionalImagesInput"
+              class="hidden-file-input"
+              type="file"
+              accept="image/*"
+              multiple
+              @change="handleAdditionalImagesSelected"
+            />
             <div v-if="artPreviewUrl" class="prompt-block section-offset">
               <div class="prompt-label">Concept Art Preview · {{ artStyle }}</div>
-              <img :src="artPreviewUrl" alt="Generated flora concept art preview" class="concept-art-preview" />
+              <img
+                :src="artPreviewUrl"
+                alt="Generated flora concept art preview"
+                class="concept-art-preview"
+                @load="handlePreviewLoaded"
+                @error="handlePreviewError"
+              />
+            </div>
+            <div v-if="artPreviewError" class="prompt-error section-offset">{{ artPreviewError }}</div>
+            <div v-if="additionalImageUrls.length" class="section-offset">
+              <div class="prompt-label">Additional Images</div>
+              <div class="additional-image-grid">
+                <article
+                  v-for="(url, index) in additionalImageUrls"
+                  :key="`${url}-${index}`"
+                  class="additional-image-card"
+                >
+                  <img :src="url" alt="Additional flora reference" class="additional-image-thumb" />
+                  <button
+                    type="button"
+                    class="btn btn-secondary btn-remove-image"
+                    @click="removeAdditionalImage(index)"
+                  >
+                    Remove
+                  </button>
+                </article>
+              </div>
             </div>
             <p class="prompt-caption">{{ flora.imageCaption }}</p>
           </section>
@@ -218,6 +255,7 @@
         </div>
         <div v-if="savedFlora.length" class="saved-record-list">
           <article v-for="entry in savedFlora" :key="entry.id" class="saved-record-card">
+            <img v-if="entry.imageUrl" :src="entry.imageUrl" alt="Saved flora artwork" class="saved-record-thumb" />
             <div class="saved-record-copy">
               <strong>{{ entry.name }}</strong>
               <span>{{ entry.taxonomy?.["Scientific Name"] || "Unclassified flora" }}</span>
@@ -256,6 +294,7 @@ import {
   buildWorldLinkedFloraOptions,
   FLORA_CLIMATES,
   FLORA_GROWTH_FORMS,
+  getWorldAvailableFloraClimates,
   generateFloraProfile,
   randomFloraName,
 } from "../../utils/beasts/floraGenerator.js";
@@ -307,6 +346,9 @@ const isSpeakingName = ref(false);
 const supportsSpeechSynthesis = isSpeechSynthesisSupported();
 const artStyle = ref(DEFAULT_ART_STYLE);
 const artPreviewUrl = ref("");
+const artPreviewError = ref("");
+const additionalImageUrls = ref([]);
+const additionalImagesInput = ref(null);
 const seedValue = ref(generateGuidSeed("flora"));
 const growthForm = ref("random");
 const climate = ref("random");
@@ -323,6 +365,13 @@ const selectedWorldOption = computed(
   () => worldOptions.value.find((entry) => entry.key === selectedWorldKey.value) || null,
 );
 const selectedWorldRecord = computed(() => selectedWorldOption.value?.world || null);
+const climateOptions = computed(() => {
+  if (!selectedWorldRecord.value) {
+    return FLORA_CLIMATES;
+  }
+
+  return getWorldAvailableFloraClimates(selectedWorldRecord.value);
+});
 const activeWorldCriteria = computed(() => ({
   worldKey: selectedWorldKey.value,
   systemId: selectedWorldOption.value?.systemId || String(route.query.systemId || route.query.systemRecordId || ""),
@@ -398,12 +447,27 @@ watch(
 watch(selectedWorldRecord, (world) => {
   if (!world) return;
   const linked = buildWorldLinkedFloraOptions(world);
-  climate.value = linked.climate;
+  if (climate.value === "random" || !climateOptions.value.includes(climate.value)) {
+    climate.value = climateOptions.value.includes(linked.climate) ? linked.climate : climateOptions.value[0];
+  }
   growthForm.value = linked.growthForm;
   if (!String(floraName.value || "").trim()) {
     floraName.value = String(world?.name || "").trim();
   }
 });
+
+watch(
+  climateOptions,
+  (options) => {
+    if (!selectedWorldRecord.value || climate.value === "random") {
+      return;
+    }
+    if (!options.includes(climate.value)) {
+      climate.value = options[0] || "random";
+    }
+  },
+  { immediate: true },
+);
 
 function generateNewSeed() {
   seedValue.value = generateGuidSeed("flora");
@@ -475,6 +539,7 @@ function generateConceptArt(record = flora.value) {
     return;
   }
 
+  artPreviewError.value = "";
   artPreviewUrl.value = buildConceptArtUrl(prompt, {
     entityType: "flora",
     style: artStyle.value,
@@ -482,6 +547,61 @@ function generateConceptArt(record = flora.value) {
     width: 1024,
     height: 1024,
   });
+
+  if (!artPreviewUrl.value) {
+    artPreviewError.value = "Unable to build an art URL from the current prompt.";
+    toastService.error("Unable to generate concept art preview.");
+    return;
+  }
+
+  if (!additionalImageUrls.value.includes(artPreviewUrl.value)) {
+    additionalImageUrls.value = [artPreviewUrl.value, ...additionalImageUrls.value];
+  }
+}
+
+function handlePreviewLoaded() {
+  artPreviewError.value = "";
+}
+
+function handlePreviewError() {
+  artPreviewError.value =
+    "The generated image could not be loaded. Try Generate Art again or switch Art Style to create a new variant.";
+}
+
+function openUploadImagesDialog() {
+  additionalImagesInput.value?.click();
+}
+
+function handleAdditionalImagesSelected(event) {
+  const files = Array.from(event?.target?.files || []);
+  if (!files.length) {
+    return;
+  }
+
+  for (const file of files) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const url = String(reader.result || "").trim();
+      if (!url) {
+        return;
+      }
+      if (!additionalImageUrls.value.includes(url)) {
+        additionalImageUrls.value = [url, ...additionalImageUrls.value];
+      }
+    };
+    reader.readAsDataURL(file);
+  }
+
+  if (event?.target) {
+    event.target.value = "";
+  }
+}
+
+function removeAdditionalImage(index) {
+  if (index < 0 || index >= additionalImageUrls.value.length) {
+    return;
+  }
+  additionalImageUrls.value = additionalImageUrls.value.filter((_, currentIndex) => currentIndex !== index);
 }
 
 function openArtPreview() {
@@ -497,6 +617,7 @@ function openArtPreview() {
 
 function clearArtPreview() {
   artPreviewUrl.value = "";
+  artPreviewError.value = "";
 }
 
 async function copyPromptText(text) {
@@ -537,8 +658,12 @@ async function ensureFloraSpeciesPool() {
 
 async function generateFlora() {
   const seed = ensureSeed();
+  clearArtPreview();
+  const availableClimates = climateOptions.value;
   const resolvedClimate =
-    climate.value === "random" ? FLORA_CLIMATES[Math.floor(Math.random() * FLORA_CLIMATES.length)] : climate.value;
+    climate.value === "random"
+      ? availableClimates[Math.floor(Math.random() * availableClimates.length)]
+      : climate.value;
   if (!String(floraName.value || "").trim()) {
     randomizeName();
   }
@@ -546,10 +671,13 @@ async function generateFlora() {
   await ensureFloraSpeciesPool();
 
   const linked = selectedWorldRecord.value
-    ? buildWorldLinkedFloraOptions(selectedWorldRecord.value)
+    ? {
+        ...buildWorldLinkedFloraOptions(selectedWorldRecord.value),
+        climate: resolvedClimate,
+      }
     : {
         sourceWorld: null,
-        climate: climate.value,
+        climate: resolvedClimate,
         growthForm: growthForm.value,
       };
 
@@ -620,6 +748,8 @@ async function saveFloraRecord() {
 
   const persisted = await floraStore.saveFlora({
     ...flora.value,
+    imageUrl: String(artPreviewUrl.value || flora.value.imageUrl || "").trim(),
+    imageUrls: [...new Set(additionalImageUrls.value.filter(Boolean))],
     seed: seedValue.value,
     growthFormSelection: growthForm.value,
     climateSelection: climate.value,
@@ -628,7 +758,17 @@ async function saveFloraRecord() {
     worldName: selectedWorldOption.value?.worldName || flora.value.sourceWorld?.name || "",
   });
 
-  flora.value = { ...flora.value, id: persisted.id, savedAt: persisted.savedAt, updatedAt: persisted.updatedAt };
+  flora.value = {
+    ...flora.value,
+    id: persisted.id,
+    imageUrl: String(persisted.imageUrl || flora.value.imageUrl || "").trim(),
+    imageUrls: Array.isArray(persisted.imageUrls)
+      ? [...persisted.imageUrls]
+      : [...new Set(additionalImageUrls.value.filter(Boolean))],
+    savedAt: persisted.savedAt,
+    updatedAt: persisted.updatedAt,
+  };
+  additionalImageUrls.value = Array.isArray(flora.value.imageUrls) ? [...flora.value.imageUrls] : [];
   const linked = await persistFloraToWorldContext(persisted);
   toastService.success(
     linked ? `Saved flora ${persisted.name} and linked it to the world survey.` : `Saved flora ${persisted.name}.`,
@@ -680,6 +820,13 @@ function loadSavedFlora(record) {
   if (normalizedRecord.worldKey) {
     selectedWorldKey.value = normalizedRecord.worldKey;
   }
+  artPreviewUrl.value = String(normalizedRecord.imageUrl || "").trim();
+  artPreviewError.value = "";
+  additionalImageUrls.value = Array.isArray(normalizedRecord.imageUrls)
+    ? [...normalizedRecord.imageUrls]
+    : artPreviewUrl.value
+      ? [artPreviewUrl.value]
+      : [];
   flora.value = normalizedRecord;
   toastService.success(`Loaded flora ${normalizedRecord.name}.`);
 }
@@ -695,6 +842,7 @@ async function deleteSavedFlora(recordId) {
 function resetForm() {
   stopNameSpeech();
   clearArtPreview();
+  additionalImageUrls.value = [];
   floraName.value = "";
   seedValue.value = generateGuidSeed("flora");
   growthForm.value = "random";
@@ -753,14 +901,15 @@ async function exportFlora() {
 
 .control-panel {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 0.85rem;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 0.65rem;
 }
 
 .control-group {
   display: flex;
   flex-direction: column;
   gap: 0.45rem;
+  min-width: 0;
 }
 
 .control-group-wide {
@@ -768,7 +917,13 @@ async function exportFlora() {
 }
 
 .control-action {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: row;
   justify-content: flex-end;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
 }
 
 label {
@@ -780,6 +935,21 @@ label {
 .name-row {
   display: flex;
   gap: 0.5rem;
+  min-width: 0;
+}
+
+.name-row .text-input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.seed-row .seed-input {
+  width: 100%;
+}
+
+.seed-row .btn {
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .text-input,
@@ -932,6 +1102,47 @@ label {
   font-style: italic;
 }
 
+.hidden-file-input {
+  display: none;
+}
+
+.prompt-error {
+  color: #fecaca;
+  background: rgba(127, 29, 29, 0.28);
+  border: 1px solid rgba(248, 113, 113, 0.5);
+  border-radius: 0.45rem;
+  padding: 0.55rem 0.7rem;
+  font-size: 0.88rem;
+}
+
+.additional-image-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.7rem;
+}
+
+.additional-image-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  border: 1px solid rgba(0, 217, 255, 0.25);
+  border-radius: 0.45rem;
+  padding: 0.45rem;
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.additional-image-thumb {
+  width: 100%;
+  height: 120px;
+  object-fit: cover;
+  border-radius: 0.35rem;
+}
+
+.btn-remove-image {
+  min-height: 2rem;
+  padding: 0.45rem 0.65rem;
+}
+
 .flora-tags {
   display: flex;
   flex-wrap: wrap;
@@ -961,6 +1172,15 @@ label {
   background: rgba(15, 23, 42, 0.45);
   border-radius: 0.5rem;
   padding: 0.8rem;
+}
+
+.saved-record-thumb {
+  width: 64px;
+  height: 64px;
+  border-radius: 0.4rem;
+  object-fit: cover;
+  border: 1px solid #2a4064;
+  flex: 0 0 auto;
 }
 
 .saved-record-copy {

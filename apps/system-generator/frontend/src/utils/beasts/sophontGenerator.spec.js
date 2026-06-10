@@ -10,6 +10,7 @@ import {
   deriveSophontVisualCues,
   describeSophontTechBand,
   generateSophontProfile,
+  getWorldAvailableSophontEnvironments,
   mapWorldToSophontEnvironment,
   recommendBodyPlan,
 } from "./sophontGenerator.js";
@@ -24,6 +25,22 @@ describe("sophontGenerator shared biology rules", () => {
   it("recommends a body plan suited to the environment", () => {
     expect(["Aquatic", "Radial Symmetry", "Bilateral Symmetry"]).toContain(recommendBodyPlan("Aquatic", () => 0));
     expect(["Avian", "Bilateral Symmetry", "Segmented"]).toContain(recommendBodyPlan("Mountain", () => 0));
+  });
+
+  it("derives available sophont environments from terrain card composition", () => {
+    const environments = getWorldAvailableSophontEnvironments({
+      terrainComposition: {
+        hexCounts: [
+          { type: "ocean", count: 6 },
+          { type: "caverns", count: 4 },
+          { type: "desert", count: 2 },
+        ],
+      },
+    });
+
+    expect(environments).toContain("Aquatic");
+    expect(environments).toContain("Underground");
+    expect(environments).toContain("Desert");
   });
 
   it("creates a guid-like seed and identifier when none is provided", () => {

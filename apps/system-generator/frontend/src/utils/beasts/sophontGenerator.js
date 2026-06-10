@@ -1,4 +1,9 @@
-import { buildWorldLinkedCreatureOptions, createSeededRng, generateGuidSeed } from "./beastGenerator.js";
+import {
+  buildWorldLinkedCreatureOptions,
+  createSeededRng,
+  generateGuidSeed,
+  getWorldAvailableCreatureTerrains,
+} from "./beastGenerator.js";
 import { buildLifeTaxonomy, buildLineageProfile } from "./taxonomy.js";
 
 export const BODY_PLANS = [
@@ -512,6 +517,74 @@ export function buildWorldLinkedSophontOptions(world = {}) {
     bodyPlan: recommendBodyPlan(homeEnvironment, createSeededRng(`${worldLink.sourceWorld?.name || "world"}-body`)),
     origin: world?.nativeSophontLife ? "Native sophont lineage" : "Adapted colonial or transplanted lineage",
   };
+}
+
+export function getWorldAvailableSophontEnvironments(world = {}) {
+  const terrainOptions = getWorldAvailableCreatureTerrains(world);
+  const environments = [];
+  const pushUnique = (entry) => {
+    if (!HOME_ENVS.includes(entry) || environments.includes(entry)) return;
+    environments.push(entry);
+  };
+
+  for (const terrain of terrainOptions) {
+    switch (terrain) {
+      case "Ocean":
+      case "River":
+      case "Lake":
+      case "Wetland":
+      case "Shore":
+      case "Islands":
+        pushUnique("Aquatic");
+        break;
+      case "Icecap":
+      case "Glacier":
+      case "Ice Field":
+      case "Frozen Lands":
+        pushUnique("Arctic");
+        break;
+      case "Desert":
+      case "Baked lands":
+        pushUnique("Desert");
+        break;
+      case "Mountain":
+      case "Volcano":
+      case "Chasm":
+      case "Precipice":
+        pushUnique("Mountain");
+        break;
+      case "Caverns":
+      case "Mines":
+      case "Abyss":
+      case "Ocean Depths":
+        pushUnique("Underground");
+        break;
+      case "Woods":
+      case "Wet Woods":
+      case "Rough Woods":
+      case "Clear":
+      case "Rough":
+        pushUnique("Forest");
+        break;
+      default:
+        pushUnique("Forest");
+        break;
+    }
+  }
+
+  const atmosphereCode = Number(world?.atmosphereCode ?? world?.atmosphere ?? NaN);
+  if (Number.isFinite(atmosphereCode) && atmosphereCode >= 10) {
+    pushUnique("Dense Atmosphere");
+  }
+  if (Number.isFinite(atmosphereCode) && atmosphereCode > 0 && atmosphereCode <= 3) {
+    pushUnique("Thin Atmosphere");
+  }
+
+  if (!environments.length) {
+    pushUnique(mapWorldToSophontEnvironment(world));
+  }
+
+  return environments.length ? environments : ["Forest"];
 }
 
 export function deriveSophontVisualCues(profile = {}) {

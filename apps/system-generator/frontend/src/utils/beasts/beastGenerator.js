@@ -943,6 +943,90 @@ export function mapWorldToCreatureTerrain(world = {}) {
   return hydrographics >= 4 ? "Rough Woods" : "Clear";
 }
 
+const TERRAIN_CARD_TO_CREATURE_TERRAIN = new Map([
+  ["clear", "Clear"],
+  ["plains", "Clear"],
+  ["rough", "Rough"],
+  ["hills", "Rough"],
+  ["woods", "Woods"],
+  ["wet woods", "Wet Woods"],
+  ["rough woods", "Rough Woods"],
+  ["ocean", "Ocean"],
+  ["shore", "Shore"],
+  ["islands", "Islands"],
+  ["river", "River"],
+  ["lake", "Lake"],
+  ["mountain", "Mountain"],
+  ["volcano", "Volcano"],
+  ["volcanic", "Volcano"],
+  ["desert", "Desert"],
+  ["baked lands", "Baked lands"],
+  ["wetland", "Wetland"],
+  ["swamp", "Wetland"],
+  ["icecap", "Icecap"],
+  ["ice cap", "Icecap"],
+  ["glacier", "Glacier"],
+  ["ice field", "Ice Field"],
+  ["frozen lands", "Frozen Lands"],
+  ["chasm", "Chasm"],
+  ["precipice", "Precipice"],
+  ["caverns", "Caverns"],
+  ["mines", "Mines"],
+  ["crater", "Crater"],
+  ["wasteland", "Wasteland"],
+  ["exotic", "Exotic"],
+]);
+
+function normalizeTerrainCardType(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9\s_-]+/g, " ")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ");
+}
+
+export function mapTerrainCardTypeToCreatureTerrain(type = "") {
+  const normalized = normalizeTerrainCardType(type);
+  if (!normalized) return null;
+  const mapped = TERRAIN_CARD_TO_CREATURE_TERRAIN.get(normalized) || type;
+  const resolved = resolveTerrain(mapped);
+  if (resolved === "Clear" && normalized !== "clear" && normalized !== "plains") {
+    return null;
+  }
+  return resolved;
+}
+
+export function getWorldAvailableCreatureTerrains(world = {}, fallbackTerrain = null) {
+  const options = [];
+  const pushUnique = (entry) => {
+    const resolved = resolveTerrain(entry);
+    if (!resolved || options.includes(resolved)) return;
+    options.push(resolved);
+  };
+
+  const counts = Array.isArray(world?.terrainComposition?.hexCounts) ? world.terrainComposition.hexCounts : [];
+  for (const row of counts) {
+    const mapped = mapTerrainCardTypeToCreatureTerrain(row?.type);
+    if (mapped) {
+      pushUnique(mapped);
+    }
+  }
+
+  if (fallbackTerrain) {
+    const mappedFallback = mapTerrainCardTypeToCreatureTerrain(fallbackTerrain);
+    if (mappedFallback) {
+      pushUnique(mappedFallback);
+    }
+  }
+
+  if (!options.length) {
+    pushUnique(mapWorldToCreatureTerrain(world));
+  }
+
+  return options.length ? options : ["Clear"];
+}
+
 export function buildWorldLinkedCreatureOptions(world = {}) {
   return {
     sourceWorld: {

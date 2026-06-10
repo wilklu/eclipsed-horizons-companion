@@ -1,4 +1,9 @@
-import { buildWorldLinkedCreatureOptions, createSeededRng, generateGuidSeed } from "./beastGenerator.js";
+import {
+  buildWorldLinkedCreatureOptions,
+  createSeededRng,
+  generateGuidSeed,
+  getWorldAvailableCreatureTerrains,
+} from "./beastGenerator.js";
 import { buildLifeTaxonomy, buildLineageProfile } from "./taxonomy.js";
 
 export const FLORA_GROWTH_FORMS = [
@@ -1016,6 +1021,68 @@ export function buildWorldLinkedFloraOptions(world = {}) {
     growthForm: recommendGrowthForm(climate, createSeededRng(`${worldLink.sourceWorld?.name || "world"}-flora`), world),
     origin: world?.nativeLifeform ? "Native floral lineage" : "Imported or engineered stock",
   };
+}
+
+export function getWorldAvailableFloraClimates(world = {}) {
+  const terrainOptions = getWorldAvailableCreatureTerrains(world);
+  const climates = [];
+  const pushUnique = (entry) => {
+    if (!FLORA_CLIMATES.includes(entry) || climates.includes(entry)) return;
+    climates.push(entry);
+  };
+
+  for (const terrain of terrainOptions) {
+    switch (terrain) {
+      case "Ocean":
+      case "River":
+      case "Lake":
+      case "Wetland":
+        pushUnique("Wetland");
+        break;
+      case "Shore":
+      case "Islands":
+        pushUnique("Coastal");
+        pushUnique("Wetland");
+        break;
+      case "Icecap":
+      case "Glacier":
+      case "Ice Field":
+      case "Frozen Lands":
+        pushUnique("Tundra");
+        break;
+      case "Desert":
+      case "Baked lands":
+        pushUnique("Arid");
+        break;
+      case "Mountain":
+      case "Volcano":
+      case "Chasm":
+      case "Precipice":
+        pushUnique("Alpine");
+        break;
+      case "Caverns":
+      case "Mines":
+      case "Abyss":
+      case "Ocean Depths":
+        pushUnique("Subterranean");
+        break;
+      case "Woods":
+      case "Wet Woods":
+      case "Rough Woods":
+        pushUnique("Temperate");
+        pushUnique("Tropical");
+        break;
+      default:
+        pushUnique("Temperate");
+        break;
+    }
+  }
+
+  if (!climates.length) {
+    pushUnique(mapWorldToFloraClimate(world));
+  }
+
+  return climates.length ? climates : ["Temperate"];
 }
 
 export function deriveFloraVisualCues(profile = {}) {

@@ -5,6 +5,7 @@ import {
   buildWorldLinkedFloraOptions,
   deriveFloraVisualCues,
   generateFloraProfile,
+  getWorldAvailableFloraClimates,
   mapWorldToFloraClimate,
   randomFloraName,
   recommendGrowthForm,
@@ -24,6 +25,22 @@ describe("floraGenerator", () => {
   it("maps subtype-rich worlds into more distinctive flora climates", () => {
     expect(mapWorldToFloraClimate({ worldSubtype: "Gaian", hydrographics: 5, avgTempC: 19 })).toBe("Wetland");
     expect(mapWorldToFloraClimate({ worldSubtype: "Tartarian", hydrographics: 5, avgTempC: 8 })).toBe("Tundra");
+  });
+
+  it("derives available flora climates from terrain card composition", () => {
+    const climates = getWorldAvailableFloraClimates({
+      terrainComposition: {
+        hexCounts: [
+          { type: "ocean", count: 6 },
+          { type: "mountain", count: 4 },
+          { type: "desert", count: 2 },
+        ],
+      },
+    });
+
+    expect(climates).toContain("Wetland");
+    expect(climates).toContain("Alpine");
+    expect(climates).toContain("Arid");
   });
 
   it("builds flora names from the configured naming convention tables", () => {
