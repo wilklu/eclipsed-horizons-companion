@@ -1024,6 +1024,18 @@ const TERRAIN_COLOR_DEFAULTS = Object.freeze({
   urban: "#9e9e9e",
 });
 
+const TERRAIN_CLUSTER_TUNING = Object.freeze({
+  water: { continuationBias: 0.94, neighborBias: 0.86 },
+  lake: { continuationBias: 0.9, neighborBias: 0.82 },
+  icecap: { continuationBias: 0.9, neighborBias: 0.82 },
+  glacier: { continuationBias: 0.88, neighborBias: 0.8 },
+  mountain: { continuationBias: 0.82, neighborBias: 0.76 },
+  forest: { continuationBias: 0.76, neighborBias: 0.7 },
+  volcanic: { continuationBias: 0.72, neighborBias: 0.7 },
+  plains: { continuationBias: 0.45, neighborBias: 0.5 },
+  secondary: { continuationBias: 0.7, neighborBias: 0.68 },
+});
+
 const FEATURE_LEGEND_COLORS = Object.freeze({
   resource: "#228b22",
   chasm: "#79429f",
@@ -3161,7 +3173,6 @@ function applyTerrainSurveyToMap(options = {}) {
     const selectedKeys = [];
     const frontier = [];
     const frontierSeen = new Set();
-    let lastSeedKey = null;
 
     const pickRandom = (items) => {
       if (!Array.isArray(items) || !items.length) return null;
@@ -3223,7 +3234,6 @@ function applyTerrainSurveyToMap(options = {}) {
         if (!seedKey) break;
         frontier.push(seedKey);
         frontierSeen.add(seedKey);
-        lastSeedKey = seedKey;
       }
 
       const key = frontier.splice(Math.floor(rng() * frontier.length), 1)[0];
@@ -3233,7 +3243,6 @@ function applyTerrainSurveyToMap(options = {}) {
 
       remaining.delete(key);
       selectedKeys.push(key);
-      lastSeedKey = key;
 
       const neighborKeys = adjacency.byId.get(key)?.neighbors || new Set();
       const candidateNeighbors = [];
@@ -3324,8 +3333,7 @@ function applyTerrainSurveyToMap(options = {}) {
       {
         preferConnectedToExisting: true,
         existingTerrainLabel: "icecap",
-        continuationBias: 0.9,
-        neighborBias: 0.82,
+        ...TERRAIN_CLUSTER_TUNING.icecap,
       },
     );
     for (const cell of iceCapCells) {
@@ -3354,8 +3362,7 @@ function applyTerrainSurveyToMap(options = {}) {
       {
         preferConnectedToExisting: true,
         existingTerrainLabel: "glacier",
-        continuationBias: 0.88,
-        neighborBias: 0.8,
+        ...TERRAIN_CLUSTER_TUNING.glacier,
       },
     );
     for (const cell of glacierCells) {
@@ -3371,8 +3378,7 @@ function applyTerrainSurveyToMap(options = {}) {
   const mountainCells = selectClusteredCells(capPreWaterPlacement(mountainCount), orderedCellsDesc, "mountain", {
     preferConnectedToExisting: true,
     existingTerrainLabel: "mountain",
-    continuationBias: 0.82,
-    neighborBias: 0.76,
+    ...TERRAIN_CLUSTER_TUNING.mountain,
   });
   for (const cell of mountainCells) {
     const key = String(cell?.key || "").trim();
@@ -3387,8 +3393,7 @@ function applyTerrainSurveyToMap(options = {}) {
   const waterCells = selectClusteredCells(openOceanCount, waterCandidates, "water", {
     preferConnectedToExisting: true,
     existingTerrainLabel: "water",
-    continuationBias: 0.94,
-    neighborBias: 0.86,
+    ...TERRAIN_CLUSTER_TUNING.water,
   });
   const oceanKeys = new Set();
   for (const cell of waterCells) {
@@ -3419,8 +3424,7 @@ function applyTerrainSurveyToMap(options = {}) {
     const lakeCells = selectClusteredCells(lakeHexCount, lakeCandidates, "lake", {
       preferConnectedToExisting: true,
       existingTerrainLabel: "water",
-      continuationBias: 0.9,
-      neighborBias: 0.82,
+      ...TERRAIN_CLUSTER_TUNING.lake,
     });
 
     for (const cell of lakeCells) {
@@ -3482,8 +3486,7 @@ function applyTerrainSurveyToMap(options = {}) {
       const selectedCells = selectClusteredCells(chunk, candidates, terrain, {
         preferConnectedToExisting: true,
         existingTerrainLabel: terrain,
-        continuationBias: terrain === "volcanic" ? 0.72 : 0.68,
-        neighborBias: terrain === "volcanic" ? 0.7 : 0.66,
+        ...(terrain === "volcanic" ? TERRAIN_CLUSTER_TUNING.volcanic : TERRAIN_CLUSTER_TUNING.secondary),
       });
       if (!selectedCells.length) {
         break;
@@ -3520,13 +3523,11 @@ function applyTerrainSurveyToMap(options = {}) {
       const selectedCells = selectClusteredCells(chunk, plainsCandidates, "plains", {
         preferConnectedToExisting: true,
         existingTerrainLabel: "plains",
-        continuationBias: 0.45,
-        neighborBias: 0.5,
+        ...TERRAIN_CLUSTER_TUNING.plains,
       });
       if (!selectedCells.length) {
         break;
       }
-
       for (const selectedCell of selectedCells) {
         const key = String(selectedCell?.key || "").trim();
         if (!key || entriesByKey.has(key)) continue;
@@ -3571,8 +3572,7 @@ function applyTerrainSurveyToMap(options = {}) {
       const selectedCells = selectClusteredCells(chunk, candidates, "forest", {
         preferConnectedToExisting: true,
         existingTerrainLabel: "forest",
-        continuationBias: 0.76,
-        neighborBias: 0.7,
+        ...TERRAIN_CLUSTER_TUNING.forest,
       });
       if (!selectedCells.length) {
         break;
