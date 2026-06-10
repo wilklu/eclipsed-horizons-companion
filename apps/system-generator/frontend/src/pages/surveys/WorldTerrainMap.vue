@@ -3134,6 +3134,120 @@ function applyTerrainSurveyToMap(options = {}) {
     return taken;
   };
 
+  const selectClusteredCells = (targetCount, pool, terrainLabel, options = {}) => {
+    const requested = Math.max(0, Number(targetCount) || 0);
+    if (requested <= 0 || !Array.isArray(pool) || !pool.length) {
+      return [];
+    }
+
+    const candidateByKey = new Map();
+    for (const cell of pool) {
+      const key = String(cell?.key || "").trim();
+      if (!key || !availableKeys.has(key) || entriesByKey.has(key)) {
+        continue;
+      }
+      if (!candidateByKey.has(key)) {
+        candidateByKey.set(key, cell);
+      }
+    }
+    if (!candidateByKey.size) {
+      return [];
+    }
+
+    const rng = mulberry32(hashString(`${seed}|${terrainLabel}|cluster|${String(options?.salt || "")}`));
+    const remaining = new Set(candidateByKey.keys());
+    const selectedKeys = [];
+    const frontier = [];
+    const frontierSeen = new Set();
+
+    const pickRandom = (items) => {
+      if (!Array.isArray(items) || !items.length) return null;
+      const idx = Math.floor(rng() * items.length);
+      return items[Math.max(0, Math.min(items.length - 1, idx))] || null;
+    };
+
+    const shuffleWithRng = (items) => {
+      const out = [...items];
+      for (let i = out.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(rng() * (i + 1));
+        [out[i], out[j]] = [out[j], out[i]];
+      }
+      return out;
+    };
+
+    if (options?.preferConnectedToExisting) {
+      const existingTerrain = String(options?.existingTerrainLabel || terrainLabel)
+        .trim()
+        .toLowerCase();
+      const connectedSeeds = new Set();
+
+      for (const [existingKey, existingEntry] of entriesByKey.entries()) {
+        const existingEntryTerrain = String(existingEntry?.terrain || "")
+          .trim()
+          .toLowerCase();
+        if (!existingKey || existingEntryTerrain !== existingTerrain) {
+          continue;
+        }
+
+        const neighbors = adjacency.byId.get(existingKey)?.neighbors || new Set();
+        for (const neighborKeyRaw of neighbors) {
+          const neighborKey = String(neighborKeyRaw || "").trim();
+          if (neighborKey && remaining.has(neighborKey)) {
+            connectedSeeds.add(neighborKey);
+          }
+        }
+      }
+
+      for (const key of shuffleWithRng([...connectedSeeds])) {
+        if (!frontierSeen.has(key)) {
+          frontier.push(key);
+          frontierSeen.add(key);
+        }
+      }
+    }
+
+    while (selectedKeys.length < requested && remaining.size > 0) {
+      if (!frontier.length) {
+        const seedKey = pickRandom([...remaining]);
+        if (!seedKey) break;
+        frontier.push(seedKey);
+        frontierSeen.add(seedKey);
+      }
+
+      const key = frontier.splice(Math.floor(rng() * frontier.length), 1)[0];
+      if (!key || !remaining.has(key)) {
+        continue;
+      }
+
+      remaining.delete(key);
+      selectedKeys.push(key);
+
+      const neighborKeys = adjacency.byId.get(key)?.neighbors || new Set();
+      const candidateNeighbors = [];
+      for (const neighborKeyRaw of neighborKeys) {
+        const neighborKey = String(neighborKeyRaw || "").trim();
+        if (!neighborKey || !remaining.has(neighborKey) || frontierSeen.has(neighborKey)) {
+          continue;
+        }
+        candidateNeighbors.push(neighborKey);
+      }
+
+      for (const neighborKey of shuffleWithRng(candidateNeighbors)) {
+        frontier.push(neighborKey);
+        frontierSeen.add(neighborKey);
+      }
+    }
+
+    const selectedCells = [];
+    for (const key of selectedKeys) {
+      const cell = candidateByKey.get(key);
+      if (!cell) continue;
+      selectedCells.push(cell);
+      availableKeys.delete(key);
+    }
+    return selectedCells;
+  };
+
   const axialTilt = clamp(Number(selectedWorld.value?.axialTilt) || 0, 0, 90);
   const axialTiltRatio = axialTilt / 90;
   // Lower tilt favors broader permanent polar caps; higher tilt narrows stable cap zones.
@@ -3190,7 +3304,15 @@ function applyTerrainSurveyToMap(options = {}) {
       prioritizedIceCapPool.push(cell);
     }
 
-    const iceCapCells = takeCells(prioritizedIceCapPool, capPreWaterPlacement(requestedIceCapCount));
+    const iceCapCells = selectClusteredCells(
+      capPreWaterPlacement(requestedIceCapCount),
+      prioritizedIceCapPool,
+      "icecap",
+      {
+        preferConnectedToExisting: true,
+        existingTerrainLabel: "icecap",
+      },
+    );
     for (const cell of iceCapCells) {
       const key = String(cell?.key || "").trim();
       if (!key) continue;
@@ -3210,7 +3332,10 @@ function applyTerrainSurveyToMap(options = {}) {
       })
       .sort((left, right) => getLatitudeAbs(right) - getLatitudeAbs(left));
 
-    const glacierCells = takeCells(glacierCandidates, capPreWaterPlacement(requestedGlacierCount));
+    const glacierCells = selectClusteredCells(capPreWaterPlacement(requestedGlacierCount), glacierCandidates, "glacier", {
+      preferConnectedToExisting: true,
+      existingTerrainLabel: "glacier",
+    });
     for (const cell of glacierCells) {
       const key = String(cell?.key || "").trim();
       if (!key) continue;
@@ -3221,11 +3346,10 @@ function applyTerrainSurveyToMap(options = {}) {
     }
   }
 
-  const mountainCells = takeCells(
-    orderedCellsDesc,
-    capPreWaterPlacement(mountainCount),
-    (left, right) => (scoreByKey.get(String(right.key || "")) || 0) - (scoreByKey.get(String(left.key || "")) || 0),
-  );
+  const mountainCells = selectClusteredCells(capPreWaterPlacement(mountainCount), orderedCellsDesc, "mountain", {
+    preferConnectedToExisting: true,
+    existingTerrainLabel: "mountain",
+  });
   for (const cell of mountainCells) {
     const key = String(cell?.key || "").trim();
     if (!key) continue;
@@ -3236,83 +3360,10 @@ function applyTerrainSurveyToMap(options = {}) {
   }
 
   const waterCandidates = orderedCellsAsc.filter((cell) => !entriesByKey.has(String(cell?.key || "").trim()));
-  const waterCandidateByKey = new Map(
-    waterCandidates
-      .map((cell) => {
-        const key = String(cell?.key || "").trim();
-        return key ? [key, cell] : null;
-      })
-      .filter(Boolean),
-  );
-
-  const selectClusteredTerrainKeys = (targetCount, candidateByKey, terrainLabel) => {
-    const target = Math.max(0, Number(targetCount) || 0);
-    if (!target || !(candidateByKey instanceof Map) || !candidateByKey.size) {
-      return [];
-    }
-
-    const rng = mulberry32(hashString(`${seed}|${terrainLabel}|cluster`));
-    const remaining = new Set(candidateByKey.keys());
-    const selected = [];
-    const frontier = [];
-
-    const pickRandom = (items) => {
-      if (!Array.isArray(items) || !items.length) return null;
-      const idx = Math.floor(rng() * items.length);
-      return items[Math.max(0, Math.min(items.length - 1, idx))] || null;
-    };
-
-    const shuffleWithRng = (items) => {
-      const out = [...items];
-      for (let i = out.length - 1; i > 0; i -= 1) {
-        const j = Math.floor(rng() * (i + 1));
-        [out[i], out[j]] = [out[j], out[i]];
-      }
-      return out;
-    };
-
-    while (selected.length < target && remaining.size > 0) {
-      if (!frontier.length) {
-        // Start a new cluster from a random unassigned candidate.
-        const seedKey = pickRandom([...remaining]);
-        if (!seedKey) break;
-        frontier.push(seedKey);
-      }
-
-      while (frontier.length && selected.length < target) {
-        const key = frontier.splice(Math.floor(rng() * frontier.length), 1)[0];
-        if (!key || !remaining.has(key)) {
-          continue;
-        }
-
-        remaining.delete(key);
-        selected.push(key);
-
-        // Grow outward by exploring adjacent unassigned cells first.
-        const neighbors = adjacency.byId.get(key)?.neighbors || new Set();
-        const candidateNeighbors = [];
-        for (const neighborKeyRaw of neighbors) {
-          const neighborKey = String(neighborKeyRaw || "").trim();
-          if (neighborKey && remaining.has(neighborKey)) {
-            candidateNeighbors.push(neighborKey);
-          }
-        }
-
-        for (const neighborKey of shuffleWithRng(candidateNeighbors)) {
-          if (!frontier.includes(neighborKey)) {
-            frontier.push(neighborKey);
-          }
-        }
-      }
-    }
-
-    return selected;
-  };
-
-  const waterKeys = selectClusteredTerrainKeys(openOceanCount, waterCandidateByKey, "water");
-  const waterCells = waterKeys
-    .map((key) => waterCandidateByKey.get(key))
-    .filter((cell) => cell && typeof cell === "object");
+  const waterCells = selectClusteredCells(openOceanCount, waterCandidates, "water", {
+    preferConnectedToExisting: true,
+    existingTerrainLabel: "water",
+  });
   const oceanKeys = new Set();
   for (const cell of waterCells) {
     const key = String(cell?.key || "").trim();
@@ -3339,11 +3390,10 @@ function applyTerrainSurveyToMap(options = {}) {
       return true;
     });
 
-    const lakeCells = takeCells(
-      lakeCandidates,
-      lakeHexCount,
-      (left, right) => (scoreByKey.get(String(right.key || "")) || 0) - (scoreByKey.get(String(left.key || "")) || 0),
-    );
+    const lakeCells = selectClusteredCells(lakeHexCount, lakeCandidates, "lake", {
+      preferConnectedToExisting: true,
+      existingTerrainLabel: "water",
+    });
 
     for (const cell of lakeCells) {
       const key = String(cell?.key || "").trim();
@@ -3376,19 +3426,6 @@ function applyTerrainSurveyToMap(options = {}) {
     explicitTerrainCounts.set(terrain, Math.max(0, Number(hexes) || 0));
   }
 
-  const placementCursorPool = orderedCellsDesc.filter((cell) => {
-    const key = String(cell?.key || "").trim();
-    return key && !entriesByKey.has(key);
-  });
-  const nextAvailablePlacementCell = () => {
-    for (const cell of placementCursorPool) {
-      const key = String(cell?.key || "").trim();
-      if (!key || entriesByKey.has(key)) continue;
-      return cell;
-    }
-    return null;
-  };
-
   let placedNonPlainsSecondaryCount = 0;
   const placeSecondaryTerrainCell = (terrain, cell) => {
     const key = String(cell?.key || "").trim();
@@ -3409,10 +3446,22 @@ function applyTerrainSurveyToMap(options = {}) {
     for (let placed = 0; placed < requested; ) {
       const maxNonPlainsAllowed = Math.max(0, remainingCells.length - reservedShore - placedNonPlainsSecondaryCount);
       if (maxNonPlainsAllowed <= 0) break;
-      const nextCell = nextAvailablePlacementCell();
-      if (!nextCell) break;
-      if (placeSecondaryTerrainCell(terrain, nextCell)) {
-        placed += 1;
+      const candidates = orderedCellsDesc.filter((cell) => {
+        const key = String(cell?.key || "").trim();
+        return key && availableKeys.has(key) && !entriesByKey.has(key);
+      });
+      const chunk = Math.min(requested - placed, maxNonPlainsAllowed);
+      const selectedCells = selectClusteredCells(chunk, candidates, terrain, {
+        preferConnectedToExisting: true,
+        existingTerrainLabel: terrain,
+      });
+      if (!selectedCells.length) {
+        break;
+      }
+      for (const selectedCell of selectedCells) {
+        if (placeSecondaryTerrainCell(terrain, selectedCell)) {
+          placed += 1;
+        }
       }
     }
   };
@@ -3427,22 +3476,34 @@ function applyTerrainSurveyToMap(options = {}) {
     });
 
     let placed = 0;
-    for (const cell of plainsCandidates) {
+    for (;;) {
       if (placed >= requested) break;
-      const key = String(cell?.key || "").trim();
-      if (!key || entriesByKey.has(key)) continue;
 
       // Keep enough unassigned hexes available for shoreline conversion.
       const remainingUnassigned = cells.length - entriesByKey.size;
-      if (remainingUnassigned <= reservedShore) {
+      const maxPlainsAllowed = Math.max(0, remainingUnassigned - reservedShore);
+      if (maxPlainsAllowed <= 0) {
         break;
       }
 
-      entriesByKey.set(key, {
-        points: normalizePoints(cell?.points || ""),
-        terrain: "plains",
+      const chunk = Math.min(requested - placed, maxPlainsAllowed);
+      const selectedCells = selectClusteredCells(chunk, plainsCandidates, "plains", {
+        preferConnectedToExisting: true,
+        existingTerrainLabel: "plains",
       });
-      placed += 1;
+      if (!selectedCells.length) {
+        break;
+      }
+
+      for (const selectedCell of selectedCells) {
+        const key = String(selectedCell?.key || "").trim();
+        if (!key || entriesByKey.has(key)) continue;
+        entriesByKey.set(key, {
+          points: normalizePoints(selectedCell?.points || ""),
+          terrain: "plains",
+        });
+        placed += 1;
+      }
     }
   };
 
@@ -3470,12 +3531,22 @@ function applyTerrainSurveyToMap(options = {}) {
       const key = String(cell?.key || "").trim();
       return key && !entriesByKey.has(key) && hasNeighborTerrain(key, requiredTerrains);
     });
-    for (const cell of candidates) {
+    for (;;) {
       if (placed >= requested) break;
       const maxNonPlainsAllowed = Math.max(0, remainingCells.length - reservedShore - placedNonPlainsSecondaryCount);
       if (maxNonPlainsAllowed <= 0) break;
-      if (placeSecondaryTerrainCell("forest", cell)) {
-        placed += 1;
+      const chunk = Math.min(requested - placed, maxNonPlainsAllowed);
+      const selectedCells = selectClusteredCells(chunk, candidates, "forest", {
+        preferConnectedToExisting: true,
+        existingTerrainLabel: "forest",
+      });
+      if (!selectedCells.length) {
+        break;
+      }
+      for (const selectedCell of selectedCells) {
+        if (placeSecondaryTerrainCell("forest", selectedCell)) {
+          placed += 1;
+        }
       }
     }
     return placed;
@@ -3489,12 +3560,22 @@ function applyTerrainSurveyToMap(options = {}) {
       const key = String(cell?.key || "").trim();
       return key && !entriesByKey.has(key) && hasNeighborTerrain(key, requiredTerrains);
     });
-    for (const cell of candidates) {
+    for (;;) {
       if (placed >= requested) break;
       const maxNonPlainsAllowed = Math.max(0, remainingCells.length - reservedShore - placedNonPlainsSecondaryCount);
       if (maxNonPlainsAllowed <= 0) break;
-      if (placeSecondaryTerrainCell(terrain, cell)) {
-        placed += 1;
+      const chunk = Math.min(requested - placed, maxNonPlainsAllowed);
+      const selectedCells = selectClusteredCells(chunk, candidates, terrain, {
+        preferConnectedToExisting: true,
+        existingTerrainLabel: terrain,
+      });
+      if (!selectedCells.length) {
+        break;
+      }
+      for (const selectedCell of selectedCells) {
+        if (placeSecondaryTerrainCell(terrain, selectedCell)) {
+          placed += 1;
+        }
       }
     }
     return placed;
