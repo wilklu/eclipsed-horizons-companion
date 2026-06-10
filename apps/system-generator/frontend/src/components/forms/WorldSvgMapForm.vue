@@ -499,7 +499,11 @@ function isHexPolygonElement(poly) {
   // a white fill or other style attributes that would otherwise cause them
   // to be ignored. Rely on metadata attributes when present.
   const hasHexMetadata = Boolean(
-    poly.getAttribute("data-logical-hex-id") || poly.getAttribute("data-seam-group") || poly.getAttribute("data-hex-id") || poly.getAttribute("hex-id") || poly.getAttribute("data-seam-partners"),
+    poly.getAttribute("data-logical-hex-id") ||
+    poly.getAttribute("data-seam-group") ||
+    poly.getAttribute("data-hex-id") ||
+    poly.getAttribute("hex-id") ||
+    poly.getAttribute("data-seam-partners"),
   );
 
   if (hasHexMetadata) {
