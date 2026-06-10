@@ -71,6 +71,13 @@
             <option v-for="entry in ART_STYLE_PRESETS" :key="entry" :value="entry">{{ entry }}</option>
           </select>
         </div>
+        <div class="control-group" v-if="artStyle === 'March of Progress'">
+          <label>Evolution Stages</label>
+          <select v-model="marchStages" class="select-input">
+            <option value="random">🎲 Random (6–10)</option>
+            <option v-for="n in [6, 7, 8, 9, 10]" :key="n" :value="n">{{ n }}</option>
+          </select>
+        </div>
         <div class="control-group control-action">
           <button class="btn btn-primary" @click="generateSophont">⚡ Generate Sophont</button>
           <button class="btn btn-secondary" :disabled="!sophont" @click="saveSophontRecord">💾 Save</button>
@@ -451,6 +458,7 @@ const speciesName = ref("");
 const isSpeakingName = ref(false);
 const supportsSpeechSynthesis = isSpeechSynthesisSupported();
 const artStyle = ref(DEFAULT_ART_STYLE);
+const marchStages = ref("random");
 const artPreviewUrl = ref("");
 const artPreviewError = ref("");
 const additionalImageUrls = ref([]);
@@ -466,6 +474,8 @@ const styledImagePrompt = computed(() =>
     entityType: "sophont",
     style: artStyle.value,
     seed: sophont.value?.seed || seedValue.value,
+    sequenceLength:
+      artStyle.value === "March of Progress" && marchStages.value !== "random" ? Number(marchStages.value) : undefined,
   }),
 );
 
@@ -674,6 +684,8 @@ function generateConceptArt(record = sophont.value) {
     seed: record?.seed || seedValue.value,
     width: 1024,
     height: 1024,
+    sequenceLength:
+      artStyle.value === "March of Progress" && marchStages.value !== "random" ? Number(marchStages.value) : undefined,
   });
 
   if (!artPreviewUrl.value) {
