@@ -213,11 +213,11 @@ function getPopulatedOverlaySizes(serialized) {
   if (!serialized || typeof serialized !== "object") {
     return [];
   }
-
   return Object.entries(serialized)
     .map(([sizeKey, entries]) => {
       const size = Number.parseInt(String(sizeKey), 10);
-      if (!Number.isFinite(size)) {
+      // Ignore invalid or non-positive sizes (0 or negative)
+      if (!Number.isFinite(size) || size <= 0) {
         return null;
       }
 
@@ -231,7 +231,7 @@ function getPopulatedOverlaySizes(serialized) {
 
       return null;
     })
-    .filter((size) => Number.isFinite(size));
+    .filter((size) => Number.isFinite(size) && size > 0);
 }
 
 const activeSize = computed(() => {
@@ -409,6 +409,7 @@ function deserializeTerrainOverlay(serialized, cells = []) {
   }
 
   const cellsByKey = buildHexCellLookup(cells);
+  const seamAliasLookup = buildRowSeamAliasLookup(cells.map((c) => c.hexId));
 
   for (const [sizeKey, entries] of Object.entries(serialized)) {
     const size = Number.parseInt(String(sizeKey), 10);
@@ -418,7 +419,18 @@ function deserializeTerrainOverlay(serialized, cells = []) {
 
     const perSize = new Map();
     for (const entry of normalizeSerializedEntries(entries, cellsByKey)) {
-      const key = canonicalizeHexId(String(entry?.key || "").trim());
+      const rawKey = String(entry?.key || "").trim();
+      let key = canonicalizeHexId(rawKey);
+
+      // If canonicalization didn't resolve a usable key, attempt to resolve via
+      // seam alias lookup (maps seam partner ids to a canonical row endpoint).
+      if ((!key || !cellsByKey.has(key)) && seamAliasLookup && typeof seamAliasLookup.get === "function") {
+        const alias = seamAliasLookup.get(rawKey) || seamAliasLookup.get(key || "");
+        if (alias) {
+          key = canonicalizeHexId(alias);
+        }
+      }
+
       const points = normalizePoints(entry?.points || cellsByKey.get(key)?.points || "");
       const terrain = String(entry?.terrain || "").trim();
       if (!key || !points || !terrain) {
@@ -489,6 +501,96 @@ function isHexPolygonElement(poly) {
 
   return true;
 }
+function parseHexIdList(value) {
+  return String(value || "")
+    .split(",")
+    .map((item) => String(item || "").trim())
+    .filter(Boolean);
+}
+
+function parseHexIdParts(hexId) {
+  const normalized = String(hexId || "").trim();
+  if (!/^\d{6}$/.test(normalized)) {
+    return null;
+  }
+
+  const col = Number.parseInt(normalized.slice(0, 3), 10);
+  const row = Number.parseInt(normalized.slice(3, 6), 10);
+  if (!Number.isFinite(col) || !Number.isFinite(row)) {
+    return null;
+  }
+
+  return {
+    id: normalized,
+    col,
+    row,
+  };
+}
+
+function buildRowSeamAliasLookup(hexIds) {
+  const byRow = new Map();
+
+  for (const rawId of hexIds || []) {
+    const parsed = parseHexIdParts(rawId);
+    if (!parsed) continue;
+    if (!byRow.has(parsed.row)) {
+      byRow.set(parsed.row, []);
+    }
+    byRow.get(parsed.row).push(parsed);
+  }
+
+  const lookup = new Map();
+
+  for (const [row, entries] of byRow.entries()) {
+    if (!Array.isArray(entries) || entries.length < 2) {
+      continue;
+    }
+
+    entries.sort((a, b) => a.col - b.col);
+    const first = entries[0]?.id;
+    const last = entries[entries.length - 1]?.id;
+
+    if (row === 1 && first) {
+      for (const entry of entries) {
+        lookup.set(entry.id, first);
+      }
+      continue;
+    }
+
+    if (first && last) {
+      lookup.set(first, first);
+      lookup.set(last, first);
+    }
+  }
+
+  return lookup;
+}
+
+function deriveCanonicalHexKey({ logicalHexId, seamGroupHexId, hexId, seamPartnerHexIds }) {
+  const logicalKey = canonicalizeHexId(logicalHexId);
+  if (logicalKey) {
+    return logicalKey;
+  }
+
+  const seamGroupKey = canonicalizeHexId(seamGroupHexId);
+  if (seamGroupKey) {
+    return seamGroupKey;
+  }
+
+  const baseHexKey = canonicalizeHexId(hexId);
+  const partnerKeys = parseHexIdList(seamPartnerHexIds)
+    .map((id) => canonicalizeHexId(id))
+    .filter(Boolean);
+
+  if (partnerKeys.length) {
+    const grouped = [baseHexKey, ...partnerKeys].filter(Boolean).sort();
+    if (grouped.length) {
+      return grouped[0];
+    }
+  }
+
+  return baseHexKey || "";
+}
 
 function extractHexCells(templateContent) {
   if (!templateContent) {
@@ -499,16 +601,44 @@ function extractHexCells(templateContent) {
   const doc = parser.parseFromString(`<svg>${templateContent}</svg>`, "image/svg+xml");
   const polys = Array.from(doc.querySelectorAll("polygon"));
 
-  return polys
+  const parsedCells = polys
     .filter((poly) => isHexPolygonElement(poly))
     .map((poly) => {
       const points = normalizePoints(poly.getAttribute("points"));
-      const hexId = resolveHexKeyFromElement(poly);
+      const logicalHexId = String(poly.getAttribute("data-logical-hex-id") || "").trim();
+      const seamGroupHexId = String(poly.getAttribute("data-seam-group") || "").trim();
+      const seamPartnerHexIds = String(poly.getAttribute("data-seam-partners") || "").trim();
+      const hexId = String(poly.getAttribute("data-hex-id") || poly.getAttribute("hex-id") || "").trim();
+
       return {
-        key: hexId || points,
+        logicalHexId,
+        seamGroupHexId,
+        seamPartnerHexIds,
+        hexId,
         points,
       };
+    })
+    .filter(Boolean);
+
+  const seamAliasLookup = buildRowSeamAliasLookup(parsedCells.map((cell) => cell?.hexId));
+
+  return parsedCells.map((cell) => {
+    const seamAliasHexId = seamAliasLookup.get(cell.hexId) || "";
+    const canonicalFromMetadata = deriveCanonicalHexKey({
+      logicalHexId: cell.logicalHexId,
+      seamGroupHexId: cell.seamGroupHexId,
+      hexId: cell.hexId,
+      seamPartnerHexIds: cell.seamPartnerHexIds,
     });
+    const canonicalHexId = canonicalFromMetadata || canonicalizeHexId(seamAliasHexId);
+
+    return {
+      key: canonicalHexId || cell.points,
+      points: cell.points,
+      hexId: cell.hexId,
+      canonicalHexId,
+    };
+  });
 }
 
 const activeHexCells = computed(() => extractHexCells(activeTemplateBaseContent.value));
@@ -710,6 +840,29 @@ watch(
   [() => props.seedTerrainOverlay, activeHexCells],
   ([nextOverlay, cells]) => {
     terrainBySize.value = deserializeTerrainOverlay(nextOverlay, cells);
+
+    // If this is a read-only preview and the world reports a generated/saved
+    // terrain map, prefer showing any persisted overlay from another size
+    // rather than falling back to an auto-seeded preview when the active
+    // template size doesn't have entries after deserialization.
+    if (readOnly.value && props.seedTerrainGenerated) {
+      const activeEntries = terrainBySize.value.get(activeSize.value);
+      if (!activeEntries?.size && terrainBySize.value.size) {
+        const firstSize = terrainBySize.value.keys().next().value;
+        if (firstSize !== undefined) {
+          const firstEntries = terrainBySize.value.get(firstSize);
+          if (firstEntries?.size) {
+            const next = new Map(terrainBySize.value);
+            // Copy the first available persisted set into the active size so
+            // the preview displays the persisted overlay rather than an
+            // auto-generated one.
+            next.set(activeSize.value, firstEntries);
+            terrainBySize.value = next;
+            return;
+          }
+        }
+      }
+    }
 
     if (!readOnly.value || !props.seedTerrainGenerated) {
       return;
