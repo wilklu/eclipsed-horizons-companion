@@ -934,6 +934,7 @@ async function saveSophontRecord() {
     seed: seedValue.value,
     bodyPlanSelection: bodyPlan.value,
     homeEnvironmentSelection: homeEnvironment.value,
+    marchStagesSelection: marchStages.value,
     systemId: selectedWorldOption.value?.systemId || String(route.query.systemId || route.query.systemRecordId || ""),
     worldKey: selectedWorldKey.value,
     worldName: selectedWorldOption.value?.worldName || sophont.value.sourceWorld?.name || "",
@@ -948,8 +949,11 @@ async function saveSophontRecord() {
       : [...new Set(additionalImageUrls.value.filter(Boolean))],
     savedAt: persisted.savedAt,
     updatedAt: persisted.updatedAt,
+    marchStagesSelection: persisted.marchStagesSelection ?? marchStages.value,
   };
   additionalImageUrls.value = Array.isArray(sophont.value.imageUrls) ? [...sophont.value.imageUrls] : [];
+  // restore selector from persisted value for reproducibility
+  marchStages.value = persisted.marchStagesSelection ?? marchStages.value;
   const linked = await persistSophontToWorldContext(persisted);
   toastService.success(
     linked ? `Saved sophont ${persisted.name} and linked it to the world survey.` : `Saved sophont ${persisted.name}.`,

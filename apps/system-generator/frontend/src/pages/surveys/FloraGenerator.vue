@@ -45,7 +45,7 @@
           </div>
         </div>
 
-        <div class="control-group">
+        <div class="control-group control-group-growth-form">
           <label>Growth Form</label>
           <select v-model="growthForm" class="select-input">
             <option value="random">🎲 Random</option>
@@ -58,6 +58,24 @@
           <select v-model="climate" class="select-input">
             <option value="random">🎲 Random</option>
             <option v-for="entry in climateOptions" :key="entry" :value="entry">{{ entry }}</option>
+          </select>
+        </div>
+
+        <div class="control-group control-group-root-network">
+          <label>Root Network</label>
+          <select v-model="rootNetworkMode" class="select-input">
+            <option v-for="entry in rootNetworkModeOptions" :key="entry.value" :value="entry.value">
+              {{ entry.label }}
+            </option>
+          </select>
+        </div>
+
+        <div class="control-group control-group-appearance">
+          <label>Appearance</label>
+          <select v-model="appearanceMode" class="select-input">
+            <option v-for="entry in appearanceModeOptions" :key="entry.value" :value="entry.value">
+              {{ entry.label }}
+            </option>
           </select>
         </div>
 
@@ -88,10 +106,15 @@
           <div class="flora-icon">{{ flora.icon }}</div>
           <div>
             <h2>{{ flora.name }}</h2>
-            <p class="flora-tagline">{{ flora.summary }}</p>
+            <div class="name-row">
+              <p class="flora-tagline">{{ flora.summary }}</p>
+              <button class="btn btn-secondary" type="button" @click="rerollTagline">Reroll Tagline</button>
+            </div>
             <div class="flora-tags">
               <span class="tag">{{ flora.biology?.["Growth Form"] }}</span>
               <span class="tag">{{ flora.biology?.Climate }}</span>
+              <span class="tag">Root: {{ currentRootNetworkModeLabel }}</span>
+              <span class="tag">Appearance: {{ currentAppearanceModeLabel }}</span>
               <span class="tag">{{ flora.uses?.["Primary Use"] }}</span>
             </div>
           </div>
@@ -150,9 +173,33 @@
           </section>
 
           <section class="flora-section">
+            <h3>🎭 Appearance Roll</h3>
+            <div class="trait-list">
+              <div class="trait-item">{{ flora.appearanceRoll || "Appearance profile unavailable." }}</div>
+            </div>
+          </section>
+
+          <section class="flora-section">
             <h3>📝 Adventure Hooks</h3>
             <div class="trait-list">
               <div v-for="entry in flora.hooks || []" :key="entry" class="trait-item">{{ entry }}</div>
+            </div>
+          </section>
+
+          <section class="flora-section">
+            <h3>📣 Tagline Archive</h3>
+            <div class="trait-list">
+              <div v-for="entry in flora.taglineVariants || []" :key="entry" class="trait-item tagline-variant-row">
+                <span>{{ entry }}</span>
+                <button
+                  type="button"
+                  class="btn btn-secondary btn-copy"
+                  :disabled="entry === flora.summary"
+                  @click="useTaglineVariant(entry)"
+                >
+                  Use
+                </button>
+              </div>
             </div>
           </section>
 
@@ -260,6 +307,11 @@
               <strong>{{ entry.name }}</strong>
               <span>{{ entry.taxonomy?.["Scientific Name"] || "Unclassified flora" }}</span>
               <span>{{ entry.lineage?.originModel || entry.worldName || "Unlinked habitat" }}</span>
+              <span>Root Network: {{ formatRootNetworkMode(entry.rootNetworkModeSelection) }}</span>
+              <span>{{ entry.ecology?.["Root Network"] || "Root network profile unavailable" }}</span>
+              <span>Appearance: {{ formatAppearanceMode(entry.appearanceModeSelection) }}</span>
+              <span>{{ entry.appearanceRoll || "Appearance profile unavailable" }}</span>
+              <span>Taglines: {{ Array.isArray(entry.taglineVariants) ? entry.taglineVariants.length : 1 }}</span>
               <span>{{ entry.uses?.["Primary Use"] || entry.summary || "Saved flora" }}</span>
             </div>
             <div class="saved-record-actions">
@@ -294,11 +346,15 @@ import {
   buildWorldLinkedFloraOptions,
   FLORA_CLIMATES,
   FLORA_GROWTH_FORMS,
+  generateCompactFlora,
+  generateDetailedFlora,
+  generateTagline,
   getWorldAvailableFloraClimates,
   generateFloraProfile,
+  generateSpecFlora,
   randomFloraName,
 } from "../../utils/beasts/floraGenerator.js";
-import { generateGuidSeed } from "../../utils/beasts/beastGenerator.js";
+import { createSeededRng, generateGuidSeed } from "../../utils/beasts/beastGenerator.js";
 import {
   buildPropagationOriginNote,
   cloneSpeciesTemplate,
@@ -352,8 +408,88 @@ const additionalImagesInput = ref(null);
 const seedValue = ref(generateGuidSeed("flora"));
 const growthForm = ref("random");
 const climate = ref("random");
+const rootNetworkMode = ref("compact");
+const appearanceMode = ref("compact");
 const selectedWorldKey = ref("");
 const flora = ref(null);
+
+const rootNetworkModeOptions = [
+  { value: "compact", label: "Compact" },
+  { value: "verbose", label: "Verbose" },
+  { value: "descriptive", label: "Descriptive" },
+];
+
+const appearanceModeOptions = [
+  { value: "compact", label: "Compact" },
+  { value: "detailed", label: "Detailed" },
+  { value: "spec", label: "Spec Sheet" },
+];
+
+function formatRootNetworkMode(value) {
+  return rootNetworkModeOptions.find((entry) => entry.value === value)?.label || "Compact";
+}
+
+function formatAppearanceMode(value) {
+  return appearanceModeOptions.find((entry) => entry.value === value)?.label || "Compact";
+}
+
+const currentRootNetworkModeLabel = computed(() => formatRootNetworkMode(rootNetworkMode.value));
+const currentAppearanceModeLabel = computed(() => formatAppearanceMode(appearanceMode.value));
+
+function generateAppearanceProfile(seed = generateGuidSeed("flora"), mode = "compact") {
+  const rng = createSeededRng(`${String(seed || "flora")}-appearance`);
+
+  switch (mode) {
+    case "detailed":
+      return generateDetailedFlora({ rng });
+    case "spec":
+      return generateSpecFlora({ rng });
+    case "compact":
+    default:
+      return generateCompactFlora({ rng });
+  }
+}
+
+function normalizeTaglineVariants(summary = "", existing = []) {
+  return [...new Set([String(summary || "").trim(), ...(Array.isArray(existing) ? existing : [])].filter(Boolean))];
+}
+
+function buildSummaryFromTagline(name = "Generated Flora", tagline = "") {
+  const resolvedName = String(name || "Generated Flora").trim() || "Generated Flora";
+  const resolvedTagline = String(tagline || "").trim() || "a notable botanical lineage";
+  return `${resolvedName} is ${resolvedTagline}.`;
+}
+
+function rerollTagline() {
+  if (!flora.value) {
+    toastService.error("Generate flora before rerolling taglines.");
+    return;
+  }
+
+  const nextSummary = buildSummaryFromTagline(flora.value.name, generateTagline());
+  flora.value = {
+    ...flora.value,
+    summary: nextSummary,
+    taglineVariants: normalizeTaglineVariants(nextSummary, flora.value.taglineVariants || [flora.value.summary]),
+  };
+}
+
+function useTaglineVariant(tagline) {
+  if (!flora.value) {
+    return;
+  }
+
+  const selected = String(tagline || "").trim();
+  if (!selected) {
+    return;
+  }
+
+  flora.value = {
+    ...flora.value,
+    summary: selected,
+    taglineVariants: normalizeTaglineVariants(selected, flora.value.taglineVariants || [flora.value.summary]),
+  };
+}
 
 const styledImagePrompt = computed(() =>
   buildConceptArtPrompt(String(flora.value?.imagePrompt || ""), {
@@ -712,12 +848,18 @@ async function generateFlora() {
       ...visuals,
       id: flora.value?.id || null,
       seed,
+      appearanceModeSelection: appearanceMode.value,
+      appearanceRoll: generateAppearanceProfile(seed, appearanceMode.value),
       sourceWorld: linked.sourceWorld,
       systemId: selectedWorldOption.value?.systemId || String(route.query.systemId || route.query.systemRecordId || ""),
       worldKey: selectedWorldKey.value,
       worldName: selectedWorldOption.value?.worldName || linked.sourceWorld?.name || "",
       savedAt: flora.value?.savedAt || null,
       updatedAt: null,
+      taglineVariants: normalizeTaglineVariants(
+        template?.summary || buildSummaryFromTagline(template?.name || floraName.value.trim(), generateTagline()),
+        template?.taglineVariants,
+      ),
       origin: originNote,
       lineage:
         template?.lineage && typeof template.lineage === "object"
@@ -736,12 +878,16 @@ async function generateFlora() {
     name: floraName.value.trim() || "Generated Flora",
     growthForm: growthForm.value,
     climate: resolvedClimate,
+    rootNetworkMode: rootNetworkMode.value,
     sourceWorld: linked.sourceWorld,
   });
 
   flora.value = {
     ...next,
     id: flora.value?.id || next.id || null,
+    appearanceModeSelection: appearanceMode.value,
+    appearanceRoll: generateAppearanceProfile(seed, appearanceMode.value),
+    taglineVariants: normalizeTaglineVariants(next.summary, next.taglineVariants),
     savedAt: flora.value?.savedAt || null,
   };
 }
@@ -759,6 +905,8 @@ async function saveFloraRecord() {
     seed: seedValue.value,
     growthFormSelection: growthForm.value,
     climateSelection: climate.value,
+    rootNetworkModeSelection: rootNetworkMode.value,
+    appearanceModeSelection: appearanceMode.value,
     systemId: selectedWorldOption.value?.systemId || String(route.query.systemId || route.query.systemRecordId || ""),
     worldKey: selectedWorldKey.value,
     worldName: selectedWorldOption.value?.worldName || flora.value.sourceWorld?.name || "",
@@ -792,6 +940,7 @@ function loadSavedFlora(record) {
           name: record.name || "Generated Flora",
           growthForm: record.growthFormSelection || record.biology?.["Growth Form"] || "random",
           climate: record.climateSelection || record.biology?.Climate || "random",
+          rootNetworkMode: record.rootNetworkModeSelection || "compact",
           sourceWorld: record.sourceWorld || null,
         });
 
@@ -811,6 +960,7 @@ function loadSavedFlora(record) {
       : Array.isArray(fallbackProfile?.hooks)
         ? [...fallbackProfile.hooks]
         : [],
+    taglineVariants: normalizeTaglineVariants(record.summary || fallbackProfile?.summary || "", record.taglineVariants),
     worldIntegration: record.worldIntegration || fallbackProfile?.worldIntegration || { summary: "—", notes: [] },
   };
 
@@ -818,11 +968,20 @@ function loadSavedFlora(record) {
   normalizedRecord.visualDescription = normalizedRecord.visualDescription || promptDetails.visualDescription;
   normalizedRecord.imagePrompt = normalizedRecord.imagePrompt || promptDetails.imagePrompt;
   normalizedRecord.imageCaption = normalizedRecord.imageCaption || promptDetails.imageCaption;
+  normalizedRecord.appearanceModeSelection = normalizedRecord.appearanceModeSelection || "compact";
+  normalizedRecord.appearanceRoll =
+    normalizedRecord.appearanceRoll ||
+    generateAppearanceProfile(
+      normalizedRecord.seed || generateGuidSeed("flora"),
+      normalizedRecord.appearanceModeSelection,
+    );
 
   floraName.value = normalizedRecord.name || "";
   seedValue.value = normalizedRecord.seed || generateGuidSeed("flora");
   growthForm.value = normalizedRecord.growthFormSelection || normalizedRecord.biology?.["Growth Form"] || "random";
   climate.value = normalizedRecord.climateSelection || normalizedRecord.biology?.Climate || "random";
+  rootNetworkMode.value = normalizedRecord.rootNetworkModeSelection || "compact";
+  appearanceMode.value = normalizedRecord.appearanceModeSelection || "compact";
   if (normalizedRecord.worldKey) {
     selectedWorldKey.value = normalizedRecord.worldKey;
   }
@@ -853,6 +1012,8 @@ function resetForm() {
   seedValue.value = generateGuidSeed("flora");
   growthForm.value = "random";
   climate.value = "random";
+  rootNetworkMode.value = "compact";
+  appearanceMode.value = "compact";
   selectedWorldKey.value = "";
   flora.value = null;
 }
@@ -924,12 +1085,28 @@ async function exportFlora() {
 
 .control-action {
   grid-column: 1 / -1;
+  grid-row: 3;
   display: flex;
   flex-direction: row;
   justify-content: flex-end;
   align-items: center;
   flex-wrap: wrap;
   gap: 0.5rem;
+}
+
+.control-group-growth-form {
+  grid-row: 2;
+  grid-column: 1 / span 2;
+}
+
+.control-group-root-network {
+  grid-row: 2;
+  grid-column: 3 / span 2;
+}
+
+.control-group-appearance {
+  grid-row: 2;
+  grid-column: 5 / span 2;
 }
 
 label {
@@ -1064,6 +1241,17 @@ label {
   border-radius: 0.45rem;
   padding: 0.55rem 0.7rem;
   color: #e2f6ff;
+}
+
+.tagline-variant-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.tagline-variant-row span {
+  flex: 1 1 auto;
 }
 
 .section-offset {
@@ -1221,6 +1409,14 @@ label {
 }
 
 @media (max-width: 900px) {
+  .control-group-growth-form,
+  .control-group-root-network,
+  .control-group-appearance,
+  .control-action {
+    grid-row: auto;
+    grid-column: auto;
+  }
+
   .control-group-wide {
     grid-column: span 1;
   }

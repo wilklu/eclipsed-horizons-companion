@@ -4,6 +4,7 @@ import {
   calculateOrbitTemperatureRawRoll,
   calculateAtmosphereTemperatureDm,
 } from "../../utils/wbh/worldPhysicalCharacteristicsWbh.js";
+import { resolveGeneratedStarsFromSystem } from "../../utils/systemStarMetadata.js";
 
 export function createEmptyStarRow() {
   return {
@@ -530,26 +531,31 @@ export function buildSurveyDataFromSystem(systemRecord) {
   const mainworld =
     systemRecord?.mainworld && typeof systemRecord.mainworld === "object" ? systemRecord.mainworld : null;
 
+  // Prefer explicit generated-star metadata (metadata.generatedSurvey.stars)
+  // falling back to top-level `stars` or `primaryStar` when absent.
+  const generatedFromMetadata = resolveGeneratedStarsFromSystem(systemRecord || {});
   const stars =
-    Array.isArray(systemRecord?.stars) && systemRecord.stars.length
-      ? systemRecord.stars.map((star) => normalizeSurveyStarRow(star))
-      : systemRecord?.primaryStar && typeof systemRecord.primaryStar === "object"
-        ? (() => {
-            const starLabel = String(
-              systemRecord?.primaryStar?.spectralClass || systemRecord?.primaryStar?.designation || "",
-            ).trim();
-            if (!starLabel) {
-              return base.stars;
-            }
-            return [
-              normalizeSurveyStarRow({
-                ...systemRecord.primaryStar,
-                designation: String(systemRecord?.primaryStar?.designation || starLabel).trim(),
-                spectralClass: String(systemRecord?.primaryStar?.spectralClass || starLabel).trim(),
-              }),
-            ];
-          })()
-        : base.stars;
+    Array.isArray(generatedFromMetadata) && generatedFromMetadata.length
+      ? generatedFromMetadata.map((star) => normalizeSurveyStarRow(star))
+      : Array.isArray(systemRecord?.stars) && systemRecord.stars.length
+        ? systemRecord.stars.map((star) => normalizeSurveyStarRow(star))
+        : systemRecord?.primaryStar && typeof systemRecord.primaryStar === "object"
+          ? (() => {
+              const starLabel = String(
+                systemRecord?.primaryStar?.spectralClass || systemRecord?.primaryStar?.designation || "",
+              ).trim();
+              if (!starLabel) {
+                return base.stars;
+              }
+              return [
+                normalizeSurveyStarRow({
+                  ...systemRecord.primaryStar,
+                  designation: String(systemRecord?.primaryStar?.designation || starLabel).trim(),
+                  spectralClass: String(systemRecord?.primaryStar?.spectralClass || starLabel).trim(),
+                }),
+              ];
+            })()
+          : base.stars;
 
   const worlds =
     Array.isArray(systemRecord?.worlds) && systemRecord.worlds.length

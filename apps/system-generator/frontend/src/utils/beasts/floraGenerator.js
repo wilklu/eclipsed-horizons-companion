@@ -29,21 +29,91 @@ export const FLORA_CLIMATES = [
 ];
 
 const ICONS = ["🌿", "🌱", "🌳", "🍃", "🪴", "🌾", "🍄", "🌴"];
-const ROOT_NETWORKS = [
-  "deep anchor taproot",
-  "fibrous web mat",
-  "hollow nutrient lattice",
-  "tidal rhizome spread",
-  "stone-splitting nodules",
-  "symbiotic fungal mesh",
+export const FLORA_ROOT_NETWORK_ARCHITECTURE = [
+  "radial sinker",
+  "lateral fan",
+  "heart-shaped plexus",
+  "multi-tier terrace",
+  "spiral tendril",
+  "reticulated mesh",
+  "crisscross ladder",
+  "convergent delta",
+  "candelabra fork",
+  "helical bore",
+  "collimated beam",
+  "fractal dendritic",
 ];
-const WATER_STRATEGIES = [
-  "dew capture",
-  "seasonal water hoarding",
-  "salt filtering",
-  "fog siphoning",
-  "capillary trunk storage",
-  "floodplain cycling",
+export const FLORA_ROOT_NETWORK_SUBSTRATE = [
+  "granitic scree",
+  "compacted loam",
+  "calcareous silt",
+  "peat bog",
+  "volcanic tuff",
+  "saline marsh",
+  "permafrost wedge",
+  "limestone karst",
+  "alluvial sand",
+  "clay pan",
+];
+export const FLORA_ROOT_NETWORK_STRATEGY = [
+  "taproot anchor",
+  "resource hoard",
+  "allelopathic ring",
+  "mycorrhizal relay",
+  "scavenger sprawl",
+  "pioneer spread",
+  "parasitic tap",
+  "symbiotic mesh",
+  "fire-resprout vault",
+  "seasonal pulse",
+];
+export const FLORA_ROOT_NETWORK_TISSUE = [
+  "succulent",
+  "lignified",
+  "corky bark",
+  "crystal-laced",
+  "hollow pith",
+  "fibrous sheath",
+  "mucilaginous",
+  "aerenchymous",
+  "tannin-rich",
+  "resin-impregnated",
+];
+export const FLORA_WATER_STRATEGY_SOURCE = [
+  "fog drip",
+  "dew film",
+  "rain pulse",
+  "ground seep",
+  "flood surge",
+  "snowmelt trickle",
+  "cloud interception",
+  "hygroscopic harvest",
+  "stemflow funnel",
+  "overland sheet flow",
+];
+export const FLORA_WATER_STRATEGY_MECHANISM = [
+  "capillary wicking",
+  "pressure osmosis",
+  "suction draw",
+  "gravitational drain",
+  "vapor sorption",
+  "guttation pump",
+  "pneumatic lift",
+  "tension conduit",
+  "wax-channel channeling",
+  "hydraulic redistribution",
+];
+export const FLORA_WATER_STRATEGY_STORAGE = [
+  "trunk cistern",
+  "bulb reservoir",
+  "air-root bladder",
+  "leaf-bract cupping",
+  "xylem tank",
+  "cortex sponge",
+  "pith well",
+  "surface film",
+  "subterranean cistern",
+  "cuticular wax seal",
 ];
 const SOIL_PREFERENCES = [
   "volcanic loam",
@@ -61,39 +131,47 @@ const REPRODUCTION_STRATEGIES = [
   "seasonal bulb splitting",
   "tidal pollination",
 ];
-const COLOURWAYS = [
+export const COLOURWAY_PALETTE = [
   "emerald and silver",
   "violet and black",
   "amber and jade",
   "scarlet-veined green",
   "pale blue fronds",
   "bronze waxy leaves",
+  "copper-tipped indigo",
+  "pearl-white with crimson veining",
 ];
-const BLOOM_SHAPES = [
+export const BLOOM_SHAPE = [
   "lantern-shaped blossoms",
   "spiral pollen cones",
   "umbrella petals",
   "glassy seed bells",
   "ribbon-like fronds",
   "clustered bulb crowns",
+  "trumpet-fluted hoods",
+  "chandelier spike racemes",
 ];
-const SURFACE_TEXTURES = [
+export const SURFACE_TEXTURE = [
   "velvet leaf surfaces",
   "waxy reflective skin",
   "fine crystalline fuzz",
   "ribbed bark plating",
   "translucent petal membranes",
   "braided stem fibers",
+  "scabrous cork ridges",
+  "gelatinous mucus coat",
 ];
-const LIGHTING_MOODS = [
+export const LIGHTING_MOOD = [
   "soft dawn light",
   "misty wetland haze",
   "high desert glare",
   "glowing twilight ambience",
   "cool subterranean luminescence",
   "storm-lit horizon light",
+  "dappled canopy shadow",
+  "aurora-borealis refracted glow",
 ];
-const ADAPTATIONS = [
+export const FLORA_ADAPTATION = [
   "bioluminescent bloom tips",
   "pressure-sealed seed chambers",
   "toxin-laced sap",
@@ -103,7 +181,7 @@ const ADAPTATIONS = [
   "ice-crystal antifreeze tissues",
   "rapid wound callusing",
 ];
-const PRIMARY_USES = [
+export const PRIMARY_USE = [
   "medicinal resin",
   "textile fiber",
   "ceremonial incense",
@@ -113,14 +191,113 @@ const PRIMARY_USES = [
   "industrial dye",
   "luxury perfume oil",
 ];
+export const FLORA_ADAPTATIONS = FLORA_ADAPTATION;
+const PRIMARY_USES = PRIMARY_USE;
+const COLOURWAYS = COLOURWAY_PALETTE;
+const BLOOM_SHAPES = BLOOM_SHAPE;
+const SURFACE_TEXTURES = SURFACE_TEXTURE;
+const LIGHTING_MOODS = LIGHTING_MOOD;
 const HAZARD_LEVELS = ["Low", "Moderate", "Elevated", "High"];
 const MARKET_APPEAL = ["local staple", "specialist export", "luxury trade good", "restricted cargo"];
-const TAGLINES = [
-  "a hardy botanical lineage shaped by extreme frontiers",
-  "an elegant world-rooted flora prized across nearby trade lanes",
-  "a strange bloom whose ecology hints at older planetary cycles",
-  "a resilient plant network adapted to volatile local seasons",
-  "an iconic species that defines the color and scent of its homeworld",
+export const FLORA_TAGLINE_FRAMINGS = [
+  "a botanical lineage",
+  "a species",
+  "a genus",
+  "a cultivated strain",
+  "a genetic offshoot",
+  "a hybrid variant",
+  "a convergent lifeform",
+  "a terraforming relic",
+  "a seed-vault descendent",
+  "a chance mutation",
+];
+export const FLORA_TAGLINE_TEMPERAMENTS = [
+  "hardy",
+  "fragile",
+  "aggressive",
+  "ancient",
+  "invasive",
+  "symbiotic",
+  "parasitic",
+  "sentient",
+  "dormant",
+  "fibrous",
+  "crystalline",
+  "gelatinous",
+  "glorious",
+  "noxious",
+  "luminescent",
+  "malleable",
+  "carnivorous",
+  "medicinal",
+  "corrosive",
+  "adaptable",
+];
+export const FLORA_TAGLINE_ORIGINS = [
+  "extreme frontiers",
+  "ancient impact craters",
+  "hollowed asteroid colonies",
+  "subsurface aquifers",
+  "high-atmosphere cloud decks",
+  "tidal rift zones",
+  "volcanic caldera edges",
+  "abandoned biolabs",
+  "glacial moraines",
+  "heavy-metal deserts",
+  "orbital hydroponic spires",
+  "petrified fungal forests",
+  "sunless cave systems",
+  "terraformed moon basins",
+  "coastal salt flats",
+  "brackish river deltas",
+  "radioactive exclusion zones",
+  "pressure-cracked seabeds",
+  "floating peat islands",
+  "thawing permafrost slopes",
+];
+export const FLORA_TAGLINE_QUALITIES = [
+  "prized across nearby trade lanes",
+  "renowned for its vivid scent",
+  "sought after by offworld collectors",
+  "vital to local ecopoiesis cycles",
+  "studied for its unusual genetics",
+  "revered in indigenous ritual",
+  "capable of reshaping soil chemistry",
+  "rumored to possess passive psychoactive properties",
+  "harvested for starship biofilter substrates",
+  "defines the color and scent of its homeworld",
+  "capable of surviving vacuum exposure",
+  "linked to regional weather patterns",
+  "central to a planetary creation myth",
+  "traded as a luxury commodity across three systems",
+  "suspected of originating outside this star cluster",
+  "key to at least one terraforming patent",
+  "highly sensitive to stellar radiation shifts",
+  "a common but irreplaceable keystone species",
+  "legally protected in seven jurisdictions",
+  "impossible to cultivate outside its native biome",
+];
+export const FLORA_TAGLINE_ECOLOGY_FRAMES = [
+  "shaped by volatile local seasons",
+  "adapted to cyclical drought pulses",
+  "evolved under low-gravity conditions",
+  "synchronized with binary star illumination",
+  "dormant for decades between rains",
+  "locked in mutual dependence with a fungal network",
+  "genetically engineered to process heavy metals",
+  "whose inner chemistry mirrors planetary magnetic shifts",
+  "preserving genetic memory of a drowned world",
+  "cycling nutrients through a closed-loop ecosystem",
+  "whose pollen triggers atmospheric condensation",
+  "acting as a carbon sink for its entire hemisphere",
+  "degraded by contact with unsealed offworld equipment",
+  "driven by lunar tidal cycles",
+  "drawing energy from deep geothermal vents",
+  "thriving on hyperspectral light invisible to human eyes",
+  "entangled with the life cycle of an endemic insect",
+  "secreting compounds that slowly weather local bedrock",
+  "colonizing bare rock faster than any known non-synthetic",
+  "defoliating in response to orbital debris shadows",
 ];
 const NAME_PREFIXES = ["Aurel", "Thorn", "Myco", "Luma", "Virel", "Sable", "Tidal", "Cinder", "Vel", "Goss"];
 const NAME_SUFFIXES = ["bloom", "reed", "fern", "spire", "vine", "moss", "frond", "root", "crown", "pod"];
@@ -475,6 +652,14 @@ const NAME_FLORA_GRASS = [
   "Thorn",
   "Valerian",
   "Willow",
+  "Yarrow",
+  "Zephyr",
+  "Amber",
+  "Basil",
+  "Cedar",
+  "Cinder",
+  "Clover",
+  "Dusk",
 ];
 const NAME_FLORA_MODIFIER = [
   "Bane",
@@ -535,6 +720,11 @@ const NAME_FLORA_MODIFIER = [
   "Gale",
   "Ember",
   "Ashes",
+  "Whisper",
+  "Shout",
+  "Echo",
+  "Scream",
+  "Silence",
 ];
 const NAME_FLORA_REGION_FEATURE = [
   "Mountain",
@@ -557,6 +747,17 @@ const NAME_FLORA_REGION_FEATURE = [
   "Lowland",
   "Rainforest",
   "Highland",
+  "Steppe",
+  "Swamp",
+  "Glacier",
+  "Cliffside",
+  "Gorge",
+  "Savannah",
+  "Bay",
+  "Archipelago",
+  "Delta",
+  "Fen",
+  "Grassland",
 ];
 const NAME_FLORA_METAPHOR = [
   "Bane",
@@ -910,6 +1111,195 @@ function uniqueEntries(values = []) {
   return [...new Set(values.map((entry) => String(entry || "").trim()).filter(Boolean))];
 }
 
+function rollIndex(length, rng = Math.random) {
+  return Math.floor(rng() * length);
+}
+
+export function getRandomEntry(entries = [], rng = Math.random) {
+  if (!Array.isArray(entries) || !entries.length) return "";
+  return entries[rollIndex(entries.length, rng)];
+}
+
+export function generateCompactFlora({ rng = Math.random } = {}) {
+  const colour = getRandomEntry(COLOURWAY_PALETTE, rng);
+  const bloom = getRandomEntry(BLOOM_SHAPE, rng);
+  const texture = getRandomEntry(SURFACE_TEXTURE, rng);
+  const mood = getRandomEntry(LIGHTING_MOOD, rng);
+
+  return `${colour} ${bloom} with ${texture}, glowing in ${mood}`;
+}
+
+export function generateDetailedFlora({ rng = Math.random } = {}) {
+  const colour = getRandomEntry(COLOURWAY_PALETTE, rng);
+  const bloom = getRandomEntry(BLOOM_SHAPE, rng);
+  const texture = getRandomEntry(SURFACE_TEXTURE, rng);
+  const mood = getRandomEntry(LIGHTING_MOOD, rng);
+  const adaptation = getRandomEntry(FLORA_ADAPTATION, rng);
+  const primaryUse = getRandomEntry(PRIMARY_USE, rng);
+
+  return [
+    `A flora with ${colour} colouring, bearing ${bloom}.`,
+    `Its ${texture} are adapted for ${mood} conditions, with ${adaptation}.`,
+    `Primary harvest: ${primaryUse}.`,
+  ].join(" ");
+}
+
+export function generateSpecFlora({ rng = Math.random } = {}) {
+  return [
+    `Colour: ${getRandomEntry(COLOURWAY_PALETTE, rng)}`,
+    `Bloom shape: ${getRandomEntry(BLOOM_SHAPE, rng)}`,
+    `Texture: ${getRandomEntry(SURFACE_TEXTURE, rng)}`,
+    `Lighting: ${getRandomEntry(LIGHTING_MOOD, rng)}`,
+    `Adaptation: ${getRandomEntry(FLORA_ADAPTATION, rng)}`,
+    `Primary use: ${getRandomEntry(PRIMARY_USE, rng)}`,
+  ].join("\n");
+}
+
+export const ALL_FLORA_TABLES = Object.freeze({
+  colours: { entries: COLOURWAY_PALETTE, die: "d8" },
+  blooms: { entries: BLOOM_SHAPE, die: "d8" },
+  textures: { entries: SURFACE_TEXTURE, die: "d8" },
+  lighting: { entries: LIGHTING_MOOD, die: "d8" },
+  adaptations: { entries: FLORA_ADAPTATION, die: "d8" },
+  uses: { entries: PRIMARY_USE, die: "d8" },
+});
+
+export const FLORA_TAGLINE_PATTERNS = [
+  ({ temperament, origin, quality }) => `a ${temperament} botanical lineage shaped by ${origin}, ${quality}`,
+  ({ temperament, framing, origin }) => `a ${temperament} ${framing} from ${origin}`,
+  ({ temperament, framing, ecologyFrame }) => `a ${temperament} ${framing} ${ecologyFrame}`,
+  ({ temperament, framing, quality }) => `a ${temperament} ${framing}, ${quality}`,
+  ({ framing, temperament, quality }) => `a ${framing}, ${temperament} and ${quality}`,
+  ({ origin, framing, ecologyFrame }) => `a ${origin} ${framing}, ${ecologyFrame}`,
+  ({ framing, quality, origin }) => `a ${framing} ${quality} - a ${origin} lineage`,
+  ({ temperament, ecologyFrame, framing }) => `a ${temperament}, ${ecologyFrame} ${framing}`,
+];
+
+export function generateTagline({ rng = Math.random } = {}) {
+  const pattern = pick(FLORA_TAGLINE_PATTERNS, rng);
+  const payload = {
+    framing: pick(FLORA_TAGLINE_FRAMINGS, rng),
+    temperament: pick(FLORA_TAGLINE_TEMPERAMENTS, rng),
+    origin: pick(FLORA_TAGLINE_ORIGINS, rng),
+    quality: pick(FLORA_TAGLINE_QUALITIES, rng),
+    ecologyFrame: pick(FLORA_TAGLINE_ECOLOGY_FRAMES, rng),
+  };
+
+  return pattern(payload);
+}
+
+export function generateTaglineList(count = 5, { rng = Math.random } = {}) {
+  const total = Math.max(1, Number(count) || 1);
+  const results = new Set();
+  let attempts = 0;
+
+  while (results.size < total && attempts < total * 10) {
+    results.add(generateTagline({ rng }));
+    attempts += 1;
+  }
+
+  return [...results];
+}
+
+export function generateFloraRootNetwork({ mode = "compact", rng = Math.random } = {}) {
+  const resolvedMode = ["compact", "verbose", "descriptive"].includes(String(mode || "").trim())
+    ? String(mode || "").trim()
+    : "compact";
+
+  const architecture = pick(FLORA_ROOT_NETWORK_ARCHITECTURE, rng);
+  const substrate = pick(FLORA_ROOT_NETWORK_SUBSTRATE, rng);
+  const strategy = pick(FLORA_ROOT_NETWORK_STRATEGY, rng);
+  const tissue = pick(FLORA_ROOT_NETWORK_TISSUE, rng);
+
+  switch (resolvedMode) {
+    case "verbose":
+      return `${architecture} ${substrate} ${strategy}`;
+    case "descriptive":
+      return `${tissue} ${architecture} ${substrate}`;
+    case "compact":
+    default:
+      return `${architecture} ${strategy}`;
+  }
+}
+
+function buildClimateBiasedWaterStrategyPools(climate = "Temperate") {
+  const normalized = String(climate || "Temperate");
+
+  switch (normalized) {
+    case "Arid":
+      return {
+        source: uniqueEntries(["fog drip", "dew film", "hygroscopic harvest", ...FLORA_WATER_STRATEGY_SOURCE]),
+        mechanism: uniqueEntries([
+          "vapor sorption",
+          "capillary wicking",
+          "pressure osmosis",
+          ...FLORA_WATER_STRATEGY_MECHANISM,
+        ]),
+        storage: uniqueEntries([
+          "subterranean cistern",
+          "cuticular wax seal",
+          "bulb reservoir",
+          ...FLORA_WATER_STRATEGY_STORAGE,
+        ]),
+      };
+    case "Wetland":
+    case "Coastal":
+      return {
+        source: uniqueEntries(["flood surge", "ground seep", "overland sheet flow", ...FLORA_WATER_STRATEGY_SOURCE]),
+        mechanism: uniqueEntries([
+          "hydraulic redistribution",
+          "gravitational drain",
+          "tension conduit",
+          ...FLORA_WATER_STRATEGY_MECHANISM,
+        ]),
+        storage: uniqueEntries([
+          "air-root bladder",
+          "surface film",
+          "leaf-bract cupping",
+          ...FLORA_WATER_STRATEGY_STORAGE,
+        ]),
+      };
+    case "Tundra":
+    case "Alpine":
+      return {
+        source: uniqueEntries(["snowmelt trickle", "dew film", "ground seep", ...FLORA_WATER_STRATEGY_SOURCE]),
+        mechanism: uniqueEntries([
+          "pressure osmosis",
+          "capillary wicking",
+          "guttation pump",
+          ...FLORA_WATER_STRATEGY_MECHANISM,
+        ]),
+        storage: uniqueEntries(["pith well", "cortex sponge", "xylem tank", ...FLORA_WATER_STRATEGY_STORAGE]),
+      };
+    default:
+      return {
+        source: FLORA_WATER_STRATEGY_SOURCE,
+        mechanism: FLORA_WATER_STRATEGY_MECHANISM,
+        storage: FLORA_WATER_STRATEGY_STORAGE,
+      };
+  }
+}
+
+export function generateFloraWaterStrategy({ mode = "compact", rng = Math.random, climate = "Temperate" } = {}) {
+  const resolvedMode = ["compact", "full", "concise"].includes(String(mode || "").trim())
+    ? String(mode || "").trim()
+    : "compact";
+  const pools = buildClimateBiasedWaterStrategyPools(climate);
+  const source = pick(pools.source, rng);
+  const mechanism = pick(pools.mechanism, rng);
+  const storage = pick(pools.storage, rng);
+
+  switch (resolvedMode) {
+    case "full":
+      return `${source} -> ${mechanism} -> ${storage}`;
+    case "concise":
+      return `${source} ${mechanism} ${storage}`;
+    case "compact":
+    default:
+      return `${source} with ${mechanism}`;
+  }
+}
+
 function describeClimateBand(climate = "Temperate") {
   const normalized = String(climate || "Temperate");
   if (["Arid", "Tundra", "Subterranean"].includes(normalized)) return "stress-adapted";
@@ -988,25 +1378,195 @@ export function mapWorldToFloraClimate(world = {}) {
   return "Temperate";
 }
 
+export const FORM_PREFIXES = [
+  "Dwarf",
+  "Giant",
+  "Creeping",
+  "Clustered",
+  "Solitary",
+  "Twisted",
+  "Gnarled",
+  "Sprawling",
+  "Drooping",
+  "Erect",
+  "Prostrate",
+  "Scrambling",
+  "Weeping",
+  "Towering",
+  "Compact",
+  "Pendant",
+  "Candelabra",
+  "Reticulated",
+  "Fractal",
+  "Corky",
+  "Hollow-stemmed",
+  "Thorn-armored",
+  "Fluorescent-tipped",
+  "Silver-veined",
+  "Double-canopied",
+  "Aerial-rooted",
+];
+
+export const FORM_CORES = [
+  "Canopy",
+  "Bulb",
+  "Vine",
+  "Tower",
+  "Moss",
+  "Frond",
+  "Reed",
+  "Fern",
+  "Shrub",
+  "Cushion",
+  "Mound",
+  "Cactus",
+  "Umbrella",
+  "Fork",
+  "Trunk",
+  "Palm",
+  "Liana",
+  "Bamboo",
+  "Rosette",
+  "Spire",
+  "Arch",
+  "Pitcher",
+  "Dome",
+  "Strangler",
+  "Scrub",
+  "Tube",
+  "Column",
+  "Mat",
+  "Net",
+  "Fan",
+  "Bell",
+  "Crown",
+  "Tendril",
+];
+
+export const FORM_SUFFIXES = [
+  "Scrub",
+  "Hanger",
+  "Creeper",
+  "Climber",
+  "Spreader",
+  "Grounder",
+  "Weaver",
+  "Twiner",
+  "Stilt",
+  "Bower",
+  "Thicket",
+  "Carpet",
+  "Rod",
+  "Tuft",
+  "Bush",
+  "Fiber",
+  "Tank",
+  "Fan",
+  "Whip",
+  "Lobe",
+  "Ear",
+  "Tail",
+];
+
+export const CLIMATE_PREFIX_BIAS = {
+  Tundra: [0, 3, 8, 10, 14, 23],
+  Arid: [0, 5, 9, 14, 21, 24],
+  Wetland: [1, 2, 7, 10, 15, 25],
+  Tropical: [1, 4, 6, 12, 18, 24],
+  Alpine: [0, 3, 6, 14, 16, 22],
+  Subterranean: [4, 5, 10, 19, 22, 23],
+  Coastal: [0, 1, 2, 15, 16, 25],
+  Temperate: [3, 5, 7, 11, 12, 20],
+};
+
+export const CLIMATE_CORE_BIAS = {
+  Tundra: [4, 9, 10, 12, 27, 31],
+  Arid: [3, 4, 11, 19, 22, 24],
+  Wetland: [0, 5, 6, 20, 26, 28],
+  Tropical: [0, 2, 15, 16, 23, 32],
+  Alpine: [4, 7, 9, 10, 19, 24],
+  Subterranean: [3, 4, 7, 8, 21, 27],
+  Coastal: [5, 6, 14, 20, 22, 28],
+  Temperate: [0, 1, 8, 17, 25, 29],
+};
+
+export const CLIMATE_SUFFIX_BIAS = {
+  Tundra: [0, 5, 7, 13, 19],
+  Arid: [0, 4, 6, 14, 18],
+  Wetland: [1, 3, 8, 11, 15],
+  Tropical: [1, 2, 3, 11, 14],
+  Alpine: [0, 4, 10, 13, 19],
+  Subterranean: [0, 5, 9, 16, 20],
+  Coastal: [1, 6, 8, 10, 21],
+  Temperate: [2, 5, 7, 12, 17],
+};
+
+function pickBiased(arr = [], biasIndices = [], rng = Math.random) {
+  if (!Array.isArray(arr) || !arr.length) {
+    return "";
+  }
+
+  if (Array.isArray(biasIndices) && biasIndices.length && rng() < 0.6) {
+    return arr[biasIndices[Math.floor(rng() * biasIndices.length)]];
+  }
+
+  return arr[Math.floor(rng() * arr.length)];
+}
+
+function decideGrowthFormPartCount(rng = Math.random) {
+  const roll = rng();
+  if (roll < 0.15) return 2;
+  if (roll < 0.35) return 1;
+  return 3;
+}
+
+function hasDoublePrefix(rng = Math.random) {
+  return rng() < 0.3;
+}
+
 export function recommendGrowthForm(climate = "Temperate", rng = Math.random, world = {}) {
   const subtypeBias = resolveFloraSubtypeBias(world);
-  const lookup = {
-    Temperate: ["Canopy Tree", "Bulb Grove", "Creeping Vine"],
-    Arid: ["Succulent Tower", "Crystal Moss", "Bulb Grove"],
-    Wetland: ["Floating Frond", "Reed Colony", "Spore Fern"],
-    Tropical: ["Canopy Tree", "Creeping Vine", "Spore Fern"],
-    Alpine: ["Crystal Moss", "Bulb Grove", "Reed Colony"],
-    Tundra: ["Crystal Moss", "Spore Fern", "Bulb Grove"],
-    Subterranean: ["Spore Fern", "Crystal Moss", "Creeping Vine"],
-    Coastal: ["Reed Colony", "Floating Frond", "Canopy Tree"],
-  };
+  const validClimates = Object.keys(CLIMATE_PREFIX_BIAS);
+  const resolvedClimate = climate ? String(climate) : validClimates[Math.floor(rng() * validClimates.length)];
+  const clime = validClimates.includes(resolvedClimate) ? resolvedClimate : "Temperate";
 
-  return pick(subtypeBias.growthForms || lookup[String(climate || "Temperate")] || FLORA_GROWTH_FORMS, rng);
+  const prefix = pickBiased(FORM_PREFIXES, CLIMATE_PREFIX_BIAS[clime], rng);
+  const prefix2 = hasDoublePrefix(rng) ? pickBiased(FORM_PREFIXES, CLIMATE_PREFIX_BIAS[clime], rng) : null;
+  const core = pickBiased(FORM_CORES, CLIMATE_CORE_BIAS[clime], rng);
+  const suffix = pickBiased(FORM_SUFFIXES, CLIMATE_SUFFIX_BIAS[clime], rng);
+  const partsMode = decideGrowthFormPartCount(rng);
+
+  let recommendedForm;
+  if (partsMode === 1) {
+    recommendedForm = `${core} ${suffix}`;
+  } else if (partsMode === 2) {
+    recommendedForm = `${prefix} ${core}`;
+  } else {
+    const stackedPrefix = prefix2 ? `${prefix2} ` : "";
+    recommendedForm = `${stackedPrefix}${prefix} ${core} ${suffix}`;
+  }
+
+  return {
+    recommendedForm,
+    growthForm: recommendedForm,
+    prefix,
+    prefix2,
+    core,
+    suffix,
+    subtype: prefix2 || prefix,
+    subtypeBias,
+    climate: clime,
+  };
 }
 
 export function buildWorldLinkedFloraOptions(world = {}) {
   const worldLink = buildWorldLinkedCreatureOptions(world);
   const climate = mapWorldToFloraClimate(world);
+  const growthForm = recommendGrowthForm(
+    climate,
+    createSeededRng(`${worldLink.sourceWorld?.name || "world"}-flora`),
+    world,
+  );
 
   return {
     sourceWorld: {
@@ -1018,7 +1578,7 @@ export function buildWorldLinkedFloraOptions(world = {}) {
       worldDescriptor: String(world?.worldDescriptor || ""),
     },
     climate,
-    growthForm: recommendGrowthForm(climate, createSeededRng(`${worldLink.sourceWorld?.name || "world"}-flora`), world),
+    growthForm: growthForm.recommendedForm,
     origin: world?.nativeLifeform ? "Native floral lineage" : "Imported or engineered stock",
   };
 }
@@ -1085,43 +1645,66 @@ export function getWorldAvailableFloraClimates(world = {}) {
   return climates.length ? climates : ["Temperate"];
 }
 
-export function deriveFloraVisualCues(profile = {}) {
-  const climate = String(profile?.biology?.Climate || profile?.climate || "Temperate");
-  const map = {
-    Tundra: {
-      climaticTexture: "frost-hardened wiry tissues and compact antifreeze-adapted stolon networks",
-      climaticAdaptation: "cold-cycle dormancy and bleached ivory or frost-silver seasonal pigmentation",
-    },
-    Arid: {
-      climaticTexture: "thick waxy drought-resistant epidermis and elongated water-storage stems",
-      climaticAdaptation: "sun-scorch resilience with sun-bleached ochre and amber heat-deflecting surfaces",
-    },
-    Wetland: {
-      climaticTexture: "slick moisture-rich membranes and broad flood-adapted root mats",
-      climaticAdaptation: "waterlogged soil tolerance and deep emerald and teal flood-season coloration",
-    },
-    Tropical: {
-      climaticTexture: "lush waxy broad leaves and rapid-growth high-humidity stem architecture",
-      climaticAdaptation: "high-humidity flourishing with vibrant scarlet-emerald and violet canopy pigmentation",
-    },
-    Alpine: {
-      climaticTexture: "tough wind-resistant bark plating and compact low-profile growth form",
-      climaticAdaptation: "altitude stress tolerance and muted grey-green and silver wind-scoured coloration",
-    },
-    Subterranean: {
-      climaticTexture: "pale chemotrophic tissues and light-seeking tendril networks",
-      climaticAdaptation: "photosynthesis-free nutrition and translucent bioluminescent pallid bloom pigmentation",
-    },
-    Coastal: {
-      climaticTexture: "salt-resistant cuticle and tidal-anchored rhizome spread",
-      climaticAdaptation: "saline flooding tolerance and sea-green turquoise salt-bleached coloration",
-    },
-    Temperate: {
-      climaticTexture: "flexible seasonal leaf tissues and balanced bark layering",
-      climaticAdaptation: "seasonal growth-rest cycling and rich varied greens with earth-tone autumn pigmentation",
-    },
+export const CLIMATE_TEXTURE_BIAS = {
+  Tundra: [0, 5, 6],
+  Arid: [1, 2, 6],
+  Wetland: [0, 4, 7],
+  Tropical: [0, 1, 3],
+  Alpine: [2, 5, 6],
+  Subterranean: [4, 5, 7],
+  Coastal: [1, 3, 5],
+  Temperate: [0, 1, 3],
+};
+
+export const CLIMATE_COLOUR_BIAS = {
+  Tundra: [0, 4, 7],
+  Arid: [2, 5, 6],
+  Wetland: [1, 3, 4],
+  Tropical: [0, 2, 3],
+  Alpine: [0, 4, 7],
+  Subterranean: [1, 4, 6],
+  Coastal: [4, 5, 7],
+  Temperate: [0, 1, 2],
+};
+
+export const CLIMATE_LIGHT_BIAS = {
+  Tundra: [0, 3, 5],
+  Arid: [2, 4, 6],
+  Wetland: [1, 5, 7],
+  Tropical: [0, 4, 6],
+  Alpine: [0, 1, 3],
+  Subterranean: [3, 4, 7],
+  Coastal: [1, 5, 6],
+  Temperate: [0, 1, 5],
+};
+
+export const CLIMATE_ADAPT_BIAS = {
+  Tundra: [6, 7],
+  Arid: [3, 4],
+  Wetland: [1, 5],
+  Tropical: [0, 2, 4],
+  Alpine: [6, 7],
+  Subterranean: [0, 1, 4],
+  Coastal: [1, 3],
+  Temperate: [2, 5, 7],
+};
+
+export function deriveFloraVisualCues(profile = {}, rng = Math.random) {
+  const validClimates = Object.keys(CLIMATE_TEXTURE_BIAS);
+  const explicit = profile?.biology?.Climate || profile?.climate;
+  const climate = explicit ? String(explicit) : validClimates[Math.floor(rng() * validClimates.length)];
+  const clime = validClimates.includes(climate) ? climate : "Temperate";
+
+  const textureEntry = pickBiased(SURFACE_TEXTURE, CLIMATE_TEXTURE_BIAS[clime], rng);
+  const colourEntry = pickBiased(COLOURWAY_PALETTE, CLIMATE_COLOUR_BIAS[clime], rng);
+  const lightEntry = pickBiased(LIGHTING_MOOD, CLIMATE_LIGHT_BIAS[clime], rng);
+  const adaptEntry = pickBiased(FLORA_ADAPTATION, CLIMATE_ADAPT_BIAS[clime], rng);
+
+  return {
+    climaticTexture: `${textureEntry}, preferring ${lightEntry} conditions`,
+    climaticAdaptation: `${colourEntry} colouration with ${adaptEntry}`,
+    climate: clime,
   };
-  return map[climate] || map.Temperate;
 }
 
 export function buildFloraImagePrompt({
@@ -1148,7 +1731,7 @@ export function buildFloraImagePrompt({
   const bloomShape = pick(BLOOM_SHAPES, rng);
   const surfaceTexture = pick(SURFACE_TEXTURES, rng);
   const lightingMood = pick(LIGHTING_MOODS, rng);
-  const { climaticTexture, climaticAdaptation } = deriveFloraVisualCues({ biology });
+  const { climaticTexture, climaticAdaptation } = deriveFloraVisualCues({ biology }, rng);
 
   const visualDescription = `${name} appears as a ${climate} ${growthForm.toLowerCase()} roughly ${height} tall, with ${canopy}, ${coloration}, and ${bloomShape} supported by ${surfaceTexture}. Its ${climaticTexture} reflect ${climaticAdaptation}. Most notable traits include ${featureList}.`;
   const imagePrompt = `Detailed botanical concept art of ${name}, an alien ${growthForm.toLowerCase()} on ${worldName}, ${height} tall, ${canopy}, ${coloration}, ${bloomShape}, ${surfaceTexture}, ${climaticTexture}, adapted for ${climate} conditions — ${climaticAdaptation}, growing from ${soil}, hints of ${featureList}, naturalistic sci-fi field-guide style, full plant visible, clean composition, ${lightingMood}, highly detailed.`;
@@ -1164,6 +1747,9 @@ export function generateFloraProfile(options = {}) {
     growthForm = "random",
     climate = "random",
     sourceWorld = null,
+    additionalAdaptations = [],
+    rootNetworkMode = "compact",
+    waterStrategyMode = "compact",
   } = options;
   const resolvedSeed = String(seed || "").trim() || generateGuidSeed("flora");
   const resolvedNameSeed = String(nameSeed || "").trim() || resolvedSeed;
@@ -1172,9 +1758,15 @@ export function generateFloraProfile(options = {}) {
   const resolvedName =
     !String(name || "").trim() || name === "Generated Flora" ? randomFloraName(resolvedNameSeed) : String(name).trim();
   const resolvedClimate = climate === "random" ? subtypeBias.climate || pick(FLORA_CLIMATES, rng) : climate;
+  const growthFormResult =
+    growthForm === "random" ? recommendGrowthForm(resolvedClimate, rng, sourceWorld || {}) : null;
   const resolvedGrowthForm =
-    growthForm === "random" ? recommendGrowthForm(resolvedClimate, rng, sourceWorld || {}) : growthForm;
-  const adaptationPool = uniqueEntries([...(subtypeBias.adaptations || []), ...ADAPTATIONS]);
+    growthForm === "random" ? growthFormResult?.recommendedForm || growthFormResult?.growthForm || "" : growthForm;
+  const adaptationPool = uniqueEntries([
+    ...(subtypeBias.adaptations || []),
+    ...FLORA_ADAPTATIONS,
+    ...(Array.isArray(additionalAdaptations) ? additionalAdaptations : []),
+  ]);
   const primaryUsePool = uniqueEntries([...(subtypeBias.uses || []), ...PRIMARY_USES]);
   const adaptationList = shuffle(adaptationPool, rng).slice(0, 3);
   const hazardPool =
@@ -1197,16 +1789,12 @@ export function generateFloraProfile(options = {}) {
     Reproduction: pick(REPRODUCTION_STRATEGIES, rng),
   };
   const ecology = {
-    "Root Network": pick(ROOT_NETWORKS, rng),
-    "Water Strategy": pick(
-      uniqueEntries([
-        ...(subtypeBias.climate === "Arid" ? ["fog siphoning", "seasonal water hoarding"] : []),
-        ...(subtypeBias.climate === "Wetland" ? ["floodplain cycling", "salt filtering"] : []),
-        ...(subtypeBias.climate === "Tundra" ? ["dew capture", "capillary trunk storage"] : []),
-        ...WATER_STRATEGIES,
-      ]),
+    "Root Network": generateFloraRootNetwork({ mode: rootNetworkMode, rng }),
+    "Water Strategy": generateFloraWaterStrategy({
+      mode: waterStrategyMode,
       rng,
-    ),
+      climate: subtypeBias.climate || resolvedClimate,
+    }),
     "Soil Preference": pick(
       uniqueEntries([
         ...(subtypeBias.climate === "Tundra" ? ["iron-rich clay", "limestone shelves"] : []),
@@ -1264,7 +1852,7 @@ export function generateFloraProfile(options = {}) {
     id: String(options.id || resolvedSeed),
     name: resolvedName,
     icon: pick(ICONS, rng),
-    summary: `${resolvedName} is ${subtypeBias.tagline || pick(TAGLINES, rng)}.`,
+    summary: `${resolvedName} is ${subtypeBias.tagline || generateTagline({ rng })}.`,
     biology,
     ecology,
     uses,
@@ -1341,21 +1929,21 @@ function buildNestedFloraName(rng = Math.random, depth = 0) {
     case 1:
       return `${pickFloraNamePart("Creature", rng)} ${pickFloraNamePart("Grass", rng)}`;
     case 2:
-      return `${pickFloraNamePart("Creature", rng)}s${pickFloraNamePart("Modifier", rng)}`;
+      return `${pickFloraNamePart("Creature", rng)}s ${pickFloraNamePart("Modifier", rng)}`;
     case 3:
-      return `${pickFloraNamePart("Creature", rng)}s${pickFloraNamePart("Modifier", rng)} ${pickFloraNamePart("Grass", rng)}`;
+      return `${pickFloraNamePart("Creature", rng)}s ${pickFloraNamePart("Modifier", rng)} ${pickFloraNamePart("Grass", rng)}`;
     case 4:
       return `${pickFloraNamePart("Thing", rng)} ${pickFloraNamePart("Grass", rng)}`;
     case 5:
       return `${pickFloraNamePart("Thing", rng)} ${pickFloraNamePart("Thing", rng)}`;
     case 6:
-      return `${pickFloraNamePart("Thing", rng)}${pickFloraNamePart("Modifier", rng)}`;
+      return `${pickFloraNamePart("Thing", rng)} ${pickFloraNamePart("Modifier", rng)}`;
     case 7:
       return `${pickFloraNamePart("Creature", rng)}'s ${pickFloraNamePart("Descriptor", rng)} ${pickFloraNamePart("Grass", rng)}`;
     case 8:
       return `${pickFloraNamePart("Thing", rng)} ${pickFloraNamePart("Thing", rng)} ${pickFloraNamePart("Creature", rng)} ${pickFloraNamePart("Grass", rng)}`;
     case 9:
-      return `${pickFloraNamePart("Thing", rng)} ${pickFloraNamePart("Thing", rng)} ${pickFloraNamePart("Grass", rng)}${pickFloraNamePart("Modifier", rng)}`;
+      return `${pickFloraNamePart("Thing", rng)} ${pickFloraNamePart("Thing", rng)} ${pickFloraNamePart("Grass", rng)} ${pickFloraNamePart("Modifier", rng)}`;
     case 10:
       return `${pickFloraNamePart("Descriptor", rng)} ${buildNestedFloraName(rng, safeDepth + 1)}`;
     case 11:
@@ -1363,13 +1951,13 @@ function buildNestedFloraName(rng = Math.random, depth = 0) {
     case 12:
       return `${pickFloraNamePart("Grass", rng)} ${pickFloraNamePart("Grass", rng)}`;
     case 13:
-      return `${pickFloraNamePart("Signifier", rng)}s${pickFloraNamePart("Modifier", rng)}`;
+      return `${pickFloraNamePart("Signifier", rng)}s ${pickFloraNamePart("Modifier", rng)}`;
     case 14:
       return `${pickFloraNamePart("Signifier", rng)} ${pickFloraNamePart("Grass", rng)}`;
     case 15:
       return `${pickFloraNamePart("Descriptor", rng)}-${pickFloraNamePart("Thing", rng)} ${pickFloraNamePart("Grass", rng)}`;
     case 16:
-      return `${pickFloraNamePart("Descriptor", rng)}${pickFloraNamePart("Modifier", rng)} ${pickFloraNamePart("Grass", rng)}`;
+      return `${pickFloraNamePart("Descriptor", rng)} ${pickFloraNamePart("Modifier", rng)} ${pickFloraNamePart("Grass", rng)}`;
     case 17:
       return `${pickFloraNamePart("Region Feature", rng)} ${pickFloraNamePart("Grass", rng)}`;
     case 18:
@@ -1390,4 +1978,883 @@ function buildNestedFloraName(rng = Math.random, depth = 0) {
 export function randomFloraName(seed = "") {
   const rng = createSeededRng(String(seed || "").trim() || generateGuidSeed("flora-name"));
   return buildNestedFloraName(rng).replace(/\s+/g, " ").trim();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// ECOLOGY TABLES — Prefix/Suffix arrays for granular generation
+// ═══════════════════════════════════════════════════════════════════
+
+const d = (n) => Math.floor(Math.random() * n);
+
+// --- ROOT NETWORKS ---
+const ROOT_ARCH_PREFIX = [
+  "spiral ",
+  "fractal ",
+  "candelabra ",
+  "reticulated ",
+  "radial ",
+  "pillar ",
+  "helical ",
+  "taproot ",
+  "plate-like ",
+  "knot ",
+  "weeping ",
+  "sinker ",
+];
+const ROOT_ARCH_SUFFIX = [
+  "tendril",
+  "dendritic",
+  "fork",
+  "mesh",
+  "fan-out",
+  "buttress",
+  "bore",
+  "lance",
+  "skirt",
+  "plexus",
+  "cascade",
+  "cable",
+];
+
+const ROOT_SUB_PREFIX = [
+  "volcanic ",
+  "limestone ",
+  "compacted ",
+  "peat bog ",
+  "sandstone ",
+  "permafrost ",
+  "serpentine ",
+  "riverbed ",
+  "loess ",
+  "coral ",
+];
+const ROOT_SUB_SUFFIX = ["tuff", "karst", "claypan", "slurry", "fissure", "wedge", "scree", "gravel", "silt", "rubble"];
+
+const ROOT_STRAT_PREFIX = [
+  "allelopathic ",
+  "mycorrhizal ",
+  "scavenger ",
+  "anchor ",
+  "water ",
+  "oxygen ",
+  "mineral ",
+  "rhizome ",
+  "drought ",
+  "stress-graft ",
+];
+const ROOT_STRAT_SUFFIX = [
+  "ring",
+  "relay",
+  "sprawl",
+  "grapple",
+  "piracy",
+  "shunt",
+  "mining",
+  "guerrilla",
+  "escape",
+  "fusion",
+];
+
+const ROOT_TISSUE_PREFIX = [
+  "crystal-laced ",
+  "aerenchymous ",
+  "lignified ",
+  "succulent-swollen ",
+  "fibrous-wiry ",
+  "gelatinous-coated ",
+  "iron-encrusted ",
+  "hollow-reed ",
+  "cork-armored ",
+  "resin-impregnated ",
+];
+const ROOT_TISSUE_SUFFIX = ["sheath", "cortex", "husk", "flesh", "tissue", "rind", "scales", "canal", "shell", "pith"];
+
+// --- SOIL PREFERENCES ---
+const SOIL_TYPE_PREFIX = [
+  "volcanic ",
+  "alkaline dune ",
+  "peat-rich bog ",
+  "limestone ",
+  "iron-rich ",
+  "orbital hydroponic ",
+  "silica sand ",
+  "gypsum crust ",
+  "serpentine ",
+  "caliche ",
+  "basalt scree ",
+  "anoxic ",
+];
+const SOIL_TYPE_SUFFIX = [
+  "loam",
+  "crust",
+  "beds",
+  "shelves",
+  "clay",
+  "trays",
+  "sheet",
+  "pan",
+  "barren",
+  "hardpan",
+  "field",
+  "mudflat",
+];
+
+const SOIL_TRAIT_PREFIX = [
+  "highly ",
+  "salt-",
+  "poorly ",
+  "heavy-metal ",
+  "rapidly ",
+  "thermally ",
+  "compressed ",
+  "microbe-",
+  "carbon-",
+  "radiolarian-",
+];
+const SOIL_TRAIT_SUFFIX = [
+  "acidic",
+  "saturated",
+  "drained",
+  "laced",
+  "leaching",
+  "vented",
+  "anoxic",
+  "depleted",
+  "dense",
+  "rich",
+];
+
+const SOIL_COL_PREFIX = [
+  "pioneer moss ",
+  "cyanobacterial ",
+  "fungal hyphae ",
+  "lichen ",
+  "root exudate ",
+  "burrowing ",
+  "rhizobium ",
+  "actinorhizal ",
+  "dark septate ",
+  "mycorrhizal ",
+];
+const SOIL_COL_SUFFIX = [
+  "crust",
+  "mat",
+  "lattice",
+  "shield",
+  "seal",
+  "detritivore",
+  "nodule",
+  "cluster",
+  "endophyte",
+  "bridge",
+];
+
+// --- WATER STRATEGIES ---
+const WATER_SOURCE_PREFIX = [
+  "fog ",
+  "dew ",
+  "rain ",
+  "ground ",
+  "flood ",
+  "snowmelt ",
+  "cloud ",
+  "hygroscopic ",
+  "stemflow ",
+  "overland sheet ",
+];
+const WATER_SOURCE_SUFFIX = [
+  "drip",
+  "film",
+  "pulse",
+  "seep",
+  "surge",
+  "trickle",
+  "interception",
+  "harvest",
+  "funnel",
+  "flow",
+];
+
+const WATER_MECH_PREFIX = [
+  "capillary ",
+  "pressure ",
+  "suction ",
+  "gravitational ",
+  "vapor ",
+  "guttation ",
+  "pneumatic ",
+  "tension ",
+  "wax-channel ",
+  "hydraulic ",
+];
+const WATER_MECH_SUFFIX = [
+  "wicking",
+  "osmosis",
+  "draw",
+  "drain",
+  "sorption",
+  "pump",
+  "lift",
+  "conduit",
+  "channeling",
+  "redistribution",
+];
+
+const WATER_STORE_PREFIX = [
+  "trunk ",
+  "bulb ",
+  "air-root ",
+  "leaf-bract ",
+  "xylem ",
+  "cortex ",
+  "pith ",
+  "surface ",
+  "subterranean ",
+  "cuticular wax ",
+];
+const WATER_STORE_SUFFIX = [
+  "cistern",
+  "reservoir",
+  "bladder",
+  "cupping",
+  "tank",
+  "sponge",
+  "well",
+  "film",
+  "cistern",
+  "seal",
+];
+
+// --- REPRODUCTION STRATEGIES ---
+const REPRO_DISPERSAL_PREFIX = [
+  "pressure-launched ",
+  "wind-borne ",
+  "runner ",
+  "pollinator ",
+  "bulb ",
+  "tidal water ",
+  "explosive ",
+  "animal gut ",
+  "floating seed ",
+  "ballistic ",
+  "self-burying ",
+  "fragmentation ",
+];
+const REPRO_DISPERSAL_SUFFIX = [
+  "seed pods",
+  "spores",
+  "shoots",
+  "delivery",
+  "splitting",
+  "carry",
+  "dehiscence",
+  "passage",
+  "capsule",
+  "catapult",
+  "burr",
+  "drift",
+];
+
+const REPRO_TIME_PREFIX = [
+  "post-fire ",
+  "seasonal ",
+  "flood-",
+  "after-rain ",
+  "lunar ",
+  "temperature ",
+  "herbivory ",
+  "age-maturation ",
+  "stress-induced ",
+  "continuous ",
+];
+const REPRO_TIME_SUFFIX = [
+  "pulse",
+  "photoperiod",
+  "triggered",
+  "urgency",
+  "tidal sync",
+  "threshold",
+  "response",
+  "timer",
+  "finale",
+  "trickle",
+];
+
+const REPRO_ESTABLISH_PREFIX = [
+  "nurse log ",
+  "allelopathic ",
+  "mycorrhizal ",
+  "crack ",
+  "first-mover ",
+  "shade seedling ",
+  "bare rock ",
+  "wetland mudflat ",
+  "deep shade ",
+  "rhizome sentinel ",
+];
+const REPRO_ESTABLISH_SUFFIX = [
+  "dependency",
+  "clearing",
+  "handshake",
+  "colonization",
+  "rush",
+  "bank",
+  "pioneer",
+  "grip",
+  "tolerance",
+  "network",
+];
+
+// --- COLOURWAYS ---
+const COLOUR_HUE_PREFIX = [
+  "emerald ",
+  "violet ",
+  "amber ",
+  "scarlet ",
+  "pale blue ",
+  "bronze ",
+  "crimson ",
+  "indigo ",
+  "verdigris ",
+  "ochre ",
+  "cyan ",
+  "chartreuse ",
+];
+const COLOUR_HUE_SUFFIX = [
+  "and silver",
+  "and black",
+  "and jade",
+  "-veined green",
+  "fronds",
+  "waxy leaves",
+  "glow",
+  "shade",
+  "patina",
+  "tone",
+  "wash",
+  "streak",
+];
+
+const COLOUR_ACCENT_PREFIX = [
+  "silver ",
+  "black ",
+  "jade ",
+  "veined ",
+  "frond ",
+  "waxy leaf ",
+  "gold dust ",
+  "ivory ",
+  "copper ",
+  "pearl ",
+  "rust ",
+  "opal ",
+];
+const COLOUR_ACCENT_SUFFIX = [
+  "sheen",
+  "core",
+  "fleck",
+  "green",
+  "margin",
+  "trim",
+  "edge",
+  "vein",
+  "band",
+  "mottle",
+  "stripe",
+  "dot",
+];
+
+const COLOUR_EFFECT_PREFIX = [
+  "iridescent ",
+  "matte ",
+  "glossy ",
+  "translucent ",
+  "velvet ",
+  "powdery ",
+  "metallic ",
+  "bioluminescent ",
+  "oily ",
+  "frosted ",
+];
+const COLOUR_EFFECT_SUFFIX = [
+  "shimmer",
+  "finish",
+  "gloss",
+  "glow",
+  "nap",
+  "bloom",
+  "luster",
+  "pulse",
+  "slick",
+  "glaze",
+];
+
+// --- BLOOM SHAPE ---
+const BLOOM_FORM_PREFIX = [
+  "lantern-",
+  "spiral ",
+  "umbrella-",
+  "glassy ",
+  "ribbon-",
+  "clustered ",
+  "trumpet-",
+  "chandelier ",
+  "star-",
+  "hollow ",
+  "candelabra ",
+  "hooded ",
+];
+const BLOOM_FORM_SUFFIX = [
+  "blossoms",
+  "pollen cones",
+  "petals",
+  "seed bells",
+  "fronds",
+  "bulb crowns",
+  "hoods",
+  "spike racemes",
+  "capitulum",
+  "tube flowers",
+  "panicle",
+  "spathe",
+];
+
+const BLOOM_TEXTURE_PREFIX = [
+  "waxy ",
+  "fleshy ",
+  "paper-thin ",
+  "succulent-thick ",
+  "brittle glass-like ",
+  "velvety ",
+  "leathery ",
+  "gelatinous ",
+  "scaly ",
+  "translucent membrane ",
+];
+const BLOOM_TEXTURE_SUFFIX = ["coating", "cuticle", "surface", "gloss", "sheen", "nap", "hide", "skin", "rind", "film"];
+
+const BLOOM_PATTERN_PREFIX = [
+  "radial ",
+  "speckled ",
+  "veined ",
+  "fading ",
+  "marbled ",
+  "concentric ",
+  "striped ",
+  "pixellated ",
+  "reticulated ",
+  "spotted ",
+];
+const BLOOM_PATTERN_SUFFIX = [
+  "striping",
+  "dotting",
+  "network",
+  "gradient",
+  "swirl",
+  "rings",
+  "banding",
+  "tessellation",
+  "netting",
+  "leopard motif",
+];
+
+const BLOOM_TRIGGER_PREFIX = [
+  "dawn ",
+  "dusk ",
+  "first ",
+  "full ",
+  "pollinator ",
+  "humidity ",
+  "touch ",
+  "fire ",
+  "flood ",
+  "solar ",
+];
+const BLOOM_TRIGGER_SUFFIX = [
+  "light",
+  "temperature drop",
+  "rain",
+  "moon",
+  "landing",
+  "spike",
+  "stimulus",
+  "aftermath",
+  "submergence",
+  "zenith",
+];
+
+// --- SURFACE TEXTURE ---
+const SURFACE_PRIMARY_PREFIX = [
+  "velvet ",
+  "waxy ",
+  "fine crystalline ",
+  "ribbed ",
+  "translucent ",
+  "braided ",
+  "scabrous ",
+  "gelatinous ",
+  "smooth ",
+  "pitted ",
+  "hirsute ",
+  "blistered ",
+];
+const SURFACE_PRIMARY_SUFFIX = [
+  "leaf surfaces",
+  "reflective skin",
+  "fuzz",
+  "bark plating",
+  "petal membranes",
+  "stem fibers",
+  "cork ridges",
+  "mucus coat",
+  "epidermis",
+  "cuticle",
+  "trichome layer",
+  "blister pack",
+];
+
+const SURFACE_FINISH_PREFIX = [
+  "glossy ",
+  "matte ",
+  "frosted ",
+  "iridescent ",
+  "dull ",
+  "satin ",
+  "oily ",
+  "powdery ",
+  "metallic ",
+  "chalky ",
+];
+const SURFACE_FINISH_SUFFIX = [
+  "sheen",
+  "finish",
+  "glaze",
+  "shimmer",
+  "nap",
+  "glow",
+  "slick",
+  "bloom",
+  "luster",
+  "residue",
+];
+
+const SURFACE_APPENDAGE_PREFIX = [
+  "fine ",
+  "coarse ",
+  "bristly ",
+  "soft ",
+  "needle-sharp ",
+  "gland-tipped ",
+  "forkspine ",
+  "scale ",
+  "succulent ",
+  "hair ",
+];
+const SURFACE_APPENDAGE_SUFFIX = [
+  "trichomes",
+  "spines",
+  "prickles",
+  "hairs",
+  "awns",
+  "glands",
+  "barbs",
+  "tufts",
+  "papillae",
+  "cilia",
+];
+
+// --- LIGHTING MOOD ---
+const LIGHT_INTENSITY_PREFIX = [
+  "soft ",
+  "misty ",
+  "high ",
+  "glowing ",
+  "cool ",
+  "storm-lit ",
+  "dappled ",
+  "aurora-",
+  "harsh ",
+  "filtered ",
+  "submerged ",
+  "flickering ",
+];
+const LIGHT_INTENSITY_SUFFIX = [
+  "dawn light",
+  "wetland haze",
+  "desert glare",
+  "twilight ambience",
+  "subterranean luminescence",
+  "horizon light",
+  "canopy shadow",
+  "refracted glow",
+  "midday blast",
+  "cathedral beam",
+  "aquatic dusk",
+  "fire-cast flicker",
+];
+
+const LIGHT_TEMP_PREFIX = [
+  "warm ",
+  "cool ",
+  "neutral ",
+  "amber ",
+  "blue ",
+  "pink ",
+  "green ",
+  "white ",
+  "red ",
+  "violet ",
+];
+const LIGHT_TEMP_SUFFIX = ["gold", "silver", "white", "hue", "cast", "flush", "tinge", "bleach", "stain", "wash"];
+
+const LIGHT_ATMOSPHERE_PREFIX = [
+  "still ",
+  "suspended ",
+  "humid ",
+  "dry ",
+  "dust-",
+  "smoke-",
+  "mist-",
+  "electrified ",
+  "heavy ",
+  "crystalline ",
+];
+const LIGHT_ATMOSPHERE_SUFFIX = [
+  "air",
+  "silence",
+  "gloom",
+  "heat shimmer",
+  "veil",
+  "haze",
+  "laden stillness",
+  "tension",
+  "pressure",
+  "clarity",
+];
+
+// --- FLORA ADAPTATION ---
+const FLORA_ADAPT_PREFIX = [
+  "bioluminescent ",
+  "pressure-sealed ",
+  "toxin-laced ",
+  "mirror-leaf ",
+  "electrostatic ",
+  "night-breathing ",
+  "ice-crystal ",
+  "rapid wound ",
+  "thermal ",
+  "chemical ",
+  "mimetic ",
+  "magnetic ",
+];
+const FLORA_ADAPT_SUFFIX = [
+  "bloom tips",
+  "seed chambers",
+  "sap",
+  "heat deflection",
+  "pollen nets",
+  "stomata",
+  "antifreeze tissues",
+  "callusing",
+  "shielding",
+  "deterrent spray",
+  "coloration",
+  "alignment",
+];
+
+const FLORA_TRIGGER_PREFIX = [
+  "predator ",
+  "temperature ",
+  "herbivore ",
+  "water ",
+  "light ",
+  "touch ",
+  "seasonal ",
+  "pathogen ",
+  "circadian ",
+  "flood ",
+];
+const FLORA_TRIGGER_SUFFIX = [
+  "detection",
+  "threshold",
+  "saliva",
+  "stress",
+  "intensity",
+  "contact",
+  "cycle",
+  "signal",
+  "rhythm",
+  "submersion",
+];
+
+const FLORA_LOCATION_PREFIX = [
+  "leaf ",
+  "stem ",
+  "root ",
+  "flower ",
+  "bark ",
+  "seed ",
+  "pollen ",
+  "stomata ",
+  "vascular ",
+  "meristem ",
+];
+const FLORA_LOCATION_SUFFIX = [
+  "surface",
+  "cortex",
+  "tip zone",
+  "receptacle",
+  "rind",
+  "endosperm",
+  "sacs",
+  "pores",
+  "bundles",
+  "sheath",
+];
+
+// --- PRIMARY USE ---
+const PRIMARY_USE_PREFIX = [
+  "medicinal ",
+  "textile ",
+  "ceremonial ",
+  "high-calorie ",
+  "starship biofilter ",
+  "structural ",
+  "industrial ",
+  "luxury perfume ",
+  "psychoactive ",
+  "fuel ",
+  "water purification ",
+  "armor ",
+];
+const PRIMARY_USE_SUFFIX = [
+  "resin",
+  "fiber",
+  "incense",
+  "foodstock",
+  "substrate",
+  "cane",
+  "dye",
+  "oil",
+  "compound",
+  "biomass",
+  "filter",
+  "plating",
+];
+
+const PRIMARY_YIELD_PREFIX = [
+  "pressed ",
+  "distilled ",
+  "woven ",
+  "cured ",
+  "dried ",
+  "fermented ",
+  "powdered ",
+  "extruded ",
+  "tapped ",
+  "sun-baked ",
+];
+const PRIMARY_YIELD_SUFFIX = ["pulp", "essence", "mat", "hide", "flakes", "paste", "dust", "filament", "sap", "brick"];
+
+const PRIMARY_SOURCE_PREFIX = [
+  "seed ",
+  "leaf ",
+  "bark ",
+  "root ",
+  "flower ",
+  "stem ",
+  "fruit ",
+  "gum ",
+  "pith ",
+  "pod ",
+];
+const PRIMARY_SOURCE_SUFFIX = [
+  "kernel",
+  "blade",
+  "shaving",
+  "nodule",
+  "petal",
+  "fiber",
+  "pulp",
+  "exudate",
+  "core",
+  "husk",
+];
+
+// ═══════════════════════════════════════════════════════════════════
+// ROLL FUNCTIONS — Individual category rolls
+// ═══════════════════════════════════════════════════════════════════
+
+function rollRootArch(rng = Math.random) {
+  return `${ROOT_ARCH_PREFIX[Math.floor(rng() * ROOT_ARCH_PREFIX.length)].trim()} ${ROOT_ARCH_SUFFIX[Math.floor(rng() * ROOT_ARCH_SUFFIX.length)]}`;
+}
+
+function rollRootSub(rng = Math.random) {
+  return `${ROOT_SUB_PREFIX[Math.floor(rng() * ROOT_SUB_PREFIX.length)].trim()} ${ROOT_SUB_SUFFIX[Math.floor(rng() * ROOT_SUB_SUFFIX.length)]}`;
+}
+
+function rollRootStrat(rng = Math.random) {
+  return `${ROOT_STRAT_PREFIX[Math.floor(rng() * ROOT_STRAT_PREFIX.length)].trim()} ${ROOT_STRAT_SUFFIX[Math.floor(rng() * ROOT_STRAT_SUFFIX.length)]}`;
+}
+
+function rollRootTissue(rng = Math.random) {
+  return `${ROOT_TISSUE_PREFIX[Math.floor(rng() * ROOT_TISSUE_PREFIX.length)].trim()} ${ROOT_TISSUE_SUFFIX[Math.floor(rng() * ROOT_TISSUE_SUFFIX.length)]}`;
+}
+
+function rollWaterSource(rng = Math.random) {
+  return `${WATER_SOURCE_PREFIX[Math.floor(rng() * WATER_SOURCE_PREFIX.length)].trim()} ${WATER_SOURCE_SUFFIX[Math.floor(rng() * WATER_SOURCE_SUFFIX.length)]}`;
+}
+
+function rollWaterMech(rng = Math.random) {
+  return `${WATER_MECH_PREFIX[Math.floor(rng() * WATER_MECH_PREFIX.length)].trim()} ${WATER_MECH_SUFFIX[Math.floor(rng() * WATER_MECH_SUFFIX.length)]}`;
+}
+
+function rollWaterStore(rng = Math.random) {
+  return `${WATER_STORE_PREFIX[Math.floor(rng() * WATER_STORE_PREFIX.length)].trim()} ${WATER_STORE_SUFFIX[Math.floor(rng() * WATER_STORE_SUFFIX.length)]}`;
+}
+
+function rollSoilType(rng = Math.random) {
+  return `${SOIL_TYPE_PREFIX[Math.floor(rng() * SOIL_TYPE_PREFIX.length)].trim()} ${SOIL_TYPE_SUFFIX[Math.floor(rng() * SOIL_TYPE_SUFFIX.length)]}`;
+}
+
+function rollSoilTrait(rng = Math.random) {
+  return `${SOIL_TRAIT_PREFIX[Math.floor(rng() * SOIL_TRAIT_PREFIX.length)].trim()} ${SOIL_TRAIT_SUFFIX[Math.floor(rng() * SOIL_TRAIT_SUFFIX.length)]}`;
+}
+
+function rollSoilColonizer(rng = Math.random) {
+  return `${SOIL_COL_PREFIX[Math.floor(rng() * SOIL_COL_PREFIX.length)].trim()} ${SOIL_COL_SUFFIX[Math.floor(rng() * SOIL_COL_SUFFIX.length)]}`;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// COMPOUND GENERATORS — Multi-part ecology rolls
+// ═══════════════════════════════════════════════════════════════════
+
+export function generateEcologyProfile({ rng = Math.random } = {}) {
+  const waterSource = rollWaterSource(rng);
+  const waterMech = rollWaterMech(rng);
+  const waterStore = rollWaterStore(rng);
+
+  const soilType = rollSoilType(rng);
+  const soilTrait = rollSoilTrait(rng);
+  const soilCol = rollSoilColonizer(rng);
+
+  const rootTissue = rollRootTissue(rng);
+  const rootArch = rollRootArch(rng);
+  const rootSub = rollRootSub(rng);
+  const rootStrat = rollRootStrat(rng);
+
+  return {
+    soil: `${soilTrait} ${soilType}`,
+    soilColonizer: soilCol,
+    waterSource,
+    waterMechanism: waterMech,
+    waterStorage: waterStore,
+    rootTissue,
+    rootArchitecture: rootArch,
+    rootSubstrate: rootSub,
+    rootStrategy: rootStrat,
+    waterStrategy: `${waterSource} with ${waterMech}`,
+    waterFull: `${waterSource} → ${waterMech} → ${waterStore}`,
+    rootProfile: `${rootTissue} ${rootArch} in ${rootSub}, strategy: ${rootStrat}`,
+  };
 }

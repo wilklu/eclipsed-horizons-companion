@@ -198,8 +198,12 @@
                   <th>Orbit #</th>
                   <th>Orbit (AU)</th>
                   <th>Zone</th>
-                  <th>Native Lifeforms</th>
-                  <th>Native Sophonts</th>
+                  <th>Terrain Gen</th>
+                  <th>Flora Gen</th>
+                  <th>Fauna Gen</th>
+                  <th>Sophont Gen</th>
+                  <th>Native Lifeforms ({{ nativeLifeformGeneratedCount }})</th>
+                  <th>Native Sophonts ({{ nativeSophontGeneratedCount }})</th>
                 </tr>
               </thead>
               <tbody>
@@ -231,6 +235,38 @@
                       <span class="zone-badge" :class="planet.zone">{{ planet.zone }}</span>
                     </td>
                     <td>
+                      <span
+                        class="catalog-status"
+                        :class="hasTerrainGenerated(planet) ? 'catalog-status--present' : 'catalog-status--absent'"
+                      >
+                        {{ hasTerrainGenerated(planet) ? "✓" : "—" }}
+                      </span>
+                    </td>
+                    <td>
+                      <span
+                        class="catalog-status"
+                        :class="hasFloraGenerated(planet) ? 'catalog-status--present' : 'catalog-status--absent'"
+                      >
+                        {{ hasFloraGenerated(planet) ? "✓" : "—" }}
+                      </span>
+                    </td>
+                    <td>
+                      <span
+                        class="catalog-status"
+                        :class="hasFaunaGenerated(planet) ? 'catalog-status--present' : 'catalog-status--absent'"
+                      >
+                        {{ hasFaunaGenerated(planet) ? "✓" : "—" }}
+                      </span>
+                    </td>
+                    <td>
+                      <span
+                        class="catalog-status"
+                        :class="hasSophontGenerated(planet) ? 'catalog-status--present' : 'catalog-status--absent'"
+                      >
+                        {{ hasSophontGenerated(planet) ? "✓" : "—" }}
+                      </span>
+                    </td>
+                    <td>
                       <div class="catalog-status-cell">
                         <span class="catalog-status" :class="resolveCatalogNativeLifeStatusClass(planet)">
                           {{ resolveCatalogNativeLifeLabel(planet) }}
@@ -255,7 +291,7 @@
                     </td>
                   </tr>
                   <tr v-if="expandedLifeRollIndex === i && hasLifeRatingRolls(planet)" class="catalog-rolls-row">
-                    <td colspan="10">
+                    <td colspan="15">
                       <div class="catalog-rolls-card">
                         <strong>Life Survey Rolls</strong>
                         <div class="catalog-rolls-grid">
@@ -1056,6 +1092,43 @@ function resolveCatalogNativeLifeStatusClass(planet) {
   return resolveCatalogNativeLifeLabel(planet) === "Present" ? "catalog-status--present" : "catalog-status--absent";
 }
 
+function hasTerrainGenerated(planet = {}) {
+  if (!planet || typeof planet !== "object") {
+    return false;
+  }
+  return (
+    planet?.terrainMapGenerated === true ||
+    (Array.isArray(planet?.terrainComposition?.hexCounts) && planet.terrainComposition.hexCounts.length > 0)
+  );
+}
+
+function hasFloraGenerated(planet = {}) {
+  if (!planet || typeof planet !== "object") {
+    return false;
+  }
+  return Boolean(
+    planet?.linkedFloraSummary && typeof planet.linkedFloraSummary === "object" && planet.linkedFloraSummary.id,
+  );
+}
+
+function hasFaunaGenerated(planet = {}) {
+  if (!planet || typeof planet !== "object") {
+    return false;
+  }
+  return Boolean(
+    planet?.linkedFaunaSummary && typeof planet.linkedFaunaSummary === "object" && planet.linkedFaunaSummary.id,
+  );
+}
+
+function hasSophontGenerated(planet = {}) {
+  if (!planet || typeof planet !== "object") {
+    return false;
+  }
+  return Boolean(
+    planet?.linkedSophontProfile && typeof planet.linkedSophontProfile === "object" && planet.linkedSophontProfile.id,
+  );
+}
+
 function resolveCatalogNativeSophontLabel(planet = {}) {
   const normalizedStatus = String(planet?.nativeSophontStatus || "")
     .trim()
@@ -1090,6 +1163,20 @@ function resolveCatalogSophontStatusClass(planet) {
   }
   return "catalog-status--absent";
 }
+
+const nativeLifeformGeneratedCount = computed(
+  () =>
+    (Array.isArray(system.value?.planets) ? system.value.planets : []).filter(
+      (planet) => resolveCatalogNativeLifeLabel(planet) === "Present",
+    ).length,
+);
+
+const nativeSophontGeneratedCount = computed(
+  () =>
+    (Array.isArray(system.value?.planets) ? system.value.planets : []).filter(
+      (planet) => resolveCatalogNativeSophontLabel(planet) !== "Absent",
+    ).length,
+);
 
 function hasLifeRatingRolls(planet) {
   return Boolean(planet?.nativeLifeRatingRolls && typeof planet.nativeLifeRatingRolls === "object");

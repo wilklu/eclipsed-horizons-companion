@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildTerrainPlacementScoreMap, resolveTerrainCoreCountsFromBudget } from "../../utils/terrainPlacement.js";
+import { buildClearedTerrainComposition, shouldKeepTerrainCleared } from "../../utils/terrainOverlayState.js";
 
 describe("WorldTerrainMap", () => {
   it("prefers interior hexes over border hexes when scoring mountain candidates", () => {
@@ -54,5 +55,42 @@ describe("WorldTerrainMap", () => {
       mountainCount: 2,
       shoreCount: 0,
     });
+  });
+
+  it("keeps an explicitly cleared terrain overlay empty instead of rehydrating", () => {
+    expect(
+      shouldKeepTerrainCleared({
+        cellsLength: 486,
+        terrainOverlayWasCleared: true,
+        entriesSize: 0,
+      }),
+    ).toBe(true);
+
+    expect(
+      shouldKeepTerrainCleared({
+        cellsLength: 486,
+        terrainOverlayWasCleared: false,
+        entriesSize: 0,
+      }),
+    ).toBe(false);
+  });
+
+  it("returns an empty composition snapshot for a cleared terrain overlay", () => {
+    const composition = buildClearedTerrainComposition(
+      {
+        hexCounts: [
+          { type: "forest", hexes: 126, percent: "26" },
+          { type: "plains", hexes: 360, percent: "74" },
+        ],
+        assignedHexes: 486,
+        totalMapHexes: 486,
+      },
+      486,
+    );
+
+    expect(composition.surfaceProfile).toEqual(["Terrain map cleared"]);
+    expect(composition.hexCounts).toEqual([]);
+    expect(composition.assignedHexes).toBe(0);
+    expect(composition.totalMapHexes).toBe(486);
   });
 });

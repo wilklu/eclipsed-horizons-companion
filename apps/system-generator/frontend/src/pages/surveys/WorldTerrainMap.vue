@@ -860,6 +860,7 @@ import { usePreferencesStore } from "../../stores/preferencesStore.js";
 import { normalizeFaceTopologyId } from "../../utils/worldTerrainStartTriangle.js";
 import { canonicalizeHexId } from "../../utils/worldMapHexTopology.js";
 import { resolveTerrainCoreCountsFromBudget } from "../../utils/terrainPlacement.js";
+import { buildClearedTerrainComposition, shouldKeepTerrainCleared } from "../../utils/terrainOverlayState.js";
 import {
   WORLD_HEX_TAGS,
   buildWorldHexTagIndex,
@@ -2800,6 +2801,14 @@ function buildTerrainCompositionFromOverlay(activeSizeOverride = null) {
     : activeTerrainTemplateSize.value;
   const explicitEntries = buildOverlayEntriesByKeyFromCurrentLayers(activeSize);
   if (!explicitEntries.size) {
+    if (useSurveyOverlayHexes.value) {
+      return buildClearedTerrainComposition(
+        selectedWorld.value?.terrainComposition && typeof selectedWorld.value.terrainComposition === "object"
+          ? selectedWorld.value.terrainComposition
+          : {},
+        activeHexRenderVariantsByKey.value.size || selectedWorld.value?.terrainComposition?.totalMapHexes || 0,
+      );
+    }
     return {
       ...(selectedWorld.value?.terrainComposition && typeof selectedWorld.value.terrainComposition === "object"
         ? selectedWorld.value.terrainComposition
@@ -2930,16 +2939,20 @@ const activeSurveyPlacedCountsByTerrain = computed(() => {
 
 const totalSurveyTargetHexes = computed(() => {
   let total = 0;
-  for (const value of terrainBudgetByType.value.values()) {
-    total += Math.max(0, Number(value) || 0);
+  for (const entry of hexLegendEntries.value) {
+    if (Number(entry?.target) > 0) {
+      total += Math.max(0, Number(entry?.target) || 0);
+    }
   }
   return total;
 });
 
 const totalSurveyPlacedHexes = computed(() => {
   let total = 0;
-  for (const terrain of terrainBudgetByType.value.keys()) {
-    total += Math.max(0, Number(activeSurveyPlacedCountsByTerrain.value.get(terrain) || 0));
+  for (const entry of hexLegendEntries.value) {
+    if (Number(entry?.target) > 0) {
+      total += Math.max(0, Number(entry?.count) || 0);
+    }
   }
   return total;
 });
@@ -3521,6 +3534,151 @@ function applyTerrainSurveyToMap(options = {}) {
     return true;
   };
 
+  // Place islands preferentially where they are surrounded by water (or icecap
+  // on frozen worlds). If a good candidate is occupied, attempt a best-effort
+  // swap to bring a water tile next to the candidate and only commit the swap
+  // if it improves adjacency.
+  const placeIslandsWithSwap = (count) => {
+    const requested = Math.max(0, Number(count) || 0);
+    if (requested <= 0) return 0;
+    let placed = 0;
+
+    const waterLikeTerrains = new Set(["water"]);
+    if (typeof isIceCappedWorld !== "undefined" && isIceCappedWorld.value) {
+      waterLikeTerrains.add("icecap");
+    }
+
+    const findCellByKey = (k) =>
+      Array.isArray(cells) ? cells.find((c) => String(c?.key || "") === String(k || "")) : null;
+    const getPointsForKey = (k) => {
+      const e = entriesByKey.get(k);
+      if (e && e.points) return e.points;
+      const cell = findCellByKey(k);
+      return normalizePoints(cell?.points || "");
+    };
+
+    const getNeighborWaterCount = (hexKey) => {
+      const neighbors = adjacency.byId.get(hexKey)?.neighbors || new Set();
+      let cnt = 0;
+      for (const nk of neighbors) {
+        const nt = String(entriesByKey.get(nk)?.terrain || "plains");
+        if (waterLikeTerrains.has(nt) || oceanKeys.has(nk)) cnt += 1;
+      }
+      return cnt;
+    };
+
+    const candidates = [...cells]
+      .filter((cell) => {
+        const k = String(cell?.key || "").trim();
+        return k && !entriesByKey.has(k);
+      })
+      .map((cell) => {
+        const k = String(cell?.key || "").trim();
+        return { cell, key: k, waterNeighborCount: getNeighborWaterCount(k), score: scoreByKey.get(k) || 0 };
+      });
+
+    candidates.sort((a, b) => {
+      if (b.waterNeighborCount !== a.waterNeighborCount) return b.waterNeighborCount - a.waterNeighborCount;
+      return (b.score || 0) - (a.score || 0);
+    });
+
+    // initial water sources
+    let waterSourceKeys = [...entriesByKey.entries()]
+      .filter(([, v]) => String(v?.terrain || "") === "water")
+      .map(([k]) => String(k || ""));
+
+    for (const cand of candidates) {
+      if (placed >= requested) break;
+      const { cell, key } = cand;
+      if (!key || entriesByKey.has(key)) continue;
+
+      // Place directly if already nicely surrounded
+      if (
+        cand.waterNeighborCount >= 3 ||
+        (cand.waterNeighborCount >= 2 && (adjacency.byId.get(key)?.neighbors || new Set()).size <= 4)
+      ) {
+        if (placeSecondaryTerrainCell("island", cell)) {
+          placed += 1;
+          // refresh sources
+          waterSourceKeys = waterSourceKeys.filter((s) => String(entriesByKey.get(s)?.terrain || "") === "water");
+          continue;
+        }
+      }
+
+      // Try swaps: move a water tile into a neighbor position so the island can be placed
+      const neighborKeys = Array.from(adjacency.byId.get(key)?.neighbors || []);
+      let placedThis = false;
+      for (const neighborKey of neighborKeys) {
+        if (placed >= requested) break;
+        const normalizedNeighbor = String(neighborKey || "").trim();
+        if (!normalizedNeighbor) continue;
+        const neighborTerrain = String(entriesByKey.get(normalizedNeighbor)?.terrain || "plains");
+        if (waterLikeTerrains.has(neighborTerrain) || oceanKeys.has(normalizedNeighbor)) {
+          continue;
+        }
+
+        // find a water source not adjacent to the candidate (prefer non-local swaps)
+        let srcIndex = waterSourceKeys.findIndex((sk) => {
+          const neighs = adjacency.byId.get(sk)?.neighbors || new Set();
+          return !neighs.has(key) && sk !== normalizedNeighbor && sk !== key;
+        });
+        let stableKey = null;
+        if (srcIndex === -1) {
+          stableKey = waterSourceKeys.find((sk) => sk !== normalizedNeighbor && sk !== key);
+        } else {
+          stableKey = waterSourceKeys[srcIndex];
+        }
+        if (!stableKey) continue;
+
+        // perform swap
+        const ent1 = entriesByKey.get(stableKey) || { points: getPointsForKey(stableKey), terrain: "plains" };
+        const ent2 = entriesByKey.get(normalizedNeighbor) || {
+          points: getPointsForKey(normalizedNeighbor),
+          terrain: "plains",
+        };
+        const t1 = String(ent1.terrain || "plains");
+        const t2 = String(ent2.terrain || "plains");
+
+        entriesByKey.set(stableKey, { points: ent1.points, terrain: t2 });
+        entriesByKey.set(normalizedNeighbor, { points: ent2.points, terrain: t1 });
+        try {
+          if (t1 === "water") oceanKeys.delete(stableKey);
+          if (t2 === "water") oceanKeys.add(stableKey);
+          if (t2 === "water") oceanKeys.delete(normalizedNeighbor);
+          if (t1 === "water") oceanKeys.add(normalizedNeighbor);
+        } catch (e) {
+          /* best-effort */
+        }
+
+        const newCount = getNeighborWaterCount(key);
+        if (newCount > cand.waterNeighborCount) {
+          if (placeSecondaryTerrainCell("island", cell)) {
+            placed += 1;
+            waterSourceKeys = waterSourceKeys.filter((s) => String(entriesByKey.get(s)?.terrain || "") === "water");
+            placedThis = true;
+            break;
+          }
+        }
+
+        // revert
+        entriesByKey.set(stableKey, { points: ent1.points, terrain: t1 });
+        entriesByKey.set(normalizedNeighbor, { points: ent2.points, terrain: t2 });
+        try {
+          if (t1 === "water") oceanKeys.add(stableKey);
+          else oceanKeys.delete(stableKey);
+          if (t2 === "water") oceanKeys.add(normalizedNeighbor);
+          else oceanKeys.delete(normalizedNeighbor);
+        } catch (e) {
+          /* ignore */
+        }
+      }
+
+      if (placedThis) continue;
+    }
+
+    return placed;
+  };
+
   const placeTerrainWithGlobalLimit = (terrain, count) => {
     const requested = Math.max(0, Number(count) || 0);
     for (let placed = 0; placed < requested; ) {
@@ -3695,7 +3853,13 @@ function applyTerrainSurveyToMap(options = {}) {
     if (requestedHexes <= 0 || ["plains", "hills", "swamp", "forest", "volcanic"].includes(terrain)) {
       continue;
     }
-    placeTerrainWithGlobalLimit(terrain, explicitTerrainCounts.get(terrain) || requestedHexes);
+    if (String(terrain || "").trim() === "island") {
+      // Use island-specific placer that prefers water-surrounded tiles and
+      // will attempt best-effort swaps to bring water adjacent.
+      placeIslandsWithSwap(explicitTerrainCounts.get("island") || requestedHexes);
+    } else {
+      placeTerrainWithGlobalLimit(terrain, explicitTerrainCounts.get(terrain) || requestedHexes);
+    }
   }
 
   const requestedPlainsCount = Math.max(0, Number(explicitTerrainCounts.get("plains") || 0));
@@ -3808,6 +3972,132 @@ function applyTerrainSurveyToMap(options = {}) {
     selectedShoreKeys.add(key);
     shoreCandidateKeys.delete(key);
     placedShoreCount += 1;
+  }
+
+  // If we couldn't place all requested shore hexes, attempt intelligent swaps
+  // to bring stable land tiles next to remaining shore candidates so coastline
+  // placement can succeed. This tries swapping a stable land tile into a
+  // neighbor position of a candidate, reverting swaps that don't help.
+  if (placedShoreCount < shoreCount) {
+    const stableLandTerrains = new Set(["hills", "mountain", "forest", "volcanic", "swamp"]);
+    const findCellByKey = (k) =>
+      Array.isArray(cells) ? cells.find((c) => String(c?.key || "") === String(k || "")) : null;
+    const getPointsForKey = (k) => {
+      const e = entriesByKey.get(k);
+      if (e && e.points) return e.points;
+      const cell = findCellByKey(k);
+      return normalizePoints(cell?.points || "");
+    };
+
+    const swapTerrains = (k1, k2) => {
+      const ent1 = entriesByKey.get(k1) || { points: getPointsForKey(k1), terrain: "plains" };
+      const ent2 = entriesByKey.get(k2) || { points: getPointsForKey(k2), terrain: "plains" };
+      const t1 = String(ent1.terrain || "plains");
+      const t2 = String(ent2.terrain || "plains");
+
+      entriesByKey.set(k1, { points: ent1.points, terrain: t2 });
+      entriesByKey.set(k2, { points: ent2.points, terrain: t1 });
+
+      // Keep oceanKeys in sync when water moves
+      try {
+        if (t1 === "water") oceanKeys.delete(k1);
+        if (t2 === "water") oceanKeys.add(k1);
+        if (t2 === "water") oceanKeys.delete(k2);
+        if (t1 === "water") oceanKeys.add(k2);
+      } catch (e) {
+        /* best-effort update */
+      }
+
+      // Return a revert function
+      return () => {
+        entriesByKey.set(k1, { points: ent1.points, terrain: t1 });
+        entriesByKey.set(k2, { points: ent2.points, terrain: t2 });
+        try {
+          if (t1 === "water") oceanKeys.add(k1);
+          else oceanKeys.delete(k1);
+          if (t2 === "water") oceanKeys.add(k2);
+          else oceanKeys.delete(k2);
+        } catch (e) {
+          /* ignore */
+        }
+      };
+    };
+
+    // Build list of stable source keys we can draw from (avoid already-selected shore keys)
+    let stableSourceKeys = [...entriesByKey.entries()]
+      .filter(([, v]) => stableLandTerrains.has(String(v?.terrain || "")))
+      .map(([k]) => String(k || ""))
+      .filter(Boolean);
+
+    for (const { cell } of shoreCandidates) {
+      if (placedShoreCount >= shoreCount) break;
+      const key = String(cell?.key || "").trim();
+      if (!key || selectedShoreKeys.has(key)) continue;
+
+      // If this candidate already has a stable anchor now, convert to shore
+      if (hasStableLandNeighborForShore(key, selectedShoreKeys)) {
+        entriesByKey.set(key, { points: normalizePoints(cell?.points || ""), terrain: "shore" });
+        selectedShoreKeys.add(key);
+        shoreCandidateKeys.delete(key);
+        placedShoreCount += 1;
+        continue;
+      }
+
+      const neighborKeys = Array.from(adjacency.byId.get(key)?.neighbors || []);
+      let placedThisCandidate = false;
+
+      // Try swapping a stable land tile into each neighbor position
+      for (const neighborKey of neighborKeys) {
+        if (placedShoreCount >= shoreCount) break;
+        const normalizedNeighbor = String(neighborKey || "").trim();
+        if (!normalizedNeighbor || selectedShoreKeys.has(normalizedNeighbor)) continue;
+        const neighborTerrain = String(entriesByKey.get(normalizedNeighbor)?.terrain || "plains");
+        if (stableLandTerrains.has(neighborTerrain)) {
+          // neighbor already stable (should have passed earlier), skip
+          continue;
+        }
+
+        // Find a stable source key not adjacent to the candidate (prefer non-local swaps)
+        let stableIndex = stableSourceKeys.findIndex((sk) => {
+          const neighs = adjacency.byId.get(sk)?.neighbors || new Set();
+          return !neighs.has(key) && sk !== normalizedNeighbor && sk !== key;
+        });
+        let stableKey = null;
+        if (stableIndex === -1) {
+          stableKey = stableSourceKeys.find((sk) => sk !== normalizedNeighbor && sk !== key);
+        } else {
+          stableKey = stableSourceKeys[stableIndex];
+        }
+        if (!stableKey) continue;
+
+        // Perform swap and test
+        const revert = swapTerrains(stableKey, normalizedNeighbor);
+        // If swap introduced a stable neighbor, commit and place shore
+        if (hasStableLandNeighborForShore(key, selectedShoreKeys)) {
+          entriesByKey.set(key, { points: normalizePoints(cell?.points || ""), terrain: "shore" });
+          selectedShoreKeys.add(key);
+          shoreCandidateKeys.delete(key);
+          placedShoreCount += 1;
+          // Update stableSourceKeys to reflect that stableKey may no longer be stable
+          stableSourceKeys = stableSourceKeys.filter(
+            (s) =>
+              String(entriesByKey.get(s)?.terrain || "") &&
+              stableLandTerrains.has(String(entriesByKey.get(s)?.terrain || "")),
+          );
+          placedThisCandidate = true;
+          break;
+        }
+
+        // Revert if it didn't help
+        try {
+          revert();
+        } catch (e) {
+          /* ignore */
+        }
+      }
+
+      if (placedThisCandidate) continue;
+    }
   }
 
   if (requestedPlainsCount > 0) {
@@ -4121,10 +4411,16 @@ function applySurveyOverlayTerrainForSize(size, entriesByKey) {
 }
 
 function tryApplySurveyOverlayTerrain() {
+  if (suppressAutoRehydrate.value) {
+    console.log("[TERRAIN READ] tryApplySurveyOverlayTerrain suppressed due to recent clear/persist");
+    // Treat as applied to prevent legacy generation from running.
+    return true;
+  }
   const size = activeTerrainTemplateSize.value;
   const cells = activeHexCells.value;
   const bySize = selectedWorld.value?.terrainOverlayBySize;
   const terrainMapWasGenerated = selectedWorld.value?.terrainMapGenerated === true;
+  const terrainOverlayWasCleared = selectedWorld.value?.terrainOverlayCleared === true;
   // DEBUG: terrain read path
   let serialized = bySize && typeof bySize === "object" ? bySize[String(size)] : null;
   let fallbackKeyUsed = null;
@@ -4159,6 +4455,15 @@ function tryApplySurveyOverlayTerrain() {
   const inMemoryEntriesByKey = buildOverlayEntriesByKeyFromCurrentLayers(size);
 
   if (!cells.length || !entriesByKey.size) {
+    if (
+      shouldKeepTerrainCleared({ cellsLength: cells.length, terrainOverlayWasCleared, entriesSize: entriesByKey.size })
+    ) {
+      resetTerrainLayersForSize(size);
+      useSurveyOverlayHexes.value = true;
+      placeTectonicLines();
+      return true;
+    }
+
     // Keep locally-generated overlay visible while persisted world data catches up.
     // Without this guard, watcher-driven reapply can clear oceans immediately after step generation.
     if (cells.length && useSurveyOverlayHexes.value && inMemoryEntriesByKey.size) {
@@ -4331,6 +4636,11 @@ const terrainHexInspectorSummary = computed(() => ({
 const terrainHexTagPersistTimer = ref(null);
 const lastPersistedTerrainHexTagSignature = ref("");
 const terrainOverlayPersistTimer = ref(null);
+// When user explicitly clears terrain, suppress automatic rehydration
+// (which can immediately regenerate terrain) until persistence completes
+// or a short timeout expires.
+const suppressAutoRehydrate = ref(false);
+const suppressAutoRehydrateTimer = ref(null);
 const hasUserInteractedWithTerrain = ref(false);
 const terrainRegenerationNonce = ref(0);
 
@@ -4389,6 +4699,7 @@ async function persistTerrainOverlay() {
   const nextOverlay = serializeTerrainOverlayBySize();
   const nextTerrainComposition = buildTerrainCompositionFromOverlay();
   const terrainMapGenerated = Object.keys(nextOverlay).length > 0;
+  const terrainOverlayCleared = !terrainMapGenerated && useSurveyOverlayHexes.value;
 
   const existingOverlayForTags =
     selectedWorld.value?.terrainOverlayBySize && typeof selectedWorld.value.terrainOverlayBySize === "object"
@@ -4440,6 +4751,7 @@ async function persistTerrainOverlay() {
   currentPlanets[worldIndex] = {
     ...currentPlanets[worldIndex],
     terrainMapGenerated,
+    terrainOverlayCleared,
     terrainOverlayBySize: nextOverlay,
     terrainComposition: nextTerrainComposition,
   };
@@ -4466,6 +4778,13 @@ async function persistTerrainOverlay() {
 
   if (updatedSystem?.systemId) {
     systemStore.setCurrentSystem(updatedSystem.systemId);
+  }
+
+  // Clear suppression now that persistence completed.
+  suppressAutoRehydrate.value = false;
+  if (suppressAutoRehydrateTimer.value) {
+    clearTimeout(suppressAutoRehydrateTimer.value);
+    suppressAutoRehydrateTimer.value = null;
   }
 
   return true;
@@ -4500,6 +4819,7 @@ async function persistTerrainHexTags() {
   const nextOverlay = serializeTerrainOverlayBySize();
   const nextTerrainComposition = buildTerrainCompositionFromOverlay();
   const terrainMapGenerated = Object.keys(nextOverlay).length > 0;
+  const terrainOverlayCleared = !terrainMapGenerated && useSurveyOverlayHexes.value;
 
   const currentPlanets = Array.isArray(boundSystem.value?.planets) ? [...boundSystem.value.planets] : [];
   if (!currentPlanets.length || !currentPlanets[worldIndex]) {
@@ -4509,6 +4829,7 @@ async function persistTerrainHexTags() {
   currentPlanets[worldIndex] = {
     ...currentPlanets[worldIndex],
     terrainMapGenerated,
+    terrainOverlayCleared,
     terrainOverlayBySize: nextOverlay,
     terrainComposition: nextTerrainComposition,
     metadata: {
@@ -8016,7 +8337,19 @@ function clearWaterHexes() {
   markTerrainUserInteraction();
   const size = activeTerrainTemplateSize.value;
   resetTerrainLayersForSize(size);
-  useSurveyOverlayHexes.value = false;
+  useSurveyOverlayHexes.value = true;
+  // Suppress automatic rehydration that may immediately regenerate terrain
+  // while we persist the cleared overlay. This prevents a clear -> regen loop.
+  suppressAutoRehydrate.value = true;
+  if (suppressAutoRehydrateTimer.value) {
+    clearTimeout(suppressAutoRehydrateTimer.value);
+    suppressAutoRehydrateTimer.value = null;
+  }
+  // Safety fallback: clear suppression after 3s if persistence doesn't complete.
+  suppressAutoRehydrateTimer.value = setTimeout(() => {
+    suppressAutoRehydrateTimer.value = null;
+    suppressAutoRehydrate.value = false;
+  }, 3000);
   queueTerrainOverlayPersist();
 }
 
