@@ -494,6 +494,18 @@ function isHexPolygonElement(poly) {
     return false;
   }
 
+  // If the polygon carries explicit hex metadata, prefer to treat it as a
+  // hex cell regardless of style. Some SVG templates mark hex shapes with
+  // a white fill or other style attributes that would otherwise cause them
+  // to be ignored. Rely on metadata attributes when present.
+  const hasHexMetadata = Boolean(
+    poly.getAttribute("data-logical-hex-id") || poly.getAttribute("data-seam-group") || poly.getAttribute("data-hex-id") || poly.getAttribute("hex-id") || poly.getAttribute("data-seam-partners"),
+  );
+
+  if (hasHexMetadata) {
+    return true;
+  }
+
   const style = String(poly.getAttribute("style") || "").toLowerCase();
   if (style.includes("fill: white") || style.includes("fill:white") || style.includes("stroke: none")) {
     return false;
