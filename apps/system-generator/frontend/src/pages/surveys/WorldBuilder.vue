@@ -372,7 +372,7 @@
           </section>
 
           <section
-            v-if="!isGasGiantSurvey && normalizedTerrainComposition?.hexCounts?.length"
+            v-if="!isGasGiantSurvey && (normalizedTerrainComposition?.hexCounts?.length || hasGeneratedTerrainMap)"
             class="world-section world-section--full"
           >
             <div class="section-header">
@@ -382,11 +382,16 @@
               </button>
             </div>
             <WorldSvgMapForm
-              :terrainSeed="hasGeneratedTerrainMap ? normalizedTerrainComposition : null"
+              :terrainSeed="normalizedTerrainComposition ?? null"
               :seedWorldName="world.name"
               :seedUwp="world.uwp"
               :seedWorldSize="world.size"
-              :seedTerrainGenerated="hasGeneratedTerrainMap"
+              :seedTerrainGenerated="
+                Boolean(
+                  (normalizedTerrainComposition && normalizedTerrainComposition.hexCounts?.length) ||
+                  hasGeneratedTerrainMap,
+                )
+              "
               :seedTerrainOverlay="hasGeneratedTerrainMap ? world.terrainOverlayBySize : null"
               :readOnly="true"
             />
