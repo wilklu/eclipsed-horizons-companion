@@ -3235,11 +3235,32 @@ function applyTerrainSurveyToMap(options = {}) {
     });
   }
 
-  const waterCells = takeCells(
-    orderedCellsAsc.filter((cell) => !entriesByKey.has(String(cell?.key || "").trim())),
-    openOceanCount,
-    (left, right) => (scoreByKey.get(String(left.key || "")) || 0) - (scoreByKey.get(String(right.key || "")) || 0),
-  );
+  const waterCandidates = orderedCellsAsc.filter((cell) => !entriesByKey.has(String(cell?.key || "").trim()));
+  const waterScoreValues = waterCandidates
+    .map((cell) => Number(scoreByKey.get(String(cell?.key || "")) || 0))
+    .filter(Number.isFinite);
+  const minWaterScore = waterScoreValues.length ? Math.min(...waterScoreValues) : 0;
+  const maxWaterScore = waterScoreValues.length ? Math.max(...waterScoreValues) : 1;
+  const waterScoreRange = Math.max(1e-6, maxWaterScore - minWaterScore);
+
+  const waterCells = takeCells(waterCandidates, openOceanCount, (left, right) => {
+    const leftKey = String(left?.key || "").trim();
+    const rightKey = String(right?.key || "").trim();
+
+    const leftScore = Number(scoreByKey.get(leftKey) || 0);
+    const rightScore = Number(scoreByKey.get(rightKey) || 0);
+    const leftNormalized = clamp((leftScore - minWaterScore) / waterScoreRange, 0, 1);
+    const rightNormalized = clamp((rightScore - minWaterScore) / waterScoreRange, 0, 1);
+
+    // Keep water placement deterministic but allow broad distribution across the
+    // map (including interior hexes). The random term dominates and the coastal
+    // term only lightly nudges selection toward lower-scoring edge cells.
+    const leftNoise = mulberry32(hashString(`${seed}|water|${leftKey}`))();
+    const rightNoise = mulberry32(hashString(`${seed}|water|${rightKey}`))();
+    const leftPriority = leftNoise * 0.8 + (1 - leftNormalized) * 0.2;
+    const rightPriority = rightNoise * 0.8 + (1 - rightNormalized) * 0.2;
+    return rightPriority - leftPriority;
+  });
   const oceanKeys = new Set();
   for (const cell of waterCells) {
     const key = String(cell?.key || "").trim();
@@ -3730,6 +3751,49 @@ function applyOverlayPaintAtHex(key, points) {
   queueTerrainOverlayPersist();
 }
 
+function resolveSerializedEntryKeyToTemplateKey(rawKey, rawPoints) {
+  const key = String(rawKey || "").trim();
+  const points = normalizePoints(rawPoints || "");
+  const variantsByKey = activeHexRenderVariantsByKey.value;
+  const canonicalByHexId = activeHexCanonicalByHexId.value;
+
+  // Match by exact polygon points first (most reliable)
+  const cellsByPoints = new Map();
+  for (const cell of activeHexCells.value) {
+    const p = normalizePoints(cell?.points || "");
+    if (p && !cellsByPoints.has(p)) cellsByPoints.set(p, cell);
+  }
+  if (points && cellsByPoints.has(points)) {
+    return String(cellsByPoints.get(points).key || "").trim();
+  }
+
+  // If the key already corresponds to a render variant, keep it
+  if (variantsByKey.has(key)) return key;
+
+  // Try hex-id -> canonical key map
+  const mappedHexKey = canonicalByHexId.get(key);
+  if (mappedHexKey && variantsByKey.has(mappedHexKey)) return mappedHexKey;
+
+  // Try general canonicalization
+  const canonicalKey = canonicalizeHexId(key);
+  if (canonicalKey && variantsByKey.has(canonicalKey)) return canonicalKey;
+
+  // Fallback: scan active cells for any matching metadata
+  for (const cell of activeHexCells.value) {
+    if (!cell) continue;
+    if (
+      String(cell.key || "") === key ||
+      String(cell.hexId || "") === key ||
+      String(cell.canonicalHexId || "") === key ||
+      normalizePoints(cell.points || "") === points
+    ) {
+      return String(cell.key || "").trim();
+    }
+  }
+
+  return key;
+}
+
 function applySurveyOverlayTerrainForSize(size, entriesByKey) {
   isApplyingOverlayLayers.value = true;
   try {
@@ -3753,62 +3817,66 @@ function applySurveyOverlayTerrainForSize(size, entriesByKey) {
     const exotic = new Map();
     const cities = new Map();
 
-    for (const [key, value] of entriesByKey.entries()) {
+    for (const [rawKey, value] of entriesByKey.entries()) {
+      const resolvedKey = resolveSerializedEntryKeyToTemplateKey(rawKey, value?.points);
+      if (resolvedKey !== String(rawKey || "").trim()) {
+        console.log("[TERRAIN APPLY] remapped key", { from: rawKey, to: resolvedKey });
+      }
       const payload = { points: value.points };
       switch (value.terrain) {
         case "water":
-          water.set(key, payload);
+          water.set(resolvedKey, payload);
           break;
         case "shore":
-          shore.set(key, payload);
+          shore.set(resolvedKey, payload);
           break;
         case "plains":
-          flatlands.set(key, payload);
+          flatlands.set(resolvedKey, payload);
           break;
         case "island":
-          islands.set(key, payload);
+          islands.set(resolvedKey, payload);
           break;
         case "hills":
-          hills.set(key, payload);
+          hills.set(resolvedKey, payload);
           break;
         case "forest":
-          forests.set(key, payload);
+          forests.set(resolvedKey, payload);
           break;
         case "mountain":
-          mountains.set(key, payload);
+          mountains.set(resolvedKey, payload);
           break;
         case "volcanic":
-          volcanic.set(key, payload);
+          volcanic.set(resolvedKey, payload);
           break;
         case "icecap":
-          iceCaps.set(key, payload);
+          iceCaps.set(resolvedKey, payload);
           break;
         case "glacier":
-          glaciers.set(key, payload);
+          glaciers.set(resolvedKey, payload);
           break;
         case "icefield":
-          iceFields.set(key, payload);
+          iceFields.set(resolvedKey, payload);
           break;
         case "frozenland":
-          frozenLands.set(key, payload);
+          frozenLands.set(resolvedKey, payload);
           break;
         case "desert":
-          deserts.set(key, payload);
+          deserts.set(resolvedKey, payload);
           break;
         case "tundra":
-          arctic.set(key, payload);
+          arctic.set(resolvedKey, payload);
           break;
         case "swamp":
-          swamps.set(key, payload);
+          swamps.set(resolvedKey, payload);
           break;
         case "exotic":
-          exotic.set(key, payload);
+          exotic.set(resolvedKey, payload);
           break;
         case "urban":
-          cities.set(key, payload);
+          cities.set(resolvedKey, payload);
           break;
         default:
-          flatlands.set(key, payload);
+          flatlands.set(resolvedKey, payload);
           break;
       }
     }
@@ -3841,15 +3909,8 @@ function tryApplySurveyOverlayTerrain() {
   const bySize = selectedWorld.value?.terrainOverlayBySize;
   const terrainMapWasGenerated = selectedWorld.value?.terrainMapGenerated === true;
   // DEBUG: terrain read path
-  console.log("[TERRAIN READ] tryApplySurveyOverlayTerrain", {
-    size,
-    cellCount: cells.length,
-    terrainMapWasGenerated,
-    bySizeKeys: bySize && typeof bySize === "object" ? Object.keys(bySize) : "null/missing",
-    bySizeForSize: bySize && typeof bySize === "object" ? bySize[String(size)] : "no bySize",
-    useSurveyOverlay: useSurveyOverlayHexes.value,
-  });
   let serialized = bySize && typeof bySize === "object" ? bySize[String(size)] : null;
+  let fallbackKeyUsed = null;
   if (!serialized && bySize && typeof bySize === "object") {
     const fallbackKey = Object.keys(bySize).find((key) => {
       const value = bySize[key];
@@ -3860,8 +3921,23 @@ function tryApplySurveyOverlayTerrain() {
     });
     if (fallbackKey) {
       serialized = bySize[fallbackKey];
+      fallbackKeyUsed = fallbackKey;
     }
   }
+  console.log("[TERRAIN READ] tryApplySurveyOverlayTerrain", {
+    size,
+    cellCount: cells.length,
+    terrainMapWasGenerated,
+    bySizeKeys: bySize && typeof bySize === "object" ? Object.keys(bySize) : "null/missing",
+    exactKeyMatch: bySize && typeof bySize === "object" ? bySize[String(size)] !== undefined : false,
+    fallbackKeyUsed,
+    serializedLength: Array.isArray(serialized)
+      ? serialized.length
+      : serialized && typeof serialized === "object"
+        ? Object.keys(serialized).length
+        : 0,
+    useSurveyOverlay: useSurveyOverlayHexes.value,
+  });
   const entriesByKey = normalizeOverlayEntriesByKey(serialized);
   const inMemoryEntriesByKey = buildOverlayEntriesByKeyFromCurrentLayers(size);
 
@@ -4096,12 +4172,47 @@ async function persistTerrainOverlay() {
   const nextOverlay = serializeTerrainOverlayBySize();
   const nextTerrainComposition = buildTerrainCompositionFromOverlay();
   const terrainMapGenerated = Object.keys(nextOverlay).length > 0;
+
+  const existingOverlayForTags =
+    selectedWorld.value?.terrainOverlayBySize && typeof selectedWorld.value.terrainOverlayBySize === "object"
+      ? selectedWorld.value.terrainOverlayBySize
+      : {};
+  if (
+    !Object.keys(nextOverlay).length &&
+    Object.keys(existingOverlayForTags).length > 0 &&
+    !activeHexCells.value.length
+  ) {
+    console.warn("[TERRAIN SAVE] persistTerrainHexTags skipping empty overlay to avoid destructive overwrite", {
+      systemId,
+      worldIndex,
+      activeTemplateSize: activeTerrainTemplateSize.value,
+    });
+    return false;
+  }
+
+  // If the map's active cells are momentarily unavailable (template swap, routing),
+  // avoid persisting an empty overlay which would destructively overwrite a
+  // previously saved overlay for this world.
+  const existingOverlay =
+    selectedWorld.value?.terrainOverlayBySize && typeof selectedWorld.value.terrainOverlayBySize === "object"
+      ? selectedWorld.value.terrainOverlayBySize
+      : {};
+  if (!Object.keys(nextOverlay).length && Object.keys(existingOverlay).length > 0 && !activeHexCells.value.length) {
+    console.warn("[TERRAIN SAVE] persistTerrainOverlay skipping empty overlay to avoid destructive overwrite", {
+      systemId,
+      worldIndex,
+      activeTemplateSize: activeTerrainTemplateSize.value,
+    });
+    return false;
+  }
   // DEBUG: terrain save path
   console.log("[TERRAIN SAVE] persistTerrainOverlay", {
     systemId,
     worldIndex,
     terrainMapGenerated,
     overlaySizes: Object.keys(nextOverlay),
+    activeTemplateSize: activeTerrainTemplateSize.value,
+    worldSize: selectedWorld.value?.size,
     overlayEntryCounts: Object.fromEntries(
       Object.entries(nextOverlay).map(([k, v]) => [
         k,
