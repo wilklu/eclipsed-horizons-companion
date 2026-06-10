@@ -3236,31 +3236,83 @@ function applyTerrainSurveyToMap(options = {}) {
   }
 
   const waterCandidates = orderedCellsAsc.filter((cell) => !entriesByKey.has(String(cell?.key || "").trim()));
-  const waterScoreValues = waterCandidates
-    .map((cell) => Number(scoreByKey.get(String(cell?.key || "")) || 0))
-    .filter(Number.isFinite);
-  const minWaterScore = waterScoreValues.length ? Math.min(...waterScoreValues) : 0;
-  const maxWaterScore = waterScoreValues.length ? Math.max(...waterScoreValues) : 1;
-  const waterScoreRange = Math.max(1e-6, maxWaterScore - minWaterScore);
+  const waterCandidateByKey = new Map(
+    waterCandidates
+      .map((cell) => {
+        const key = String(cell?.key || "").trim();
+        return key ? [key, cell] : null;
+      })
+      .filter(Boolean),
+  );
 
-  const waterCells = takeCells(waterCandidates, openOceanCount, (left, right) => {
-    const leftKey = String(left?.key || "").trim();
-    const rightKey = String(right?.key || "").trim();
+  const selectClusteredTerrainKeys = (targetCount, candidateByKey, terrainLabel) => {
+    const target = Math.max(0, Number(targetCount) || 0);
+    if (!target || !(candidateByKey instanceof Map) || !candidateByKey.size) {
+      return [];
+    }
 
-    const leftScore = Number(scoreByKey.get(leftKey) || 0);
-    const rightScore = Number(scoreByKey.get(rightKey) || 0);
-    const leftNormalized = clamp((leftScore - minWaterScore) / waterScoreRange, 0, 1);
-    const rightNormalized = clamp((rightScore - minWaterScore) / waterScoreRange, 0, 1);
+    const rng = mulberry32(hashString(`${seed}|${terrainLabel}|cluster`));
+    const remaining = new Set(candidateByKey.keys());
+    const selected = [];
+    const frontier = [];
 
-    // Keep water placement deterministic but allow broad distribution across the
-    // map (including interior hexes). The random term dominates and the coastal
-    // term only lightly nudges selection toward lower-scoring edge cells.
-    const leftNoise = mulberry32(hashString(`${seed}|water|${leftKey}`))();
-    const rightNoise = mulberry32(hashString(`${seed}|water|${rightKey}`))();
-    const leftPriority = leftNoise * 0.8 + (1 - leftNormalized) * 0.2;
-    const rightPriority = rightNoise * 0.8 + (1 - rightNormalized) * 0.2;
-    return rightPriority - leftPriority;
-  });
+    const pickRandom = (items) => {
+      if (!Array.isArray(items) || !items.length) return null;
+      const idx = Math.floor(rng() * items.length);
+      return items[Math.max(0, Math.min(items.length - 1, idx))] || null;
+    };
+
+    const shuffleWithRng = (items) => {
+      const out = [...items];
+      for (let i = out.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(rng() * (i + 1));
+        [out[i], out[j]] = [out[j], out[i]];
+      }
+      return out;
+    };
+
+    while (selected.length < target && remaining.size > 0) {
+      if (!frontier.length) {
+        // Start a new cluster from a random unassigned candidate.
+        const seedKey = pickRandom([...remaining]);
+        if (!seedKey) break;
+        frontier.push(seedKey);
+      }
+
+      while (frontier.length && selected.length < target) {
+        const key = frontier.splice(Math.floor(rng() * frontier.length), 1)[0];
+        if (!key || !remaining.has(key)) {
+          continue;
+        }
+
+        remaining.delete(key);
+        selected.push(key);
+
+        // Grow outward by exploring adjacent unassigned cells first.
+        const neighbors = adjacency.byId.get(key)?.neighbors || new Set();
+        const candidateNeighbors = [];
+        for (const neighborKeyRaw of neighbors) {
+          const neighborKey = String(neighborKeyRaw || "").trim();
+          if (neighborKey && remaining.has(neighborKey)) {
+            candidateNeighbors.push(neighborKey);
+          }
+        }
+
+        for (const neighborKey of shuffleWithRng(candidateNeighbors)) {
+          if (!frontier.includes(neighborKey)) {
+            frontier.push(neighborKey);
+          }
+        }
+      }
+    }
+
+    return selected;
+  };
+
+  const waterKeys = selectClusteredTerrainKeys(openOceanCount, waterCandidateByKey, "water");
+  const waterCells = waterKeys
+    .map((key) => waterCandidateByKey.get(key))
+    .filter((cell) => cell && typeof cell === "object");
   const oceanKeys = new Set();
   for (const cell of waterCells) {
     const key = String(cell?.key || "").trim();
