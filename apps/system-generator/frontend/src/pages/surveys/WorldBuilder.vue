@@ -13,7 +13,12 @@
       :diagnostics="worldLoadingState.diagnostics"
       :ledger="worldLoadingState.ledger"
     />
-    <SurveyNavigation currentClass="World Survey" :show-regenerate="false" :show-export="false" />
+    <SurveyNavigation
+      currentClass="World Survey"
+      :show-regenerate="false"
+      :show-export="!!world"
+      @export="exportWorld"
+    />
 
     <div class="survey-content">
       <!-- Controls -->

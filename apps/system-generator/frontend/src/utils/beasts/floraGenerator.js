@@ -2193,7 +2193,7 @@ export function buildFloraImagePrompt({
     : generateColourEffectDescriptor({ rng }).effectDescriptor;
 
   const visualDescription = `${name} appears as a ${climate} ${growthForm.toLowerCase()} roughly ${height} tall, with ${canopy}, ${coloration}, ${hueLine}, ${accentLine}, and ${effectLine}. Its ${climaticTexture} reflect ${climaticAdaptation}. Most notable traits include ${featureList}.`;
-  const imagePrompt = `Detailed botanical image of ${name}, an alien ${growthForm.toLowerCase()} on ${worldName}, ${height} tall, ${canopy}, ${coloration}, ${hueLine}, ${accentLine}, ${effectLine}, ${climaticTexture}, adapted for ${climate} conditions — ${climaticAdaptation}, growing from ${soil}, hints of ${featureList}, ${lightingMood}, highly detailed.`;
+  const imagePrompt = `Create a detailed botanical image of ${name}, an alien ${growthForm.toLowerCase()} on ${worldName}, ${height} tall, ${canopy}, ${coloration}, ${hueLine}, ${accentLine}, ${effectLine}, ${climaticTexture}, adapted for ${climate} conditions — ${climaticAdaptation}, growing from ${soil}, hints of ${featureList}, ${lightingMood}, highly detailed.`;
 
   return { visualDescription, imagePrompt, imageCaption: `${name} — ${primaryUse} specimen from ${worldName}` };
 }

@@ -198,6 +198,25 @@ describe("WorldBuilder", () => {
     expect(badges[1].attributes("title")).toContain("Low Technology");
   });
 
+  it("exposes world JSON export when a world is loaded", async () => {
+    const wrapper = mount(WorldBuilder, {
+      global: {
+        stubs: {
+          LoadingSpinner: { template: "<div data-test='loading-spinner' />" },
+          SurveyNavigation: {
+            props: ["showExport"],
+            template: "<div data-test='survey-navigation'>{{ showExport }}</div>",
+          },
+        },
+      },
+    });
+
+    await flushPromises();
+    await flushPromises();
+
+    expect(wrapper.find('[data-test="survey-navigation"]').text()).toContain("true");
+  });
+
   it("shows Hills and Plains labels on the Terrain Survey card when source data uses Rough and Clear", async () => {
     const profiledSystem = createSystemRecord();
     profiledSystem.planets = [
