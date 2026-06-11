@@ -281,6 +281,235 @@ export const COLOUR_HUE_SUFFIX_MEANINGS = {
   copper: "base color is copper",
   bronze: "base color is bronze",
 };
+
+export const PLANT_PARTS = ["leaf", "flower", "bark_stem", "fruit", "root"];
+
+export const COLOUR_HUE_SUFFIXES_BY_PART = {
+  leaf: [
+    "moss",
+    "sage",
+    "olive",
+    "chartreuse",
+    "emerald",
+    "juniper",
+    "seafoam",
+    "mint",
+    "teal",
+    "forest",
+    "pea",
+    "khaki",
+    "celadon",
+    "glaucous",
+    "apple",
+    "laurel",
+    "viridian",
+    "bottle",
+    "pistachio",
+    "asparagus",
+    "sea-green",
+    "bay",
+    "fern",
+  ],
+  flower: [
+    "rose",
+    "magenta",
+    "fuchsia",
+    "coral",
+    "peach",
+    "apricot",
+    "lemon",
+    "gold",
+    "amber",
+    "plum",
+    "lavender",
+    "lilac",
+    "periwinkle",
+    "cerise",
+    "scarlet",
+    "crimson",
+    "ruby",
+    "azure",
+    "sky",
+    "cobalt",
+    "indigo",
+    "ivory",
+    "blush",
+    "cream",
+  ],
+  bark_stem: [
+    "cinnamon",
+    "rust",
+    "mahogany",
+    "charcoal",
+    "taupe",
+    "tan",
+    "umber",
+    "ochre",
+    "sienna",
+    "ash",
+    "smoke",
+    "slate",
+    "sepia",
+    "bronze",
+    "copper",
+    "steel",
+  ],
+  fruit: [
+    "crimson",
+    "scarlet",
+    "ruby",
+    "cherry",
+    "plum",
+    "amber",
+    "gold",
+    "citrine",
+    "emerald",
+    "jade",
+    "teal",
+    "indigo",
+    "violet",
+    "black",
+    "ivory",
+    "silver",
+  ],
+  root: ["umber", "earth", "ochre", "sienna", "clay", "charcoal", "ash", "taupe", "cream", "ivory", "russet", "sepia"],
+};
+
+export const COLOUR_ACCENT_PREFIXES_BY_PART = {
+  leaf: ["silver", "gold", "cream", "white", "charcoal", "black", "violet", "crimson", "amber"],
+  flower: ["white", "cream", "gold", "silver", "magenta", "violet", "crimson", "teal", "indigo", "blush"],
+  bark_stem: ["ash", "charcoal", "silver", "copper", "rust", "cream", "ivory"],
+  fruit: ["gold", "silver", "white", "cream", "charcoal", "black", "violet", "teal"],
+  root: ["white", "cream", "gold", "silver", "rust", "charcoal"],
+};
+
+export const COLOUR_ACCENT_SUFFIXES_BY_PART = {
+  leaf: ["veined", "rimmed", "speckled", "mottled", "striped", "edged", "flecked", "blotched", "banded"],
+  flower: ["veined", "throated", "tipped", "ringed", "speckled", "striped", "blushed", "freckled", "haloed"],
+  bark_stem: ["streaked", "mottled", "banded", "speckled", "laced", "veined", "patched"],
+  fruit: ["blushed", "speckled", "striped", "mottled", "crowned", "freckled", "ringed"],
+  root: ["banded", "streaked", "mottled", "veined", "flecked"],
+};
+
+export const COLOUR_EFFECT_PREFIXES_BY_PART = {
+  leaf: [
+    "translucent",
+    "frosted",
+    "velvet",
+    "matte",
+    "satin",
+    "glossy",
+    "waxy",
+    "silken",
+    "crystalline",
+    "watery",
+    "milky",
+    "smoky",
+  ],
+  flower: [
+    "translucent",
+    "frosted",
+    "velvet",
+    "pearlescent",
+    "opalescent",
+    "iridescent",
+    "silken",
+    "glossy",
+    "satin",
+    "shimmering",
+    "glowing",
+    "luminous",
+    "crystalline",
+    "watery",
+  ],
+  bark_stem: ["matte", "dulled", "burnished", "rough", "corky", "powdery", "waxed", "weathered", "polished"],
+  fruit: ["glossy", "frosted", "waxed", "polished", "velvet", "pruinose", "translucent", "milky", "shimmering"],
+  root: ["earthy", "mealy", "corky", "powdery", "dull", "waxy", "rough", "polished"],
+};
+
+export const COLOUR_EFFECT_SUFFIXES_BY_PART = {
+  leaf: ["finish", "sheen", "sheen", "sheen", "sheen", "sheen", "sheen"],
+  flower: ["finish", "glow", "sheen", "bloom", "veil", "opalescence"],
+  bark_stem: ["finish", "coat", "patina", "texture"],
+  fruit: ["gloss", "bloom", "sheen", "glaze", "polish"],
+  root: ["coat", "texture", "finish"],
+};
+
+export const COLOUR_SYSTEM_BY_PART = Object.freeze({
+  parts: PLANT_PARTS,
+  huePrefixes: COLOUR_HUE_MEANINGS,
+  hueSuffixExamples: COLOUR_HUE_SUFFIX_EXAMPLES,
+  hueSuffixMeanings: COLOUR_HUE_SUFFIX_MEANINGS,
+  effectPrefixMeanings: COLOUR_EFFECT_PREFIX_MEANINGS,
+  effectSuffixMeanings: COLOUR_EFFECT_SUFFIX_MEANINGS,
+  hueSuffixesByPart: COLOUR_HUE_SUFFIXES_BY_PART,
+  accentPrefixesByPart: COLOUR_ACCENT_PREFIXES_BY_PART,
+  accentSuffixesByPart: COLOUR_ACCENT_SUFFIXES_BY_PART,
+  effectPrefixesByPart: COLOUR_EFFECT_PREFIXES_BY_PART,
+  effectSuffixesByPart: COLOUR_EFFECT_SUFFIXES_BY_PART,
+});
+
+export function pickRandom(rng, arr) {
+  if (!arr || arr.length === 0) return null;
+  return arr[Math.floor(rng() * arr.length)];
+}
+
+export function composeHue(rng, part) {
+  const huePrefix = pickRandom(rng, COLOUR_HUE_MEANINGS);
+  const prefix = huePrefix?.prefix || "soft";
+  const suffixList = COLOUR_HUE_SUFFIXES_BY_PART[part] || Object.keys(COLOUR_HUE_SUFFIX_EXAMPLES);
+  const suffix = pickRandom(rng, suffixList) || "green";
+  return `${prefix} ${suffix}`;
+}
+
+export function composeAccent(rng, part) {
+  const colorPrefixList = COLOUR_ACCENT_PREFIXES_BY_PART[part] || ["white", "cream", "silver"];
+  const markingList = COLOUR_ACCENT_SUFFIXES_BY_PART[part] || ["veined", "tipped", "blushed"];
+  const prefix = pickRandom(rng, colorPrefixList) || "white";
+  const suffix = pickRandom(rng, markingList) || "veined";
+  return `${prefix} ${suffix}`;
+}
+
+export function composeEffect(rng, part) {
+  const prefixList = COLOUR_EFFECT_PREFIXES_BY_PART[part] || ["matte", "glossy", "velvet"];
+  const suffixList = COLOUR_EFFECT_SUFFIXES_BY_PART[part] || ["finish", "sheen", "glow"];
+  const prefix = pickRandom(rng, prefixList) || "matte";
+  const suffix = pickRandom(rng, suffixList) || "finish";
+  return `${prefix} ${suffix}`;
+}
+
+export function describePartColour(rng, part) {
+  const hue = composeHue(rng, part);
+  const accent = composeAccent(rng, part);
+  const effect = composeEffect(rng, part);
+  return { hue, accent, effect, combined: `${hue}, ${accent}, ${effect}` };
+}
+
+export function generatePlantColourProfile(seed) {
+  const rng = createSeededRng(seed || generateGuidSeed());
+  const profile = {};
+  for (const part of PLANT_PARTS) {
+    profile[part] = describePartColour(rng, part);
+  }
+  return profile;
+}
+
+export function buildFloraColourSummary(plantProfile) {
+  const parts = [];
+  for (const part of PLANT_PARTS) {
+    const p = plantProfile?.[part];
+    if (!p) continue;
+    parts.push(`${part}: ${p.combined}`);
+  }
+  return parts.join(" | ");
+}
+
+export const COLOUR_HUE_SUFFIXES = COLOUR_HUE_SUFFIXES_BY_PART;
+export const COLOUR_ACCENT_PREFIXES = COLOUR_ACCENT_PREFIXES_BY_PART;
+export const COLOUR_ACCENT_SUFFIXES = COLOUR_ACCENT_SUFFIXES_BY_PART;
+export const COLOUR_EFFECT_PREFIXES = COLOUR_EFFECT_PREFIXES_BY_PART;
+export const COLOUR_EFFECT_SUFFIXES = COLOUR_EFFECT_SUFFIXES_BY_PART;
+
 export const BLOOM_SHAPE = [
   "lantern-shaped blossoms",
   "spiral pollen cones",
@@ -1853,6 +2082,17 @@ export const CLIMATE_COLOUR_BIAS = {
   Temperate: [0, 1, 2],
 };
 
+const CLIMATE_COLOUR_PART_BIAS = {
+  Tundra: ["leaf", "root"],
+  Arid: ["bark_stem", "root"],
+  Wetland: ["leaf", "flower"],
+  Tropical: ["flower", "leaf"],
+  Alpine: ["leaf", "bark_stem"],
+  Subterranean: ["root", "bark_stem"],
+  Coastal: ["leaf", "flower"],
+  Temperate: ["leaf", "flower"],
+};
+
 export const CLIMATE_LIGHT_BIAS = {
   Tundra: [0, 3, 5],
   Arid: [2, 4, 6],
@@ -1875,6 +2115,20 @@ export const CLIMATE_ADAPT_BIAS = {
   Temperate: [2, 5, 7],
 };
 
+function buildClimateColourEntry(profile = {}, climate = "Temperate", rng = Math.random) {
+  const profileColour = String(profile?.biology?.Coloration || profile?.biology?.["Part Colour Summary"] || "").trim();
+  if (profileColour) {
+    return profileColour;
+  }
+
+  const preferredParts = CLIMATE_COLOUR_PART_BIAS[climate] || ["leaf", "flower"];
+  const huePart = pick(preferredParts, rng);
+  const accentPart = preferredParts[1] || huePart;
+  const hue = composeHue(rng, huePart);
+  const accent = composeAccent(rng, accentPart);
+  return `${hue} with ${accent} accents`;
+}
+
 export function deriveFloraVisualCues(profile = {}, rng = Math.random) {
   const validClimates = Object.keys(CLIMATE_TEXTURE_BIAS);
   const explicit = profile?.biology?.Climate || profile?.climate;
@@ -1882,7 +2136,7 @@ export function deriveFloraVisualCues(profile = {}, rng = Math.random) {
   const clime = validClimates.includes(climate) ? climate : "Temperate";
 
   const textureEntry = pickBiased(SURFACE_TEXTURE, CLIMATE_TEXTURE_BIAS[clime], rng);
-  const colourEntry = pickBiased(COLOURWAY_PALETTE, CLIMATE_COLOUR_BIAS[clime], rng);
+  const colourEntry = buildClimateColourEntry(profile, clime, rng);
   const lightEntry = pickBiased(LIGHTING_MOOD, CLIMATE_LIGHT_BIAS[clime], rng);
   const adaptEntry = pickBiased(FLORA_ADAPTATION, CLIMATE_ADAPT_BIAS[clime], rng);
 
@@ -1915,25 +2169,27 @@ export function buildFloraImagePrompt({
     Array.isArray(adaptations) && adaptations.length ? adaptations.slice(0, 2).join(", ") : "unusual adaptive traits";
   const hueDescriptor = String(biology?.Hue || biology?.["Hue Descriptor"] || "").trim();
   const hueMeaning = String(biology?.["Hue Meaning"] || "").trim();
-  const hueSuffixMeaning = String(biology?.["Hue Suffix Meaning"] || "").trim();
   const hueExamples = Array.isArray(biology?.["Hue Example Hues"]) ? biology["Hue Example Hues"] : [];
   const accentDescriptor = String(biology?.Accent || biology?.["Accent Descriptor"] || "").trim();
   const effectDescriptor = String(biology?.Effect || biology?.["Effect Descriptor"] || "").trim();
   const effectMeaning = String(biology?.["Effect Meaning"] || "").trim();
-  const effectSuffixMeaning = String(biology?.["Effect Suffix Meaning"] || "").trim();
 
   const bloomShape = pick(BLOOM_SHAPES, rng);
   const surfaceTexture = pick(SURFACE_TEXTURES, rng);
   const lightingMood = pick(LIGHTING_MOODS, rng);
   const { climaticTexture, climaticAdaptation } = deriveFloraVisualCues({ biology }, rng);
   const hueLine = hueDescriptor
-    ? `${hueDescriptor}${hueMeaning ? ` (${hueMeaning})` : ""}${hueSuffixMeaning ? `; suffix: ${hueSuffixMeaning}` : ""}${hueExamples.length ? `; examples: ${hueExamples.join(", ")}` : ""}`
+    ? `${hueDescriptor}${
+        [hueMeaning, hueExamples.length ? `examples: ${hueExamples.join(", ")}` : ""].filter(Boolean).join("; ")
+          ? ` (${[hueMeaning, hueExamples.length ? `examples: ${hueExamples.join(", ")}` : ""].filter(Boolean).join("; ")})`
+          : ""
+      }`
     : generateColourHueDescriptor({ rng }).hueDescriptor;
   const accentLine = accentDescriptor
     ? `${accentDescriptor}`
     : generateColourAccentDescriptor({ rng }).accentDescriptor;
   const effectLine = effectDescriptor
-    ? `${effectDescriptor}${effectMeaning ? ` (${effectMeaning})` : ""}${effectSuffixMeaning ? `; suffix: ${effectSuffixMeaning}` : ""}`
+    ? `${effectDescriptor}${effectMeaning ? ` (${effectMeaning})` : ""}`
     : generateColourEffectDescriptor({ rng }).effectDescriptor;
 
   const visualDescription = `${name} appears as a ${climate} ${growthForm.toLowerCase()} roughly ${height} tall, with ${canopy}, ${coloration}, ${hueLine}, ${accentLine}, and ${effectLine}. Its ${climaticTexture} reflect ${climaticAdaptation}. Most notable traits include ${featureList}.`;
@@ -1982,6 +2238,11 @@ export function generateFloraProfile(options = {}) {
   const hueDescriptor = generateColourHueDescriptor({ rng });
   const accentDescriptor = generateColourAccentDescriptor({ rng });
   const effectDescriptor = generateColourEffectDescriptor({ rng });
+  const partColourProfile = generatePlantColourProfile(resolvedSeed);
+  const partColourSummary = buildFloraColourSummary(partColourProfile);
+  const leafColour = partColourProfile?.leaf || {};
+  const flowerColour = partColourProfile?.flower || {};
+  const partDrivenColoration = [leafColour.hue, flowerColour.accent].filter(Boolean).join(", ");
 
   const biology = {
     "Growth Form": resolvedGrowthForm,
@@ -2001,7 +2262,8 @@ export function generateFloraProfile(options = {}) {
     Effect: effectDescriptor.effectDescriptor,
     "Effect Meaning": effectDescriptor.effectPrefixMeaning,
     "Effect Suffix Meaning": effectDescriptor.effectSuffixMeaning,
-    Coloration: pick(COLOURWAYS, rng),
+    "Part Colour Summary": partColourSummary,
+    Coloration: partDrivenColoration || pick(COLOURWAYS, rng),
     Reproduction: pick(REPRODUCTION_STRATEGIES, rng),
   };
   const ecology = {
@@ -2073,6 +2335,7 @@ export function generateFloraProfile(options = {}) {
     ecology,
     uses,
     adaptations: adaptationList,
+    colourProfile: partColourProfile,
     hooks: [
       `Local traders value it for ${primaryUse}.`,
       `Field teams report ${adaptationList[0] || "resilient growth"} in the wild.`,

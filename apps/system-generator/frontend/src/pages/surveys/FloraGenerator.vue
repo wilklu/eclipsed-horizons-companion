@@ -87,13 +87,6 @@
           </select>
         </div>
 
-        <div class="control-group">
-          <label>Art Style</label>
-          <select v-model="artStyle" class="select-input">
-            <option v-for="entry in artStyleOptions" :key="entry" :value="entry">{{ entry }}</option>
-          </select>
-        </div>
-
         <div class="control-group control-action">
           <button class="btn btn-primary" @click="generateFlora">🌱 Generate Flora</button>
           <button class="btn btn-secondary" :disabled="!flora" @click="saveFloraRecord">💾 Save</button>
@@ -207,6 +200,12 @@
             <h3>🎨 Image Description</h3>
             <div class="trait-list">
               <div class="trait-item">{{ flora.visualDescription }}</div>
+            </div>
+            <div class="prompt-style-row section-offset">
+              <label>Art Style</label>
+              <select v-model="artStyle" class="select-input">
+                <option v-for="entry in artStyleOptions" :key="entry" :value="entry">{{ entry }}</option>
+              </select>
             </div>
             <div class="prompt-block section-offset">
               <div class="prompt-header">
@@ -902,6 +901,7 @@ async function saveFloraRecord() {
     ...flora.value,
     imageUrl: String(artPreviewUrl.value || flora.value.imageUrl || "").trim(),
     imageUrls: [...new Set(additionalImageUrls.value.filter(Boolean))],
+    artStyleSelection: artStyle.value,
     seed: seedValue.value,
     growthFormSelection: growthForm.value,
     climateSelection: climate.value,
@@ -915,6 +915,7 @@ async function saveFloraRecord() {
   flora.value = {
     ...flora.value,
     id: persisted.id,
+    artStyleSelection: String(persisted.artStyleSelection || artStyle.value || DEFAULT_ART_STYLE),
     imageUrl: String(persisted.imageUrl || flora.value.imageUrl || "").trim(),
     imageUrls: Array.isArray(persisted.imageUrls)
       ? [...persisted.imageUrls]
@@ -982,6 +983,7 @@ function loadSavedFlora(record) {
   climate.value = normalizedRecord.climateSelection || normalizedRecord.biology?.Climate || "random";
   rootNetworkMode.value = normalizedRecord.rootNetworkModeSelection || "compact";
   appearanceMode.value = normalizedRecord.appearanceModeSelection || "compact";
+  artStyle.value = String(normalizedRecord.artStyleSelection || DEFAULT_ART_STYLE);
   if (normalizedRecord.worldKey) {
     selectedWorldKey.value = normalizedRecord.worldKey;
   }
@@ -1068,8 +1070,9 @@ async function exportFlora() {
 
 .control-panel {
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 0.65rem;
+  align-items: end;
 }
 
 .control-group {
@@ -1085,28 +1088,13 @@ async function exportFlora() {
 
 .control-action {
   grid-column: 1 / -1;
-  grid-row: 3;
+  grid-row: 2;
   display: flex;
   flex-direction: row;
   justify-content: flex-end;
   align-items: center;
   flex-wrap: wrap;
   gap: 0.5rem;
-}
-
-.control-group-growth-form {
-  grid-row: 2;
-  grid-column: 1 / span 2;
-}
-
-.control-group-root-network {
-  grid-row: 2;
-  grid-column: 3 / span 2;
-}
-
-.control-group-appearance {
-  grid-row: 2;
-  grid-column: 5 / span 2;
 }
 
 label {
@@ -1264,6 +1252,13 @@ label {
   gap: 0.4rem;
 }
 
+.prompt-style-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  max-width: 320px;
+}
+
 .prompt-header {
   display: flex;
   align-items: center;
@@ -1409,16 +1404,13 @@ label {
 }
 
 @media (max-width: 900px) {
-  .control-group-growth-form,
-  .control-group-root-network,
-  .control-group-appearance,
-  .control-action {
-    grid-row: auto;
-    grid-column: auto;
+  .control-panel {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .control-group-wide {
-    grid-column: span 1;
+  .control-action {
+    grid-row: auto;
+    grid-column: 1 / -1;
   }
 
   .prop-row,
@@ -1429,6 +1421,12 @@ label {
 
   .prop-value {
     text-align: left;
+  }
+}
+
+@media (max-width: 600px) {
+  .control-panel {
+    grid-template-columns: 1fr;
   }
 }
 </style>

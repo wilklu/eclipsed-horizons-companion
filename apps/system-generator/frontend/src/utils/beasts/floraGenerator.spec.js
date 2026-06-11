@@ -171,13 +171,13 @@ describe("floraGenerator", () => {
     expect(prompt.visualDescription).toContain("Ionan Bloom");
     expect(prompt.visualDescription).toContain("bright green");
     expect(prompt.visualDescription).toContain("vivid, saturated");
-    expect(prompt.visualDescription).toContain("base color is green");
+    expect(prompt.visualDescription).not.toContain("suffix:");
     expect(prompt.visualDescription).toContain("lime, emerald, moss");
     expect(prompt.visualDescription).toContain("silver veined");
     expect(prompt.visualDescription).toContain("velvet finish");
     expect(prompt.imagePrompt).toContain("Iona");
     expect(prompt.imagePrompt).toContain("bright green");
-    expect(prompt.imagePrompt).toContain("base color is green");
+    expect(prompt.imagePrompt).not.toContain("suffix:");
     expect(prompt.imagePrompt).toContain("lime, emerald, moss");
     expect(prompt.imagePrompt).toContain("silver veined");
     expect(prompt.imagePrompt).toContain("velvet finish");
@@ -204,7 +204,7 @@ describe("floraGenerator", () => {
     expect(tundra.climate).toBe("Tundra");
     expect(tundra.climaticTexture).toContain("velvet leaf surfaces");
     expect(tundra.climaticTexture).toContain("soft dawn light");
-    expect(tundra.climaticAdaptation).toContain("emerald and silver");
+    expect(tundra.climaticAdaptation).toContain("pale moss with white banded accents");
     expect(tundra.climaticAdaptation).toContain("ice-crystal antifreeze tissues");
   });
 
@@ -213,7 +213,7 @@ describe("floraGenerator", () => {
     expect(arid.climate).toBe("Arid");
     expect(arid.climaticTexture).toContain("waxy reflective skin");
     expect(arid.climaticTexture).toContain("high desert glare");
-    expect(arid.climaticAdaptation).toContain("amber and jade");
+    expect(arid.climaticAdaptation).toContain("pale cinnamon with white banded accents");
     expect(arid.climaticAdaptation).toContain("mirror-leaf heat deflection");
   });
 
@@ -222,7 +222,7 @@ describe("floraGenerator", () => {
     expect(wetland.climate).toBe("Wetland");
     expect(wetland.climaticTexture).toContain("velvet leaf surfaces");
     expect(wetland.climaticTexture).toContain("misty wetland haze");
-    expect(wetland.climaticAdaptation).toContain("violet and black");
+    expect(wetland.climaticAdaptation).toContain("pale moss with white veined accents");
     expect(wetland.climaticAdaptation).toContain("pressure-sealed seed chambers");
   });
 
