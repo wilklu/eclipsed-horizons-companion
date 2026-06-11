@@ -30,13 +30,17 @@ export const ART_STYLE_PRESETS = [
   "Blueprint Schematic",
   "Staged Habitat Diorama",
   "Specimen Field Sketch",
+  "Landscape Vignette",
+  "Environment Study",
+  "Habitat Cross-Section",
+  "Book Cover",
 ];
 
 const MAX_PROMPT_CHARS = 1200;
 
 const STYLE_DESCRIPTORS = {
   "Field Guide":
-    "Clean field-guide presentation, specimen-focused composition centered in frame, naturalistic fine detail on texture and form, neutral muted background (off-white or pale beige), even diffused lighting with soft shadows to highlight surface features, shallow depth of field, high-resolution botanical specimen photography style",
+    "clean field-guide presentation, specimen-focused composition centered in frame, naturalistic fine detail on texture and form, neutral muted background (off-white or pale beige), even diffused lighting with soft shadows to highlight surface features, shallow depth of field, high-resolution botanical specimen photography style",
   "Concept Art": "cinematic sci-fi concept art, dramatic lighting, rich atmosphere, highly detailed rendering",
   Portrait: "hero portrait framing, expressive lighting, subject-forward composition, polished illustrative finish",
   "Scientific Plate":
@@ -84,6 +88,17 @@ const STYLE_DESCRIPTORS = {
 
   TextbookFigure:
     "textbook diagram figure, subject clearly delineated with subtle key-line border, color-coded regions or structures for callout reference, clean white background with figure number placeholder space in lower-right, consistent styling for multi-figure plate layout, educational publishing quality",
+  "Landscape Vignette":
+    "horizontal landscape vignette, specimen or subject integrated into natural environment at roughly 16:9 aspect ratio, soft atmospheric backdrop with subject occupying lower-center third, warm ambient environmental lighting, environmental storytelling composition suitable for chapter header or encounter backdrop, premium field guide photography style",
+
+  "Environment Study":
+    "environment concept study, wide horizontal composition emphasizing habitat and atmosphere, subject present but secondary to setting, cinematic lighting with depth-of-field layering (foreground/midground/background), rich color grading, immersive worldbuilding illustration quality",
+
+  "Habitat Cross-Section":
+    "cross-section habitat diagram, vertical slice through terrain showing above-ground and below-ground or underwater layers, stratified environment with labeled zones, flora and fauna positioned within appropriate layers, clean scientific diagram style on light background, educational natural science illustration",
+
+  "Book Cover":
+    "book cover framing, vertical or horizontal 2:3 ratio, specimen as hero subject silhouetted against atmospheric textured background, dramatic single-source lighting, embossed-title negative space on upper or lower third, premium natural history publication cover style, high-contrast focal composition",
 };
 
 function seededIntInRange(seed, min = 6, max = 10) {

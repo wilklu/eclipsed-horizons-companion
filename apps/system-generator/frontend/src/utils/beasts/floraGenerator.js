@@ -1702,7 +1702,7 @@ export function deriveFloraVisualCues(profile = {}, rng = Math.random) {
 
   return {
     climaticTexture: `${textureEntry}, preferring ${lightEntry} conditions`,
-    climaticAdaptation: `${colourEntry} colouration with ${adaptEntry}`,
+    climaticAdaptation: `${colourEntry} coloration with ${adaptEntry}`,
     climate: clime,
   };
 }
@@ -1734,7 +1734,7 @@ export function buildFloraImagePrompt({
   const { climaticTexture, climaticAdaptation } = deriveFloraVisualCues({ biology }, rng);
 
   const visualDescription = `${name} appears as a ${climate} ${growthForm.toLowerCase()} roughly ${height} tall, with ${canopy}, ${coloration}, and ${bloomShape} supported by ${surfaceTexture}. Its ${climaticTexture} reflect ${climaticAdaptation}. Most notable traits include ${featureList}.`;
-  const imagePrompt = `Detailed botanical concept art of ${name}, an alien ${growthForm.toLowerCase()} on ${worldName}, ${height} tall, ${canopy}, ${coloration}, ${bloomShape}, ${surfaceTexture}, ${climaticTexture}, adapted for ${climate} conditions — ${climaticAdaptation}, growing from ${soil}, hints of ${featureList}, naturalistic sci-fi field-guide style, full plant visible, clean composition, ${lightingMood}, highly detailed.`;
+  const imagePrompt = `Detailed botanical concept art of ${name}, an alien ${growthForm.toLowerCase()} on ${worldName}, ${height} tall, ${canopy}, ${coloration}, ${bloomShape}, ${surfaceTexture}, ${climaticTexture}, adapted for ${climate} conditions — ${climaticAdaptation}, growing from ${soil}, hints of ${featureList}, ${lightingMood}, highly detailed.`;
 
   return { visualDescription, imagePrompt, imageCaption: `${name} — ${primaryUse} specimen from ${worldName}` };
 }

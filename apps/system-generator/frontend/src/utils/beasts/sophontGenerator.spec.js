@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildSophontAdaptationProfile,
   buildSophontDiplomacyProfile,
   buildSophontEventChain,
   buildSophontFactionTensions,
@@ -159,6 +160,26 @@ describe("sophontGenerator shared biology rules", () => {
     expect(eventChain[0].title).toContain("Dispute");
   });
 
+  it("builds a table-driven sophont adaptation profile", () => {
+    const profile = buildSophontAdaptationProfile(
+      {
+        homeEnvironment: "Underground",
+        bodyPlan: "Segmented",
+        socialStructure: "Technocracy",
+        civilization: { "Settlement Pattern": "Subsurface enclave network" },
+        techLevel: 10,
+      },
+      () => 0,
+    );
+
+    expect(profile.habitat).toBeTruthy();
+    expect(profile.socialBehavior).toBeTruthy();
+    expect(profile.sensoryBias).toBeTruthy();
+    expect(profile.physicalAdaptation).toBeTruthy();
+    expect(profile.summary).toContain(profile.habitat);
+    expect(profile.notes.length).toBeGreaterThan(2);
+  });
+
   it("builds a world update overlay from a saved sophont dossier", () => {
     expect(describeSophontTechBand(12)).toBe("advanced interstellar");
 
@@ -211,8 +232,13 @@ describe("sophontGenerator shared biology rules", () => {
   it("injects planetary visual cues into generated sophont image prompts", () => {
     const arcticSophont = generateSophontProfile({ seed: "arctic-test", homeEnvironment: "Arctic" });
     expect(arcticSophont.imagePrompt.toLowerCase()).toMatch(/insulating|pelage|fat|frost|white|ivory/);
+    expect(arcticSophont.adaptationProfile?.summary).toBeTruthy();
+    expect(arcticSophont.worldIntegration.notes).toContain(arcticSophont.adaptationProfile.summary);
 
     const desertSophont = generateSophontProfile({ seed: "desert-test", homeEnvironment: "Desert" });
     expect(desertSophont.imagePrompt.toLowerCase()).toMatch(/scale|plate|tan|ochre|heat/);
+    expect(desertSophont.visualDescription.toLowerCase()).toContain(
+      desertSophont.adaptationProfile.summary.toLowerCase(),
+    );
   });
 });

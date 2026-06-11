@@ -179,6 +179,196 @@ const GOVERNMENTS = [
   "Federation",
 ];
 
+export const SOPHONT_HABITAT_TABLE = {
+  Aquatic: ["continental shelf cities", "tidal trench communes", "floating kelp arcologies", "reef-corridor enclaves"],
+  Arctic: ["ice-shelf citadels", "subglacial tunnel networks", "geothermal basin holdings", "wind-shadow settlements"],
+  Desert: [
+    "oasis corridor polities",
+    "rock-shadow burrow towns",
+    "dune-edge caravan hubs",
+    "subsurface cistern bastions",
+  ],
+  Forest: [
+    "canopy lattice settlements",
+    "root-hollow districts",
+    "river-canopy trade towns",
+    "arboreal ridge enclaves",
+  ],
+  Mountain: [
+    "cliffside terrace cities",
+    "high-pass fortress chains",
+    "plateau observatory communes",
+    "ridge vault settlements",
+  ],
+  Underground: ["cavern vault metropolises", "lava-tube colonies", "echo-tunnel federations", "deep shaft sanctuaries"],
+  "Dense Atmosphere": [
+    "pressure-tier hive towers",
+    "stormbreak bastions",
+    "aerosol marsh habitats",
+    "low-altitude urban decks",
+  ],
+  "Thin Atmosphere": [
+    "sealed dome clusters",
+    "highland pressure enclaves",
+    "oxygen-vault settlements",
+    "radiation-shielded waystations",
+  ],
+  general: [
+    "mixed-terrain city clusters",
+    "regional trade hubs",
+    "dispersed frontier settlements",
+    "adaptive habitat mosaics",
+  ],
+};
+
+export const SOPHONT_BEHAVIOR_TABLE = {
+  "Clan-based Tribes": [
+    "kin-bound consensus rituals",
+    "territorial stewardship cycles",
+    "lineage arbitration",
+    "shared-memory councils",
+  ],
+  Meritocracy: [
+    "achievement-ranked leadership",
+    "specialist guild bargaining",
+    "peer-reviewed authority",
+    "performance-bound command",
+  ],
+  Technocracy: [
+    "expert panel governance",
+    "systems-first planning",
+    "data arbitration chambers",
+    "infrastructure legitimacy",
+  ],
+  Theocracy: [
+    "sacred mandate governance",
+    "ritual law adjudication",
+    "custodian priest councils",
+    "pilgrimage hierarchy",
+  ],
+  "Democratic Collective": [
+    "assembly voting blocs",
+    "federated local councils",
+    "rotating stewardship offices",
+    "consensus coalition building",
+  ],
+  general: [
+    "pragmatic coalition politics",
+    "local power bargaining",
+    "institutional compromise",
+    "customary conflict mediation",
+  ],
+};
+
+export const SOPHONT_SENSORY_TABLE = {
+  Aquatic: [
+    "pressure-wave interpretation",
+    "chemical plume decoding",
+    "current-field anticipation",
+    "dim-spectrum contrast vision",
+  ],
+  Arctic: [
+    "thermal micro-gradient detection",
+    "snow-glare filtering",
+    "long-range acoustic triangulation",
+    "storm-pressure sensing",
+  ],
+  Desert: [
+    "heat shimmer parsing",
+    "distant vibration sensing",
+    "aerosol scent tracking",
+    "high-contrast horizon reading",
+  ],
+  Forest: [
+    "canopy motion triangulation",
+    "layered scent mapping",
+    "filtered-light color parsing",
+    "close-range directional hearing",
+  ],
+  Mountain: [
+    "echo-slope ranging",
+    "thin-air acoustic tuning",
+    "distance parallax refinement",
+    "wind-pattern interpretation",
+  ],
+  Underground: [
+    "echo mapping",
+    "substrate vibration sensing",
+    "chemosensory trail reading",
+    "low-light silhouette recognition",
+  ],
+  "Dense Atmosphere": [
+    "pressure-front anticipation",
+    "aerosol particulate discrimination",
+    "storm-band resonance sensing",
+    "rapid humidity tracking",
+  ],
+  "Thin Atmosphere": [
+    "UV-rich spectrum parsing",
+    "oxygen-stress awareness",
+    "long-distance visual lock",
+    "micro-vibration auditory tuning",
+  ],
+  general: ["multispectrum sight", "olfactory tracking", "situational acoustics", "electrostatic awareness"],
+};
+
+export const SOPHONT_ADAPTATION_TABLE = {
+  Aquatic: [
+    "hydrodynamic limb geometry",
+    "salinity-buffered respiration",
+    "pressure-tolerant vascularity",
+    "buoyancy-control tissues",
+  ],
+  Arctic: [
+    "insulated dermal layering",
+    "antifreeze blood chemistry",
+    "compact heat-conserving frame",
+    "seasonal metabolic throttling",
+  ],
+  Desert: [
+    "evaporative loss minimization",
+    "reflective integument channels",
+    "heat-radiating appendage structure",
+    "water-retention organ folds",
+  ],
+  Forest: [
+    "arboreal joint articulation",
+    "camouflage-responsive pigmentation",
+    "vertical locomotion musculature",
+    "branch-balanced stance control",
+  ],
+  Mountain: [
+    "high-altitude oxygen efficiency",
+    "reinforced load-bearing joints",
+    "sure-footed tendon architecture",
+    "wind-braced posture",
+  ],
+  Underground: [
+    "reduced-light ocular adaptation",
+    "vibration-dominant sensory arrays",
+    "mineral-filter respiration",
+    "compact tunnel-optimized silhouette",
+  ],
+  "Dense Atmosphere": [
+    "pressure-stable respiratory chambers",
+    "moisture-tolerant skin membranes",
+    "dense-air locomotion balance",
+    "aerosol-resistant cilia",
+  ],
+  "Thin Atmosphere": [
+    "high-efficiency oxygen uptake",
+    "UV-shield melanin concentration",
+    "reduced-mass frame density",
+    "radiation-hardened tissue layers",
+  ],
+  general: [
+    "broad-environment resilience",
+    "adaptive metabolism",
+    "multiterrain locomotion",
+    "stress-buffered physiology",
+  ],
+};
+
 const TAGLINES = [
   "ancient starfarers who chart the deep void",
   "warriors bound by a code of honour older than their sun",
@@ -658,13 +848,52 @@ export function buildSophontImagePrompt(profile = {}) {
     Array.isArray(profile?.specialAbilities) && profile.specialAbilities.length
       ? profile.specialAbilities.slice(0, 2).join(", ").toLowerCase()
       : "no obvious overt augmentations";
+  const adaptationSummary = String(profile?.adaptationProfile?.summary || "broad-spectrum environmental adaptation");
 
   const { integument, coloration, physicalAdaptation } = deriveSophontVisualCues(profile);
 
   return {
-    visualDescription: `${name} present as a ${bodyPlan} sophont species shaped by ${environment} conditions, averaging ${height} and ${mass}. Physical characteristics include ${integument} and ${coloration}, marking them as products of their homeworld environment. Cultural profile reflects ${focus}, ${posture}, and ${aesthetics} design language, with distinctive ${traitNames} and ${specialAbilities}.`,
-    imagePrompt: `Detailed sci-fi species concept art of ${name}, alien sophont from ${worldName}, ${bodyPlan} anatomy, adapted to ${environment}, ${integument}, ${coloration}, ${physicalAdaptation}, average build ${height} and ${mass}, visual cues of ${focus}, ${aesthetics} cultural design, ${language} communication style, ${government} civic identity, ${techBand} setting, full-body character sheet, cinematic but realistic lighting, highly detailed.`,
+    visualDescription: `${name} present as a ${bodyPlan} sophont species shaped by ${environment} conditions, averaging ${height} and ${mass}. Physical characteristics include ${integument} and ${coloration}, marking them as products of their homeworld environment. Cultural profile reflects ${focus}, ${posture}, and ${aesthetics} design language, with distinctive ${traitNames}, ${specialAbilities}, and ${adaptationSummary}.`,
+    imagePrompt: `Detailed sci-fi species concept art of ${name}, alien sophont from ${worldName}, ${bodyPlan} anatomy, adapted to ${environment}, ${integument}, ${coloration}, ${physicalAdaptation}, average build ${height} and ${mass}, visual cues of ${focus}, ${aesthetics} cultural design, ${language} communication style, ${government} civic identity, ${techBand} setting, ${adaptationSummary}, full-body character sheet, cinematic but realistic lighting, highly detailed.`,
     imageCaption: `${name} — ${techBand} sophont concept from ${worldName}`,
+  };
+}
+
+export function buildSophontAdaptationProfile(
+  {
+    homeEnvironment = "Forest",
+    bodyPlan = "Bilateral Symmetry",
+    socialStructure = "Clan-based Tribes",
+    civilization = {},
+    techLevel = 0,
+  } = {},
+  rng = Math.random,
+) {
+  const environment = String(homeEnvironment || "Forest");
+  const settlementPattern = String(civilization?.["Settlement Pattern"] || "mixed settlement systems");
+  const habitatPool = SOPHONT_HABITAT_TABLE[environment] || SOPHONT_HABITAT_TABLE.general;
+  const behaviorPool = SOPHONT_BEHAVIOR_TABLE[socialStructure] || SOPHONT_BEHAVIOR_TABLE.general;
+  const sensoryPool = SOPHONT_SENSORY_TABLE[environment] || SOPHONT_SENSORY_TABLE.general;
+  const adaptationPool = SOPHONT_ADAPTATION_TABLE[environment] || SOPHONT_ADAPTATION_TABLE.general;
+  const habitat = pick(habitatPool, rng);
+  const socialBehavior = pick(behaviorPool, rng);
+  const sensoryBias = pick(sensoryPool, rng);
+  const physicalAdaptation = pick(adaptationPool, rng);
+  const techBand = describeSophontTechBand(techLevel);
+
+  return {
+    habitat,
+    socialBehavior,
+    sensoryBias,
+    physicalAdaptation,
+    summary: `${socialBehavior} across ${habitat}, using ${sensoryBias} and ${physicalAdaptation}`,
+    notes: [
+      `${bodyPlan} populations cluster in ${habitat}.`,
+      `Civic behavior trends toward ${socialBehavior}.`,
+      `Sensory specialization emphasizes ${sensoryBias}.`,
+      `Infrastructure remains ${techBand} around ${settlementPattern.toLowerCase()}.`,
+    ],
+    tags: [environment, socialStructure, bodyPlan, techBand],
   };
 }
 
@@ -719,6 +948,16 @@ export function generateSophontProfile(options = {}) {
     { name: resolvedName, civilization, diplomacy, sourceWorld },
     rng,
   );
+  const adaptationProfile = buildSophontAdaptationProfile(
+    {
+      homeEnvironment: resolvedEnvironment,
+      bodyPlan: resolvedBodyPlan,
+      socialStructure,
+      civilization,
+      techLevel,
+    },
+    rng,
+  );
   const eventChain = buildSophontEventChain(
     { name: resolvedName, diplomacy, factionTensions, historyTimeline, sourceWorld },
     rng,
@@ -767,6 +1006,7 @@ export function generateSophontProfile(options = {}) {
     },
     civilization,
     diplomacy,
+    adaptationProfile,
     historyTimeline,
     factionTensions,
     eventChain,
@@ -785,6 +1025,7 @@ export function generateSophontProfile(options = {}) {
       notes: [
         `${civilization["Contact Status"]} across ${String(civilization["Settlement Pattern"] || "local habitats").toLowerCase()}.`,
         `Diplomatic posture favors ${String(civilization["Diplomatic Posture"] || "guarded neutrality")}.`,
+        adaptationProfile.summary,
         `Current flashpoint: ${String(diplomacy["Current Flashpoint"] || "regional pressures")}.`,
         `Faction pressure: ${String(factionTensions.summary || "contained political rivalry")}.`,
         `Event chain opening: ${String(eventChain[0]?.title || "Present Tension")}.`,

@@ -23,6 +23,7 @@ import {
   summarizeEcosystemBalance,
   buildFaunaWorldUpdate,
   getWorldAvailableCreatureTerrains,
+  resolveFaunaEcologyProfile,
 } from "./beastGenerator.js";
 import { formatBeastSummary, formatReactionValue } from "./beastFormatting.js";
 
@@ -81,6 +82,24 @@ describe("beastGenerator rules foundation", () => {
 
     const cycle = resolveLifeCycle({ size, quantity, niche: "Omnivore" }, () => 0);
     expect(cycle.reproduction).toBeTruthy();
+  });
+
+  it("builds a fauna ecology profile from terrain, niche, and locomotion tables", () => {
+    const ecology = resolveFaunaEcologyProfile(
+      {
+        terrain: "Frozen Lands",
+        locomotion: "Walker",
+        ecologicalNiche: { niche: "Carnivore", subniche: "Killer" },
+        quantity: { label: "Large Herd" },
+      },
+      () => 0,
+    );
+
+    expect(ecology.habitat).toBeTruthy();
+    expect(ecology.behavior).toBeTruthy();
+    expect(ecology.sensoryFocus).toBeTruthy();
+    expect(ecology.adaptation).toBeTruthy();
+    expect(ecology.ecologySummary).toContain(ecology.habitat);
   });
 
   it("generates guid-like seeds for fauna records", () => {
@@ -220,8 +239,11 @@ describe("beastGenerator rules foundation", () => {
     expect(summary.toLowerCase()).toContain("woods");
     expect(beast.extended.bodySymmetry).toBeTruthy();
     expect(Array.isArray(beast.extended.senses)).toBe(true);
+    expect(beast.extended.ecologySummary).toBeTruthy();
+    expect(beast.extended.habitat).toBeTruthy();
     expect(beast.extended.specialTraits.length).toBeGreaterThan(0);
     expect(beast.extended.encounterHooks.length).toBeGreaterThan(0);
+    expect(beast.visualDescription).toContain(beast.extended.ecologySummary.toLowerCase());
   });
 
   it("derives planetary visual cues from terrain: cold worlds produce insulating fur or pale scales", () => {

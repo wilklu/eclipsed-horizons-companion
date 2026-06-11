@@ -2,6 +2,10 @@ import {
   ARMOR_TABLE,
   DEFAULT_PRIMARY_NICHES,
   DEFAULT_TERRAINS,
+  FAUNA_ADAPTATION_TABLE,
+  FAUNA_BEHAVIOR_TABLE,
+  FAUNA_HABITAT_TABLE,
+  FAUNA_SENSORY_TABLE,
   ECOLOGICAL_NICHE_TABLE,
   GRAVITY_MODIFIERS,
   QUANTITY_TABLE,
@@ -423,13 +427,14 @@ export function buildCreatureImagePrompt(profile = {}) {
   const senses = Array.isArray(profile?.extended?.senses)
     ? profile.extended.senses.slice(0, 2).join(", ")
     : "sharp survival senses";
+  const ecology = String(profile?.extended?.ecologySummary || "ecology-driven survival profile").toLowerCase();
   const worldName = String(profile?.sourceWorld?.name || "an alien frontier world");
 
   const { integument, coloration, envAdaptation } = deriveCreatureVisualCues(profile);
 
   return {
-    visualDescription: `${name} appears as a ${sizeLabel} ${niche} beast native to ${terrainLower} environments, with a ${body}, ${stance}, and ${integument}. Its ${coloration} coloration and ${envAdaptation} mark it as a product of harsh planetary conditions. Behavioral profile suggests ${subniche} tendencies, with a ${weapon}-based threat response, ${adaptation}, and ${senses}.`,
-    imagePrompt: `Detailed sci-fi creature concept art of ${name}, an alien ${niche} from ${worldName}, ${measure}, ${body}, ${stance}, ${integument}, ${coloration}, moving as a ${locomotion}, natural weapon emphasis on ${weapon}, evolved for ${terrainLower} conditions — ${envAdaptation}, hints of ${adaptation}, full body visible, naturalistic field-guide illustration, dramatic but realistic lighting, highly detailed.`,
+    visualDescription: `${name} appears as a ${sizeLabel} ${niche} beast native to ${terrainLower} environments, with a ${body}, ${stance}, and ${integument}. Its ${coloration} coloration and ${envAdaptation} mark it as a product of harsh planetary conditions. Behavioral profile suggests ${subniche} tendencies, with a ${weapon}-based threat response, ${adaptation}, ${senses}, and ${ecology}.`,
+    imagePrompt: `Detailed sci-fi creature concept art of ${name}, an alien ${niche} from ${worldName}, ${measure}, ${body}, ${stance}, ${integument}, ${coloration}, moving as a ${locomotion}, natural weapon emphasis on ${weapon}, evolved for ${terrainLower} conditions — ${envAdaptation}, hints of ${adaptation}, ${ecology}, full body visible, naturalistic field-guide illustration, dramatic but realistic lighting, highly detailed.`,
     imageCaption: `${name} — ${sizeLabel} ${niche} specimen from ${worldName}`,
   };
 }
@@ -593,6 +598,65 @@ export function resolveSpecialTraits(
     pickFrom(["camouflage bloom", "territorial display organs", "burrow instinct", "alarm call network"], rng),
   );
   return [...new Set(traits)].slice(0, 4);
+}
+
+function resolveFaunaBucket(terrain = "Clear") {
+  const resolvedTerrain = String(terrain || "Clear");
+
+  if (/(ocean|river|lake|wetland|shore|abyss)/i.test(resolvedTerrain)) {
+    return "aquatic";
+  }
+  if (/(woods|forest|clearing|scrub|rural|cropland|suburbs|town|city)/i.test(resolvedTerrain)) {
+    return "forest";
+  }
+  if (/(desert|baked)/i.test(resolvedTerrain)) {
+    return "arid";
+  }
+  if (/(frozen|ice|glacier|snow|tundra|alpine)/i.test(resolvedTerrain)) {
+    return "frozen";
+  }
+  if (/(cavern|mine|underground|chasm|abyss)/i.test(resolvedTerrain)) {
+    return "cavern";
+  }
+  if (/(mountain|cliff|precipice|highland|ridge)/i.test(resolvedTerrain)) {
+    return "highland";
+  }
+  if (/(city|starport|urban)/i.test(resolvedTerrain)) {
+    return "urban";
+  }
+
+  return "general";
+}
+
+export function resolveFaunaEcologyProfile(
+  {
+    terrain = "Clear",
+    locomotion = "Walker",
+    ecologicalNiche = { niche: "Omnivore", subniche: "Hunter/Gatherer" },
+    quantity = { label: "Small Group" },
+  } = {},
+  rng = Math.random,
+) {
+  const habitatBucket = resolveFaunaBucket(terrain);
+  const moveType = String(locomotion || "Walker");
+  const niche = String(ecologicalNiche?.niche || "Omnivore");
+  const subniche = String(ecologicalNiche?.subniche || "Hunter/Gatherer");
+  const quantityLabel = String(quantity?.label || "Small Group");
+  const behaviorBucket = FAUNA_BEHAVIOR_TABLE[niche] || FAUNA_BEHAVIOR_TABLE.general;
+  const sensoryBucket = FAUNA_SENSORY_TABLE[moveType] || FAUNA_SENSORY_TABLE.general;
+  const habitat = pickFrom(FAUNA_HABITAT_TABLE[habitatBucket] || FAUNA_HABITAT_TABLE.general, rng);
+  const behavior = pickFrom(behaviorBucket, rng);
+  const sensoryFocus = pickFrom(sensoryBucket, rng);
+  const adaptation = pickFrom(FAUNA_ADAPTATION_TABLE[habitatBucket] || FAUNA_ADAPTATION_TABLE.general, rng);
+
+  return {
+    habitat,
+    behavior,
+    sensoryFocus,
+    adaptation,
+    ecologySummary: `${behavior} in ${habitat}, with ${sensoryFocus} and ${adaptation}`,
+    ecologyTags: [habitatBucket, niche, subniche, quantityLabel, moveType],
+  };
 }
 
 export function resolveEncounterHooks({
@@ -760,13 +824,18 @@ export function generateBeastProfile(options = {}) {
     { terrain: resolvedTerrain, locomotion, niche: ecologicalNiche.niche, armor },
     rng,
   );
+  const ecologyProfile = resolveFaunaEcologyProfile(
+    { terrain: resolvedTerrain, locomotion, ecologicalNiche, quantity },
+    rng,
+  );
   const extended = {
     ...bodyProfile,
     senses,
     ...feedingProfile,
     ...lifeCycleProfile,
+    ...ecologyProfile,
     specialTraits,
-    notableAdaptation: specialTraits[0] || "generalist survival traits",
+    notableAdaptation: ecologyProfile.adaptation || specialTraits[0] || "generalist survival traits",
   };
   extended.encounterHooks = resolveEncounterHooks({
     terrain: resolvedTerrain,

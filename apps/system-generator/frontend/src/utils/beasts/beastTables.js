@@ -273,5 +273,65 @@ export const ARMOR_TABLE = {
   5: "1D PsiShield",
 };
 
+export const FAUNA_HABITAT_TABLE = {
+  aquatic: ["reef ledges", "kelp corridors", "tidal channels", "submerged shelf forests"],
+  forest: ["canopy layers", "leaf-litter understories", "root tangles", "shadowed glades"],
+  arid: ["rocky washes", "dune breaks", "salt flats", "burrowed heat refuges"],
+  frozen: ["ice ridges", "snow tunnels", "wind-swept shelves", "thermal vent margins"],
+  cavern: ["echoing chambers", "mossed tunnels", "limestone vaults", "deep fracture networks"],
+  highland: ["wind-cut cliffs", "plateau ledges", "alpine scree", "ridge-top hollows"],
+  urban: ["service ducts", "abandoned structures", "roofline roosts", "flooded underways"],
+  general: ["open plains", "mixed terrain margins", "scrubland edges", "adaptive border habitats"],
+};
+
+export const FAUNA_BEHAVIOR_TABLE = {
+  Producer: [
+    "sessile colony feeding",
+    "sun-tracking basking",
+    "distributed nutrient collection",
+    "slow territorial growth",
+  ],
+  Herbivore: ["foraging herd movement", "selective grazing", "browse-and-withdraw feeding", "seasonal migration"],
+  Omnivore: ["opportunistic ranging", "adaptive scavenging", "mixed foraging cycles", "variable social probing"],
+  Carnivore: ["ambush pursuit", "pack hunting", "territorial stalking", "high-risk predation"],
+  Scavenger: ["carcass recovery", "signal-following feeding", "territorial salvage", "opportunistic theft"],
+  general: ["cautious ranging", "territorial observation", "flexible local adaptation", "small-group movement"],
+};
+
+export const FAUNA_SENSORY_TABLE = {
+  Walker: [
+    "broad-spectrum motion vision",
+    "close-range scent mapping",
+    "ground vibration awareness",
+    "temperature contrast reading",
+  ],
+  Swimmer: ["pressure-wave detection", "current tracing", "low-light lateral sensing", "dissolved-odor tracking"],
+  Flyer: ["long-range horizon sight", "air-current reading", "rapid depth judgment", "distant motion tracking"],
+  Aquatic: ["pressure-wave detection", "current tracing", "low-light lateral sensing", "dissolved-odor tracking"],
+  Producer: ["light-gradient sensing", "humidity tracking", "pollinator timing sense", "chemical drift awareness"],
+  general: ["motion vision", "odor tracking", "sound triangulation", "electrostatic awareness"],
+};
+
+export const FAUNA_ADAPTATION_TABLE = {
+  aquatic: [
+    "streamlined locomotion",
+    "hydrodynamic surfaces",
+    "pressure-tolerant tissues",
+    "filtering respiratory folds",
+  ],
+  forest: ["camouflage striping", "climbing grip structures", "shade-tuned pigmentation", "soft-signal communication"],
+  arid: ["heat-dispersing hide", "water-saving metabolism", "burrow-refuge behavior", "reflective surface layers"],
+  frozen: [
+    "insulating fat reserves",
+    "cold-shielded tissues",
+    "antifreeze biochemistry",
+    "low-surface-area extremities",
+  ],
+  cavern: ["low-light sensory organs", "echo mapping", "pale or reduced pigmentation", "vibration-sensitive limbs"],
+  highland: ["oxygen-efficient respiration", "balance-assist limbs", "wind-resistant build", "compact frame stability"],
+  urban: ["climbing claws", "tight-space maneuvering", "communal alert systems", "opportunistic shelter use"],
+  general: ["generalist physiology", "seasonal flexibility", "behavioral plasticity", "mixed-terrain tolerance"],
+};
+
 export const DEFAULT_TERRAINS = Object.keys(TERRAIN_LOCOMOTION_TABLE);
 export const DEFAULT_PRIMARY_NICHES = ["Producer", "Herbivore", "Omnivore", "Carnivore", "Scavenger"];
