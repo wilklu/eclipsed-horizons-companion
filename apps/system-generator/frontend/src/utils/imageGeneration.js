@@ -7,7 +7,6 @@ export const ART_STYLE_PRESETS = [
   "Scientific Plate",
   "Anatomy Diagram",
   "Size Comparison",
-  "March of Progress",
 
   // VTT & Tabletop
   "Top-Down Token",
@@ -34,6 +33,7 @@ export const ART_STYLE_PRESETS = [
   "Environment Study",
   "Habitat Cross-Section",
   "Book Cover",
+  "March of Progress",
 ];
 
 const MAX_PROMPT_CHARS = 1200;
