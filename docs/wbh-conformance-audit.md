@@ -1,0 +1,162 @@
+# WBH Conformance Audit
+
+## Purpose
+
+This document records the current state of world, star, and system generation against the intended World Builder's Handbook (WBH) ruleset target.
+
+Current conclusion: the active generators now use WBH-backed helpers for primary stars, multi-star presence, Chapter 4 body counts and orbit placement, gas giant sizing, significant moon quantity/size, moon-aware mainworld selection, hierarchy-aware companion exclusion floors, recursive descendant-branch exclusion metrics, split-continuation propagation with branch-depth allocation signals, and provisional social/UWP generation, while Chapter 5 now includes explicit helper coverage for life, habitability, resource summaries, and baseline seismology calculations, and Chapter 7 now partially surfaces exact Table 85 minimum sustainable TL handling plus population concentration, urbanization, major-city counts, initial government traits, government-structure/profile codes, faction summaries, richer judicial-system procedure and oversight summaries, richer secondary-world government/classification/regulation summaries, law uniformity, presumption-of-innocence/death-penalty flags, law subcategory profile codes, A+ overall law levels, criminal/economic penalty helper outputs, appeal-rights handling, private-law posture/outcome helpers, personal-rights posture/outcome helpers, and discretionary enforcement handling for below-threshold violations, but several later-chapter detail procedures are still incomplete.
+
+The WBH source of truth is now present in the repository at `docs/reference/World Builder's Handbook.md`.
+
+## Current Entry Points
+
+### World generation
+
+- `apps/system-generator/frontend/src/pages/surveys/WorldBuilder.vue`
+- `apps/system-generator/frontend/src/pages/surveys/WorldPhysicalSurvey.vue`
+- Calls `generateWorldProfile()` from `apps/system-generator/frontend/src/utils/worldProfileGenerator.js`
+
+### Star generation
+
+- `apps/system-generator/frontend/src/utils/primaryStarGenerator.js`
+- Used by `GalaxySurvey.vue`, `SectorSurvey.vue`, and `TravellerMap.vue`
+
+### System generation
+
+- `apps/system-generator/frontend/src/pages/surveys/StarSystemBuilder.vue`
+- `apps/system-generator/frontend/src/pages/surveys/SystemSurvey.vue`
+- `apps/system-generator/frontend/src/utils/stellarSurveySystemGenerator.js`
+
+## Audit Summary
+
+| Area                                            | Current implementation                                                         | WBH status      | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ----------------------------------------------- | ------------------------------------------------------------------------------ | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| World physical characteristics                  | `worldProfileGenerator.js`                                                     | Partially wired | `worldProfileGenerator.js` now delegates size, atmosphere, hydrographics, temperature, moons, magnetosphere, and related physical fields to the WBH helper module.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Population / government / law / tech / starport | `worldProfileGenerator.js`                                                     | Partially wired | System and standalone worlds now receive provisional WBH-style PGL, starport, tech, trade-code, economics-style summaries, remarks outputs, exact Table 85 minimum sustainable TL resolution, partial Chapter 7 population-concentration, urbanization, major-city-count, centralization/authority government-trait summaries, Table 70 government-structure/profile-code outputs, faction summaries, secondary-world dependency/classification plus law-level handling, judicial-system profile outputs, law uniformity, presumption/death-penalty flags, law-level subcategory profile codes, extended A+ overall law levels, criminal/economic legal-outcome helpers, appeal-rights summaries, private-law posture/outcome helpers, personal-rights posture/outcome helpers, and discretionary-enforcement helpers; routed System Survey, Traveller Map, and Sector Survey summaries now also surface those overlays through profile notes, fallback world-row notes, inline system summaries, compact System Survey report fields, inspector rows, and legacy reconstruction notes when imported star hierarchy had to be rebuilt from flat labels, while later-chapter social detail remains incomplete. |
+| Primary star generation                         | `primaryStarGenerator.js`                                                      | Partially wired | Shared generator now routes straight through WBH-backed star generation by default, including non-stellar results.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Stellar multiplicity / companion stars          | `StarSystemBuilder.vue`                                                        | Partially wired | Builder generation now uses WBH presence and non-primary derivation helpers, including companion-parent metadata, companion-aware orbit-floor propagation, and recursive descendant-branch metrics for deeper hierarchy exclusion spans, but later multi-star edge cases remain incomplete.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Planet/system body generation                   | `StarSystemBuilder.vue`, `SystemSurvey.vue`, `stellarSurveySystemGenerator.js` | Partially wired | Builder and survey persistence now share WBH count, allocation, baseline, spread, orbit-placement, WBH-style placement ordering, gas giant sizing, significant-moon helper paths, moon-aware mainworld candidate selection, and persisted mainworld summary fields now surfaced through the routed System Survey page.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Survey persistence model                        | `SectorSurvey.vue`, `systemStore.js`, `systemApi.js`                           | Partially wired | Persistence path now stores WBH-profiled system worlds, round-trips shared generated-star metadata through sector preview rebuilds, saved-system reloads, atlas seeding flows, and sector cache/API normalization, upgrades legacy imported flat-label records into canonical generated-star payloads on load with explicit legacy reconstruction markers, and now surfaces those markers in Sector Survey and Traveller Map UI, though imports that never stored hierarchy still cannot recover more than inferred Near/Far ordering.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+
+## Source Chapters Now In Scope
+
+| WBH chapter / section                     | Handbook source                              | Affected app modules                                                                               | Current status                                              |
+| ----------------------------------------- | -------------------------------------------- | -------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| Chapter 3: Stars                          | `docs/reference/World Builder's Handbook.md` | `primaryStarGenerator.js`, `SectorSurvey.vue`, `GalaxySurvey.vue`, `TravellerMap.vue`              | Partially integrated, including non-stellar display support |
+| Chapter 4: System Worlds and Orbits       | `docs/reference/World Builder's Handbook.md` | `StarSystemBuilder.vue`, `stellarSurveySystemGenerator.js`                                         | Partially integrated in builder and survey flows            |
+| Chapter 5: World Physical Characteristics | `docs/reference/World Builder's Handbook.md` | `worldProfileGenerator.js`, `WorldBuilder.vue`, `WorldPhysicalSurvey.vue`, `StarSystemBuilder.vue` | Partially integrated through shared world helper            |
+
+## Rule Matrix
+
+### Chapter 3: Stars
+
+| WBH section                 | Current module(s)         | Gap                                                                                                                                                            | Scaffold status                                             |
+| --------------------------- | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| Primary Star Types          | `primaryStarGenerator.js` | Current generator uses a weighted distribution instead of WBH tables.                                                                                          | Added `src/utils/wbh/starGenerationWbh.js` checkpoint entry |
+| Subtypes                    | `primaryStarGenerator.js` | Current generator uses random decimal digits, not the WBH subtype table.                                                                                       | Added checkpoint entry                                      |
+| Star Mass and Temperature   | `primaryStarGenerator.js` | Current generator uses one fixed mass/temperature per spectral class.                                                                                          | Added checkpoint entry                                      |
+| Star Diameter               | No dedicated module       | No WBH diameter lookup or interpolation exists.                                                                                                                | Added checkpoint entry                                      |
+| Star Luminosity             | No dedicated module       | No WBH luminosity formula helper existed.                                                                                                                      | Added formula helper                                        |
+| System Age                  | No dedicated module       | No WBH age formulas existed.                                                                                                                                   | Added lifespan helper formulas                              |
+| Systems With Multiple Stars | `StarSystemBuilder.vue`   | WBH presence and non-primary derivation are now wired, including partial companion-of-secondary metadata, but advanced hierarchy edge cases remain incomplete. | Partial integration                                         |
+
+### Chapter 4: System Worlds and Orbits
+
+| WBH section                   | Current module(s)                                          | Gap                                                                                                                                                                                         | Scaffold status                        |
+| ----------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| World Types and Quantities    | `StarSystemBuilder.vue`, `stellarSurveySystemGenerator.js` | WBH quantity tables now drive gas giant, belt, and terrestrial counts.                                                                                                                      | Integrated in builder and survey flows |
+| Available Orbits              | `StarSystemBuilder.vue`                                    | WBH MAO, exclusion-zone, sibling-exclusion, companion-floor, and split-continuation branch-depth helpers now shape orbit placement, but advanced split-system hierarchy cases still remain. | Integrated shared helper path          |
+| HZCO / Habitable Zone Breadth | `StarSystemBuilder.vue`, `stellarSurveySystemGenerator.js` | Builder and survey generation now both consume the shared HZCO/orbit helper path.                                                                                                           | Integrated in builder and survey flows |
+| Placement of Worlds           | `StarSystemBuilder.vue`, `stellarSurveySystemGenerator.js` | WBH baseline number, baseline orbit, spread, empty/anomalous-orbit, slot placement, and primary-first branch ordering helpers now drive orbit layout.                                       | Integrated shared helper path          |
+| Basic World Sizing            | `StarSystemBuilder.vue`                                    | WBH terrestrial and gas giant sizing now route through the shared physical-characteristics helper, but downstream use of gas giant mass/gravity remains limited.                            | Integrated through shared helper       |
+| Significant Moons / Moon Size | `StarSystemBuilder.vue`                                    | Significant moon quantity and size now route through WBH-inspired shared helpers, and significant moons now enter the generated system roster.                                              | Partial integration                    |
+| Mainworld Candidate           | `StarSystemBuilder.vue`, `WorldBuilder.vue`                | System-level scoring can now promote significant moons to mainworld candidates, but full later-chapter refinement is incomplete.                                                            | Partial integration                    |
+
+### Chapter 5: World Physical Characteristics
+
+| WBH section                           | Current module(s)          | Gap                                                                                                                                                                                                                                                                                                                                              | Scaffold status                                                |
+| ------------------------------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------- |
+| Size / Diameter                       | `worldProfileGenerator.js` | Base size roll is still heuristic, but WBH diameter and size-profile calculations are now applied through the shared helper.                                                                                                                                                                                                                     | Integrated through `generateWorldPhysicalCharacteristicsWbh()` |
+| Composition and Density               | `worldProfileGenerator.js` | WBH composition and density calculations are now applied through the shared helper.                                                                                                                                                                                                                                                              | Integrated through shared helper                               |
+| Gravity and Mass                      | `worldProfileGenerator.js` | WBH gravity and mass calculations are now applied through the shared helper.                                                                                                                                                                                                                                                                     | Integrated through shared helper                               |
+| Atmosphere                            | `worldProfileGenerator.js` | Atmosphere generation now routes through the WBH helper, but exact WBH atmosphere sub-procedures are still incomplete.                                                                                                                                                                                                                           | Integrated through shared helper                               |
+| Hydrographics                         | `worldProfileGenerator.js` | Hydrographics generation now routes through the WBH helper, but exact WBH surface/liquid rules are still incomplete.                                                                                                                                                                                                                             | Integrated through shared helper                               |
+| Rotation / Tilt / Tides / Temperature | `worldProfileGenerator.js` | Temperature, day length, axial tilt, and orbital period now route through the WBH helper; tidal-effect rules remain incomplete.                                                                                                                                                                                                                  | Integrated through shared helper                               |
+| Seismology / Life / Mainworld         | `worldProfileGenerator.js` | Native-life handling plus Chapter 5 life-profile, habitability, resource-summary, seismology, tectonic-plate, and explicit final-mainworld-selection helpers now live in the shared WBH modules, and generated worlds expose economics-style summary fields and remarks, but deeper later-chapter physical refinement is still lighter than WBH. | Partial integration                                            |
+
+## Verified Gaps
+
+### World builder
+
+- `generateWorldProfile()` still begins from a heuristic base size roll, but it now applies provisional WBH-style social/UWP generation instead of hard-coded barren defaults.
+- Atmosphere, hydrographics, temperature, moons, magnetosphere, and physical calculations now route through `worldPhysicalCharacteristicsWbh.js`.
+- Population, government, law level, tech level, starport, and trade/economic downstream rules are now generated in this path, and Chapter 5 life-profile, habitability, resource, seismology, and final-mainworld-selection summaries now route through shared WBH helpers and the routed World Physical Survey page. Chapter 7 partials now also expose exact minimum sustainable TL handling, population-concentration and urbanization summaries, major-city counts, initial government centralization/authority traits, government structure/profile codes, richer faction pressure/dominant-opposition summaries, richer judicial forum/oversight/recordkeeping summaries, richer secondary-world dependency/classification/government/regulatory summaries, law uniformity, presumption/death-penalty flags, law subcategory profile codes, extended A+ overall law levels, and helper APIs for conviction, appeals, private-law posture, personal-rights posture, discretionary enforcement below punishment-threshold law levels, plus criminal/economic/personal-rights penalty outcomes; criminal and economic penalty helpers now carry discretionary-enforcement posture directly, shared saved-system summary utilities now back Sector Survey inline summaries, Traveller Map inspector rows, and System Survey header summaries plus shared routed title labels with direct regression coverage for appeal/private-law/personal-rights surfaces, habitability/resource outputs, and derived secondary-world profile text, persistence-boundary regression coverage now reaches saved-system API/store reloads plus shared sector-preview regeneration, load/name preview refreshes, preview rebuild, and local preview mutation helpers, Galaxy Survey galaxy-stat refresh/import plus create/edit and cached-sector-stats payload builders, and Sector Survey route-driven initial-sector selection, return-navigation, atlas-origin create, generation create-vs-update mutation, regeneration update/save-payload, rename, and preview-rebuild helper paths, and reconstructed legacy star data now also contributes aggregate galaxy statistics, archive-manifest summaries, and atlas batch-generation diagnostics when hierarchy was inferred from flat labels. Documented house rules surface civil-conflict risk and TL pockets through profile notes and fallback survey world-row notes, secondary-world law-source notes now explain whether dependent colonies inherited or rerolled their law levels, and the System Survey report form now carries explicit compact summary fields for appeals/private-law/personal-rights posture plus derived secondary-world classification, government, law, regulation, habitability, and resource summaries, but later WBH social-detail chapters are not yet implemented.
+
+### Star generator
+
+- `generatePrimaryStar()` now returns WBH outputs directly, including non-stellar primaries.
+- UI display helpers now normalize non-stellar descriptors such as white dwarfs, brown dwarfs, protostars, and peculiar objects.
+- WBH multiple-star presence and non-primary derivation now exist, including partial continuation metadata for companion stars and recursive descendant-branch metrics, but more advanced hierarchical handling remains incomplete.
+
+### System generator
+
+- System multiplicity is now table-driven in the builder flow through the WBH multiple-star helper.
+- Orbit spacing, body counts, baseline/spread logic, habitable-zone calculations, and WBH-style placement ordering now share the WBH Chapter 4 helper path between builder and survey persistence.
+- Survey-generated systems now also preserve WBH generated-star arrays across current sector preview, saved-system reload, atlas seeding, and sector-cache normalization flows, and shared fallback helpers now upgrade legacy imported star-label records into richer star objects with explicit legacy reconstruction markers, reducing persistence drift in hierarchy-aware companion systems.
+- Gas giant sizing and significant moon quantity/size now route through shared WBH helpers, and significant moons can now become generated mainworlds, but several later world-detail procedures remain simplified.
+
+## House Rules Source In Repo
+
+The repository contains `docs/house-rules/world-building.md`, but this is a house-rules document, not a WBH rules implementation source. It is not sufficient by itself to claim WBH conformance.
+
+## Implementation Track
+
+### Option 1: Audit matrix
+
+- Upgraded from a baseline summary to a chapter and section matrix tied to the in-repo WBH source.
+- Next step: replace scaffold checkpoint entries with exact table implementations and test cases.
+
+### Option 2: Dedicated WBH modules
+
+Recommended target split:
+
+- `apps/system-generator/frontend/src/utils/wbh/worldPhysicalCharacteristicsWbh.js`
+- `apps/system-generator/frontend/src/utils/wbh/starGenerationWbh.js`
+- `apps/system-generator/frontend/src/utils/wbh/systemGenerationWbh.js`
+
+Current scaffold status:
+
+- Module entry points created.
+- Handbook coverage checkpoints defined in each module.
+- Direct WBH formula helpers added where the handbook gives stable formulas without additional table dependencies.
+- Existing heuristic generators are still used as temporary fallbacks to preserve app behavior while implementations are filled in.
+
+Recommended migration path:
+
+1. Implement WBH modules beside current heuristic modules.
+2. Add adapter functions so existing pages can opt into WBH generators one surface at a time.
+3. Finish replacing remaining heuristic paths in `worldProfileGenerator.js`, `stellarSurveySystemGenerator.js`, and survey persistence after parity checks.
+
+### Option 3: Regression and conformance tests
+
+Recommended validation layers:
+
+1. Generator shape tests: output schemas and invariants.
+2. Rule tests: fixed-seed or deterministic roll-path checks for WBH cases.
+3. Integration tests: verify `WorldBuilder` and `StarSystemBuilder` use the WBH helper modules, then extend the same checks to survey persistence.
+
+Current scaffold status:
+
+- Vitest added to the frontend package.
+- A frontend `npm test` path is now defined.
+- Initial unit tests created for formula helpers, size expansion logic, body classifications, scaffold coverage checkpoints, and System Survey round-trip autofill/save model coverage.
+
+## Blockers
+
+The handbook source is now present in-repo, so the remaining blockers are no longer access to the text but implementation breadth and explicit decisions about which later-chapter procedures should remain simplified.
+
+## Recommended Next Work
+
+1. Extend the new persistence-boundary coverage from helper/store regression seams only when new Sector Survey state transitions appear; current load, name-update, rebuild, and local preview mutation branches are now largely centralized, and Galaxy Survey persistence payloads are similarly centralized enough that future extraction work should be driven by new behavior rather than more helper churn.
+2. Extend social/mainworld work beyond the current provisional UWP, exact minimum sustainable TL handling, partial population-concentration/urbanization/major-city summaries, initial government traits, structure/profile codes, factions, judicial forum/oversight summaries, secondary-world dependency/government/regulation summaries, law-profile summaries, appeal/private-law/personal-rights summaries, discretionary-enforcement handling, documented civil-conflict/TL-pocket overlays, surfaced profile notes, shared saved-system summary consumers, compact report fields, inline summary cards, inspector rows, importance, economics-summary, and remarks into later-chapter WBH detail.
+3. Push the new legacy reconstruction aggregates into any remaining galaxy-level planners, manifests, and downstream exports outside Galaxy Survey so reconstructed trees remain visible in every archive-consumer path.

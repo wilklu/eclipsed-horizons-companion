@@ -1,733 +1,607 @@
 <template>
-  <div class="world-map-form">
+  <div class="world-hex-map-form">
     <!-- FORM HEADER -->
     <div class="form-header">
-      <div class="title">World Builder's Handbook — World Map</div>
-      <div class="method-tag">
-        METHOD 2: STANDARD SCALE, VARIABLE HEX NUMBER<br />
-        <span class="form-number">Form 0407F-IV Part W.M2 • Hex Scale: 1,000 km • Hexes / Edge = World Size</span>
-      </div>
+      <div class="title">World Builder's Handbook — World Terrain Map</div>
+      <div class="method-tag">Form 0407F-IV Part W.M1 · Icosahedron Hex Map · Click hexes to assign terrain</div>
     </div>
 
     <!-- IDENTITY ROW -->
     <div class="identity-row">
       <div class="id-cell grow-3">
         <label class="id-label">World</label>
-        <input v-model="mapData.worldName" type="text" class="id-input" placeholder="World name" />
+        <div class="id-static">{{ seedWorldName || "—" }}</div>
       </div>
       <div class="id-cell grow-2">
         <label class="id-label">UWP</label>
-        <input v-model="mapData.uwp" type="text" class="id-input" placeholder="X000000-0" />
-      </div>
-      <div class="id-cell grow-3">
-        <label class="id-label">System</label>
-        <input v-model="mapData.system" type="text" class="id-input" placeholder="System name" />
-      </div>
-      <div class="id-cell grow-2">
-        <label class="id-label">Direction of World Rotation</label>
-        <select v-model="mapData.rotation" class="id-input">
-          <option value="">—</option>
-          <option value="ccw">Counter-clockwise (North View)</option>
-          <option value="cw">Clockwise (North View)</option>
-        </select>
-      </div>
-      <div class="id-cell grow-2">
-        <label class="id-label">Hex Scale (km)</label>
-        <div class="id-static">1,000</div>
+        <div class="id-static">{{ seedUwp || "—" }}</div>
       </div>
       <div class="id-cell grow-2">
         <label class="id-label">World Size</label>
-        <input
-          v-model.number="mapData.worldSize"
-          type="number"
-          min="1"
-          max="10"
-          class="id-input"
-          @input="recalculateMap"
-          placeholder="1-10 (or A for 10)"
-        />
+        <div class="id-static">{{ seedWorldSize || "—" }}</div>
       </div>
     </div>
 
-    <!-- METHOD DESCRIPTION -->
-    <div class="method-desc">
-      <strong>METHOD 2 — Standard Scale, Variable Hex Number:</strong>
-      Each hex is a constant <strong>1,000 km</strong> across regardless of world size. The number of hexes along each
-      triangle edge equals the world's <strong>Size code</strong>. A Size 5 world has 5 hexes per triangle edge. Each
-      triangle represents <strong>5%</strong> of the world's surface area (20 triangles total). Sub-hexes of 100 km, 10
-      km and 1 km apply within each hex using the standard TMS hierarchy.
-    </div>
-
-    <!-- SCALE BAR -->
-    <div class="scale-bar-row">
-      <span class="scale-label">Hex Scale:</span>
-      <div class="scale-bar">
-        <div class="scale-seg dark">0</div>
-        <div class="scale-seg light">1,000</div>
-        <div class="scale-seg dark">2,000</div>
-        <div class="scale-seg light">3,000</div>
-        <div class="scale-seg dark">4,000</div>
-        <div class="scale-seg light">5,000</div>
+    <!-- TERRAIN PALETTE -->
+    <div class="terrain-controls">
+      <div class="palette-section">
+        <label class="palette-label">Terrain Type:</label>
+        <div class="terrain-palette">
+          <button
+            v-for="t in TERRAIN_TYPES"
+            :key="t.id"
+            @click="selectedTerrain = t.id"
+            :class="['terrain-btn', { active: selectedTerrain === t.id }]"
+            :style="{ backgroundColor: t.color }"
+            :title="t.name"
+          >
+            {{ t.symbol }}
+          </button>
+        </div>
+        <button
+          @click="selectedTerrain = null"
+          :class="['terrain-btn', 'erase-btn', { active: selectedTerrain === null }]"
+          title="Erase"
+        >
+          ✕
+        </button>
       </div>
-      <span class="scale-unit">km</span>
-      <span class="scale-info">
-        | Each hex = 1,000 km | 1 Triangle edge = {{ mapData.worldSize }} × 1,000 km | 20 Triangles total | Total hexes
-        ≈ {{ calculateTotalHexes() }}
-      </span>
+      <div class="action-buttons">
+        <button
+          v-if="terrainSeed?.hexCounts?.length"
+          @click="autoSeedTerrain"
+          class="btn btn-small btn-accent"
+          title="Auto-distribute terrain from Terrain Survey data"
+        >
+          🌍 Auto-seed terrain
+        </button>
+        <button @click="clearAll" class="btn btn-small btn-danger">Clear All</button>
+      </div>
     </div>
 
-    <!-- SVG MAP CONTAINER -->
+    <!-- SVG MAP -->
     <div class="map-container">
       <svg
-        :key="svgKey"
-        class="world-map"
-        :width="mapDimensions.width"
-        :height="mapDimensions.height"
-        :viewBox="`0 0 ${mapDimensions.width} ${mapDimensions.height}`"
+        ref="svgEl"
+        class="world-map-svg"
+        viewBox="0 0 1066 998"
         xmlns="http://www.w3.org/2000/svg"
+        @mouseleave="hoveredKey = null"
       >
-        <!-- Background -->
-        <rect :width="mapDimensions.width" :height="mapDimensions.height" fill="#d8e8f0" rx="3" />
+        <!-- background -->
+        <rect x="0" y="0" width="1066" height="998" fill="#e8f4f8" />
 
-        <!-- Icosahedron triangles with hex grids -->
-        <g v-for="(triangle, idx) in triangles" :key="`tri-${idx}`" :class="`triangle ${triangle.class}`">
-          <!-- Triangle outline -->
-          <polygon :points="triangle.points" :class="`tri-${triangle.orientation}`" />
-
-          <!-- Triangle label -->
-          <text :x="triangle.labelX" :y="triangle.labelY" class="tri-num" text-anchor="middle">
-            {{ triangle.label }}
-          </text>
-
-          <!-- Hex grid lines within triangle -->
-          <g v-for="(line, lineIdx) in triangle.hexLines" :key="`hex-${idx}-${lineIdx}`" class="hex-line-group">
-            <line :x1="line.x1" :y1="line.y1" :x2="line.x2" :y2="line.y2" class="hex-line" />
-          </g>
-
-          <!-- Hex centers (clickable hexes) -->
-          <g v-for="(hex, hexIdx) in triangle.hexCells" :key="`hex-cell-${idx}-${hexIdx}`">
-            <circle :cx="hex.cx" :cy="hex.cy" r="3" class="hex-center" @click="selectHex(triangle.label, hexIdx)" />
-          </g>
-        </g>
-
-        <!-- Pole dots and labels -->
-        <g id="north-pole">
-          <circle v-for="(x, idx) in poleDots.north" :key="`npole-${idx}`" :cx="x" cy="10" r="4" class="pole-dot" />
-          <text x="50%" y="8" class="pole-label" text-anchor="middle" font-size="9">◀ NORTH POLE (wraps) ▶</text>
-        </g>
-
-        <g id="south-pole">
-          <circle
-            v-for="(x, idx) in poleDots.south"
-            :key="`spole-${idx}`"
-            :cx="x"
-            :cy="mapDimensions.height - 10"
-            r="4"
-            class="pole-dot"
+        <!-- ── TERRAIN FILL (rendered below grid lines) ── -->
+        <g id="terrain-fills">
+          <polygon
+            v-for="hex in allHexes"
+            :key="hex.key"
+            :points="hex.pointsStr"
+            :fill="hexColor(hex.key)"
+            :opacity="hexColor(hex.key) !== 'none' ? 0.85 : 0"
+            pointer-events="none"
           />
-          <text x="50%" :y="mapDimensions.height - 2" class="pole-label" text-anchor="middle" font-size="9">
-            ◀ SOUTH POLE (wraps) ▶
-          </text>
         </g>
 
-        <!-- Equator line -->
+        <!-- ── HEX GRID (thin black outlines, clickable) ── -->
+        <g id="hex-grid">
+          <polygon
+            v-for="hex in allHexes"
+            :key="'g-' + hex.key"
+            :points="hex.pointsStr"
+            :class="['hex', { 'hex--hover': hoveredKey === hex.key }]"
+            fill="none"
+            stroke="black"
+            stroke-width="1"
+            @click="paintHex(hex.key)"
+            @mouseenter="hoveredKey = hex.key"
+          />
+        </g>
+
+        <!-- ── ICOSAHEDRON TRIANGLE OUTLINES (overlay, non-interactive) ── -->
+        <g id="triangle-outlines" pointer-events="none">
+          <polygon
+            v-for="(tri, i) in TRIANGLES"
+            :key="'tri-' + i"
+            :points="tri"
+            stroke="black"
+            stroke-width="2"
+            fill="none"
+          />
+        </g>
+
+        <!-- ── CLIP MASKS (exact from reference SVG) ── -->
+        <g id="clip-masks" pointer-events="none">
+          <!-- top V-cuts -->
+          <path d="M 90 190 L 170 329 L 250 190" stroke-width="2" stroke="black" fill="white" />
+          <path d="M 250 190 L 330 329 L 410 190" stroke-width="2" stroke="black" fill="white" />
+          <path d="M 410 190 L 490 329 L 570 190" stroke-width="2" stroke="black" fill="white" />
+          <path d="M 570 190 L 650 329 L 730 190" stroke-width="2" stroke="black" fill="white" />
+          <path d="M 730 190 L 810 329 L 890 190" stroke-width="2" stroke="black" fill="white" />
+          <!-- bottom inverted-V cuts -->
+          <path d="M 170 609 L 250 470 L 330 609" stroke-width="2" stroke="black" fill="white" />
+          <path d="M 330 609 L 410 470 L 490 609" stroke-width="2" stroke="black" fill="white" />
+          <path d="M 490 609 L 570 470 L 650 609" stroke-width="2" stroke="black" fill="white" />
+          <path d="M 650 609 L 730 470 L 810 609" stroke-width="2" stroke="black" fill="white" />
+          <!-- left cover -->
+          <rect x="0" y="190" width="90" height="437" fill="white" stroke="none" />
+          <line x1="90" y1="190" x2="90" y2="469" stroke="black" stroke-width="2" />
+          <polygon points="89,469 170,609 89,609" fill="white" stroke="none" />
+          <line x1="90" y1="469" x2="170" y2="609" stroke="black" stroke-width="2" />
+          <!-- right cover -->
+          <rect x="890" y="190" width="176" height="437" fill="white" stroke="none" />
+          <line x1="890" y1="190" x2="890" y2="469" stroke="black" stroke-width="2" />
+          <polygon points="891,469 810,609 1066,609" fill="white" stroke="none" />
+          <line x1="810" y1="609" x2="890" y2="469" stroke="black" stroke-width="2" />
+          <!-- top cover -->
+          <rect x="0" y="0" width="1066" height="190" fill="white" stroke="none" />
+          <!-- bottom cover -->
+          <rect x="0" y="609" width="1066" height="389" fill="white" stroke="none" />
+        </g>
+
+        <!-- ── EQUATOR DASHED LINE ── -->
         <line
-          x1="30"
-          :y1="mapDimensions.equatorY"
-          :x2="mapDimensions.width - 30"
-          :y2="mapDimensions.equatorY"
-          class="equator-line"
-        />
-        <text :x="mapDimensions.width - 10" :y="mapDimensions.equatorY - 8" class="equator-label">Equator</text>
-
-        <!-- Outer border -->
-        <rect
-          x="30"
-          y="10"
-          :width="mapDimensions.width - 60"
-          :height="mapDimensions.height - 20"
-          fill="none"
-          stroke="#334466"
-          stroke-width="1.5"
+          x1="90"
+          y1="399"
+          x2="890"
+          y2="399"
+          stroke="black"
+          stroke-width="1"
+          stroke-dasharray="8,8"
+          pointer-events="none"
         />
 
-        <!-- Wrap reminders -->
-        <text
-          x="15"
-          :y="mapDimensions.height / 2"
-          font-size="8"
-          fill="#226622"
-          text-anchor="middle"
-          transform-origin="15 200"
-          style="writing-mode: vertical-rl; transform: rotate(180deg)"
-        >
-          WEST WRAPS TO EAST
-        </text>
-        <text
-          :x="mapDimensions.width - 15"
-          :y="mapDimensions.height / 2"
-          font-size="8"
-          fill="#226622"
-          text-anchor="middle"
-          style="writing-mode: vertical-rl"
-        >
-          EAST WRAPS TO WEST
-        </text>
+        <!-- ── AXIS LABELS ── -->
+        <g style="font-size: 14px; font-family: Arial, sans-serif; fill: #222" pointer-events="none">
+          <!-- longitude top -->
+          <text x="84" y="176">0</text>
+          <line x1="90" y1="180" x2="90" y2="188" stroke="black" stroke-width="1" />
+          <text x="244" y="176">10</text>
+          <line x1="250" y1="180" x2="250" y2="188" stroke="black" stroke-width="1" />
+          <text x="404" y="176">20</text>
+          <line x1="410" y1="180" x2="410" y2="188" stroke="black" stroke-width="1" />
+          <text x="564" y="176">30</text>
+          <line x1="570" y1="180" x2="570" y2="188" stroke="black" stroke-width="1" />
+          <text x="724" y="176">40</text>
+          <line x1="730" y1="180" x2="730" y2="188" stroke="black" stroke-width="1" />
+          <text x="884" y="176">50</text>
+          <line x1="890" y1="180" x2="890" y2="188" stroke="black" stroke-width="1" />
+          <!-- latitude left -->
+          <text x="40" y="193">+8</text>
+          <line x1="80" y1="190" x2="88" y2="190" stroke="black" stroke-width="1" />
+          <text x="40" y="332">+3</text>
+          <line x1="80" y1="329" x2="88" y2="329" stroke="black" stroke-width="1" />
+          <text x="40" y="472">-3</text>
+          <line x1="80" y1="469" x2="88" y2="469" stroke="black" stroke-width="1" />
+          <text x="137" y="622">-8</text>
+          <line x1="160" y1="609" x2="168" y2="609" stroke="black" stroke-width="1" />
+        </g>
       </svg>
     </div>
 
-    <!-- ROTATION DIRECTION KEY -->
-    <div class="rotation-key">
-      <span class="rot-key-label">Direction of World Rotation:</span>
-      <span>
-        ⟲ Counter-clockwise when viewed from North Pole | The North Pole is the axis of counter-clockwise rotation. |
-        The South Pole is the axis of clockwise rotation.
-      </span>
-      <span class="rotation-note">Mark rotation direction on the map with an arrow on the equator row.</span>
-    </div>
-
-    <!-- NOTES BAND -->
-    <div class="notes-band">
-      <div class="notes-cell">
-        <label class="notes-label">Surface Notes / Terrain Key</label>
-        <textarea v-model="mapData.terrainNotes" class="notes-textarea" rows="3"></textarea>
-      </div>
-      <div class="notes-cell">
-        <label class="notes-label">Hydrographics (%)</label>
-        <textarea v-model="mapData.hydrographicsNotes" class="notes-textarea" rows="3"></textarea>
-      </div>
-      <div class="notes-cell">
-        <label class="notes-label">Major Continents / Oceans</label>
-        <textarea v-model="mapData.continentNotes" class="notes-textarea" rows="3"></textarea>
-      </div>
-      <div class="notes-cell">
-        <label class="notes-label">Seismic Stress / Volcanism</label>
-        <textarea v-model="mapData.seismicNotes" class="notes-textarea" rows="3"></textarea>
+    <!-- TERRAIN LEGEND -->
+    <div class="terrain-legend">
+      <div v-for="t in TERRAIN_TYPES" :key="'leg-' + t.id" class="legend-item">
+        <div class="legend-swatch" :style="{ backgroundColor: t.color }">{{ t.symbol }}</div>
+        <span>{{ t.name }}</span>
       </div>
     </div>
 
-    <!-- SIZE REFERENCE TABLE -->
-    <div class="size-table-wrapper">
-      <div class="size-table-title">
-        Method 2 — Size Reference: Hexes per Triangle Edge = World Size | Hex Scale always 1,000 km | Each triangle = 5%
-        surface
-      </div>
-      <table class="size-ref">
-        <thead>
-          <tr>
-            <th>Size</th>
-            <th>Hexes / Edge</th>
-            <th>Total Hexes</th>
-            <th>Diameter (km)</th>
-            <th>Hex Scale</th>
-            <th>Notes</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr
-            v-for="size in sizeReferenceTable"
-            :key="size.size"
-            :class="{ highlight: size.size === mapData.worldSize }"
-          >
-            <td>
-              <strong>{{ size.size }}</strong>
-            </td>
-            <td>{{ size.hexesPerEdge }}</td>
-            <td>{{ size.totalHexes }}</td>
-            <td>{{ size.diameter }}</td>
-            <td>1,000</td>
-            <td style="text-align: left">{{ size.notes }}</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-
-    <!-- FOOTER -->
-    <div class="form-footer">
-      Form 0407F-IV Part W.M2 · Method 2: Standard Scale, Variable Hex Number · Hex = 1,000 km · 20 Triangles · Each
-      Triangle = 5% Surface Area · Sub-hexes: 100 km / 10 km / 1 km
+    <!-- STATS -->
+    <div class="stats-row">
+      <span>Painted: {{ paintedCount }} / {{ allHexes.length }} hexes</span>
+      <span v-if="paintedCount > 0">({{ ((paintedCount / allHexes.length) * 100).toFixed(1) }}% coverage)</span>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, reactive } from "vue";
+import { ref, computed, watch } from "vue";
 
-// State
-const svgKey = ref(0);
-
-const mapData = reactive({
-  worldName: "",
-  uwp: "",
-  system: "",
-  rotation: "ccw",
-  worldSize: 5,
-  terrainNotes: "",
-  hydrographicsNotes: "",
-  continentNotes: "",
-  seismicNotes: "",
-  selectedHex: null,
+const props = defineProps({
+  terrainSeed: { type: Object, default: null },
+  seedWorldName: { type: String, default: "" },
+  seedUwp: { type: String, default: "" },
+  seedWorldSize: { type: [String, Number], default: null },
 });
 
-// Constants
-const ICOSAHEDRON_TRIANGLES = 20; // 5 north + 10 middle + 5 south
-const TRIANGLE_POINTS = {
-  north: [
-    { id: "N1", pts: [110, 10, 30, 148, 190, 148], orient: "up" },
-    { id: "N2", pts: [270, 10, 190, 148, 350, 148], orient: "up" },
-    { id: "N3", pts: [430, 10, 350, 148, 510, 148], orient: "up" },
-    { id: "N4", pts: [590, 10, 510, 148, 670, 148], orient: "up" },
-    { id: "N5", pts: [750, 10, 670, 148, 830, 148], orient: "up" },
-  ],
-  middle: [
-    { id: "M1↓", pts: [30, 148, 190, 148, 110, 286], orient: "down" },
-    { id: "M2↑", pts: [110, 286, 190, 148, 270, 286], orient: "up" },
-    { id: "M3↓", pts: [190, 148, 350, 148, 270, 286], orient: "down" },
-    { id: "M4↑", pts: [270, 286, 350, 148, 430, 286], orient: "up" },
-    { id: "M5↓", pts: [350, 148, 510, 148, 430, 286], orient: "down" },
-    { id: "M6↑", pts: [430, 286, 510, 148, 590, 286], orient: "up" },
-    { id: "M7↓", pts: [510, 148, 670, 148, 590, 286], orient: "down" },
-    { id: "M8↑", pts: [590, 286, 670, 148, 750, 286], orient: "up" },
-    { id: "M9↓", pts: [670, 148, 830, 148, 750, 286], orient: "down" },
-    { id: "M10", pts: [750, 286, 830, 148, 830, 286], orient: "up" },
-  ],
-  south: [
-    { id: "S1", pts: [110, 286, 30, 410, 190, 410], orient: "down" },
-    { id: "S2", pts: [270, 286, 190, 410, 350, 410], orient: "down" },
-    { id: "S3", pts: [430, 286, 350, 410, 510, 410], orient: "down" },
-    { id: "S4", pts: [590, 286, 510, 410, 670, 410], orient: "down" },
-    { id: "S5", pts: [750, 286, 670, 410, 830, 410], orient: "down" },
-  ],
-};
-
-// Size reference table
-const sizeReferenceTable = [
-  { size: 1, hexesPerEdge: 1, totalHexes: 12, diameter: 1600, notes: "Very small — 1 hex per triangle" },
-  { size: 2, hexesPerEdge: 2, totalHexes: 42, diameter: 3200, notes: "Luna-scale" },
-  { size: 3, hexesPerEdge: 3, totalHexes: 92, diameter: 4800, notes: "Mercury / Ganymede-scale" },
-  { size: 4, hexesPerEdge: 4, totalHexes: 162, diameter: 6400, notes: "Mars-scale" },
-  { size: 5, hexesPerEdge: 5, totalHexes: 252, diameter: 8000, notes: "Default example" },
-  { size: 6, hexesPerEdge: 6, totalHexes: 362, diameter: 9600, notes: "" },
-  { size: 7, hexesPerEdge: 7, totalHexes: 492, diameter: 11200, notes: "Matches Method 1 standard template" },
-  { size: 8, hexesPerEdge: 8, totalHexes: 642, diameter: 12800, notes: "Venus / Terra-scale" },
-  { size: 9, hexesPerEdge: 9, totalHexes: 812, diameter: 14400, notes: "Super-Earth" },
-  { size: 10, hexesPerEdge: 10, totalHexes: 1002, diameter: 16000, notes: "Large Super-Earth" },
+// ── TERRAIN TYPES ─────────────────────────────────────────────────────────────
+const TERRAIN_TYPES = [
+  { id: "water", name: "Water", color: "#1a6eb5", symbol: "💧" },
+  { id: "plains", name: "Plains", color: "#7ec850", symbol: "🌾" },
+  { id: "forest", name: "Forest", color: "#2e7d32", symbol: "🌲" },
+  { id: "mountain", name: "Mountain", color: "#8d6e63", symbol: "⛰️" },
+  { id: "desert", name: "Desert", color: "#f5c842", symbol: "🏜️" },
+  { id: "tundra", name: "Tundra", color: "#b2ebf2", symbol: "❄️" },
+  { id: "swamp", name: "Swamp", color: "#558b2f", symbol: "🌿" },
+  { id: "urban", name: "Urban", color: "#9e9e9e", symbol: "🏙️" },
 ];
 
-// Map dimensions (base)
-const mapDimensions = computed(() => {
-  const baseWidth = 860;
-  const baseHeight = 420;
-  return {
-    width: baseWidth,
-    height: baseHeight,
-    equatorY: baseHeight / 2.83, // approximate equator position
-  };
-});
-
-// Pole dots
-const poleDots = computed(() => {
-  const northX = [110, 270, 430, 590, 750];
-  const southX = [110, 270, 430, 590, 750];
-  return { north: northX, south: southX };
-});
-
-// Calculate total hexes
-const calculateTotalHexes = () => {
-  const size = mapData.worldSize;
-  return 2 + 10 * size * size;
+const CATEGORY_TO_TERRAIN = {
+  water: "water",
+  ice: "tundra",
+  elevated: "mountain",
+  arid: "desert",
+  vegetation: "forest",
+  exotic: "desert",
+  plains: "plains",
+};
+const TYPE_TO_TERRAIN = {
+  Wetland: "swamp",
+  "Wet Woods": "swamp",
+  Shore: "water",
+  Ocean: "water",
+  Islands: "plains",
+  River: "water",
+  Lake: "water",
+  Icecap: "tundra",
+  Glacier: "tundra",
+  "Ice Field": "tundra",
+  "Frozen Lands": "tundra",
+  Mountain: "mountain",
+  Rough: "mountain",
+  Volcano: "mountain",
+  Desert: "desert",
+  "Baked lands": "desert",
+  Woods: "forest",
+  "Rough Woods": "forest",
+  Exotic: "desert",
+  Clear: "plains",
 };
 
-// Generate hexagonal grid within a triangle
-function generateHexGridForTriangle(triangleData, size) {
-  const hexLines = [];
-  const hexCells = [];
+// ── HEX GEOMETRY ──────────────────────────────────────────────────────────────
+// Reference SVG hex: 106,200 122,207 122,228 106,235 90,228 90,207
+// cx=106, cy=217.5, HW=16, HS=10.5, HT=17.5
+// Columns spaced 16px apart (HW), odd cols offset +14 in y
+const HW = 16;
+const HS = 10.5;
+const HT = 17.5;
 
-  // For each size N, generate N rows of hexagons
-  // Hex spacing = triangle_width / size
-
-  // This is the complex part: proper hexagonal tessellation within equilateral triangle
-  // For now, simplified version that shows the concept
-
-  return { hexLines, hexCells };
+function hexPointsStr(cx, cy) {
+  // Returns point string with integer coords (matching reference SVG exactly)
+  const y0 = Math.round(cy - HT); // top vertex
+  const y1 = Math.round(cy - HS); // upper-right / upper-left
+  const y2 = Math.round(cy + HS); // lower-right / lower-left
+  const y3 = Math.round(cy + HT); // bottom vertex
+  return [
+    `${cx},${y0}`,
+    `${cx + HW},${y1}`,
+    `${cx + HW},${y2}`,
+    `${cx},${y3}`,
+    `${cx - HW},${y2}`,
+    `${cx - HW},${y1}`,
+  ].join(" ");
 }
 
-// Build all triangles with hex grids
-const triangles = computed(() => {
-  const allTriangles = [...TRIANGLE_POINTS.north, ...TRIANGLE_POINTS.middle, ...TRIANGLE_POINTS.south];
+// ── HEX GRID ─────────────────────────────────────────────────────────────────
+// Reference coordinate system (viewBox 0 0 1066 998):
+//   Net left x=90, right x=890, top y=190, bottom y=609, equator y=399
+//   Col step = 16 (= HW), row step = 28 (= HT+HS)
+//   Even cols (90,122,154...): first row top at y=200 → center cy=217.5
+//   Odd cols  (106,138,170...): first row top at y=214 → center cy=231.5
+const COL_START = 90; // leftmost hex cx
+const COL_STEP = 16; // = HW (hexes share sides)
+const ROW_EVEN = 217.5; // center y of first row in even columns
+const ROW_ODD = 231.5; // center y of first row in odd columns (shifted +14)
+const ROW_STEP = 28; // HT + HS
+const NUM_COLS = 51; // (890-90)/16 + 1 = 51 columns
+const NUM_ROWS = 30; // enough rows to fill the net (clipped by mask)
 
-  return allTriangles.map((tri, idx) => {
-    const [x1, y1, x2, y2, x3, y3] = tri.pts;
-    const labelX = (x1 + x2 + x3) / 3;
-    const labelY = (y1 + y2 + y3) / 3;
+function isInsideNet(cx, cy) {
+  if (cy < 186 || cy > 630) return false;
+  if (cx < 90 || cx > 890) return false;
+  // Left boundary: (90,190)→(90,469)→(170,609)
+  if (cy > 469) {
+    // diagonal from (90,469) to (170,609): slope = 140/80 = 1.75
+    const leftBound = 90 + ((cy - 469) / 140) * 80;
+    if (cx < leftBound) return false;
+  }
+  // Right boundary: (890,469)→(810,609)
+  if (cy > 469) {
+    const rightBound = 890 - ((cy - 469) / 140) * 80;
+    if (cx > rightBound) return false;
+  }
+  // Top V-cuts: 5 inverted triangles pointing down from y=190
+  // Apex columns: 90,250,410,570,730,890 (step 160)
+  // Midpoints (bottom of V): 170,330,490,650,810 at y=329
+  if (cy < 329) {
+    const apexXs = [90, 250, 410, 570, 730, 890];
+    for (let i = 0; i < apexXs.length - 1; i++) {
+      const x1 = apexXs[i],
+        x2 = apexXs[i + 1];
+      const xm = (x1 + x2) / 2; // midpoint x (170,330,...)
+      const t = (cy - 190) / 139; // 0..1 from y=190 to y=329
+      const lEdge = x1 + t * (xm - x1);
+      const rEdge = x2 - t * (x2 - xm);
+      if (cx > lEdge && cx < rEdge) return false;
+    }
+  }
+  // Bottom inverted-V cuts: 4 triangles pointing up from y=609
+  // Apexes (top of ^): 250,410,570,730 (midpoints) at y=470
+  // Bases spread to: 170..330, 330..490, 490..650, 650..810 at y=609
+  if (cy > 470) {
+    const midXs = [170, 330, 490, 650, 810];
+    for (let i = 0; i < midXs.length - 1; i++) {
+      const x1 = midXs[i],
+        x2 = midXs[i + 1];
+      const apexX = (x1 + x2) / 2;
+      const t = (cy - 470) / 139;
+      const lEdge = apexX - t * (apexX - x1);
+      const rEdge = apexX + t * (x2 - apexX);
+      if (cx > lEdge && cx < rEdge) return false;
+    }
+  }
+  return true;
+}
 
-    // Generate hex grid
-    const { hexLines, hexCells } = generateHexGridForTriangle(tri, mapData.worldSize);
-
-    return {
-      ...tri,
-      points: `${x1},${y1} ${x2},${y2} ${x3},${y3}`,
-      labelX,
-      labelY,
-      orientation: tri.orient,
-      hexLines,
-      hexCells,
-      class: `triangle-${idx}`,
-    };
-  });
+const allHexes = computed(() => {
+  const out = [];
+  for (let c = 0; c < NUM_COLS; c++) {
+    const cx = COL_START + c * COL_STEP;
+    const rowStart = c % 2 === 0 ? ROW_EVEN : ROW_ODD;
+    for (let r = 0; r < NUM_ROWS; r++) {
+      const cy = rowStart + r * ROW_STEP;
+      if (isInsideNet(cx, cy)) {
+        out.push({ key: `${cx},${cy}`, cx, cy, pointsStr: hexPointsStr(cx, cy) });
+      }
+    }
+  }
+  return out;
 });
 
-// Methods
-function recalculateMap() {
-  svgKey.value++;
+// ── PAINT STATE ───────────────────────────────────────────────────────────────
+const selectedTerrain = ref("water");
+const hoveredKey = ref(null);
+const paintMap = ref(new Map());
+
+const paintedCount = computed(() => paintMap.value.size);
+
+function hexColor(key) {
+  const t = paintMap.value.get(key);
+  return t ? (TERRAIN_TYPES.find((x) => x.id === t)?.color ?? "none") : "none";
 }
 
-function selectHex(triangleLabel, hexIndex) {
-  mapData.selectedHex = `${triangleLabel}-${hexIndex}`;
-  console.log("Selected hex:", mapData.selectedHex);
+function paintHex(key) {
+  const next = new Map(paintMap.value);
+  if (selectedTerrain.value === null) next.delete(key);
+  else next.set(key, selectedTerrain.value);
+  paintMap.value = next;
 }
+
+function clearAll() {
+  paintMap.value = new Map();
+}
+
+// ── AUTO-SEED FROM terrainSeed ─────────────────────────────────────────────
+function autoSeedTerrain() {
+  if (!props.terrainSeed?.hexCounts?.length) return;
+  const hexes = allHexes.value.slice();
+  let seed = hexes.reduce((s, h) => (s * 31 + h.cx + h.cy) | 0, 0);
+  function rand() {
+    seed = (seed * 1664525 + 1013904223) | 0;
+    return (seed >>> 0) / 0xffffffff;
+  }
+  hexes.sort(() => rand() - 0.5);
+  const next = new Map();
+  let idx = 0;
+  for (const entry of props.terrainSeed.hexCounts) {
+    const terrainId = TYPE_TO_TERRAIN[entry.type] ?? CATEGORY_TO_TERRAIN[entry.category] ?? "plains";
+    const count = Math.min(entry.count, hexes.length - idx);
+    for (let i = 0; i < count && idx < hexes.length; i++, idx++) {
+      next.set(hexes[idx].key, terrainId);
+    }
+  }
+  paintMap.value = next;
+}
+
+watch(
+  () => props.terrainSeed,
+  (val) => {
+    if (val?.hexCounts?.length && paintMap.value.size === 0) autoSeedTerrain();
+  },
+  { immediate: true },
+);
+
+// ── ICOSAHEDRON TRIANGLE OVERLAYS ─────────────────────────────────────────────
+// Triangles from reference SVG (20 faces of icosahedron net)
+const TRIANGLES = [
+  " 90,190  170,329  10,329 ",
+  " 10,329  170,329  90,469 ",
+  " 170,330  250,469  90,469 ",
+  " 90,470  250,470  170,609 ",
+  " 250,190  330,329  170,329 ",
+  " 170,329  330,329  250,469 ",
+  " 330,330  410,469  250,469 ",
+  " 250,470  410,470  330,609 ",
+  " 410,190  490,329  330,329 ",
+  " 330,329  490,329  410,469 ",
+  " 490,330  570,469  410,469 ",
+  " 410,470  570,470  490,609 ",
+  " 570,190  650,329  490,329 ",
+  " 490,329  650,329  570,469 ",
+  " 650,330  730,469  570,469 ",
+  " 570,470  730,470  650,609 ",
+  " 730,190  810,329  650,329 ",
+  " 650,329  810,329  730,469 ",
+  " 810,330  890,469  730,469 ",
+  " 730,470  890,470  810,609 ",
+];
 </script>
 
 <style scoped>
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
-
-/* ── FORM HEADER ── */
-.form-header {
-  background: #1a1a2e;
-  color: #fff;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px 12px;
-  border-bottom: 2px solid #000;
-}
-
-.form-header .title {
-  font-size: 13px;
-  font-weight: bold;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-}
-
-.form-header .method-tag {
-  font-size: 10px;
-  text-align: right;
-  line-height: 1.4;
-}
-
-.form-number {
-  font-size: 9px;
-  letter-spacing: 0.5px;
-}
-
-/* ── IDENTITY ROW ── */
-.identity-row {
-  display: flex;
-  border-bottom: 1px solid #888;
-  flex-wrap: wrap;
-}
-
-.id-cell {
-  flex: 1;
-  border-right: 1px solid #888;
-  padding: 6px 8px;
-  min-height: 40px;
+.world-hex-map-form {
+  font-family: Arial, sans-serif;
+  font-size: 11px;
+  background: #f8f8f0;
+  border: 1px solid #334466;
+  border-radius: 4px;
+  padding: 0.75rem;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  gap: 0.5rem;
+  color: #1a1a1a;
 }
 
-.id-cell:last-child {
-  border-right: none;
+.form-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  border-bottom: 2px solid #334466;
+  padding-bottom: 0.25rem;
+}
+.form-header .title {
+  font-weight: bold;
+  font-size: 12px;
+}
+.form-header .method-tag {
+  font-size: 10px;
+  color: #555;
+  text-align: right;
 }
 
+.identity-row {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.id-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
 .id-cell.grow-2 {
   flex: 2;
 }
 .id-cell.grow-3 {
   flex: 3;
 }
-
 .id-label {
-  font-size: 7.5px;
-  font-weight: bold;
+  font-size: 9px;
   text-transform: uppercase;
-  color: #555;
-  margin-bottom: 4px;
+  color: #556;
+  letter-spacing: 0.05em;
 }
-
-.id-input {
-  border: 1px solid #999;
-  padding: 4px 6px;
-  font-size: 10px;
-  border-radius: 2px;
-}
-
-.id-input:focus {
-  outline: none;
-  border-color: #0e9a87;
-  box-shadow: 0 0 4px rgba(14, 154, 135, 0.3);
-}
-
 .id-static {
+  border-bottom: 1px solid #aaa;
+  padding: 1px 2px;
+  min-width: 60px;
+}
+
+.terrain-controls {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.palette-section {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+.palette-label {
   font-size: 10px;
-  padding: 2px 0;
+  color: #444;
 }
-
-/* ── METHOD DESCRIPTION ── */
-.method-desc {
-  background: #f0f0f8;
-  border: 1px solid #aaa;
-  padding: 6px 10px;
-  font-size: 9px;
-  color: #333;
-  line-height: 1.5;
+.terrain-palette {
+  display: flex;
+  gap: 2px;
 }
-
-/* ── SCALE BAR ── */
-.scale-bar-row {
+.terrain-btn {
+  width: 26px;
+  height: 26px;
+  border: 2px solid transparent;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 12px;
   display: flex;
   align-items: center;
-  padding: 6px 10px;
-  border-bottom: 1px solid #ccc;
-  gap: 8px;
-  font-size: 9px;
+  justify-content: center;
+  padding: 0;
+  background: #ddd;
 }
-
-.scale-label {
+.terrain-btn.active {
+  border-color: #000;
+  box-shadow: 0 0 0 1px #fff inset;
+}
+.erase-btn {
+  background: #eee;
+  color: #c00;
   font-weight: bold;
-  font-size: 8px;
-  text-transform: uppercase;
 }
 
-.scale-bar {
+.action-buttons {
   display: flex;
-  gap: 0;
+  gap: 0.4rem;
+  margin-left: auto;
 }
-
-.scale-seg {
-  width: 44px;
-  height: 12px;
+.btn {
+  padding: 3px 8px;
+  border-radius: 3px;
   border: 1px solid #555;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 7px;
-  font-weight: bold;
+  cursor: pointer;
+  font-size: 10px;
 }
-
-.scale-seg.dark {
-  background: #555;
+.btn-small {
+  padding: 2px 6px;
+}
+.btn-accent {
+  background: #1a6eb5;
   color: #fff;
+  border-color: #1a6eb5;
+}
+.btn-danger {
+  background: #c62828;
+  color: #fff;
+  border-color: #c62828;
 }
 
-.scale-seg.light {
-  background: #fff;
-  color: #333;
-}
-
-.scale-unit {
-  margin-left: 4px;
-  font-weight: bold;
-}
-
-.scale-info {
-  color: #888;
-  font-size: 8px;
-  margin-left: 12px;
-}
-
-/* ── MAP CONTAINER ── */
 .map-container {
-  padding: 12px;
-  background: #fafafa;
-  display: flex;
-  justify-content: center;
-  border-bottom: 1px solid #ccc;
   overflow-x: auto;
 }
-
-.world-map {
+.world-map-svg {
   display: block;
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
 }
 
-/* Triangle styling */
-.tri-up {
-  fill: #e8f0f8;
-  stroke: #2244aa;
-  stroke-width: 1.2;
-}
-
-.tri-down {
-  fill: #ddeef8;
-  stroke: #2244aa;
-  stroke-width: 1.2;
-}
-
-/* Hex lines */
-.hex-line {
-  stroke: #7799cc;
-  stroke-width: 0.6;
-  opacity: 0.7;
-}
-
-.hex-center {
-  fill: rgba(34, 68, 170, 0.1);
+.hex {
   cursor: pointer;
 }
-
-.hex-center:hover {
-  fill: rgba(34, 68, 170, 0.4);
+.hex--hover {
+  stroke: #e65c00 !important;
+  stroke-width: 2px !important;
 }
 
-/* Pole dots and labels */
-.pole-dot {
-  fill: #cc3333;
+.terrain-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
 }
-
-.pole-label {
-  font-size: 8px;
-  fill: #cc3333;
-  font-weight: bold;
-}
-
-/* Triangle numbers -->
-.tri-num {
-  font-size: 7px;
-  fill: #446;
-  opacity: 0.7;
-}
-
-/* Equator -->
-.equator-line {
-  stroke: #aa4400;
-  stroke-width: 1.5;
-  stroke-dasharray: 8,4;
-  opacity: 0.6;
-}
-
-.equator-label {
-  font-size: 8px;
-  fill: #aa4400;
-  font-style: italic;
-}
-
-/* ── ROTATION KEY ── */
-.rotation-key {
+.legend-item {
   display: flex;
   align-items: center;
-  padding: 6px 10px;
-  border-bottom: 1px solid #ccc;
-  gap: 12px;
-  font-size: 9px;
+  gap: 4px;
+  font-size: 10px;
 }
-
-.rot-key-label {
-  font-size: 8px;
-  font-weight: bold;
-  text-transform: uppercase;
-}
-
-.rotation-note {
-  margin-left: auto;
-  font-weight: bold;
-}
-
-/* ── NOTES BAND ── */
-.notes-band {
-  display: flex;
-  border-bottom: 1px solid #999;
-}
-
-.notes-cell {
-  flex: 1;
-  padding: 8px;
-  border-right: 1px solid #ccc;
-}
-
-.notes-cell:last-child {
-  border-right: none;
-}
-
-.notes-label {
-  font-size: 7.5px;
-  font-weight: bold;
-  text-transform: uppercase;
-  margin-bottom: 4px;
-}
-
-.notes-textarea {
-  width: 100%;
-  border: 1px solid #bbb;
-  padding: 4px;
-  font-size: 8px;
-  resize: vertical;
-}
-
-/* ── SIZE TABLE ── */
-.size-table-wrapper {
-  padding: 8px 10px;
-  border-bottom: 1px solid #ccc;
-}
-
-.size-table-title {
-  font-size: 8px;
-  font-weight: bold;
-  text-transform: uppercase;
-  margin-bottom: 6px;
-}
-
-table.size-ref {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 8px;
-}
-
-table.size-ref th {
-  background: #2c2c54;
-  color: #fff;
-  padding: 4px;
-  text-align: center;
-  font-weight: bold;
+.legend-swatch {
+  width: 20px;
+  height: 20px;
   border: 1px solid #555;
+  border-radius: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
 }
 
-table.size-ref td {
-  border: 1px solid #ccc;
-  padding: 2px 4px;
-  text-align: center;
-}
-
-table.size-ref tbody tr:nth-child(odd) td {
-  background: #f5f5fa;
-}
-
-table.size-ref tr.highlight td {
-  background: #fff3c0;
-  font-weight: bold;
-}
-
-/* ── FOOTER ── */
-.form-footer {
-  background: #1a1a2e;
-  color: #aaa;
-  font-size: 8px;
-  padding: 6px 10px;
-  text-align: right;
-}
-
-/* ── PRINT ── */
-@media print {
-  .world-map-form {
-    width: 100%;
-  }
-  .form-header {
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
+.stats-row {
+  font-size: 10px;
+  color: #444;
+  display: flex;
+  gap: 1rem;
+  border-top: 1px solid #ccc;
+  padding-top: 0.25rem;
 }
 </style>

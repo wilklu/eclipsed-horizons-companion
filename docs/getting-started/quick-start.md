@@ -14,6 +14,8 @@ npm run dev
 
 Open **http://localhost:5173** in your browser.
 
+For the focused World Builder's Handbook regression slice, run `npm run test:wbh` from `apps/system-generator/frontend`.
+
 ### Documentation Site
 
 ```bash

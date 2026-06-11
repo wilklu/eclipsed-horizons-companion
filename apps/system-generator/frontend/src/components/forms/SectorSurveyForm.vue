@@ -5,7 +5,7 @@
     <div class="form-wrapper">
       <!-- Header -->
       <div class="form-header">
-        <div class="title-block">Class 0 Sector Survey</div>
+        <div class="title-block">Sector Survey</div>
         <div class="form-number">FORM 0398D-0</div>
       </div>
 
