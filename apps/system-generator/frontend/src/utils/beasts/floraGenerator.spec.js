@@ -129,6 +129,12 @@ describe("floraGenerator", () => {
     expect(second).toEqual(first);
     expect(first.hooks.length).toBeGreaterThan(1);
     expect(first.worldIntegration.summary).toContain("known for");
+    expect(first.biology["Hue Meaning"]).toBeTruthy();
+    expect(first.biology.Hue).toBeTruthy();
+    expect(first.biology["Hue Suffix Meaning"]).toBeTruthy();
+    expect(first.biology["Hue Example Hues"]).toBeTruthy();
+    expect(first.biology.Accent).toBeTruthy();
+    expect(first.biology.Effect).toBeTruthy();
     expect(first.visualDescription).toContain("Ionan Bloom");
     expect(first.imagePrompt).toContain("Detailed botanical concept art");
     expect(first.taxonomy.Domain).toBeTruthy();
@@ -146,6 +152,15 @@ describe("floraGenerator", () => {
         Height: "3 m",
         Canopy: "spiral fronds",
         Coloration: "amber and jade",
+        Hue: "bright green",
+        "Hue Meaning": "vivid, saturated",
+        "Hue Suffix Meaning": "base color is green",
+        "Hue Example Hues": ["lime", "emerald", "moss"],
+        Accent: "silver veined",
+        "Accent Summary": "silver veined",
+        Effect: "velvet finish",
+        "Effect Meaning": "soft, matte, plush",
+        "Effect Suffix Meaning": "general surface appearance",
       },
       ecology: { "Soil Preference": "peat-rich bog beds", "Water Strategy": "fog siphoning" },
       adaptations: ["bioluminescent bloom tips", "rapid wound callusing"],
@@ -154,7 +169,18 @@ describe("floraGenerator", () => {
     });
 
     expect(prompt.visualDescription).toContain("Ionan Bloom");
+    expect(prompt.visualDescription).toContain("bright green");
+    expect(prompt.visualDescription).toContain("vivid, saturated");
+    expect(prompt.visualDescription).toContain("base color is green");
+    expect(prompt.visualDescription).toContain("lime, emerald, moss");
+    expect(prompt.visualDescription).toContain("silver veined");
+    expect(prompt.visualDescription).toContain("velvet finish");
     expect(prompt.imagePrompt).toContain("Iona");
+    expect(prompt.imagePrompt).toContain("bright green");
+    expect(prompt.imagePrompt).toContain("base color is green");
+    expect(prompt.imagePrompt).toContain("lime, emerald, moss");
+    expect(prompt.imagePrompt).toContain("silver veined");
+    expect(prompt.imagePrompt).toContain("velvet finish");
     expect(prompt.imageCaption).toContain("specimen");
   });
 

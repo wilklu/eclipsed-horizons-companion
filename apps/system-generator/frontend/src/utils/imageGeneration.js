@@ -33,7 +33,13 @@ export const ART_STYLE_PRESETS = [
   "Environment Study",
   "Habitat Cross-Section",
   "Book Cover",
+
+  // Life Cycle & Evolution
   "March of Progress",
+  "Life Cycle",
+  "Growth Series",
+  "Timeline Stages",
+  "Metamorphosis Chart",
 ];
 
 const MAX_PROMPT_CHARS = 1200;
@@ -86,8 +92,9 @@ const STYLE_DESCRIPTORS = {
   "Archival Scan":
     "high-resolution archival flatbed scan, specimen pressed directly on scanner glass producing crisp detail with subtle light bleed at edges, no depth-of-field, perfectly even focus across entire specimen, digital curation standard, raw-documentation aesthetic",
 
-  TextbookFigure:
+  "Textbook Figure":
     "textbook diagram figure, subject clearly delineated with subtle key-line border, color-coded regions or structures for callout reference, clean white background with figure number placeholder space in lower-right, consistent styling for multi-figure plate layout, educational publishing quality",
+
   "Landscape Vignette":
     "horizontal landscape vignette, specimen or subject integrated into natural environment at roughly 16:9 aspect ratio, soft atmospheric backdrop with subject occupying lower-center third, warm ambient environmental lighting, environmental storytelling composition suitable for chapter header or encounter backdrop, premium field guide photography style",
 
@@ -99,6 +106,18 @@ const STYLE_DESCRIPTORS = {
 
   "Book Cover":
     "book cover framing, vertical or horizontal 2:3 ratio, specimen as hero subject silhouetted against atmospheric textured background, dramatic single-source lighting, embossed-title negative space on upper or lower third, premium natural history publication cover style, high-contrast focal composition",
+
+  "Life Cycle":
+    "life cycle diagram presentation, four to six distinct developmental stages arranged in clockwise or left-to-right sequence on a clean light-gray field, consistent scale and lighting across all stages, connecting arrows or flow lines between stages indicating progression, neutral background with subtle stage-number placeholders, educational biology textbook illustration quality",
+
+  "Growth Series":
+    "growth progression series, multiple specimens arranged in order from earliest to most mature stage on a single horizontal field, consistent camera distance and lighting across all subjects, each stage clearly separated with even spacing, incremental morphological change clearly visible, natural history reference photography style",
+
+  "Timeline Stages":
+    "horizontal timeline composition, developmental stages arranged chronologically with specimen above and subtle age indicator below each, clean white background with generous margins, maturation sequence showing progressive change, consistent specimen orientation across all panels, archival scientific reference aesthetic",
+
+  "Metamorphosis Chart":
+    "metamorphosis transformation chart, distinct morphological phases arranged in a grid or circular flow, dramatic contrast between early and late stages highlighted, specimen isolated on off-white background, intermediate transition forms included, museum educational display quality",
 };
 
 function seededIntInRange(seed, min = 6, max = 10) {

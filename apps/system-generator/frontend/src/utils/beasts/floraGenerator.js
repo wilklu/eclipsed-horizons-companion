@@ -141,6 +141,146 @@ export const COLOURWAY_PALETTE = [
   "copper-tipped indigo",
   "pearl-white with crimson veining",
 ];
+
+export const COLOUR_HUE_MEANINGS = [
+  { prefix: "pale", meaning: "light, washed out" },
+  { prefix: "light", meaning: "bright, high value" },
+  { prefix: "soft", meaning: "muted, low saturation" },
+  { prefix: "bright", meaning: "vivid, saturated" },
+  { prefix: "deep", meaning: "dark, intense" },
+  { prefix: "rich", meaning: "saturated, luxurious" },
+  { prefix: "muted", meaning: "greyed, subdued" },
+  { prefix: "dusty", meaning: "grey-toned, powdery" },
+  { prefix: "pastel", meaning: "soft and light" },
+  { prefix: "vivid", meaning: "extremely saturated" },
+  { prefix: "neon", meaning: "fluorescent, electric" },
+  { prefix: "electric", meaning: "intensely bright" },
+  { prefix: "hot", meaning: "warm and intense" },
+  { prefix: "cool", meaning: "blue-toned" },
+  { prefix: "warm", meaning: "red/yellow-toned" },
+  { prefix: "dark", meaning: "low value, shadowy" },
+  { prefix: "shadowy", meaning: "very dark, near-black" },
+  { prefix: "milky", meaning: "white-toned, opaque" },
+  { prefix: "creamy", meaning: "warm-white toned" },
+  { prefix: "smoky", meaning: "grey-toned, hazy" },
+  { prefix: "bleached", meaning: "extremely light, whitened" },
+  { prefix: "washed", meaning: "faded, desaturated" },
+  { prefix: "dirty", meaning: "grey-brown toned, muddy" },
+  { prefix: "clear", meaning: "pure, transparent-bright" },
+  { prefix: "sheer", meaning: "translucent, delicate" },
+];
+
+export const COLOUR_HUE_SUFFIX_EXAMPLES = {
+  red: ["coral", "rose", "ruby"],
+  orange: ["tangerine", "apricot"],
+  yellow: ["lemon", "gold", "butter"],
+  green: ["lime", "emerald", "moss"],
+  blue: ["sky", "cobalt", "navy"],
+  purple: ["violet", "plum", "amethyst"],
+  pink: ["rose", "blush", "magenta"],
+  brown: ["tan", "taupe", "chocolate"],
+  grey: ["slate", "ash", "dove"],
+  white: ["cream", "ivory", "snow"],
+  black: ["jet", "ink", "charcoal"],
+  cyan: ["teal", "aqua", "turquoise"],
+  magenta: ["fuchsia", "hot pink"],
+  lavender: ["lilac", "wisteria"],
+  coral: ["salmon", "melon"],
+  mint: ["seafoam", "sage"],
+  peach: ["nectarine", "apricot"],
+  plum: ["damson", "aubergine"],
+  slate: ["steel", "blue-grey"],
+  olive: ["khaki", "chartreuse"],
+  burgundy: ["wine", "maroon"],
+  gold: ["honey", "amber"],
+  silver: ["pewter", "platinum"],
+  copper: ["rust", "terracotta"],
+  bronze: ["patina", "verdigris"],
+};
+
+export const COLOUR_EFFECT_PREFIX_MEANINGS = {
+  translucent: "semi-transparent, light passes through",
+  frosted: "cloudy, hazy, diffused",
+  velvet: "soft, matte, plush",
+  gloss: "shiny, reflective",
+  matte: "flat, non-reflective",
+  satin: "soft sheen, between matte and gloss",
+  metallic: "shiny like metal",
+  shimmering: "sparkling, glittering",
+  glittering: "sparkling with tiny flashes",
+  glowing: "emitting light, luminous",
+  luminous: "light-emitting, radiant",
+  pearlescent: "iridescent like pearl",
+  opalescent: "shifting colors like opal",
+  iridescent: "rainbow-shifting",
+  burnished: "polished, rubbed smooth",
+  dulled: "intentionally subdued",
+  dusty: "powdery surface",
+  waxy: "smooth, slightly greasy sheen",
+  glossy: "high-shine, mirror-like",
+  silken: "smooth, fine, soft",
+  crystalline: "clear, faceted, glass-like",
+  watery: "fluid, translucent, thin",
+  milky: "opaque white, soft",
+  smoky: "hazy, darkly translucent",
+  sheer: "very thin, barely-there color",
+};
+
+export const COLOUR_EFFECT_SUFFIX_MEANINGS = {
+  finish: "general surface appearance",
+  gloss: "shiny reflective quality",
+  glow: "light-emitting quality",
+  sheen: "soft reflective quality",
+  shimmer: "subtle sparkle",
+  sparkle: "tiny bright reflections",
+  luster: "soft, rich shine",
+  patina: "aged, developed surface",
+  bloom: "powdery or waxy coating",
+  veil: "thin, transparent overlay",
+  haze: "diffused, unclear surface",
+  glaze: "glassy, smooth coating",
+  polish: "smooth, rubbed shine",
+  texture: "surface feel, not smooth",
+  coat: "even, applied layer",
+  layer: "stacked, multi-depth",
+  wash: "thin, dilute application",
+  stain: "absorbed color effect",
+  tint: "very subtle color effect",
+  tone: "overall color cast",
+  cast: "reflected color shift",
+  flash: "brief bright reflection",
+  gleam: "narrow, bright shine",
+  opalescence: "color-shifting effect",
+  fluorescence: "light-activated glow",
+};
+
+export const COLOUR_HUE_SUFFIX_MEANINGS = {
+  red: "base color is red",
+  orange: "base color is orange",
+  yellow: "base color is yellow",
+  green: "base color is green",
+  blue: "base color is blue",
+  purple: "base color is purple",
+  pink: "base color is pink",
+  brown: "base color is brown",
+  grey: "base color is grey",
+  white: "base color is white",
+  black: "base color is black",
+  cyan: "base color is cyan",
+  magenta: "base color is magenta",
+  lavender: "base color is lavender",
+  coral: "base color is coral",
+  mint: "base color is mint",
+  peach: "base color is peach",
+  plum: "base color is plum",
+  slate: "base color is slate",
+  olive: "base color is olive",
+  burgundy: "base color is burgundy",
+  gold: "base color is gold",
+  silver: "base color is silver",
+  copper: "base color is copper",
+  bronze: "base color is bronze",
+};
 export const BLOOM_SHAPE = [
   "lantern-shaped blossoms",
   "spiral pollen cones",
@@ -1155,6 +1295,52 @@ export function generateSpecFlora({ rng = Math.random } = {}) {
   ].join("\n");
 }
 
+export function generateColourHueDescriptor({ rng = Math.random } = {}) {
+  const hue = getRandomEntry(COLOUR_HUE_MEANINGS, rng);
+  const colour = getRandomEntry(COLOUR_HUE_SUFFIX, rng);
+  const exampleHues = COLOUR_HUE_SUFFIX_EXAMPLES[colour] || [];
+  const suffixMeaning = COLOUR_HUE_SUFFIX_MEANINGS[colour] || "base color";
+
+  return {
+    huePrefix: hue.prefix,
+    hueMeaning: hue.meaning,
+    hueColour: colour,
+    hueSuffixMeaning: suffixMeaning,
+    hueDescriptor: `${hue.prefix} ${colour}`,
+    hueExampleHues: exampleHues,
+    hueExampleSummary: exampleHues.length ? exampleHues.join(", ") : "",
+    hueSummary: `${hue.meaning}; ${suffixMeaning}`,
+  };
+}
+
+export function generateColourAccentDescriptor({ rng = Math.random } = {}) {
+  const prefix = getRandomEntry(COLOUR_ACCENT_PREFIX, rng).trim();
+  const suffix = getRandomEntry(COLOUR_ACCENT_SUFFIX, rng).trim();
+
+  return {
+    accentPrefix: prefix,
+    accentSuffix: suffix,
+    accentDescriptor: `${prefix} ${suffix}`.replace(/\s+/g, " ").trim(),
+    accentSummary: `${prefix} ${suffix}`.replace(/\s+/g, " ").trim(),
+  };
+}
+
+export function generateColourEffectDescriptor({ rng = Math.random } = {}) {
+  const effectPrefix = getRandomEntry(COLOUR_EFFECT_PREFIX, rng).trim();
+  const effectSuffix = getRandomEntry(COLOUR_EFFECT_SUFFIX, rng).trim();
+  const effectPrefixMeaning = COLOUR_EFFECT_PREFIX_MEANINGS[effectPrefix] || effectPrefix;
+  const effectSuffixMeaning = COLOUR_EFFECT_SUFFIX_MEANINGS[effectSuffix] || effectSuffix;
+
+  return {
+    effectPrefix,
+    effectSuffix,
+    effectPrefixMeaning,
+    effectSuffixMeaning,
+    effectDescriptor: `${effectPrefix} ${effectSuffix}`.replace(/\s+/g, " ").trim(),
+    effectSummary: `${effectPrefixMeaning}; ${effectSuffixMeaning}`,
+  };
+}
+
 export const ALL_FLORA_TABLES = Object.freeze({
   colours: { entries: COLOURWAY_PALETTE, die: "d8" },
   blooms: { entries: BLOOM_SHAPE, die: "d8" },
@@ -1727,14 +1913,31 @@ export function buildFloraImagePrompt({
   const worldName = String(sourceWorld?.name || "an alien frontier world");
   const featureList =
     Array.isArray(adaptations) && adaptations.length ? adaptations.slice(0, 2).join(", ") : "unusual adaptive traits";
+  const hueDescriptor = String(biology?.Hue || biology?.["Hue Descriptor"] || "").trim();
+  const hueMeaning = String(biology?.["Hue Meaning"] || "").trim();
+  const hueSuffixMeaning = String(biology?.["Hue Suffix Meaning"] || "").trim();
+  const hueExamples = Array.isArray(biology?.["Hue Example Hues"]) ? biology["Hue Example Hues"] : [];
+  const accentDescriptor = String(biology?.Accent || biology?.["Accent Descriptor"] || "").trim();
+  const effectDescriptor = String(biology?.Effect || biology?.["Effect Descriptor"] || "").trim();
+  const effectMeaning = String(biology?.["Effect Meaning"] || "").trim();
+  const effectSuffixMeaning = String(biology?.["Effect Suffix Meaning"] || "").trim();
 
   const bloomShape = pick(BLOOM_SHAPES, rng);
   const surfaceTexture = pick(SURFACE_TEXTURES, rng);
   const lightingMood = pick(LIGHTING_MOODS, rng);
   const { climaticTexture, climaticAdaptation } = deriveFloraVisualCues({ biology }, rng);
+  const hueLine = hueDescriptor
+    ? `${hueDescriptor}${hueMeaning ? ` (${hueMeaning})` : ""}${hueSuffixMeaning ? `; suffix: ${hueSuffixMeaning}` : ""}${hueExamples.length ? `; examples: ${hueExamples.join(", ")}` : ""}`
+    : generateColourHueDescriptor({ rng }).hueDescriptor;
+  const accentLine = accentDescriptor
+    ? `${accentDescriptor}`
+    : generateColourAccentDescriptor({ rng }).accentDescriptor;
+  const effectLine = effectDescriptor
+    ? `${effectDescriptor}${effectMeaning ? ` (${effectMeaning})` : ""}${effectSuffixMeaning ? `; suffix: ${effectSuffixMeaning}` : ""}`
+    : generateColourEffectDescriptor({ rng }).effectDescriptor;
 
-  const visualDescription = `${name} appears as a ${climate} ${growthForm.toLowerCase()} roughly ${height} tall, with ${canopy}, ${coloration}, and ${bloomShape} supported by ${surfaceTexture}. Its ${climaticTexture} reflect ${climaticAdaptation}. Most notable traits include ${featureList}.`;
-  const imagePrompt = `Detailed botanical concept art of ${name}, an alien ${growthForm.toLowerCase()} on ${worldName}, ${height} tall, ${canopy}, ${coloration}, ${bloomShape}, ${surfaceTexture}, ${climaticTexture}, adapted for ${climate} conditions — ${climaticAdaptation}, growing from ${soil}, hints of ${featureList}, ${lightingMood}, highly detailed.`;
+  const visualDescription = `${name} appears as a ${climate} ${growthForm.toLowerCase()} roughly ${height} tall, with ${canopy}, ${coloration}, ${hueLine}, ${accentLine}, and ${effectLine}. Its ${climaticTexture} reflect ${climaticAdaptation}. Most notable traits include ${featureList}.`;
+  const imagePrompt = `Detailed botanical concept art of ${name}, an alien ${growthForm.toLowerCase()} on ${worldName}, ${height} tall, ${canopy}, ${coloration}, ${hueLine}, ${accentLine}, ${effectLine}, ${climaticTexture}, adapted for ${climate} conditions — ${climaticAdaptation}, growing from ${soil}, hints of ${featureList}, ${lightingMood}, highly detailed.`;
 
   return { visualDescription, imagePrompt, imageCaption: `${name} — ${primaryUse} specimen from ${worldName}` };
 }
@@ -1776,6 +1979,9 @@ export function generateFloraProfile(options = {}) {
   const hazardLevel = pick(hazardPool, rng);
   const primaryUse = pick(primaryUsePool, rng);
   const climateBand = describeClimateBand(resolvedClimate);
+  const hueDescriptor = generateColourHueDescriptor({ rng });
+  const accentDescriptor = generateColourAccentDescriptor({ rng });
+  const effectDescriptor = generateColourEffectDescriptor({ rng });
 
   const biology = {
     "Growth Form": resolvedGrowthForm,
@@ -1785,6 +1991,16 @@ export function generateFloraProfile(options = {}) {
       ["dense layered crown", "umbrella spread", "spiral fronds", "low clustered pads", "ribboned tendrils"],
       rng,
     ),
+    Hue: hueDescriptor.hueDescriptor,
+    "Hue Meaning": hueDescriptor.hueMeaning,
+    "Hue Colour": hueDescriptor.hueColour,
+    "Hue Suffix Meaning": hueDescriptor.hueSuffixMeaning,
+    "Hue Example Hues": hueDescriptor.hueExampleHues,
+    Accent: accentDescriptor.accentDescriptor,
+    "Accent Summary": accentDescriptor.accentSummary,
+    Effect: effectDescriptor.effectDescriptor,
+    "Effect Meaning": effectDescriptor.effectPrefixMeaning,
+    "Effect Suffix Meaning": effectDescriptor.effectSuffixMeaning,
     Coloration: pick(COLOURWAYS, rng),
     Reproduction: pick(REPRODUCTION_STRATEGIES, rng),
   };
@@ -2307,32 +2523,58 @@ const REPRO_ESTABLISH_SUFFIX = [
 
 // --- COLOURWAYS ---
 const COLOUR_HUE_PREFIX = [
-  "emerald ",
-  "violet ",
-  "amber ",
-  "scarlet ",
-  "pale blue ",
-  "bronze ",
-  "crimson ",
-  "indigo ",
-  "verdigris ",
-  "ochre ",
-  "cyan ",
-  "chartreuse ",
+  "pale ",
+  "light ",
+  "soft ",
+  "bright ",
+  "deep ",
+  "rich ",
+  "muted ",
+  "dusty ",
+  "pastel ",
+  "vivid ",
+  "neon ",
+  "electric ",
+  "hot ",
+  "cool ",
+  "warm ",
+  "dark ",
+  "shadowy ",
+  "milky ",
+  "creamy ",
+  "smoky ",
+  "bleached ",
+  "washed ",
+  "dirty ",
+  "clear ",
+  "sheer ",
 ];
 const COLOUR_HUE_SUFFIX = [
-  "and silver",
-  "and black",
-  "and jade",
-  "-veined green",
-  "fronds",
-  "waxy leaves",
-  "glow",
-  "shade",
-  "patina",
-  "tone",
-  "wash",
-  "streak",
+  "red",
+  "orange",
+  "yellow",
+  "green",
+  "blue",
+  "indigo",
+  "violet",
+  "pink",
+  "purple",
+  "gold",
+  "silver",
+  "bronze",
+  "amber",
+  "jade",
+  "crimson",
+  "black",
+  "white",
+  "ivory",
+  "cream",
+  "grey",
+  "grey-brown",
+  "beige",
+  "transparent",
+  "opal",
+  "pearl",
 ];
 
 const COLOUR_ACCENT_PREFIX = [
